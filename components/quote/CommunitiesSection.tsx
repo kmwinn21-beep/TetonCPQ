@@ -6,7 +6,7 @@
  * change them together from the bulk bar. Where there isn't room beside the
  * list, the editor opens under its row instead.
  */
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { bedsOf, newCommunity, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
@@ -21,6 +21,7 @@ import { CommunityEditor } from './CommunityEditor';
 import { BulkBar, type BulkPatch } from './BulkBar';
 import { useRailSlot } from './RailSlot';
 import { useSections } from '@/components/form/SectionsContext';
+import { BottomSheet } from '@/components/form/BottomSheet';
 
 const CHIP_CLASS: Record<Chip['tone'], string> = {
   green: 'badge-green',
@@ -65,7 +66,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   const [panel, setPanel] = useState<'edit' | 'selection'>('edit');
   const [sort, setSort] = useState<SortKey>('entered');
 
-  // Side-by-side when there's room; otherwise the editor opens under its row.
+  // Side-by-side when there's room; otherwise the editor opens in a bottom sheet.
   const bodyRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(true);
   useEffect(() => {
@@ -77,10 +78,10 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   }, []);
 
   // Where the details panel goes: the editor's right rail on wide screens, beside the list when the
-  // section has room, otherwise under the open row.
+  // section has room, otherwise a bottom sheet (phones).
   const rail = useRailSlot();
   const sectionOpen = useSections().isOpen('communities');
-  const mode: 'rail' | 'split' | 'inline' = rail.el ? 'rail' : wide ? 'split' : 'inline';
+  const mode: 'rail' | 'split' | 'sheet' = rail.el ? 'rail' : wide ? 'split' : 'sheet';
 
   const start = inputs?.schedule.startDate;
   const totalBeds = rows.reduce((s, c) => s + bedsOf(c), 0);
@@ -148,13 +149,15 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     remove(checkedIdx);
     setChecked(new Set());
   }
+  const closeSheet = useCallback(() => setOpenKey(null), []);
   function removeOne(i: number) {
     const pos = order.indexOf(i);
     // Move to the next community in the list so removing several in a row is quick.
     const nextIdx = order[pos + 1] ?? order[pos - 1];
     const nextKey = nextIdx != null ? keyAt(nextIdx) : null;
     remove(i);
-    setOpenKey(nextKey ?? null);
+    // In the phone sheet, removing closes it; elsewhere move to the next community.
+    setOpenKey(mode === 'sheet' ? null : nextKey ?? null);
   }
   function addCommunity() {
     const c = newCommunity(fields.length);
@@ -405,10 +408,9 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                 const chips = communityChips(r, deal);
                 const invalid = !communityIsValid(r);
                 const mix = bedMix(r);
-                const inlineEditor = mode === 'inline' && isOpen;
                 return (
-                  <Fragment key={key}>
                   <li
+                    key={key}
                     className={`relative flex items-center gap-3 px-4 py-2.5 border-b border-teton-off-white last:border-b-0 ${
                       isOpen ? 'bg-[#F5F8FE] shadow-[inset_3px_0_0_rgb(var(--teton-blue-rgb))]' : isChecked ? 'bg-[#F5F8FE]' : isPilot ? 'bg-teton-pale-green/50' : 'hover:bg-teton-almost-white'
                     }`}
@@ -436,13 +438,6 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                       <span className="text-teton-light-gray" aria-hidden="true">›</span>
                     </button>
                   </li>
-                  {inlineEditor && (
-                    // Not enough room beside the list: the editor opens under its community instead.
-                    <li className="px-4 py-4 bg-teton-almost-white border-b border-teton-off-white shadow-[inset_3px_0_0_rgb(var(--teton-blue-rgb))]" aria-label="Community details">
-                      {editorFor(i, () => setOpenKey(null))}
-                    </li>
-                  )}
-                  </Fragment>
                 );
               })}
             </ul>
@@ -459,6 +454,11 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
 
         {mode === 'split' && <aside className="p-4 min-w-0" aria-label="Community details"><div className="sticky top-4">{panelContent}</div></aside>}
         {railActive && rail.el && createPortal(<div aria-label="Community details" role="region">{panelContent}</div>, rail.el)}
+        {mode === 'sheet' && (
+          <BottomSheet open={openIndex >= 0 && (panel === 'edit' || checkedIdx.length === 0)} onClose={closeSheet} label="Edit community" title="Edit community">
+            {openIndex >= 0 && <div aria-label="Community details" role="region">{editorFor(openIndex)}</div>}
+          </BottomSheet>
+        )}
       </div>
       {showErrors && <p className="text-sm mt-2 rounded bg-teton-red/30 px-2 py-1">{rootError}</p>}
 
