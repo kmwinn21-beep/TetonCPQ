@@ -3,20 +3,12 @@
 import { useState } from 'react';
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { newCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { parsePaste, type ColumnMap } from '@/lib/quote/paste';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count } from '@/lib/format';
 import { Section } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import type { SectionProps } from './sections';
-
-/** Parse rows pasted from a spreadsheet: Name, Market, Units [, SNF beds] — tab- or comma-separated. */
-export function parsePastedCommunities(text: string): Array<{ name: string; market: string; beds: number; snfBeds: number }> {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.split(line.includes('\t') ? '\t' : ',').map((s) => s.trim()))
-    .filter((cols) => cols[0] && Number(cols[2]?.replace(/,/g, '')) > 0)
-    .map((cols) => ({ name: cols[0], market: cols[1] ?? '', beds: Number(cols[2].replace(/,/g, '')), snfBeds: Number(cols[3]?.replace(/,/g, '')) || 0 }));
-}
 
 export function CommunitiesSection({ inputs, result }: SectionProps) {
   const { control, register, formState } = useFormContext<QuoteDraft>();
@@ -26,6 +18,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   const withPilot = useWatch({ control, name: 'schedule.withPilot' });
   const [pasting, setPasting] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [pasteCols, setPasteCols] = useState<Partial<ColumnMap>>({});
+  const paste = parsePaste(pasteText, pasteCols);
 
   const start = inputs?.schedule.startDate;
   const totalBeds = rows.reduce((s, c) => s + (Number(c?.beds) || 0) + (Number(c?.snfBeds) || 0), 0);
@@ -49,23 +43,84 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     >
       {pasting && (
         <div className="mb-4 rounded-lg border border-teton-pale-gray bg-teton-almost-white p-3">
-          <label className="label" htmlFor="paste">Paste rows: Community name, Market, Units (and optionally SNF beds) — e.g. straight from the NIC MAP tab</label>
-          <textarea id="paste" className="input-field font-mono text-xs h-28" value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'Maple Grove\tCO\t137\nRiverside\tKS\t120'} />
-          <div className="flex items-center gap-2 mt-2">
+          <label className="label" htmlFor="paste">
+            Paste rows from Excel — with or without the header row. Name, market and unit columns are found automatically (e.g. the NIC or Assumptions tab, # column and all).
+          </label>
+          <textarea
+            id="paste"
+            className="input-field font-mono text-xs h-28"
+            value={pasteText}
+            onChange={(e) => {
+              setPasteText(e.target.value);
+              setPasteCols({});
+            }}
+            placeholder={'#\tCommunity Name\tMarket\tTotal Units\n1\tMaple Grove\tCO\t137\n2\tRiverside\tKS\t120'}
+          />
+          {pasteText.trim() && (
+            <div className="mt-3 space-y-3">
+              <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+                {(
+                  [
+                    ['name', 'Community name'],
+                    ['market', 'Market'],
+                    ['units', 'Beds / units'],
+                    ['snf', 'SNF beds'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key}>
+                    <label className="label" htmlFor={`paste-${key}`}>{label} column</label>
+                    <select
+                      id={`paste-${key}`}
+                      className="input-field py-1.5"
+                      value={paste.columns[key] ?? ''}
+                      onChange={(e) => setPasteCols((c) => ({ ...c, [key]: e.target.value === '' ? null : Number(e.target.value) }))}
+                    >
+                      <option value="">{key === 'name' || key === 'units' ? 'Not found — choose' : 'None'}</option>
+                      {paste.columnLabels.map((l, ci) => (
+                        <option key={ci} value={ci}>{`Column ${ci + 1}: ${l}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {paste.communities.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="text-xs w-full">
+                    <caption className="text-left text-teton-dark-gray pb-1">
+                      Preview: {paste.communities.length} {paste.communities.length === 1 ? 'community' : 'communities'}
+                      {paste.skipped > 0 && ` · ${paste.skipped} row${paste.skipped === 1 ? '' : 's'} skipped (no name or no units)`}
+                    </caption>
+                    <thead className="text-left text-teton-dark-gray">
+                      <tr><th className="font-medium py-1 pr-3">Community</th><th className="font-medium py-1 pr-3">Market</th><th className="font-medium py-1 pr-3 text-right">Beds</th><th className="font-medium py-1 text-right">SNF</th></tr>
+                    </thead>
+                    <tbody className="tabular-nums">
+                      {paste.communities.slice(0, 6).map((c, k) => (
+                        <tr key={k} className="border-t border-teton-off-white"><td className="py-1 pr-3">{c.name}</td><td className="py-1 pr-3">{c.market}</td><td className="py-1 pr-3 text-right">{c.beds}</td><td className="py-1 text-right">{c.snfBeds || ''}</td></tr>
+                      ))}
+                      {paste.communities.length > 6 && <tr><td colSpan={4} className="py-1 text-teton-ui-gray">…and {paste.communities.length - 6} more</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm bg-teton-pale-yellow rounded px-2 py-1">No communities found yet — pick the name and units columns above.</p>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-3">
             <button
               type="button"
               className="btn-primary"
-              disabled={parsePastedCommunities(pasteText).length === 0}
+              disabled={paste.communities.length === 0}
               onClick={() => {
-                const parsed = parsePastedCommunities(pasteText);
                 // Replace the single empty starter row rather than leaving it behind.
                 if (rows.length === 1 && !rows[0]?.name && !Number(rows[0]?.beds)) remove(0);
-                append(parsed.map((p, i) => ({ ...newCommunity(fields.length + i), ...p })));
+                append(paste.communities.map((p, k) => ({ ...newCommunity(fields.length + k), ...p })));
                 setPasteText('');
+                setPasteCols({});
                 setPasting(false);
               }}
             >
-              Add {parsePastedCommunities(pasteText).length || ''} communities
+              Add {paste.communities.length || ''} {paste.communities.length === 1 ? 'community' : 'communities'}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setPasting(false)}>Cancel</button>
           </div>
