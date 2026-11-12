@@ -43,7 +43,7 @@ export function useSections(): SectionsState {
  * Fields stay mounted while collapsed (just hidden), so they can be found.
  */
 export function revealInvalidSections(setOpen: (id: string, open: boolean) => void) {
-  const invalid = Array.from(document.querySelectorAll<HTMLElement>('[aria-invalid="true"]'));
+  const invalid = Array.from(document.querySelectorAll<HTMLElement>('[aria-invalid="true"], [data-invalid="true"]'));
   const ids = Array.from(new Set(invalid.map((el) => el.closest('section[id]')?.id).filter((x): x is string => !!x)));
   ids.forEach((id) => setOpen(id, true));
   if (ids[0]) requestAnimationFrame(() => document.getElementById(ids[0])?.scrollIntoView({ behavior: 'smooth', block: 'start' }));

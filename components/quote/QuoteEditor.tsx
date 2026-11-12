@@ -17,6 +17,7 @@ import type { QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import type { QuoteEditorData, VersionSummary } from '@/lib/data/quotes';
 import { CommunitiesSection } from './CommunitiesSection';
+import { RailSlotContext, type RailSlot } from './RailSlot';
 import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
@@ -48,6 +49,18 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
 
 function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const sections = useSections();
+  // The rail column can host the Communities editor panel (wide screens only; below xl the rail sits under the form).
+  const [railEl, setRailEl] = useState<HTMLDivElement | null>(null);
+  const [railActive, setRailActive] = useState(false);
+  const [railBeside, setRailBeside] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const on = () => setRailBeside(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const railSlot = useMemo<RailSlot>(() => ({ el: railBeside ? railEl : null, setActive: setRailActive }), [railBeside, railEl]);
   const methods = useForm<QuoteDraft>({ defaultValues: initial.draft, mode: 'onChange' });
   const { control, getValues, register, trigger, formState } = methods;
   const book = useMemo(() => priceBook(initial.products), [initial.products]);
@@ -245,7 +258,9 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               </button>
             </div>
             <CaseSetupSection />
-            <CommunitiesSection inputs={computed.inputs} result={computed.result} book={book} />
+            <RailSlotContext.Provider value={railSlot}>
+              <CommunitiesSection inputs={computed.inputs} result={computed.result} book={book} />
+            </RailSlotContext.Provider>
             <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
             <ValuationSection />
@@ -255,9 +270,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto">
-            <KpiPreview result={computed.result} error={computed.error} />
-            <GuardrailPanel g={computed.guardrails} />
-            <VersionsPanel versions={versions} quoteId={initial.quoteId} />
+            {/* The Communities editor panel renders here on wide screens, in place of the results. */}
+            <div ref={setRailEl} className={railActive && railBeside ? 'card p-4' : 'hidden'} />
+            <div className={railActive && railBeside ? 'hidden' : 'space-y-4'}>
+              <KpiPreview result={computed.result} error={computed.error} />
+              <GuardrailPanel g={computed.guardrails} />
+              <VersionsPanel versions={versions} quoteId={initial.quoteId} />
+            </div>
           </aside>
         </div>
       </form>
