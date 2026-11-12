@@ -96,7 +96,12 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   }, [initial.quoteId]);
   useEffect(() => {
     const snapshot = JSON.stringify(values);
-    if (snapshot === lastSaved.current || conflicted.current) return;
+    if (conflicted.current) return;
+    if (snapshot === lastSaved.current) {
+      // Edited and then put back before the autosave fired: nothing to save.
+      setSaveState((st) => (st === 'pending' ? 'saved' : st));
+      return;
+    }
     setSaveState('pending');
     const t = setTimeout(async () => {
       setSaveState('saving');

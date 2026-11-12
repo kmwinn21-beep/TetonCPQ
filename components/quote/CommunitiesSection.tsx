@@ -97,10 +97,10 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
           const bedError = rowErr?.alBeds?.message;
           return (
             <li key={f._key} className={`rounded-lg border px-3 py-3 ${isPilot ? 'bg-teton-pale-green border-teton-green/40' : 'border-teton-off-white'}`}>
-              {/* Row 1: name and beds by care type */}
-              <div className="grid grid-cols-4 md:grid-cols-[1.5rem_minmax(8rem,1fr)_repeat(4,4.25rem)_2rem] gap-x-2 gap-y-2 items-end">
+              {/* Row 1: community name (rest of the row) and state (5 characters wide) */}
+              <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] md:grid-cols-[1.5rem_minmax(0,1fr)_5.25rem_2rem] gap-x-2 items-end">
                 <span className="hidden md:block pb-2.5 text-teton-ui-gray tabular-nums text-sm">{i + 1}</span>
-                <div className="col-span-4 md:col-span-1 min-w-0">
+                <div className="min-w-0">
                   <label className="eyebrow" htmlFor={id('name')}>Community</label>
                   <input
                     id={id('name')}
@@ -111,6 +111,17 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                     {...register(`communities.${i}.name`, { required: 'Name required' })}
                   />
                 </div>
+                <div>
+                  <label className="eyebrow" htmlFor={id('market')}>State</label>
+                  <input id={id('market')} className="input-field px-2.5" placeholder="CO" aria-label={`Community ${i + 1} market`} {...register(`communities.${i}.market`)} />
+                </div>
+                <button type="button" className="btn-ghost text-teton-ui-gray justify-self-end mb-1 hidden md:block" onClick={() => remove(i)} aria-label={`Remove community ${i + 1}`} title="Remove">
+                  ✕
+                </button>
+              </div>
+
+              {/* Row 2: beds by care type */}
+              <div className="md:pl-8 mt-2 grid grid-cols-4 sm:grid-cols-[repeat(4,4.75rem)] gap-x-2 items-end">
                 {(
                   [
                     ['ilBeds', 'IL'],
@@ -146,20 +157,13 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                     />
                   </div>
                 ))}
-                <button type="button" className="btn-ghost text-teton-ui-gray justify-self-end mb-1 hidden md:block" onClick={() => remove(i)} aria-label={`Remove community ${i + 1}`} title="Remove">
-                  ✕
-                </button>
               </div>
               {(rowErr?.name || bedError) && (
                 <p className="text-xs mt-1 md:pl-8">{[rowErr?.name?.message, bedError].filter(Boolean).join(' · ')}</p>
               )}
 
-              {/* Row 2: state, go-live, occupancy, ROI delay, sensors */}
-              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-[4.5rem_minmax(9rem,1fr)_5rem_5rem_5rem] gap-x-2 gap-y-2 items-end">
-                <div>
-                  <label className="eyebrow" htmlFor={id('market')}>State</label>
-                  <input id={id('market')} className="input-field" placeholder="CO" aria-label={`Community ${i + 1} market`} {...register(`communities.${i}.market`)} />
-                </div>
+              {/* Row 3: go-live, occupancy, ROI delay, sensors */}
+              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-[minmax(9rem,11rem)_5rem_5rem_5rem] gap-x-2 gap-y-2 items-end">
                 <div>
                   <label className="eyebrow" htmlFor={id('golive')}>Go-live date</label>
                   <input
@@ -201,8 +205,18 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                 </div>
               </div>
 
-              {/* Row 3: coverage, e-call, pilot */}
+              {/* Row 4: pilot beds (pilot sites), coverage, e-call, pilot */}
               <div className="md:pl-8 mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+                {isPilot && (
+                  <div className="w-28">
+                    <label className="eyebrow" htmlFor={id('pilotbeds')}>Pilot beds</label>
+                    <Controller
+                      control={control}
+                      name={`communities.${i}.pilotUnits`}
+                      render={({ field }) => <NumInput id={id('pilotbeds')} value={field.value} onChange={field.onChange} nullable placeholder="All" min={1} aria-label={`Community ${i + 1} pilot units`} />}
+                    />
+                  </div>
+                )}
                 <div className="w-36">
                   <label className="eyebrow" htmlFor={id('coverage')}>Coverage</label>
                   <select id={id('coverage')} className="input-field" aria-label={`Community ${i + 1} coverage`} {...register(`communities.${i}.coverage`)}>
@@ -224,16 +238,6 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                     Pilot site
                   </label>
                 </div>
-                {isPilot && (
-                  <div className="w-28">
-                    <label className="eyebrow" htmlFor={id('pilotbeds')}>Pilot beds</label>
-                    <Controller
-                      control={control}
-                      name={`communities.${i}.pilotUnits`}
-                      render={({ field }) => <NumInput id={id('pilotbeds')} value={field.value} onChange={field.onChange} nullable placeholder="All" min={1} aria-label={`Community ${i + 1} pilot units`} />}
-                    />
-                  </div>
-                )}
                 <button type="button" className="btn-ghost text-teton-ui-gray ml-auto md:hidden" onClick={() => remove(i)} aria-label={`Remove community ${i + 1} (mobile)`}>
                   Remove
                 </button>
