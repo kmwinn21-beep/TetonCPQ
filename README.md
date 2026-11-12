@@ -18,6 +18,20 @@ npm run dev
 Tables are created on first request (`lib/db/migrations.ts`), and the price
 book is seeded from `lib/pricing/catalog.ts`.
 
+Set `JWT_SECRET` (48 random bytes, see `.env.example`). On first visit the app
+asks you to create the admin account; add the rest of the team under
+**Users**. Changing `JWT_SECRET` signs everyone out.
+
+## Sign-in
+
+Email and password (bcrypt), session in an httpOnly cookie (signed JWT, 14
+days). Middleware sends signed-out visitors to `/login`; every page and API
+also re-checks the user against the database, so deactivating someone takes
+effect on their next click. Roles: Sales rep, Deal Desk, VP Sales, CEO, Admin —
+only Admin is special today (user management); the others are recorded for the
+approval workflow. Deal owner, who saved each version and who sent each
+proposal are stored and shown.
+
 ```bash
 npm test          # engine reconciliation against the workbook + unit tests
 npm run typecheck

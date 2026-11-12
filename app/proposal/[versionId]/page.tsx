@@ -6,6 +6,7 @@ import { buildPriceLines } from '@/lib/pricing/lines';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { ProposalDocument } from '@/components/proposal/ProposalDocument';
 import { ProposalToolbar } from '@/components/proposal/ProposalToolbar';
+import { getSessionUser, requirePageUser } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,17 +25,19 @@ async function load(raw: string) {
 }
 
 export async function generateMetadata({ params }: { params: { versionId: string } }): Promise<Metadata> {
+  if (!(await getSessionUser())) return { title: 'Proposal' };
   const d = await load(params.versionId);
   return { title: d ? `Teton proposal — ${d.v.inputs.customerName} (v${d.v.versionNo})` : 'Proposal' };
 }
 
 export default async function ProposalPage({ params }: { params: { versionId: string } }) {
+  await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
   const { id, v, lines, history } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
-      <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} history={history} />
+      <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} />
       <ProposalDocument draft={v.inputs} outputs={v.outputs!} lines={lines} versionNo={v.versionNo} savedAt={v.savedAt} />
     </div>
   );

@@ -3,10 +3,12 @@ import { getDb } from '@/lib/db/client';
 import { listDeals } from '@/lib/data/quotes';
 import { count, dateLabel } from '@/lib/format';
 import { NewDealButton } from '@/components/quote/NewDealButton';
+import { requirePageUser } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DealsPage() {
+  await requirePageUser();
   const deals = await listDeals(await getDb());
   return (
     <div className="max-w-5xl mx-auto">
@@ -28,6 +30,7 @@ export default async function DealsPage() {
             <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Customer</th>
+                <th className="px-4 py-2.5 font-medium">Owner</th>
                 <th className="px-4 py-2.5 font-medium text-right">Communities</th>
                 <th className="px-4 py-2.5 font-medium text-right">Beds</th>
                 <th className="px-4 py-2.5 font-medium text-right">Saved versions</th>
@@ -42,6 +45,7 @@ export default async function DealsPage() {
                       {d.customerName}
                     </Link>
                   </td>
+                  <td className="px-4 py-3 text-teton-dark-gray">{d.ownerName ?? '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{count(d.communities)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{count(d.beds)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{d.savedVersions}</td>

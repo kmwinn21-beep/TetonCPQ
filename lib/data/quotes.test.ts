@@ -28,7 +28,7 @@ describe('deals, drafts and versions', () => {
   });
 
   it('creates a deal with a default draft and saves frozen versions', async () => {
-    const { quoteId } = await createDeal(db, 'Acme Senior Living', new Date(Date.UTC(2026, 10, 12)));
+    const { quoteId } = await createDeal(db, 'Acme Senior Living', { now: new Date(Date.UTC(2026, 10, 12)) });
     let ed = (await getQuoteEditor(db, quoteId))!;
     expect(ed.draftVersionNo).toBe(1);
     expect(ed.draft.commercial.pilotRate).toBe(75);

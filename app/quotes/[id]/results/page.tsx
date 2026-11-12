@@ -2,11 +2,13 @@ import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db/client';
 import { getQuoteEditor, getVersion } from '@/lib/data/quotes';
 import { ResultsView } from '@/components/results/ResultsView';
+import { requirePageUser } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 /** Results for the current draft, or — with ?v=<versionId> — exactly what a saved version contained. */
 export default async function ResultsPage({ params, searchParams }: { params: { id: string }; searchParams: { v?: string; compare?: string } }) {
+  await requirePageUser();
   const quoteId = Number(params.id);
   if (!Number.isInteger(quoteId) || quoteId <= 0) notFound();
   const db = await getDb();
@@ -36,7 +38,7 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
       compare={compare}
       quoteId={quoteId}
       draft={version ? version.inputs : editor.draft}
-      stored={version ? { versionNo: version.versionNo, savedAt: version.savedAt, note: version.changeNote, engineVersion: version.engineVersion, outputs: version.outputs, guardrails: version.guardrails } : null}
+      stored={version ? { versionNo: version.versionNo, savedAt: version.savedAt, note: version.changeNote, engineVersion: version.engineVersion, savedBy: version.savedByName, outputs: version.outputs, guardrails: version.guardrails } : null}
       versions={editor.versions}
       draftVersionNo={editor.draftVersionNo}
       products={editor.products}

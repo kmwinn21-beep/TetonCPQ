@@ -31,6 +31,7 @@ export interface StoredVersion {
   savedAt: string | null;
   note: string | null;
   engineVersion: string | null;
+  savedBy?: string | null;
   outputs: StoredOutputs | null;
   guardrails: GuardrailResult | null;
 }
@@ -127,7 +128,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
           <h1 className="text-2xl font-semibold mt-1">{draft.customerName}</h1>
           <p className="text-sm text-teton-ui-gray mt-1">
             {stored ? (
-              <>Version {stored.versionNo} · saved {dateLabel(stored.savedAt)}{stored.note ? ` · “${stored.note}”` : ''} · frozen</>
+              <>Version {stored.versionNo} · saved {dateLabel(stored.savedAt)}{stored.savedBy ? ` by ${stored.savedBy}` : ''}{stored.note ? ` · “${stored.note}”` : ''} · frozen</>
             ) : (
               <>Current draft (v{draftVersionNo}, not saved as a version)</>
             )}

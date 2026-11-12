@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db/client';
 import { loadPriceBook } from '@/lib/data/quotes';
 import { POLICY } from '@/lib/pricing/catalog';
 import { LADDER } from '@/lib/pricing/guardrails';
+import { requirePageUser } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,7 @@ const MODEL_LABEL: Record<string, string> = {
 };
 
 export default async function CatalogPage() {
+  await requirePageUser();
   const { products } = await loadPriceBook(await getDb());
   return (
     <div className="max-w-4xl mx-auto space-y-6">

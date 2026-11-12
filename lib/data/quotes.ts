@@ -27,6 +27,7 @@ export interface DealSummary {
   savedVersions: number;
   communities: number;
   beds: number;
+  ownerName: string | null;
 }
 
 export interface VersionSummary {
@@ -41,6 +42,8 @@ export interface VersionSummary {
   netBenefit12: number | null;
   rung: number | null;
   requiredApprover: string | null;
+  savedByName: string | null;
+  sentByName: string | null;
 }
 
 export interface QuoteEditorData {
@@ -76,7 +79,8 @@ export async function listDeals(db: Client): Promise<DealSummary[]> {
   const rs = await db.execute(`
     SELECT d.id AS deal_id, q.id AS quote_id, d.customer_name, d.status, d.updated_at,
            (SELECT COUNT(*) FROM quote_versions v WHERE v.quote_id = q.id AND v.status <> 'draft') AS saved_versions,
-           (SELECT inputs_json FROM quote_versions v WHERE v.quote_id = q.id AND v.status = 'draft') AS draft_json
+           (SELECT inputs_json FROM quote_versions v WHERE v.quote_id = q.id AND v.status = 'draft') AS draft_json,
+           (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name
     FROM deals d JOIN quotes q ON q.deal_id = d.id
     WHERE q.id = (SELECT MIN(id) FROM quotes WHERE deal_id = d.id)
     ORDER BY d.updated_at DESC, d.id DESC`);
@@ -91,23 +95,26 @@ export async function listDeals(db: Client): Promise<DealSummary[]> {
       savedVersions: Number(r.saved_versions),
       communities: draft?.communities.length ?? 0,
       beds: draft?.communities.reduce((s, c) => s + (Number(c.beds) || 0) + (Number(c.snfBeds) || 0), 0) ?? 0,
+      ownerName: r.owner_name ? String(r.owner_name) : null,
     };
   });
 }
 
-export async function createDeal(db: Client, customerName: string, now = new Date()): Promise<{ dealId: number; quoteId: number }> {
+export async function createDeal(db: Client, customerName: string, opts: { userId?: number | null; now?: Date } = {}): Promise<{ dealId: number; quoteId: number }> {
+  const userId = opts.userId ?? null;
+  const now = opts.now ?? new Date();
   const name = customerName.trim();
   if (!name) throw new Error('Customer name is required');
   const { book } = await loadPriceBook(db);
   const tx = await db.transaction('write');
   try {
-    const deal = await tx.execute({ sql: 'INSERT INTO deals (customer_name) VALUES (?) RETURNING id', args: [name] });
+    const deal = await tx.execute({ sql: 'INSERT INTO deals (customer_name, owner_id) VALUES (?, ?) RETURNING id', args: [name, userId] });
     const dealId = Number(deal.rows[0].id);
-    const quote = await tx.execute({ sql: "INSERT INTO quotes (deal_id, name) VALUES (?, 'Proposal') RETURNING id", args: [dealId] });
+    const quote = await tx.execute({ sql: "INSERT INTO quotes (deal_id, name, created_by) VALUES (?, 'Proposal', ?) RETURNING id", args: [dealId, userId] });
     const quoteId = Number(quote.rows[0].id);
     await tx.execute({
-      sql: "INSERT INTO quote_versions (quote_id, version_no, status, inputs_json) VALUES (?, 1, 'draft', ?)",
-      args: [quoteId, json(defaultDraft(name, book, now))],
+      sql: "INSERT INTO quote_versions (quote_id, version_no, status, inputs_json, created_by) VALUES (?, 1, 'draft', ?, ?)",
+      args: [quoteId, json(defaultDraft(name, book, now)), userId],
     });
     await tx.commit();
     return { dealId, quoteId };
@@ -132,6 +139,8 @@ function versionSummary(r: Row): VersionSummary {
     netBenefit12: out?.kpis.netBenefit12 ?? null,
     rung: g?.rung ?? null,
     requiredApprover: g?.requiredApprover ?? null,
+    savedByName: r.saved_by_name ? String(r.saved_by_name) : null,
+    sentByName: r.sent_by_name ? String(r.sent_by_name) : null,
   };
 }
 
@@ -139,8 +148,10 @@ export async function getQuoteEditor(db: Client, quoteId: number): Promise<Quote
   const q = await db.execute({ sql: 'SELECT id, deal_id, name FROM quotes WHERE id = ?', args: [quoteId] });
   if (!q.rows.length) return null;
   const vs = await db.execute({
-    sql: `SELECT id, version_no, status, saved_at, sent_at, change_note, engine_version, outputs_json, guardrail_json, inputs_json, updated_at
-          FROM quote_versions WHERE quote_id = ? ORDER BY version_no DESC`,
+    sql: `SELECT v.id, v.version_no, v.status, v.saved_at, v.sent_at, v.change_note, v.engine_version, v.outputs_json, v.guardrail_json, v.inputs_json, v.updated_at,
+                 (SELECT name FROM users u WHERE u.id = v.saved_by) AS saved_by_name,
+                 (SELECT name FROM users u WHERE u.id = v.sent_by) AS sent_by_name
+          FROM quote_versions v WHERE v.quote_id = ? ORDER BY v.version_no DESC`,
     args: [quoteId],
   });
   const draftRow = vs.rows.find((r) => r.status === 'draft');
@@ -197,7 +208,7 @@ export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: S
  * Freeze the current draft as a saved version (outputs computed here, on the
  * server, from the stored inputs) and open the next draft as a copy.
  */
-export async function saveVersion(db: Client, quoteId: number, changeNote: string | null): Promise<{ versionId: number; versionNo: number }> {
+export async function saveVersion(db: Client, quoteId: number, changeNote: string | null, userId: number | null = null): Promise<{ versionId: number; versionNo: number }> {
   const { book } = await loadPriceBook(db);
   const tx = await db.transaction('write');
   try {
@@ -211,8 +222,8 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
 
     await tx.execute({
       sql: `UPDATE quote_versions SET status = 'saved', engine_version = ?, outputs_json = ?, guardrail_json = ?, inputs_hash = ?,
-              change_note = ?, roi_case = ?, saved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
-      args: [ENGINE_VERSION, json(outputs), json(guardrails), createHash('sha256').update(inputsJson).digest('hex'), changeNote?.trim() || null, draft.roiCase, versionId],
+              change_note = ?, roi_case = ?, saved_by = ?, saved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+      args: [ENGINE_VERSION, json(outputs), json(guardrails), createHash('sha256').update(inputsJson).digest('hex'), changeNote?.trim() || null, draft.roiCase, userId, versionId],
     });
     for (const [i, c] of draft.communities.entries()) {
       await tx.execute({
@@ -231,13 +242,13 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     // Record what would need approval — the foundation for the approval workflow. Nothing blocks yet.
     for (const f of guardrails.findings.filter((x) => x.requiredApprover)) {
       await tx.execute({
-        sql: 'INSERT INTO approval_events (quote_version_id, rule_code, required_role, note) VALUES (?, ?, ?, ?)',
-        args: [versionId, f.code, f.requiredApprover!, f.message],
+        sql: 'INSERT INTO approval_events (quote_version_id, rule_code, required_role, note, requested_by) VALUES (?, ?, ?, ?, ?)',
+        args: [versionId, f.code, f.requiredApprover!, f.message, userId],
       });
     }
     await tx.execute({
-      sql: "INSERT INTO quote_versions (quote_id, version_no, parent_version_id, status, roi_case, inputs_json) VALUES (?, ?, ?, 'draft', ?, ?)",
-      args: [quoteId, versionNo + 1, versionId, draft.roiCase, inputsJson],
+      sql: "INSERT INTO quote_versions (quote_id, version_no, parent_version_id, status, roi_case, inputs_json, created_by) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+      args: [quoteId, versionNo + 1, versionId, draft.roiCase, inputsJson, userId],
     });
     await tx.execute({ sql: "UPDATE deals SET updated_at = datetime('now') WHERE id = (SELECT deal_id FROM quotes WHERE id = ?)", args: [quoteId] });
     await tx.commit();
@@ -250,7 +261,11 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
 
 /** A frozen version's stored inputs and outputs — exactly what was saved. */
 export async function getVersion(db: Client, versionId: number) {
-  const rs = await db.execute({ sql: 'SELECT * FROM quote_versions WHERE id = ?', args: [versionId] });
+  const rs = await db.execute({
+    sql: `SELECT v.*, (SELECT name FROM users u WHERE u.id = v.saved_by) AS saved_by_name, (SELECT name FROM users u WHERE u.id = v.sent_by) AS sent_by_name
+          FROM quote_versions v WHERE v.id = ?`,
+    args: [versionId],
+  });
   if (!rs.rows.length) return null;
   const r = rs.rows[0];
   return {
@@ -287,13 +302,14 @@ export interface ProposalExport {
   id: number;
   createdAt: string;
   templateVersion: string;
+  createdByName: string | null;
 }
 
 /**
  * Record that a version's proposal was sent: the version moves to 'sent' (its
  * inputs and outputs stay frozen) and the exact HTML that was viewed is kept.
  */
-export async function markSent(db: Client, versionId: number, sentTo: string, html: string): Promise<{ exportId: number }> {
+export async function markSent(db: Client, versionId: number, sentTo: string, html: string, userId: number | null = null): Promise<{ exportId: number }> {
   if (!sentTo.trim()) throw new Error('Say who it was sent to');
   if (!html || html.length < 100) throw new Error('Missing proposal snapshot');
   const tx = await db.transaction('write');
@@ -301,10 +317,10 @@ export async function markSent(db: Client, versionId: number, sentTo: string, ht
     const v = await tx.execute({ sql: 'SELECT status FROM quote_versions WHERE id = ?', args: [versionId] });
     if (!v.rows.length) throw new Error('Version not found');
     if (v.rows[0].status === 'draft') throw new Error('Save the draft as a version before sending it');
-    await tx.execute({ sql: "UPDATE quote_versions SET status = 'sent', sent_at = datetime('now'), sent_to = ? WHERE id = ?", args: [sentTo.trim(), versionId] });
+    await tx.execute({ sql: "UPDATE quote_versions SET status = 'sent', sent_at = datetime('now'), sent_to = ?, sent_by = ? WHERE id = ?", args: [sentTo.trim(), userId, versionId] });
     const ex = await tx.execute({
-      sql: 'INSERT INTO proposal_exports (quote_version_id, html_snapshot, template_version) VALUES (?, ?, ?) RETURNING id',
-      args: [versionId, html, PROPOSAL_TEMPLATE_VERSION],
+      sql: 'INSERT INTO proposal_exports (quote_version_id, html_snapshot, template_version, created_by) VALUES (?, ?, ?, ?) RETURNING id',
+      args: [versionId, html, PROPOSAL_TEMPLATE_VERSION, userId],
     });
     await tx.commit();
     return { exportId: Number(ex.rows[0].id) };
@@ -315,8 +331,11 @@ export async function markSent(db: Client, versionId: number, sentTo: string, ht
 }
 
 export async function listExports(db: Client, versionId: number): Promise<ProposalExport[]> {
-  const rs = await db.execute({ sql: 'SELECT id, created_at, template_version FROM proposal_exports WHERE quote_version_id = ? ORDER BY id DESC', args: [versionId] });
-  return rs.rows.map((r) => ({ id: Number(r.id), createdAt: String(r.created_at), templateVersion: String(r.template_version) }));
+  const rs = await db.execute({
+    sql: 'SELECT e.id, e.created_at, e.template_version, (SELECT name FROM users u WHERE u.id = e.created_by) AS by_name FROM proposal_exports e WHERE e.quote_version_id = ? ORDER BY e.id DESC',
+    args: [versionId],
+  });
+  return rs.rows.map((r) => ({ id: Number(r.id), createdAt: String(r.created_at), templateVersion: String(r.template_version), createdByName: r.by_name ? String(r.by_name) : null }));
 }
 
 export async function getExportHtml(db: Client, exportId: number): Promise<string | null> {

@@ -13,6 +13,7 @@ import { dateLabel } from '@/lib/format';
 export interface SentRecord {
   id: number;
   createdAt: string;
+  createdByName: string | null;
 }
 
 /** A self-contained copy of the proposal: its HTML plus the page's CSS inlined. */
@@ -31,7 +32,7 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
-export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, history }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; history: SentRecord[] }) {
+export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [to, setTo] = useState('');
@@ -59,7 +60,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
         <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="text-sm text-sidebar-font/80 hover:text-sidebar-font">← Results</Link>
         <span className="text-sm text-sidebar-font/70">
           Proposal v{versionNo}
-          {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}` : ' · not sent yet'}
+          {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {open ? (
@@ -84,7 +85,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             {history.map((h, i) => (
               <span key={h.id}>
                 {i > 0 && ' · '}
-                <a className="underline hover:text-sidebar-font" href={`/api/exports/${h.id}`} target="_blank" rel="noreferrer">{dateLabel(h.createdAt)}</a>
+                <a className="underline hover:text-sidebar-font" href={`/api/exports/${h.id}`} target="_blank" rel="noreferrer">{dateLabel(h.createdAt)}{h.createdByName ? ` (${h.createdByName})` : ''}</a>
               </span>
             ))}
           </p>

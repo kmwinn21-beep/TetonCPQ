@@ -148,4 +148,13 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_communities_version ON communities(quote_version_id)`,
     ],
   },
+  {
+    id: 2,
+    name: 'who saved and sent each version',
+    sql: [
+      `ALTER TABLE quote_versions ADD COLUMN saved_by INTEGER REFERENCES users(id)`,
+      `ALTER TABLE quote_versions ADD COLUMN sent_by INTEGER REFERENCES users(id)`,
+      `CREATE INDEX idx_deals_owner ON deals(owner_id)`,
+    ],
+  },
 ];

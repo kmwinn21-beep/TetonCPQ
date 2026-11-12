@@ -5,20 +5,24 @@
  * the sidebar on desktop and a main column that scrolls on its own.
  */
 import { usePathname } from 'next/navigation';
-import { Sidebar } from './Sidebar';
+import { Sidebar, type ShellUser } from './Sidebar';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
-  // The proposal is a client-facing document: no app chrome, normal page scrolling, prints cleanly.
-  if (usePathname().startsWith('/proposal')) return <>{children}</>;
+const BARE = ['/proposal', '/login', '/setup'];
+
+export function AppShell({ children, user }: { children: React.ReactNode; user: ShellUser | null }) {
+  // The proposal is a client-facing document, and sign-in pages stand alone: no app chrome.
+  const pathname = usePathname();
+  if (!user || BARE.some((p) => pathname.startsWith(p))) return <>{children}</>;
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden">
       <div className="hidden lg:flex">
-        <Sidebar />
+        <Sidebar user={user} />
       </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-brand-primary text-sidebar-font">
           <TetonMark />
           <span className="font-semibold">Proposal Generator</span>
+          <a href="/account" className="ml-auto text-sm text-sidebar-font/80">{user.name}</a>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
