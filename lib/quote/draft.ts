@@ -50,7 +50,12 @@ export interface Commercial {
   specialTermMonths: number;
   fullFacilityMultiplier: number;
   sensorPrice: number;
+  /** Annual rate used to discount the service-term subscription into an upfront capex price. */
+  capexDiscountRate: number;
 }
+
+/** How the investment is presented to the customer. */
+export type Presentation = 'opex' | 'capex' | 'both';
 
 export interface QuoteDraft {
   customerName: string;
@@ -80,6 +85,7 @@ export interface QuoteDraft {
     onboardingDays: number;
   };
   commercial: Commercial;
+  presentation: Presentation;
   communities: DraftCommunity[];
 }
 
@@ -130,7 +136,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       pilotRate: POLICY.standardPilotRate,
       ecall: 'ble',
       ecallRate: book[SKU.ecallBle]?.list ?? 10,
-      ecallPilotRate: book[SKU.ecallBle]?.list ?? 10,
+      ecallPilotRate: 0, // E-Call is free during the pilot
       installRate: book[SKU.install]?.list ?? 400,
       installCreditPct: 0,
       installClawback: false,
@@ -138,7 +144,21 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
+      capexDiscountRate: 0.04,
     },
+    presentation: 'opex',
     communities: [{ ...newCommunity(0), pilot: true }],
+  };
+}
+
+/**
+ * Fill fields added after a draft was saved, so older drafts and versions
+ * still load. Only adds what's missing; never changes a value that's there.
+ */
+export function normalizeDraft(d: QuoteDraft): QuoteDraft {
+  return {
+    ...d,
+    presentation: d.presentation ?? 'opex',
+    commercial: { ...d.commercial, capexDiscountRate: d.commercial.capexDiscountRate ?? 0.04 },
   };
 }

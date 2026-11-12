@@ -11,10 +11,10 @@
  */
 import { createHash } from 'node:crypto';
 import type { Client, Row } from '@libsql/client';
-import { runModel, ENGINE_VERSION, type ModelResult } from '@/lib/model';
+import { computeCapex, runModel, ENGINE_VERSION, type CapexResult, type ModelResult } from '@/lib/model';
 import { priceBook, SKU, type PriceBook, type Product, type PricingModel } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
-import { defaultDraft, type QuoteDraft } from '@/lib/quote/draft';
+import { defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 
 export interface DealSummary {
@@ -55,7 +55,7 @@ export interface QuoteEditorData {
 }
 
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
-export type StoredOutputs = Omit<ModelResult, 'traces'>;
+export type StoredOutputs = Omit<ModelResult, 'traces'> & { capex?: Omit<CapexResult, 'trace'> };
 
 const json = (v: unknown) => JSON.stringify(v);
 
@@ -151,7 +151,7 @@ export async function getQuoteEditor(db: Client, quoteId: number): Promise<Quote
     quoteName: String(q.rows[0].name),
     draftVersionId: Number(draftRow.id),
     draftVersionNo: Number(draftRow.version_no),
-    draft: JSON.parse(String(draftRow.inputs_json)),
+    draft: normalizeDraft(JSON.parse(String(draftRow.inputs_json))),
     draftUpdatedAt: String(draftRow.updated_at),
     versions: vs.rows.filter((r) => r.status !== 'draft').map(versionSummary),
     products,
@@ -181,7 +181,10 @@ export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft):
 }
 
 export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: StoredOutputs; guardrails: GuardrailResult } {
-  const { traces: _traces, ...outputs } = runModel(toModelInputs(draft));
+  const inputs = toModelInputs(draft);
+  const { traces: _traces, ...model } = runModel(inputs);
+  const { trace: _capexTrace, ...capex } = computeCapex(inputs, draft.commercial.capexDiscountRate);
+  const outputs: StoredOutputs = { ...model, capex };
   const guardrails = evaluateGuardrails(draft, book[SKU.platform]?.list ?? 99, {
     ble: book[SKU.ecallBle]?.list ?? 10,
     inovonics: book[SKU.ecallInovonics]?.list ?? 15,
@@ -202,7 +205,7 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     const versionId = Number(d.rows[0].id);
     const versionNo = Number(d.rows[0].version_no);
     const inputsJson = String(d.rows[0].inputs_json);
-    const draft = JSON.parse(inputsJson) as QuoteDraft;
+    const draft = normalizeDraft(JSON.parse(inputsJson) as QuoteDraft);
     const { outputs, guardrails } = computeOutputs(draft, book);
 
     await tx.execute({
@@ -245,7 +248,7 @@ export async function getVersion(db: Client, versionId: number) {
   return {
     ...versionSummary(r),
     quoteId: Number(r.quote_id),
-    inputs: JSON.parse(String(r.inputs_json)) as QuoteDraft,
+    inputs: normalizeDraft(JSON.parse(String(r.inputs_json)) as QuoteDraft),
     outputs: r.outputs_json ? (JSON.parse(String(r.outputs_json)) as StoredOutputs) : null,
     guardrails: r.guardrail_json ? (JSON.parse(String(r.guardrail_json)) as GuardrailResult) : null,
   };

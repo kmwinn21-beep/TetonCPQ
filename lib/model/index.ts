@@ -13,7 +13,7 @@ import type { ModelInputs, RoiCase, VendorCostAssumptions } from './types';
 import { vendorView, type VendorView } from './vendor';
 
 /** Bump whenever a change could alter any output. Stored on every quote version. */
-export const ENGINE_VERSION = '1.1.0';
+export const ENGINE_VERSION = '1.2.0';
 
 export interface ModelResult {
   engineVersion: string;
@@ -50,4 +50,5 @@ export function runVendorView(inputs: ModelInputs, costs?: VendorCostAssumptions
 export * from './types';
 export * from './defaults';
 export type { Trace } from './trace';
+export { computeCapex, type CapexResult } from './capex';
 export { findTrace } from './trace';

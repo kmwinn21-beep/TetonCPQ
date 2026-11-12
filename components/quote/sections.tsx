@@ -104,7 +104,7 @@ export function PricingSection({ book }: SectionProps) {
                       field.onChange(v);
                       // Re-price at the new product's list price.
                       setValue('commercial.ecallRate', ecallList(v), { shouldDirty: true });
-                      setValue('commercial.ecallPilotRate', ecallList(v), { shouldDirty: true });
+                      setValue('commercial.ecallPilotRate', 0, { shouldDirty: true }); // free during the pilot
                     }}
                   >
                     <option value="none">None</option>
@@ -116,9 +116,27 @@ export function PricingSection({ book }: SectionProps) {
               )}
             />
             <MoneyField name="commercial.ecallRate" label="E-Call per bed / month" disabled={k.ecall === 'none'} min={0} />
-            <MoneyField name="commercial.ecallPilotRate" label="E-Call during pilot" disabled={k.ecall === 'none' || !d.schedule?.withPilot} min={0} />
+            <MoneyField name="commercial.ecallPilotRate" label="E-Call during pilot" hint="Standard: free" disabled={k.ecall === 'none' || !d.schedule?.withPilot} min={0} />
             <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Common areas & hallways; usually 1.2–1.4×. Applies to subscription and install." min={1} />
           </Grid>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold mb-3">How the investment is presented</h3>
+          <div className="flex flex-wrap items-end gap-4">
+            <SegmentedField
+              name="presentation"
+              label="Proposal shows"
+              options={[
+                { value: 'opex', label: 'Subscription (opex)' },
+                { value: 'capex', label: 'Upfront (capex)' },
+                { value: 'both', label: 'Both' },
+              ]}
+            />
+            <div className="w-48">
+              <PercentField name="commercial.capexDiscountRate" label="Capex discount rate" hint="Annual; prices the term upfront" min={0} />
+            </div>
+          </div>
         </div>
 
         <div>

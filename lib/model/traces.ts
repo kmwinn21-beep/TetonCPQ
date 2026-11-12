@@ -221,5 +221,19 @@ export function buildTraces(inputs: ModelInputs, annual: AnnualCaseResult, cf: C
   const occTotal = derived('cf.occupiedTotal', 'Occupied units (all communities)', kpis.totalOccupiedUnits, 'count', 'Sum of ROUND(Units × Occupancy) per community', inputs.communities.map((_, i) => occTrace(i)));
   traces['kpi.netBenefitPerOccupiedUnitMonth'] = derived('kpi.netBenefitPerOccupiedUnitMonth', 'Net Benefit per Unit per Month (occupied)', kpis.netBenefitPerOccupiedUnitMonth, 'usd_per_month', 'Final month’s net benefit ÷ Occupied units', [finalNet, occTotal], '12 Mo Cash Flow!S12');
   traces['kpi.netBenefitPerUnitMonth'] = derived('kpi.netBenefitPerUnitMonth', 'Net Benefit per Unit per Month (all units)', kpis.netBenefitPerUnitMonth, 'usd_per_month', 'Final month’s net benefit ÷ Total portfolio units', [finalNet, a('in.portfolioUnits', 'Total portfolio units', inputs.cfo.portfolioUnits, 'count', 'Assumptions!C41')], '12 Mo Cash Flow!S13');
+  // ---- steady-state comparison figures (selected case) ----
+  const t = annual.totals;
+  const roi = traces['annual.annualRoi'];
+  const annualSub = derived('annual.recurringCost', 'Annual subscription, every unit post-pilot', t.annualRecurringCost, 'usd', 'Σ units × post-pilot rate × 12', []);
+  const basis = derived('annual.totalCostBasis', 'Total cost basis', t.totalCostBasis, 'usd', 'Install for every unit + one year of post-pilot subscription', [annualSub], 'BREAKEVEN TABLE!C9');
+  traces['annual.returnOnCost'] = derived('annual.returnOnCost', 'Return on cost', t.returnOnCost, 'multiple', 'Annual ROI ÷ Total cost basis', [roi, basis], 'Teton ROI row 82');
+  traces['annual.breakevenMonths'] = derived('annual.breakevenMonths', 'Breakeven', t.breakevenMonths, 'months', 'Total cost basis ÷ (Annual ROI ÷ 12)', [basis, roi], 'BREAKEVEN TABLE col H');
+  traces['annual.netRevpor'] = derived('annual.netRevpor', 'Net RevPOR (annual)', t.netRevpor, 'usd', '(Annual ROI − Annual subscription) ÷ Occupied units', [roi, annualSub, occTotal], 'Teton ROI row 84');
+  const margin = a('in.operatingMargin', 'Operating margin', inputs.valuation.operatingMargin, 'percent', 'Assumptions!G9');
+  traces['annual.annualNetNoiImpact'] = derived('annual.annualNetNoiImpact', 'Annual net NOI impact', t.annualNetNoiImpact, 'usd',
+    '(Recaptured care revenue + Rev from LOS increase + Move-in impact) × Operating margin + Fall cost avoidance + Night shift savings − Annual subscription',
+    [traces['annual.recapturedCareRevenue'], traces['annual.revenueFromLosIncrease'], traces['annual.moveInImpact'], margin, traces['annual.fallCostAvoidance'], traces['annual.nightShiftSavings'], annualSub], 'Teton ROI row 85');
+  traces['annual.valuationImpact'] = derived('annual.valuationImpact', 'Valuation impact', t.valuationImpact, 'usd', 'Annual net NOI impact ÷ Cap rate',
+    [traces['annual.annualNetNoiImpact'], a('in.capRate', 'Cap rate', inputs.valuation.capRate, 'percent', 'Assumptions!E9')], 'Teton ROI row 86');
   return traces;
 }

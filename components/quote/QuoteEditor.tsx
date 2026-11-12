@@ -7,6 +7,7 @@
  * recomputes outputs from the stored inputs when it freezes.
  */
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { runModel, type ModelInputs, type ModelResult } from '@/lib/model';
@@ -127,6 +128,23 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
     }
   }
 
+  // Flush any unsaved edits before leaving, so results show exactly what's on screen.
+  const router = useRouter();
+  async function viewResults() {
+    const snapshot = JSON.stringify(getValues());
+    if (snapshot !== lastSaved.current) {
+      setSaveState('saving');
+      const res = await fetch(`/api/quotes/${initial.quoteId}/draft`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ draft: JSON.parse(snapshot) }) });
+      if (!res.ok) {
+        setSaveState('error');
+        return;
+      }
+      lastSaved.current = snapshot;
+      setSaveState('saved');
+    }
+    router.push(`/quotes/${initial.quoteId}/results`);
+  }
+
   const statusText: Record<SaveState, string> = { saved: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…', error: 'Couldn’t save — retrying on next change' };
 
   return (
@@ -145,6 +163,7 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
             </p>
           </div>
           <div className="flex items-start gap-2">
+            <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
             {noteOpen ? (
               <div className="flex flex-wrap items-start gap-2">
                 <input autoFocus className="input-field w-72" placeholder="What changed? (e.g. Sent to CFO, 50% install credit)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Version note" />

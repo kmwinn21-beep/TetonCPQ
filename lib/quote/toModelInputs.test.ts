@@ -24,7 +24,7 @@ describe('toModelInputs', () => {
   it('per-community rates: platform × coverage + e-call', () => {
     const m = toModelInputs(draft());
     const [pilot, full, noEcall] = m.communities.map((c) => c.rates!);
-    expect(pilot).toMatchObject({ pilotFeePerBedMonth: 85, postPilotFeePerBedMonth: 109, pilotInstallPerBed: 400, postPilotInstallPerBed: 400 });
+    expect(pilot).toMatchObject({ pilotFeePerBedMonth: 75, postPilotFeePerBedMonth: 109, pilotInstallPerBed: 400, postPilotInstallPerBed: 400 });
     expect(full.postPilotFeePerBedMonth).toBeCloseTo(99 * 1.3 + 10, 10);
     expect(full.postPilotInstallPerBed).toBeCloseTo(520, 10);
     expect(noEcall.postPilotFeePerBedMonth).toBe(99);
@@ -49,9 +49,9 @@ describe('toModelInputs', () => {
     d.customizeCaseMetrics = false;
     expect(toModelInputs(d).caseMetrics.stretch.staffingAlignment).toBeCloseTo(0.1, 12);
   });
-  it('runs end to end: $85 pilot ($75 + $10 e-call) for 3 months, then $109', () => {
+  it('runs end to end: $75 pilot (e-call free) for 3 months, then $109 ($99 + $10 e-call)', () => {
     const r = runModel(toModelInputs(draft()));
-    expect(r.cashFlow.communities[0].fees.slice(0, 4)).toEqual([8500, 8500, 8500, 10900]);
+    expect(r.cashFlow.communities[0].fees.slice(0, 4)).toEqual([7500, 7500, 7500, 10900]);
     expect(r.cashFlow.communities[2].fees[3]).toBe(4950);
     expect(r.cashFlow.months).toHaveLength(36);
   });
