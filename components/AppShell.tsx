@@ -4,9 +4,12 @@
  * Layout frame, same shape as Parlay's AppShell: a full-height flex row with
  * the sidebar on desktop and a main column that scrolls on its own.
  */
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  // The proposal is a client-facing document: no app chrome, normal page scrolling, prints cleanly.
+  if (usePathname().startsWith('/proposal')) return <>{children}</>;
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden">
       <div className="hidden lg:flex">

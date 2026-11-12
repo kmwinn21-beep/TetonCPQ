@@ -30,3 +30,9 @@ export function dateLabel(s: string | null | undefined): string {
   const iso = s.length <= 10 ? `${s}T00:00:00Z` : `${s.replace(' ', 'T')}${/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z'}`;
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
+
+/** "Mar 2027" for model month m (1-based) counted from a first-of-month start date. */
+export function monthName(startDate: string, m: number): string {
+  const [y, mo] = startDate.split('-').map(Number);
+  return new Date(Date.UTC(y, mo - 1 + (m - 1), 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}

@@ -14,6 +14,7 @@ import type { Client, Row } from '@libsql/client';
 import { computeCapex, runModel, ENGINE_VERSION, type CapexResult, type ModelResult } from '@/lib/model';
 import { priceBook, SKU, type PriceBook, type Product, type PricingModel } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
+import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';
 import { defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 
@@ -180,7 +181,7 @@ export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft):
   return { updatedAt: String(rs.rows[0].updated_at) };
 }
 
-export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: StoredOutputs; guardrails: GuardrailResult } {
+export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: StoredOutputs; guardrails: GuardrailResult; lines: PriceLine[] } {
   const inputs = toModelInputs(draft);
   const { traces: _traces, ...model } = runModel(inputs);
   const { trace: _capexTrace, ...capex } = computeCapex(inputs, draft.commercial.capexDiscountRate);
@@ -189,7 +190,7 @@ export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: S
     ble: book[SKU.ecallBle]?.list ?? 10,
     inovonics: book[SKU.ecallInovonics]?.list ?? 15,
   });
-  return { outputs, guardrails };
+  return { outputs, guardrails, lines: buildPriceLines(draft, inputs, book) };
 }
 
 /**
@@ -206,7 +207,7 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     const versionNo = Number(d.rows[0].version_no);
     const inputsJson = String(d.rows[0].inputs_json);
     const draft = normalizeDraft(JSON.parse(inputsJson) as QuoteDraft);
-    const { outputs, guardrails } = computeOutputs(draft, book);
+    const { outputs, guardrails, lines } = computeOutputs(draft, book);
 
     await tx.execute({
       sql: `UPDATE quote_versions SET status = 'saved', engine_version = ?, outputs_json = ?, guardrail_json = ?, inputs_hash = ?,
@@ -218,6 +219,13 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
         sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [versionId, i, c.name, c.market, c.beds, c.snfBeds, c.coverage, c.ecall ? 1 : 0, c.pilot ? 1 : 0, c.pilotUnits, c.occupancy, c.goLiveMonth, c.roiDelayMonths, c.additionalSensors],
+      });
+    }
+    for (const l of lines) {
+      await tx.execute({
+        sql: `INSERT INTO quote_version_lines (quote_version_id, community_position, sku, description, qty, unit_list, unit_net, billing, start_month, term_months, concession_code)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [versionId, l.communityPosition, l.sku, l.description, l.qty, l.unitList, l.unitNet, l.billing, l.startMonth, l.termMonths, l.concessionCode],
       });
     }
     // Record what would need approval — the foundation for the approval workflow. Nothing blocks yet.
@@ -251,5 +259,67 @@ export async function getVersion(db: Client, versionId: number) {
     inputs: normalizeDraft(JSON.parse(String(r.inputs_json)) as QuoteDraft),
     outputs: r.outputs_json ? (JSON.parse(String(r.outputs_json)) as StoredOutputs) : null,
     guardrails: r.guardrail_json ? (JSON.parse(String(r.guardrail_json)) as GuardrailResult) : null,
+    sentTo: r.sent_to ? String(r.sent_to) : null,
   };
+}
+
+/** The price lines stored when a version was saved, with community names from the version's inputs. */
+export async function getVersionLines(db: Client, versionId: number, communityNames: string[]): Promise<PriceLine[]> {
+  const rs = await db.execute({ sql: 'SELECT * FROM quote_version_lines WHERE quote_version_id = ? ORDER BY id', args: [versionId] });
+  return rs.rows.map((r) => ({
+    communityPosition: Number(r.community_position),
+    communityName: communityNames[Number(r.community_position)] ?? '',
+    sku: String(r.sku),
+    description: String(r.description ?? ''),
+    qty: Number(r.qty),
+    unitList: Number(r.unit_list),
+    unitNet: Number(r.unit_net),
+    billing: String(r.billing) as PriceLine['billing'],
+    startMonth: Number(r.start_month),
+    termMonths: r.term_months == null ? null : Number(r.term_months),
+    concessionCode: r.concession_code ? String(r.concession_code) : null,
+  }));
+}
+
+export const PROPOSAL_TEMPLATE_VERSION = '1';
+
+export interface ProposalExport {
+  id: number;
+  createdAt: string;
+  templateVersion: string;
+}
+
+/**
+ * Record that a version's proposal was sent: the version moves to 'sent' (its
+ * inputs and outputs stay frozen) and the exact HTML that was viewed is kept.
+ */
+export async function markSent(db: Client, versionId: number, sentTo: string, html: string): Promise<{ exportId: number }> {
+  if (!sentTo.trim()) throw new Error('Say who it was sent to');
+  if (!html || html.length < 100) throw new Error('Missing proposal snapshot');
+  const tx = await db.transaction('write');
+  try {
+    const v = await tx.execute({ sql: 'SELECT status FROM quote_versions WHERE id = ?', args: [versionId] });
+    if (!v.rows.length) throw new Error('Version not found');
+    if (v.rows[0].status === 'draft') throw new Error('Save the draft as a version before sending it');
+    await tx.execute({ sql: "UPDATE quote_versions SET status = 'sent', sent_at = datetime('now'), sent_to = ? WHERE id = ?", args: [sentTo.trim(), versionId] });
+    const ex = await tx.execute({
+      sql: 'INSERT INTO proposal_exports (quote_version_id, html_snapshot, template_version) VALUES (?, ?, ?) RETURNING id',
+      args: [versionId, html, PROPOSAL_TEMPLATE_VERSION],
+    });
+    await tx.commit();
+    return { exportId: Number(ex.rows[0].id) };
+  } catch (e) {
+    await tx.rollback();
+    throw e;
+  }
+}
+
+export async function listExports(db: Client, versionId: number): Promise<ProposalExport[]> {
+  const rs = await db.execute({ sql: 'SELECT id, created_at, template_version FROM proposal_exports WHERE quote_version_id = ? ORDER BY id DESC', args: [versionId] });
+  return rs.rows.map((r) => ({ id: Number(r.id), createdAt: String(r.created_at), templateVersion: String(r.template_version) }));
+}
+
+export async function getExportHtml(db: Client, exportId: number): Promise<string | null> {
+  const rs = await db.execute({ sql: 'SELECT html_snapshot FROM proposal_exports WHERE id = ?', args: [exportId] });
+  return rs.rows.length ? String(rs.rows[0].html_snapshot) : null;
 }

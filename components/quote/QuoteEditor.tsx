@@ -205,7 +205,7 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
           <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto">
             <KpiPreview result={computed.result} error={computed.error} />
             <GuardrailPanel g={computed.guardrails} />
-            <VersionsPanel versions={versions} />
+            <VersionsPanel versions={versions} quoteId={initial.quoteId} />
           </aside>
         </div>
       </form>

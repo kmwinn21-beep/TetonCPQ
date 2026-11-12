@@ -20,6 +20,7 @@ import type { StoredOutputs, VersionSummary } from '@/lib/data/quotes';
 import { count, dateLabel, multiple, pct, usd } from '@/lib/format';
 import { CumulativeChart, MonthlyBenefitCostChart, type MonthPoint } from './Charts';
 import { TraceDrawer } from './TraceDrawer';
+import { VersionCompare, type CompareTarget } from './VersionCompare';
 
 const CASES: RoiCase[] = ['stretch', 'target', 'base', 'underperforming'];
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
@@ -35,6 +36,8 @@ export interface StoredVersion {
 }
 
 interface Props {
+  versionId: number | null;
+  compare: CompareTarget | null;
   quoteId: number;
   draft: QuoteDraft;
   stored: StoredVersion | null;
@@ -43,7 +46,7 @@ interface Props {
   products: Product[];
 }
 
-export function ResultsView({ quoteId, draft, stored, versions, draftVersionNo, products }: Props) {
+export function ResultsView({ versionId, compare, quoteId, draft, stored, versions, draftVersionNo, products }: Props) {
   const router = useRouter();
   const book = useMemo(() => priceBook(products), [products]);
   const [open, setOpen] = useState<Trace | null>(null);
@@ -132,7 +135,15 @@ export function ResultsView({ quoteId, draft, stored, versions, draftVersionNo, 
             {guardrails.findings.length > 0 && ` · ${guardrails.findings.length} pricing ${guardrails.findings.length === 1 ? 'note' : 'notes'}`}
           </p>
         </div>
-        <div>
+        <div className="flex flex-wrap items-end gap-3">
+          {versionId ? (
+            <Link href={`/proposal/${versionId}`} className="btn-primary">Proposal</Link>
+          ) : versions.length ? (
+            <Link href={`/proposal/${versions[0].id}`} className="btn-secondary" title="Proposals are made from saved versions">Proposal (v{versions[0].versionNo})</Link>
+          ) : (
+            <span className="text-xs text-teton-ui-gray max-w-[12rem]">Save a version to create a proposal.</span>
+          )}
+          <div>
           <label htmlFor="version" className="label">Showing</label>
           <select
             id="version"
@@ -147,6 +158,7 @@ export function ResultsView({ quoteId, draft, stored, versions, draftVersionNo, 
               </option>
             ))}
           </select>
+          </div>
         </div>
       </header>
 
@@ -170,6 +182,14 @@ export function ResultsView({ quoteId, draft, stored, versions, draftVersionNo, 
           ))}
         </div>
       </section>
+
+      <VersionCompare
+        currentLabel={stored ? `v${stored.versionNo}` : 'current draft'}
+        current={{ inputs: draft, outputs: { ...out, capex } }}
+        compare={compare}
+        options={versions.filter((v) => v.id !== versionId)}
+        onPick={(id) => router.push(`/quotes/${quoteId}/results?${versionId ? `v=${versionId}&` : ''}compare=${id}`)}
+      />
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="card">

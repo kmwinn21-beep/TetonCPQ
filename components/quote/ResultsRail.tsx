@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ModelResult } from '@/lib/model';
 import { LADDER, type GuardrailResult, type Severity } from '@/lib/pricing/guardrails';
 import type { VersionSummary } from '@/lib/data/quotes';
@@ -82,7 +83,7 @@ export function GuardrailPanel({ g }: { g: GuardrailResult | null }) {
   );
 }
 
-export function VersionsPanel({ versions }: { versions: VersionSummary[] }) {
+export function VersionsPanel({ versions, quoteId }: { versions: VersionSummary[]; quoteId: number }) {
   return (
     <div className="card">
       <h2 className="text-sm font-semibold mb-3">Saved versions</h2>
@@ -99,7 +100,11 @@ export function VersionsPanel({ versions }: { versions: VersionSummary[] }) {
               {v.changeNote && <p className="text-teton-dark-gray">{v.changeNote}</p>}
               <p className="text-xs text-teton-ui-gray tabular-nums">
                 12-mo investment {usd(v.totalInvestment12, { compact: true })} · net {usd(v.netBenefit12, { compact: true })} · {v.rung ? `rung ${v.rung}` : 'below ladder'}
-                {v.status === 'sent' && ' · sent'}
+                {v.status === 'sent' && ` · sent ${dateLabel(v.sentAt)}`}
+              </p>
+              <p className="text-xs mt-0.5 space-x-3">
+                <Link className="underline" href={`/quotes/${quoteId}/results?v=${v.id}`}>Results</Link>
+                <Link className="underline" href={`/proposal/${v.id}`}>Proposal</Link>
               </p>
             </li>
           ))}

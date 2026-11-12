@@ -85,3 +85,20 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
     @apply w-full rounded-lg px-3 py-2 text-sm bg-teton-almost-white border border-dashed border-teton-pale-gray text-teton-dark-gray tabular-nums;
   }
 }
+
+/* ---- Proposal document (client-facing, prints to PDF) ---- */
+.proposal-page {
+  background: white;
+}
+@page {
+  size: Letter;
+  margin: 0.55in;
+}
+@media print {
+  html, body { background: white !important; }
+  .no-print { display: none !important; }
+  .proposal-sheet { box-shadow: none !important; margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  .avoid-break { break-inside: avoid; }
+  .page-break { break-before: page; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

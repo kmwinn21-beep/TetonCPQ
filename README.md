@@ -1,8 +1,8 @@
 # Teton Proposal Generator (CPQ)
 
 Internal tool for Teton's US sales team: enter deal assumptions, run the ROI /
-cost-benefit model, check pricing guardrails, save versioned quotes, and
-(next) generate the client proposal.
+cost-benefit model, check pricing guardrails, save versioned quotes, compare
+versions, and generate the client proposal (HTML that prints to PDF).
 
 Stack: Next.js 14 (App Router), TypeScript, Tailwind, `@libsql/client` (Turso),
 react-hook-form, Recharts — same shape as Parlay.
@@ -41,3 +41,14 @@ Each quote has one editable draft (autosaved). **Save version** freezes it:
 the server recomputes the outputs from the stored inputs and stores inputs,
 outputs, guardrail findings and the engine version together, then opens the
 next draft. Database triggers reject any edit or delete of a saved version.
+
+## Proposals
+
+A proposal is generated from a **saved version** only (`/proposal/<versionId>`),
+from that version's stored inputs, outputs and price lines — never recalculated.
+"Record as sent" marks the version sent (to whom, when) and stores a standalone
+HTML copy of exactly what was on screen (`proposal_exports`), viewable later
+from the proposal toolbar.
+
+The results page compares any two versions: input changes in plain words and
+the effect on the headline numbers.
