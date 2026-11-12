@@ -166,8 +166,14 @@ export function annualForCase(inputs: ModelInputs, roiCase: RoiCase): AnnualCase
   const occ = totalOccupiedUnits(inputs);
   const { pricing, valuation } = inputs;
   // Assumptions R19 (install) + R20:R21 (platform + add-ons × 12) — every unit at post-pilot prices.
-  const installCost = pricing.postPilotInstallPerBed * units;
-  const annualRecurringCost = pricing.postPilotFeePerBedMonth * units * 12;
+  const uniform = inputs.communities.every((c) => !c.rates);
+  // Uniform pricing keeps the workbook's arithmetic (price × total units) exactly.
+  const installCost = uniform
+    ? pricing.postPilotInstallPerBed * units
+    : inputs.communities.reduce((s, c) => s + (c.rates?.postPilotInstallPerBed ?? pricing.postPilotInstallPerBed) * c.units, 0);
+  const annualRecurringCost = uniform
+    ? pricing.postPilotFeePerBedMonth * units * 12
+    : inputs.communities.reduce((s, c) => s + (c.rates?.postPilotFeePerBedMonth ?? pricing.postPilotFeePerBedMonth) * c.units * 12, 0);
   const totalCostBasis = installCost + annualRecurringCost;
 
   const annualNetNoiImpact =

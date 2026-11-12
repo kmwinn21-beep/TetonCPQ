@@ -22,7 +22,20 @@
  *   - full monthly ROI = the community's annual ROI for the selected case ÷ 12.
  */
 import { occupiedUnits, type AnnualCaseResult } from './annual';
-import type { Community, ModelInputs } from './types';
+import type { Community, CommunityRates, ModelInputs } from './types';
+
+/** The per-bed rates that apply to a community: its own, or the deal-wide ones. */
+export function ratesFor(inputs: ModelInputs, c: Community): CommunityRates {
+  if (c.rates) return c.rates;
+  const p = inputs.pricing;
+  return {
+    pilotFeePerBedMonth: p.pilotFeePerBedMonth,
+    postPilotFeePerBedMonth: p.postPilotFeePerBedMonth,
+    specialFeePerBedMonth: p.specialFeePerBedMonth,
+    pilotInstallPerBed: p.pilotInstallPerBed,
+    postPilotInstallPerBed: p.postPilotInstallPerBed,
+  };
+}
 
 export interface CommunitySchedule {
   /** Pilot billing applies (pilot community in a with-pilot deal). */
@@ -39,6 +52,7 @@ export interface CommunitySchedule {
   monthlyReimbursement: number;
   /** Full monthly benefit once ramped (annual ROI ÷ 12). */
   fullMonthlyBenefit: number;
+  rates: CommunityRates;
 }
 
 export interface CommunityCashFlow extends CommunitySchedule {
@@ -68,6 +82,7 @@ export interface CashFlow {
 
 export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: number): CommunitySchedule {
   const { schedule, pricing } = inputs;
+  const rates = ratesFor(inputs, c);
   const L = schedule.pilotLengthMonths;
   const inPilot = schedule.withPilot && c.pilot;
   const pilotUnits = c.pilot ? ((c.pilotUnits ?? 0) > 0 ? Math.min(c.pilotUnits as number, c.units) : c.units) : 0;
@@ -82,13 +97,13 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
   const fullRoiMonth = roiStartMonth + Math.max(schedule.rampMonths || 0, 1) - 1;
 
   const installCost = inPilot
-    ? pilotUnits * pricing.pilotInstallPerBed +
-      (c.units - pilotUnits) * pricing.postPilotInstallPerBed +
+    ? pilotUnits * rates.pilotInstallPerBed +
+      (c.units - pilotUnits) * rates.postPilotInstallPerBed +
       c.additionalSensors * pricing.pilotSensorPrice
-    : c.units * pricing.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice;
+    : c.units * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice;
 
   const monthlyReimbursement = schedule.includeReimbursement
-    ? Math.min(c.units * pricing.postPilotFeePerBedMonth, occupiedUnits(inputs, c) * inputs.cfo.reimbursementPerOccupiedUnitMonth)
+    ? Math.min(c.units * rates.postPilotFeePerBedMonth, occupiedUnits(inputs, c) * inputs.cfo.reimbursementPerOccupiedUnitMonth)
     : 0;
 
   return {
@@ -102,16 +117,17 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
     installCost,
     monthlyReimbursement,
     fullMonthlyBenefit: annualRoi / 12,
+    rates,
   };
 }
 
 /** Fee billed to one community in month m (1-based). */
 export function monthlyFee(inputs: ModelInputs, c: Community, s: CommunitySchedule, m: number): number {
-  const { pricing } = inputs;
+  const r = s.rates;
   if (m < s.goLiveMonth) return 0;
-  if (s.inPilot && m < s.firstPostPilotMonth) return s.pilotUnits * pricing.pilotFeePerBedMonth;
-  const special = pricing.specialFeePerBedMonth ?? pricing.postPilotFeePerBedMonth;
-  return c.units * (m < s.firstPostPilotMonth + pricing.specialTermMonths ? special : pricing.postPilotFeePerBedMonth);
+  if (s.inPilot && m < s.firstPostPilotMonth) return s.pilotUnits * r.pilotFeePerBedMonth;
+  const special = r.specialFeePerBedMonth ?? r.postPilotFeePerBedMonth;
+  return c.units * (m < s.firstPostPilotMonth + inputs.pricing.specialTermMonths ? special : r.postPilotFeePerBedMonth);
 }
 
 /** Benefit accrued by one community in month m, after delay and ramp. */

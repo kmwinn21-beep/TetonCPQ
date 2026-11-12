@@ -81,10 +81,22 @@ export function vendorView(
   const specialUnits = per((m) => sum(cf.communities.map((c) => c.specialPricedUnits[m - 1])));
   const billedUnits = per((m) => pilotUnits[m - 1] + postUnits[m - 1]);
 
-  const pilotFees = per((m) => pricing.pilotFeePerBedMonth * pilotUnits[m - 1]);
-  const postPilotFees = per(
-    (m) => pricing.postPilotFeePerBedMonth * postUnits[m - 1] - (pricing.postPilotFeePerBedMonth - special) * specialUnits[m - 1],
-  );
+  const uniform = inputs.communities.every((c) => !c.rates);
+  // Uniform pricing keeps the workbook's arithmetic (rate × total billed units); otherwise sum per community.
+  const pilotFees = uniform
+    ? per((m) => pricing.pilotFeePerBedMonth * pilotUnits[m - 1])
+    : per((m) => sum(cf.communities.map((c) => c.rates.pilotFeePerBedMonth * c.pilotBilledUnits[m - 1])));
+  const postPilotFees = uniform
+    ? per((m) => pricing.postPilotFeePerBedMonth * postUnits[m - 1] - (pricing.postPilotFeePerBedMonth - special) * specialUnits[m - 1])
+    : per((m) =>
+        sum(
+          cf.communities.map(
+            (c) =>
+              c.rates.postPilotFeePerBedMonth * c.postPilotBilledUnits[m - 1] -
+              (c.rates.postPilotFeePerBedMonth - (c.rates.specialFeePerBedMonth ?? c.rates.postPilotFeePerBedMonth)) * c.specialPricedUnits[m - 1],
+          ),
+        ),
+      );
   const oneTimeFees = cf.install;
   const revenue = per((m) => pilotFees[m - 1] + postPilotFees[m - 1] + oneTimeFees[m - 1]);
 

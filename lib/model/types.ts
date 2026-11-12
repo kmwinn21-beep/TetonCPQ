@@ -102,6 +102,19 @@ export interface ImplementationInputs {
   onboardingDays: number; // I34
 }
 
+/**
+ * Per-bed rates for one community, when they differ from the deal-wide
+ * `Pricing` (e.g. full-facility coverage, or e-call at only some sites).
+ * Not in the workbook, which priced every community the same.
+ */
+export interface CommunityRates {
+  pilotFeePerBedMonth: number;
+  postPilotFeePerBedMonth: number;
+  specialFeePerBedMonth: number | null;
+  pilotInstallPerBed: number;
+  postPilotInstallPerBed: number;
+}
+
 export interface Community {
   name: string;
   market: string;
@@ -117,6 +130,8 @@ export interface Community {
   /** Community-specific ROI start delay; null = schedule default. Assumptions S. */
   roiDelayMonths: number | null;
   additionalSensors: number; // Assumptions T
+  /** Overrides the deal-wide per-bed rates for this community. */
+  rates?: CommunityRates | null;
 }
 
 export interface VendorCostAssumptions {

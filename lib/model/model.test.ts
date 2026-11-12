@@ -93,3 +93,21 @@ describe('defaults', () => {
     expect(r.cashFlow.grossBenefit[3]).toBeGreaterThan(0);
   });
 });
+
+describe('per-community rates', () => {
+  it('a community with its own rates is billed at them; others at the deal rate', () => {
+    const d = defaultInputs('2027-03-01');
+    const base = { market: 'CO', units: 100, pilot: false, pilotUnits: null, occupancy: null, goLiveMonth: 1, roiDelayMonths: null, additionalSensors: 0 };
+    d.schedule.withPilot = false;
+    d.communities = [
+      { ...base, name: 'Rooms only' },
+      { ...base, name: 'Full facility', rates: { pilotFeePerBedMonth: 75, postPilotFeePerBedMonth: 128.7, specialFeePerBedMonth: null, pilotInstallPerBed: 400, postPilotInstallPerBed: 520 } },
+    ];
+    d.cfo.portfolioUnits = 200;
+    const r = runModel(d);
+    expect(r.cashFlow.communities[0].fees[0]).toBe(9900);
+    expect(r.cashFlow.communities[1].fees[0]).toBeCloseTo(12870, 6);
+    expect(r.cashFlow.install[0]).toBe(100 * 400 + 100 * 520);
+    expect(r.annual.target.totals.annualRecurringCost).toBeCloseTo((9900 + 12870) * 12, 6);
+  });
+});

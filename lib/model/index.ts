@@ -13,7 +13,7 @@ import type { ModelInputs, RoiCase, VendorCostAssumptions } from './types';
 import { vendorView, type VendorView } from './vendor';
 
 /** Bump whenever a change could alter any output. Stored on every quote version. */
-export const ENGINE_VERSION = '1.0.0';
+export const ENGINE_VERSION = '1.1.0';
 
 export interface ModelResult {
   engineVersion: string;

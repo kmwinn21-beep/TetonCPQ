@@ -50,8 +50,11 @@ export function computeKpis(inputs: ModelInputs, annual: AnnualCaseResult, cf: C
   const units = inputs.communities.reduce((s, c) => s + c.units, 0);
   const fullMonthlyRoi = annual.totals.annualRoi / 12;
   const monthlyReimb = cf.communities.reduce((s, c) => s + c.monthlyReimbursement, 0);
-  const stabilizedNet = fullMonthlyRoi + monthlyReimb - units * inputs.pricing.postPilotFeePerBedMonth;
-  const stabilizedCost = units * inputs.pricing.postPilotFeePerBedMonth - monthlyReimb;
+  const monthlyFees = inputs.communities.every((c) => !c.rates)
+    ? units * inputs.pricing.postPilotFeePerBedMonth
+    : cf.communities.reduce((s, c, i) => s + inputs.communities[i].units * c.rates.postPilotFeePerBedMonth, 0);
+  const stabilizedNet = fullMonthlyRoi + monthlyReimb - monthlyFees;
+  const stabilizedCost = monthlyFees - monthlyReimb;
   const portfolioUnits = inputs.cfo.portfolioUnits;
 
   return {

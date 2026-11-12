@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Teton palette as RGB channels (Tailwind <alpha-value> support). */
+  --teton-ink-rgb: 30 30 30;            /* #1E1E1E */
+  --teton-near-black-rgb: 48 48 53;     /* #303035 */
+  --teton-dark-gray-rgb: 57 65 71;      /* #394147 */
+  --teton-neutral-rgb: 83 83 88;        /* #535358 */
+  --teton-ui-gray-rgb: 101 110 119;     /* #656E77 — lightest gray allowed for body text on white (5.1:1) */
+  --teton-light-gray-rgb: 141 149 157;  /* #8D959D — placeholders/disabled only (3.0:1) */
+  --teton-pale-gray-rgb: 194 208 211;   /* #C2D0D3 */
+  --teton-off-white-rgb: 231 232 233;   /* #E7E8E9 */
+  --teton-almost-white-rgb: 242 244 244;/* #F2F4F4 */
+  --teton-pale-green-rgb: 187 240 189;  /* #BBF0BD fill */
+  --teton-pale-purple-rgb: 231 227 253; /* #E7E3FD fill */
+  --teton-pale-yellow-rgb: 255 255 175; /* #FFFFAF fill */
+  --teton-green-rgb: 102 201 149;       /* #66C995 fill, ink text 8.2:1 */
+  --teton-blue-rgb: 63 140 234;         /* #3F8CEA focus/charts; white text on it is only 3.4:1 */
+  --teton-amber-rgb: 255 192 0;         /* #FFC000 fill */
+  --teton-red-rgb: 252 104 69;          /* #FC6845 fill, ink text 5.6:1 */
+
+  /* Semantic roles (Parlay's shape). */
+  --brand-primary-rgb: 30 30 30;        /* ink: sidebar, headings */
+  --brand-secondary-rgb: 48 48 53;      /* near-black: primary buttons (white text 13:1) */
+  --brand-accent-rgb: 63 140 234;       /* blue: focus rings, active markers */
+  --brand-highlight-rgb: 102 201 149;   /* green */
+  --sidebar-font-rgb: 242 244 244;
+
+  --font-heading: "Inter";
+  --font-body: "Inter";
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body), sans-serif;
+  background-color: rgb(var(--teton-almost-white-rgb));
+  color: rgb(var(--teton-ink-rgb));
+}
+
+h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-secondary text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.25); }
+
+  .btn-secondary {
+    @apply bg-white text-teton-ink border border-teton-pale-gray px-4 py-2 rounded-lg text-sm font-medium hover:bg-teton-off-white transition-colors disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply text-teton-dark-gray px-2 py-1 rounded-md text-sm hover:bg-teton-off-white transition-colors;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-teton-off-white shadow-sm p-5;
+  }
+
+  .input-field {
+    @apply w-full bg-white border border-teton-pale-gray rounded-lg px-3 py-2 text-sm text-teton-ink placeholder:text-teton-light-gray
+      focus:outline-none focus:ring-2 focus:ring-brand-accent focus:border-transparent disabled:bg-teton-almost-white disabled:text-teton-ui-gray;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-teton-dark-gray mb-1;
+  }
+
+  .hint {
+    @apply text-xs text-teton-ui-gray mt-1;
+  }
+
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-teton-ink; }
+  .badge-green { @apply badge bg-teton-pale-green; }
+  .badge-yellow { @apply badge bg-teton-pale-yellow; }
+  .badge-purple { @apply badge bg-teton-pale-purple; }
+  .badge-gray { @apply badge bg-teton-off-white; }
+  .badge-red { @apply badge bg-teton-red; }
+
+  .derived {
+    /* A value the rep can't type: computed from other inputs. */
+    @apply w-full rounded-lg px-3 py-2 text-sm bg-teton-almost-white border border-dashed border-teton-pale-gray text-teton-dark-gray tabular-nums;
+  }
+}
