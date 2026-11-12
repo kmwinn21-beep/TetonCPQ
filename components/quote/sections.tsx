@@ -17,9 +17,20 @@ export interface SectionProps {
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 
+/** The whole draft, live — used for the one-line summaries shown on collapsed sections. */
+function useDraft(): QuoteDraft {
+  const { control } = useFormContext<QuoteDraft>();
+  return useWatch({ control }) as QuoteDraft;
+}
+const money = (n: number | null | undefined) => (n == null || !Number.isFinite(Number(n)) ? '—' : `$${Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+const dot = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' · ');
+
 export function CaseSetupSection() {
+  const d = useDraft();
+  const on = Object.values(d.components ?? {}).filter(Boolean).length;
+  const total = Object.keys(d.components ?? {}).length;
   return (
-    <Section id="case" title="Case setup" description="Which ROI case to present, and which benefits to count.">
+    <Section id="case" title="Case setup" description="Which ROI case to present, and which benefits to count." summary={dot(`${CASE_LABEL[d.roiCase] ?? d.roiCase} case`, `${on} of ${total} benefits included`)}>
       <div className="space-y-5">
         <SegmentedField name="roiCase" label="ROI case" options={ROI_CASES.map((c) => ({ value: c, label: CASE_LABEL[c] }))} />
         <div>
@@ -51,7 +62,18 @@ export function PricingSection({ book }: SectionProps) {
   const usesFull = d.communities?.some((c) => c.coverage === 'full_facility');
 
   return (
-    <Section id="pricing" title="Pricing & products" description={`US rate card: $${listPlatform}/bed/month, $${listInstall}/bed install. Guardrails update on the right as you type.`}>
+    <Section
+      id="pricing"
+      title="Pricing & products"
+      description={`US rate card: $${listPlatform}/bed/month, $${listInstall}/bed install. Guardrails update on the right as you type.`}
+      summary={dot(
+        `${money(k.platformRate)}/bed`,
+        d.schedule?.withPilot ? `pilot ${money(k.pilotRate)} for ${d.schedule.pilotLengthMonths} mo` : 'no pilot',
+        k.ecall === 'none' ? 'no E-Call' : `E-Call ${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'} ${money(k.ecallRate)}`,
+        `install ${money(k.installRate)}${k.installCreditPct ? ` (${Math.round(k.installCreditPct * 100)}% credit)` : ''}`,
+        d.presentation === 'capex' ? 'upfront' : d.presentation === 'both' ? 'opex + capex' : false,
+      )}
+    >
       <div className="space-y-6">
         <div>
           <h3 className="text-sm font-semibold mb-3">Teton subscription</h3>
@@ -178,15 +200,26 @@ export function PricingSection({ book }: SectionProps) {
 }
 
 export function ScheduleSection({ result }: SectionProps) {
-  const { register } = useFormContext<QuoteDraft>();
+  const { register, formState } = useFormContext<QuoteDraft>();
+  const d = useDraft();
   const impl = result?.implementation;
   return (
-    <Section id="schedule" title="Timeline & implementation" description="Month 1 of the cash flow is the desired go-live month. Each community can go live later.">
+    <Section
+      id="schedule"
+      title="Timeline & implementation"
+      description="Month 1 of the cash flow is the desired go-live month. Each community can go live later."
+      summary={dot(
+        d.implementation?.desiredGoLive && `Go-live ${dateLabel(d.implementation.desiredGoLive)}`,
+        `ROI after ${d.schedule?.roiStartDelayMonths} mo, ramp ${d.schedule?.rampMonths} mo`,
+        `${d.schedule?.horizonMonths}-month model`,
+        impl && `kick off by ${dateLabel(impl.latestKickoffDate)}`,
+      )}
+    >
       <div className="space-y-5">
         <Grid cols={4}>
           <div>
             <label className="label" htmlFor="golive">Desired go-live date</label>
-            <input id="golive" type="date" className="input-field" {...register('implementation.desiredGoLive', { required: 'Required' })} />
+            <input id="golive" type="date" className="input-field" aria-invalid={formState.errors.implementation?.desiredGoLive ? true : undefined} {...register('implementation.desiredGoLive', { required: 'Required' })} />
           </div>
           <NumberField name="schedule.roiStartDelayMonths" label="ROI start delay" suffix="months" hint="After go-live, before benefits count" min={0} />
           <NumberField name="schedule.rampMonths" label="Time to full ROI" suffix="months" hint="Benefits ramp linearly" min={1} />
@@ -220,8 +253,9 @@ export function ScheduleSection({ result }: SectionProps) {
 }
 
 export function ValuationSection() {
+  const d = useDraft();
   return (
-    <Section id="valuation" title="Valuation & margin">
+    <Section id="valuation" title="Valuation & margin" summary={dot(`${pct(d.valuation?.capRate)} cap rate`, `${pct(d.valuation?.operatingMargin)} operating margin`, `change of condition noticed after ${d.monthsUntilCocNoticed} mo`)}>
       <Grid cols={3}>
         <PercentField name="valuation.capRate" label="Cap rate" cell="Assumptions!E9" min={0.0001} />
         <PercentField name="valuation.operatingMargin" label="Operating margin" cell="Assumptions!G9" />
@@ -249,6 +283,13 @@ export function MetricsSection({ inputs }: SectionProps) {
       id="metrics"
       title="Teton improvement metrics"
       description="How well Teton performs in each case. The selected case drives the proposal; all four feed the comparison."
+      summary={(() => {
+        const m = (customize ? inputs?.caseMetrics : uniform)?.[roiCase];
+        return dot(
+          customize ? 'Customized per case' : 'Uniform (workbook default)',
+          m && `${CASE_LABEL[roiCase]}: falls −${pct(m.fallReduction, 0)}, move-ins +${pct(m.moveInUplift, 0)}, staffing ${pct(m.staffingAlignment, 0)}, tech ${pct(m.techReplacement, 0)}`,
+        );
+      })()}
       aside={
         <button type="button" className="btn-ghost" onClick={() => setValue('caseMetrics', structuredClone(STANDARD_CASE_METRICS), { shouldDirty: true })}>
           Reset to standard
@@ -313,7 +354,7 @@ export function ClientSection({ inputs, result }: SectionProps) {
   const derivedStaffing = client ? 1 - client.nightResidentToStaffRatio / client.newNightResidentToStaffRatio : null;
   return (
     <>
-      <Section id="revenue" title="Client — revenue">
+      <Section id="revenue" title="Client — revenue" summary={client && dot(`${pct(client.occupancy)} occupancy`, `${money(client.avgRent)} rent`, `${money(client.careRevenuePerResident)} care`, `${money(client.locGapUpliftPerTierStep)} LOC uplift`)}>
         <Grid cols={4}>
           <PercentField name="client.occupancy" label="Occupancy" cell="Assumptions!C29" min={0} max={1} hint="Communities can override" />
           <MoneyField name="client.avgRent" label="Avg rent / resident / mo" cell="Assumptions!C30" min={0} />
@@ -321,7 +362,11 @@ export function ClientSection({ inputs, result }: SectionProps) {
           <MoneyField name="client.locGapUpliftPerTierStep" label="LOC gap uplift per tier step" suffix="/res/mo" cell="Assumptions!C32" min={0} />
         </Grid>
       </Section>
-      <Section id="movein" title="Client — move-in impact">
+      <Section
+        id="movein"
+        title="Client — move-in impact"
+        summary={client && dot(`${pct(client.moveInRatePerMonth)} of occupied move in each month`, `${client.yr1RevenueMonthsPerMoveIn} revenue months per move-in`)}
+      >
         <Grid cols={4}>
           <PercentField name="client.moveInRatePerMonth" label="Move-ins per month (% of occupied)" cell="Assumptions!C34" min={0} />
           <NumberField name="client.yr1RevenueMonthsPerMoveIn" label="Yr-1 revenue months per move-in" suffix="months" cell="Assumptions!C35" min={0} />
@@ -336,7 +381,11 @@ export function ClientSection({ inputs, result }: SectionProps) {
           />
         </Grid>
       </Section>
-      <Section id="falls" title="Client — falls">
+      <Section
+        id="falls"
+        title="Client — falls"
+        summary={client && dot(`${client.fallsPerResidentYear} per resident / yr`, `${pct(client.pctFallsHospitalization)} hospitalized at ${money(client.costPerHospitalization)}`, `${pct(client.pctFallsDischarge)} discharged`)}
+      >
         <Grid cols={4}>
           <NumberField name="client.fallsPerResidentYear" label="Falls per resident per year" cell="Assumptions!E29" min={0} />
           <PercentField name="client.pctFallsHospitalization" label="% of falls → hospitalization" cell="Assumptions!E31" min={0} max={1} />
@@ -350,7 +399,11 @@ export function ClientSection({ inputs, result }: SectionProps) {
           />
         </Grid>
       </Section>
-      <Section id="staffing" title="Client — night staffing">
+      <Section
+        id="staffing"
+        title="Client — night staffing"
+        summary={client && dot(`1 staff : ${client.nightResidentToStaffRatio} residents → 1 : ${client.newNightResidentToStaffRatio}`, `${money(client.nightHourlyWage)}/hr`, `${client.nightShiftHours}-hr shift`)}
+      >
         <Grid cols={4}>
           <NumberField name="client.nightResidentToStaffRatio" label="Residents per staff (night)" cell="Assumptions!G29" min={1} />
           <NumberField name="client.nightShiftHours" label="Night shift hours" suffix="hours" cell="Assumptions!G30" min={0} />
@@ -365,8 +418,17 @@ export function ClientSection({ inputs, result }: SectionProps) {
 }
 
 export function CfoSection({ inputs }: SectionProps) {
+  const d = useDraft();
   return (
-    <Section id="cfo" title="CFO inputs">
+    <Section
+      id="cfo"
+      title="CFO inputs"
+      summary={dot(
+        `${pct(d.cfo?.annualDiscountRate)} discount rate`,
+        `${(d.cfo?.portfolioUnitsOverride ?? inputs?.cfo.portfolioUnits ?? 0).toLocaleString('en-US')} portfolio units`,
+        d.schedule?.includeReimbursement ? `reimbursement ${money(d.cfo?.reimbursementPerOccupiedUnitMonth)}/occupied unit` : 'no reimbursement',
+      )}
+    >
       <Grid cols={3}>
         <PercentField name="cfo.annualDiscountRate" label="Annual discount rate" cell="Assumptions!C40" hint="The customer’s cost of money" min={0} />
         <NumberField

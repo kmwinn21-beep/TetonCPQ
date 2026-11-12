@@ -27,6 +27,18 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
       id="communities"
       title="Communities"
       description="Each community has its own bed count, go-live month and pilot flag. Benefits start per community after go-live plus the ROI start delay."
+      summary={
+        fields.length === 0
+          ? 'None yet'
+          : [
+              `${fields.length} ${fields.length === 1 ? 'community' : 'communities'}`,
+              `${count(totalBeds)} beds`,
+              withPilot && rows.some((r) => r?.pilot) && `${rows.filter((r) => r?.pilot).length} pilot`,
+              rows.some((r) => r?.coverage === 'full_facility') && `${rows.filter((r) => r?.coverage === 'full_facility').length} full facility`,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+      }
       aside={
         <div className="flex gap-2">
           <button type="button" className="btn-secondary" onClick={() => setPasting(true)}>
@@ -76,6 +88,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                     className={`input-field ${rowErr?.name ? 'ring-2 ring-teton-red border-transparent' : ''}`}
                     placeholder="Community name"
                     aria-label={`Community ${i + 1} name`}
+                    aria-invalid={rowErr?.name ? true : undefined}
                     {...register(`communities.${i}.name`, { required: 'Name required' })}
                   />
                   {rowErr?.name && <p className="text-xs mt-0.5">{rowErr.name.message}</p>}

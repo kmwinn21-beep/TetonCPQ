@@ -19,6 +19,7 @@ import type { QuoteEditorData, VersionSummary } from '@/lib/data/quotes';
 import { CommunitiesSection } from './CommunitiesSection';
 import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
+import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
 
 const NAV = [
   ['case', 'Case setup'],
@@ -36,7 +37,17 @@ const NAV = [
 
 type SaveState = 'saved' | 'pending' | 'saving' | 'error';
 
+/** Sections start collapsed; each header shows a one-line summary. */
 export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
+  return (
+    <SectionsProvider defaultOpen={false}>
+      <QuoteEditorBody initial={initial} />
+    </SectionsProvider>
+  );
+}
+
+function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
+  const sections = useSections();
   const methods = useForm<QuoteDraft>({ defaultValues: initial.draft, mode: 'onChange' });
   const { control, getValues, register, trigger, formState } = methods;
   const book = useMemo(() => priceBook(initial.products), [initial.products]);
@@ -103,6 +114,9 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
     setVersionError(null);
     if (!(await trigger())) {
       setVersionError('Fix the highlighted fields first.');
+      setNoteOpen(false);
+      // Fields in collapsed sections are hidden, not removed: open those sections and scroll to the first.
+      requestAnimationFrame(() => revealInvalidSections(sections.setOpen));
       return;
     }
     setSavingVersion(true);
@@ -185,13 +199,24 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
             <ul className="sticky top-0 space-y-0.5 text-sm">
               {NAV.map(([id, label]) => (
                 <li key={id}>
-                  <a href={`#${id}`} className="block px-3 py-1.5 rounded-md text-teton-dark-gray hover:bg-teton-off-white">{label}</a>
+                  <a
+                    href={`#${id}`}
+                    onClick={() => sections.setOpen(id, true)}
+                    className={`block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${sections.isOpen(id) ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`}
+                  >
+                    {label}
+                  </a>
                 </li>
               ))}
             </ul>
           </nav>
 
-          <div className="space-y-6 min-w-0">
+          <div className="space-y-4 min-w-0">
+            <div className="flex justify-end -mb-1">
+              <button type="button" className="btn-ghost" onClick={() => sections.setAll(!sections.allOpen)} aria-label={sections.allOpen ? 'Collapse all sections' : 'Expand all sections'}>
+                {sections.allOpen ? 'Collapse all' : 'Expand all'}
+              </button>
+            </div>
             <CaseSetupSection />
             <CommunitiesSection inputs={computed.inputs} result={computed.result} book={book} />
             <PricingSection inputs={computed.inputs} result={computed.result} book={book} />

@@ -8,6 +8,7 @@ import { useId } from 'react';
 import { Controller, useFormContext, type FieldPath, type RegisterOptions } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { NumInput } from './NumInput';
+import { useSections } from './SectionsContext';
 
 type Name = FieldPath<QuoteDraft>;
 
@@ -145,17 +146,69 @@ export function DerivedField({ label, value, formula }: { label: string; value: 
   );
 }
 
-export function Section({ id, title, description, children, aside }: { id: string; title: string; description?: string; children: React.ReactNode; aside?: React.ReactNode }) {
+/**
+ * A collapsible form section. The header toggles it; while collapsed it shows
+ * `summary` so the deal can be scanned without opening anything. Contents stay
+ * mounted when collapsed (only hidden), so the live preview and validation
+ * keep working.
+ */
+export function Section({
+  id,
+  title,
+  description,
+  summary,
+  children,
+  aside,
+}: {
+  id: string;
+  title: string;
+  description?: string;
+  summary?: React.ReactNode;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  const { isOpen, setOpen } = useSections();
+  const open = isOpen(id);
+  const bodyId = `${id}-body`;
   return (
-    <section id={id} className="card scroll-mt-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-base font-semibold">{title}</h2>
-          {description && <p className="text-sm text-teton-ui-gray mt-0.5">{description}</p>}
-        </div>
-        {aside}
+    <section id={id} className="card scroll-mt-4 p-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <button
+          type="button"
+          className="flex items-start gap-3 text-left flex-1 min-w-0 group"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen(id, !open)}
+        >
+          <svg
+            className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform ${open ? 'rotate-90' : ''}`}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+          </svg>
+          <span className="min-w-0">
+            <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
+            {open
+              ? description && <span className="block text-sm text-teton-ui-gray mt-0.5">{description}</span>
+              : summary && <span className="block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
+          </span>
+        </button>
+        {aside && (
+          <div
+            onClick={() => {
+              // Actions in the header (e.g. "Add community") act on the contents, so show them.
+              if (!open) setOpen(id, true);
+            }}
+          >
+            {aside}
+          </div>
+        )}
       </div>
-      {children}
+      <div id={bodyId} hidden={!open} className="px-5 pb-5">
+        {children}
+      </div>
     </section>
   );
 }
