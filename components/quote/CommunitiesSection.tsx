@@ -3,23 +3,20 @@
 import { useState } from 'react';
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { newCommunity, type QuoteDraft } from '@/lib/quote/draft';
-import { parsePaste, type ColumnMap } from '@/lib/quote/paste';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count } from '@/lib/format';
 import { Section } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import type { SectionProps } from './sections';
+import { PasteDialog } from './PasteDialog';
 
 export function CommunitiesSection({ inputs, result }: SectionProps) {
   const { control, register, formState } = useFormContext<QuoteDraft>();
-  const { fields, append, remove } = useFieldArray({ control, name: 'communities', keyName: '_key' });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'communities', keyName: '_key' });
   const rows = useWatch({ control, name: 'communities' }) ?? [];
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = useWatch({ control, name: 'schedule.withPilot' });
   const [pasting, setPasting] = useState(false);
-  const [pasteText, setPasteText] = useState('');
-  const [pasteCols, setPasteCols] = useState<Partial<ColumnMap>>({});
-  const paste = parsePaste(pasteText, pasteCols);
 
   const start = inputs?.schedule.startDate;
   const totalBeds = rows.reduce((s, c) => s + (Number(c?.beds) || 0) + (Number(c?.snfBeds) || 0), 0);
@@ -32,8 +29,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
       description="Each community has its own bed count, go-live month and pilot flag. Benefits start per community after go-live plus the ROI start delay."
       aside={
         <div className="flex gap-2">
-          <button type="button" className="btn-secondary" onClick={() => setPasting((p) => !p)}>
-            Paste from spreadsheet
+          <button type="button" className="btn-secondary" onClick={() => setPasting(true)}>
+            Paste communities
           </button>
           <button type="button" className="btn-primary" onClick={() => append(newCommunity(fields.length))}>
             Add community
@@ -41,91 +38,18 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         </div>
       }
     >
-      {pasting && (
-        <div className="mb-4 rounded-lg border border-teton-pale-gray bg-teton-almost-white p-3">
-          <label className="label" htmlFor="paste">
-            Paste rows from Excel — with or without the header row. Name, market and unit columns are found automatically (e.g. the NIC or Assumptions tab, # column and all).
-          </label>
-          <textarea
-            id="paste"
-            className="input-field font-mono text-xs h-28"
-            value={pasteText}
-            onChange={(e) => {
-              setPasteText(e.target.value);
-              setPasteCols({});
-            }}
-            placeholder={'#\tCommunity Name\tMarket\tTotal Units\n1\tMaple Grove\tCO\t137\n2\tRiverside\tKS\t120'}
-          />
-          {pasteText.trim() && (
-            <div className="mt-3 space-y-3">
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-                {(
-                  [
-                    ['name', 'Community name'],
-                    ['market', 'Market'],
-                    ['units', 'Beds / units'],
-                    ['snf', 'SNF beds'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <div key={key}>
-                    <label className="label" htmlFor={`paste-${key}`}>{label} column</label>
-                    <select
-                      id={`paste-${key}`}
-                      className="input-field py-1.5"
-                      value={paste.columns[key] ?? ''}
-                      onChange={(e) => setPasteCols((c) => ({ ...c, [key]: e.target.value === '' ? null : Number(e.target.value) }))}
-                    >
-                      <option value="">{key === 'name' || key === 'units' ? 'Not found — choose' : 'None'}</option>
-                      {paste.columnLabels.map((l, ci) => (
-                        <option key={ci} value={ci}>{`Column ${ci + 1}: ${l}`}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-              {paste.communities.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="text-xs w-full">
-                    <caption className="text-left text-teton-dark-gray pb-1">
-                      Preview: {paste.communities.length} {paste.communities.length === 1 ? 'community' : 'communities'}
-                      {paste.skipped > 0 && ` · ${paste.skipped} row${paste.skipped === 1 ? '' : 's'} skipped (no name or no units)`}
-                    </caption>
-                    <thead className="text-left text-teton-dark-gray">
-                      <tr><th className="font-medium py-1 pr-3">Community</th><th className="font-medium py-1 pr-3">Market</th><th className="font-medium py-1 pr-3 text-right">Beds</th><th className="font-medium py-1 text-right">SNF</th></tr>
-                    </thead>
-                    <tbody className="tabular-nums">
-                      {paste.communities.slice(0, 6).map((c, k) => (
-                        <tr key={k} className="border-t border-teton-off-white"><td className="py-1 pr-3">{c.name}</td><td className="py-1 pr-3">{c.market}</td><td className="py-1 pr-3 text-right">{c.beds}</td><td className="py-1 text-right">{c.snfBeds || ''}</td></tr>
-                      ))}
-                      {paste.communities.length > 6 && <tr><td colSpan={4} className="py-1 text-teton-ui-gray">…and {paste.communities.length - 6} more</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm bg-teton-pale-yellow rounded px-2 py-1">No communities found yet — pick the name and units columns above.</p>
-              )}
-            </div>
-          )}
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={paste.communities.length === 0}
-              onClick={() => {
-                // Replace the single empty starter row rather than leaving it behind.
-                if (rows.length === 1 && !rows[0]?.name && !Number(rows[0]?.beds)) remove(0);
-                append(paste.communities.map((p, k) => ({ ...newCommunity(fields.length + k), ...p })));
-                setPasteText('');
-                setPasteCols({});
-                setPasting(false);
-              }}
-            >
-              Add {paste.communities.length || ''} {paste.communities.length === 1 ? 'community' : 'communities'}
-            </button>
-            <button type="button" className="btn-ghost" onClick={() => setPasting(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
+      <PasteDialog
+        open={pasting}
+        onClose={() => setPasting(false)}
+        existingNames={rows.map((r) => r?.name ?? '')}
+        onConfirm={(pasted, mode) => {
+          const added = pasted.map((p, k) => ({ ...newCommunity(fields.length + k), ...p }));
+          const onlyEmptyStarter = rows.length === 1 && !rows[0]?.name && !Number(rows[0]?.beds);
+          if (mode === 'replace' || onlyEmptyStarter) replace(added);
+          else append(added);
+          setPasting(false);
+        }}
+      />
 
       <div className="hidden md:grid grid-cols-[1.5rem_minmax(10rem,1fr)_5.5rem_5rem_8rem_3.5rem_3.5rem_2rem] gap-2 text-xs font-medium text-teton-dark-gray pb-1.5 border-b border-teton-off-white">
         <span>#</span>
