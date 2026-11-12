@@ -3,7 +3,7 @@
  * inputs, stored outputs and stored price lines. Nothing is recalculated here,
  * so the document always matches what the version recorded.
  *
- * Content: summary KPI cards, scope, investment (subscription and/or upfront),
+ * Content: summary KPI cards, scope & investment in one table (subscription and/or upfront),
  * return on investment, and the assumptions behind it.
  */
 import type { StoredOutputs } from '@/lib/data/quotes';
@@ -38,6 +38,18 @@ function TetonWordmark() {
   );
 }
 
+/** A small flag marking pilot sites. Ink on a pale-green fill (fills carry the tint, never text). */
+function PilotIcon() {
+  return (
+    <span className="inline-flex w-4 h-4 mt-0.5 flex-shrink-0 items-center justify-center rounded-full bg-teton-pale-green" title="Pilot site" aria-hidden="true">
+      <svg className="w-2.5 h-2.5 text-teton-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 21V4" />
+        <path d="M4 4h12l-2.5 4L16 12H4" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
 function H2({ children }: { children: React.ReactNode }) {
   return <h2 className="text-lg font-semibold border-b-2 border-teton-ink pb-1 mb-3">{children}</h2>;
 }
@@ -45,7 +57,7 @@ function H2({ children }: { children: React.ReactNode }) {
 export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: ProposalProps) {
   const inputs = toModelInputs(draft);
   const start = inputs.schedule.startDate;
-  const k = outputs.kpis;
+  const kp = outputs.kpis;
   const cf = outputs.cashFlow;
   const rc = outputs.roiCase;
   const sel = outputs.annual[rc].totals;
@@ -64,15 +76,70 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   );
   const termTotal = sum(lines.map(lineTotal));
 
+  // One row per community: monthly once in service, pilot / intro monthly, one-time net of credits.
+  const isPilotLine = (l: PriceLine) => l.billing === 'monthly' && l.description.includes('— pilot');
+  const isIntroLine = (l: PriceLine) => l.billing === 'monthly' && l.description.includes('introductory');
+  const perCommunity = draft.communities.map((dc, i) => {
+    const ls = lines.filter((l) => l.communityPosition === i);
+    const cc = cf.communities[i];
+    const pilotLines = ls.filter(isPilotLine);
+    const introLines = ls.filter(isIntroLine);
+    // During the intro term, the intro platform line replaces the regular one; other monthly lines (e-call) still apply.
+    const introMonthly = introLines.length
+      ? sum(introLines.map((l) => l.qty * l.unitNet)) + sum(ls.filter((l) => l.billing === 'monthly' && !isPilotLine(l) && !isIntroLine(l) && !l.description.startsWith('Teton subscription')).map((l) => l.qty * l.unitNet))
+      : null;
+    const coverage = dc.coverage === 'full_facility' ? 'Full facility' : 'Resident rooms';
+    const hasEcall = draft.commercial.ecall !== 'none' && dc.ecall;
+    return {
+      key: dc.id,
+      name: inputs.communities[i].name,
+      pilot: cc.inPilot,
+      detail: [dc.market, coverage, hasEcall ? 'E-Call' : null].filter(Boolean).join(' · '),
+      units: inputs.communities[i].units,
+      snf: Number(dc.snfBeds) || 0,
+      goLive: monthName(start, cc.goLiveMonth),
+      pilotUntil: cc.inPilot ? monthName(start, cc.firstPostPilotMonth - 1) : null,
+      monthly: sum(ls.filter((l) => l.billing === 'monthly' && !isPilotLine(l) && !isIntroLine(l)).map((l) => l.qty * l.unitNet)),
+      pilotMonthly: pilotLines.length ? sum(pilotLines.map((l) => l.qty * l.unitNet)) : null,
+      introMonthly,
+      introMonths: introLines[0]?.termMonths ?? 0,
+      oneTime: sum(ls.filter((l) => l.billing === 'one_time').map(lineTotal)),
+      credit: -sum(ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal)),
+    };
+  });
+
+  // Per-bed rates, stated once. List price shown only where the rate is discounted.
+  const k = draft.commercial;
+  const firstLine = (pred: (l: PriceLine) => boolean) => lines.find(pred);
+  const listOf = (pred: (l: PriceLine) => boolean, mult = 1) => {
+    const l = firstLine(pred);
+    return l ? l.unitList / mult : null;
+  };
+  const anyFull = draft.communities.some((dc) => dc.coverage === 'full_facility');
+  const platformList =
+    listOf((l) => l.description === 'Teton subscription') ?? listOf((l) => l.description === 'Teton subscription, full-facility coverage', k.fullFacilityMultiplier);
+  const installList =
+    listOf((l) => l.description === 'Installation & implementation') ?? listOf((l) => l.description === 'Installation & implementation, full-facility coverage', k.fullFacilityMultiplier);
+  const ecallList = listOf((l) => l.description.startsWith('E-Call (') );
+  const money = (n: number) => usd(n, { cents: !Number.isInteger(n) });
+  const rateSummary: Array<{ label: string; value: string; list?: string }> = [
+    { label: 'Teton subscription', value: `${money(k.platformRate)}/bed/mo`, list: platformList != null && platformList > k.platformRate ? money(platformList) : undefined },
+    ...(k.ecall !== 'none' && draft.communities.some((dc) => dc.ecall)
+      ? [{ label: `E-Call (${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'})`, value: `${money(k.ecallRate)}/bed/mo`, list: ecallList != null && ecallList > k.ecallRate ? money(ecallList) : undefined }]
+      : []),
+    { label: 'Installation', value: `${money(k.installRate)}/bed one-time`, list: installList != null && installList > k.installRate ? money(installList) : undefined },
+    ...(anyFull ? [{ label: 'Full-facility coverage', value: `${k.fullFacilityMultiplier}× subscription and install` }] : []),
+  ];
+
   const points: MonthPoint[] = cf.months.map((m, i) => ({ month: m, label: monthName(start, m), gross: cf.grossBenefit[i], cost: cf.totalCost[i], cumulativeDiscounted: cf.cumulativeDiscountedNet[i] }));
 
   const cards: Array<[string, string, string]> = [
-    ['Total Investment — 12 Mo', usd(k.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
-    ['Net Benefit — 12 Mo', usd(k.netBenefit12), 'How much better off your communities are in year one after paying for everything.'],
-    ['Gross Return per $1 Invested', multiple(k.grossReturnPerDollar12), `For every $1 spent on Teton in year one, the benefit that comes back.`],
-    ['Discounted Payback', k.discountedPaybackMonth ? `Month ${k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, `When the program has paid for itself and stays paid for, using your ${pct(inputs.cfo.annualDiscountRate, 1)} cost of money.`],
-    ['Run-Rate Annual Net Benefit', usd(k.runRateAnnualNetBenefit), 'The yearly value once every community is live and fully ramped, after subscription fees.'],
-    ['Net Benefit per Unit per Month', usd(k.netBenefitPerOccupiedUnitMonth), `Per occupied apartment at run rate (${usd(k.netBenefitPerUnitMonth)} per unit across all ${count(inputs.cfo.portfolioUnits)} units).`],
+    ['Total Investment — 12 Mo', usd(kp.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
+    ['Net Benefit — 12 Mo', usd(kp.netBenefit12), 'How much better off your communities are in year one after paying for everything.'],
+    ['Gross Return per $1 Invested', multiple(kp.grossReturnPerDollar12), `For every $1 spent on Teton in year one, the benefit that comes back.`],
+    ['Discounted Payback', kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `Beyond month ${kp.horizonMonths}`, `When the program has paid for itself and stays paid for, using your ${pct(inputs.cfo.annualDiscountRate, 1)} cost of money.`],
+    ['Run-Rate Annual Net Benefit', usd(kp.runRateAnnualNetBenefit), 'The yearly value once every community is live and fully ramped, after subscription fees.'],
+    ['Net Benefit per Unit per Month', usd(kp.netBenefitPerOccupiedUnitMonth), `Per occupied apartment at run rate (${usd(kp.netBenefitPerUnitMonth)} per unit across all ${count(inputs.cfo.portfolioUnits)} units).`],
   ];
 
   const benefits: Array<[string, string]> = [
@@ -135,103 +202,103 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         </div>
       </section>
 
-      <section className="mb-8 avoid-break">
-        <H2>Scope</H2>
+      <section className="mb-8">
+        <H2>Scope &amp; investment</H2>
+
+        {showOpex && (
+          <div className={`grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <div className="rounded-lg bg-teton-almost-white p-3">
+              <p className="text-[11px] text-teton-dark-gray">One-time{credit > 0 && anyPilot ? ', after credits' : ''}</p>
+              <p className="text-lg font-semibold tabular-nums">{usd(oneTime)}</p>
+            </div>
+            {anyPilot && (
+              <div className="rounded-lg bg-teton-almost-white p-3">
+                <p className="text-[11px] text-teton-dark-gray">Monthly during the pilot</p>
+                <p className="text-lg font-semibold tabular-nums">{usd(pilotMonthly)}</p>
+              </div>
+            )}
+            <div className="rounded-lg bg-teton-almost-white p-3">
+              <p className="text-[11px] text-teton-dark-gray">Monthly, all sites in service</p>
+              <p className="text-lg font-semibold tabular-nums">{usd(serviceMonthly)}</p>
+            </div>
+            <div className="rounded-lg bg-teton-almost-white p-3">
+              <p className="text-[11px] text-teton-dark-gray">Total over {anyPilot ? 'pilot + ' : ''}{term}-month term</p>
+              <p className="text-lg font-semibold tabular-nums">{usd(termTotal)}</p>
+            </div>
+          </div>
+        )}
+
+        <p className="text-[12px] text-teton-dark-gray mb-2">
+          {rateSummary.map((r, i) => (
+            <span key={r.label}>
+              {i > 0 && ' · '}
+              {r.label} <span className="font-medium text-teton-ink">{r.value}</span>
+              {r.list && <span className="text-teton-ui-gray"> (list {r.list})</span>}
+            </span>
+          ))}
+        </p>
+
         <table className="w-full">
           <thead className="text-[11px] text-teton-dark-gray text-left">
             <tr className="border-b border-teton-pale-gray">
               <th className="font-medium py-1.5">Community</th>
-              <th className="font-medium py-1.5">Market</th>
               <th className="font-medium py-1.5 px-2 text-right">Beds</th>
-              <th className="font-medium py-1.5 px-2">Coverage</th>
-              <th className="font-medium py-1.5 px-2">E-Call</th>
-              <th className="font-medium py-1.5 pl-2">Go-live</th>
+              <th className="font-medium py-1.5 px-2">Go-live</th>
+              {showOpex && <th className="font-medium py-1.5 px-2 text-right">Monthly</th>}
+              {showOpex && <th className="font-medium py-1.5 pl-2 text-right">One-time</th>}
             </tr>
           </thead>
           <tbody className="tabular-nums">
-            {draft.communities.map((dc, i) => {
-              const cc = cf.communities[i];
-              return (
-                <tr key={dc.id} className="border-b border-teton-off-white">
-                  <td className="py-1.5">{inputs.communities[i].name}{cc.inPilot && <span className="ml-2 text-[11px] bg-teton-pale-green rounded px-1.5 py-0.5">Pilot</span>}</td>
-                  <td className="py-1.5">{dc.market}</td>
-                  <td className="py-1.5 px-2 text-right whitespace-nowrap">{count(inputs.communities[i].units)}{dc.snfBeds ? ` (${dc.snfBeds} SNF)` : ''}</td>
-                  <td className="py-1.5 px-2">{dc.coverage === 'full_facility' ? 'Full facility' : 'Resident rooms'}</td>
-                  <td className="py-1.5 px-2">{draft.commercial.ecall !== 'none' && dc.ecall ? 'Yes' : '—'}</td>
-                  <td className="py-1.5 pl-2">{monthName(start, cc.goLiveMonth)}</td>
-                </tr>
-              );
-            })}
-            <tr className="font-semibold">
-              <td className="py-1.5">Total</td>
-              <td />
-              <td className="py-1.5 px-2 text-right">{count(units)}</td>
-              <td colSpan={3} />
+            {perCommunity.map((row) => (
+              <tr key={row.key} className="border-b border-teton-off-white avoid-break align-top">
+                <td className="py-1.5 pr-2">
+                  <span className="flex items-start gap-1.5">
+                    {row.pilot ? <PilotIcon /> : <span className="w-4 flex-shrink-0" aria-hidden="true" />}
+                    <span>
+                      {row.name}
+                      {row.pilot && <span className="sr-only"> (pilot site)</span>}
+                      <span className="block text-[11px] text-teton-dark-gray">{row.detail}</span>
+                    </span>
+                  </span>
+                </td>
+                <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                  {count(row.units)}
+                  {row.snf > 0 && <span className="block text-[11px] text-teton-dark-gray">incl. {count(row.snf)} SNF</span>}
+                </td>
+                <td className="py-1.5 px-2 whitespace-nowrap">
+                  {row.goLive}
+                  {row.pilotUntil && <span className="block text-[11px] text-teton-dark-gray">pilot to {row.pilotUntil}</span>}
+                </td>
+                {showOpex && (
+                  <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                    {usd(row.monthly)}
+                    {row.pilotMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.pilotMonthly)} during pilot</span>}
+                    {row.introMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.introMonthly)} first {row.introMonths} mo</span>}
+                  </td>
+                )}
+                {showOpex && (
+                  <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+                    {usd(row.oneTime)}
+                    {row.credit > 0 && <span className="block text-[11px] text-teton-dark-gray">after {usd(row.credit)} credit</span>}
+                  </td>
+                )}
+              </tr>
+            ))}
+            <tr className="font-semibold border-t-2 border-teton-ink avoid-break">
+              <td className="py-2">
+                {perCommunity.length} {perCommunity.length === 1 ? 'community' : 'communities'}
+              </td>
+              <td className="py-2 px-2 text-right">{count(units)}</td>
+              <td className="py-2 px-2" />
+              {showOpex && <td className="py-2 px-2 text-right">{usd(serviceMonthly)}</td>}
+              {showOpex && <td className="py-2 pl-2 text-right">{usd(oneTime)}</td>}
             </tr>
           </tbody>
         </table>
-      </section>
-
-      <section className="mb-8 page-break">
-        <H2>Investment</H2>
-        {showOpex && (
-          <>
-            <div className="grid grid-cols-3 gap-3 mb-4 avoid-break">
-              <div className="rounded-lg bg-teton-almost-white p-3">
-                <p className="text-[11px] text-teton-dark-gray">One-time{credit > 0 ? ', after credits' : ''}</p>
-                <p className="text-lg font-semibold tabular-nums">{usd(oneTime)}</p>
-              </div>
-              <div className="rounded-lg bg-teton-almost-white p-3">
-                <p className="text-[11px] text-teton-dark-gray">{anyPilot ? 'Monthly during the pilot' : 'Monthly, first months'}</p>
-                <p className="text-lg font-semibold tabular-nums">{anyPilot ? usd(pilotMonthly) : '—'}</p>
-              </div>
-              <div className="rounded-lg bg-teton-almost-white p-3">
-                <p className="text-[11px] text-teton-dark-gray">Monthly, all sites in service</p>
-                <p className="text-lg font-semibold tabular-nums">{usd(serviceMonthly)}</p>
-              </div>
-            </div>
-            <table className="w-full mb-2">
-              <thead className="text-[11px] text-teton-dark-gray text-left">
-                <tr className="border-b border-teton-pale-gray">
-                  <th className="font-medium py-1.5">Item</th>
-                  <th className="font-medium py-1.5 px-2 text-right">Qty</th>
-                  <th className="font-medium py-1.5 px-2 text-right">Rate</th>
-                  <th className="font-medium py-1.5 px-2">Billed</th>
-                  <th className="font-medium py-1.5 text-right">Amount</th>
-                </tr>
-              </thead>
-              {draft.communities.map((dc, i) => {
-                const ls = lines.filter((l) => l.communityPosition === i);
-                return (
-                  <tbody key={dc.id} className="tabular-nums avoid-break">
-                    <tr>
-                      <td colSpan={5} className="pt-3 pb-1 font-semibold">{inputs.communities[i].name}</td>
-                    </tr>
-                    {ls.map((l, j) => (
-                      <tr key={j} className="border-b border-teton-off-white">
-                        <td className="py-1 pr-2">{l.description}</td>
-                        <td className="py-1 px-2 text-right">{count(l.qty)}</td>
-                        <td className="py-1 px-2 text-right whitespace-nowrap">
-                          {usd(l.unitNet, { cents: !Number.isInteger(l.unitNet) })}
-                          {l.unitList > l.unitNet && l.unitNet >= 0 && <span className="block text-[10px] text-teton-ui-gray">list {usd(l.unitList, { cents: !Number.isInteger(l.unitList) })}</span>}
-                        </td>
-                        <td className="py-1 px-2 text-[12px] text-teton-dark-gray whitespace-nowrap">
-                          {l.billing === 'monthly' ? `Monthly, ${monthName(start, l.startMonth)} · ${l.termMonths} mo` : `One-time, ${monthName(start, l.startMonth)}`}
-                        </td>
-                        <td className="py-1 text-right whitespace-nowrap">{l.billing === 'monthly' ? `${usd(l.qty * l.unitNet)}/mo` : usd(lineTotal(l))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                );
-              })}
-              <tbody>
-                <tr className="font-semibold border-t-2 border-teton-ink">
-                  <td colSpan={4} className="py-2">Total over {anyPilot ? `the pilot and the ${term}-month service term` : `the ${term}-month service term`}</td>
-                  <td className="py-2 text-right tabular-nums">{usd(termTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </>
+        {anyPilot && (
+          <p className="text-[11px] text-teton-dark-gray mt-2 flex items-center gap-1.5">
+            <PilotIcon /> Pilot site — starts with a {inputs.schedule.pilotLengthMonths}-month pilot, then converts to the {term}-month service term.
+          </p>
         )}
 
         {showCapex && capex && (
@@ -294,7 +361,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
             </ul>
           </div>
           <div className="avoid-break">
-            <CumulativeChart data={points} paybackMonth={k.discountedPaybackMonth} />
+            <CumulativeChart data={points} paybackMonth={kp.discountedPaybackMonth} />
           </div>
         </div>
       </section>
