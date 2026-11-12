@@ -15,8 +15,8 @@
  * backwards from the City, ST ZIP line, so stray text before a building
  * doesn't shift anything.
  *
- * NC (nursing care) units are skilled nursing beds, so they become SNF beds;
- * the rest are regular beds. Beds + SNF beds always equal NIC's Total Units.
+ * Care mix maps to the bed fields: IL (+ AA, active adult), AL, MC, and NC
+ * (nursing care) as SNF. The four always add up to NIC's Total Units.
  */
 import type { PastedCommunity } from './paste';
 
@@ -113,8 +113,13 @@ export function parseNicCopy(text: string): { buildings: NicBuilding[]; skipped:
       skipped++;
       continue;
     }
-    const snf = Math.min(careMix.NC ?? 0, total);
-    buildings.push({ name, market: state, beds: total - snf, snfBeds: snf, operator, street, city, state, zip, totalUnits: total, careMix });
+    // Care mix → bed fields. NC (nursing care) is SNF; AA (active adult) counts as IL; anything the mix
+    // doesn't account for (or no mix at all) is AL, so the four always add up to NIC's Total Units.
+    const snfBeds = Math.min(careMix.NC ?? 0, total);
+    const ilBeds = Math.min((careMix.IL ?? 0) + (careMix.AA ?? 0), total - snfBeds);
+    const mcBeds = Math.min(careMix.MC ?? 0, total - snfBeds - ilBeds);
+    const alBeds = total - snfBeds - ilBeds - mcBeds;
+    buildings.push({ name, market: state, ilBeds, alBeds, mcBeds, snfBeds, operator, street, city, state, zip, totalUnits: total, careMix });
   }
   return { buildings, skipped };
 }

@@ -96,7 +96,18 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       pilot: cc.inPilot,
       detail: [dc.market, coverage, hasEcall ? 'E-Call' : null].filter(Boolean).join(' · '),
       units: inputs.communities[i].units,
-      snf: Number(dc.snfBeds) || 0,
+      // Care-type mix under the total, e.g. "AL 10 · MC 19" (zeros left out).
+      mix: (
+        [
+          ['IL', dc.ilBeds],
+          ['AL', dc.alBeds],
+          ['MC', dc.mcBeds],
+          ['SNF', dc.snfBeds],
+        ] as const
+      )
+        .filter(([, n]) => (Number(n) || 0) > 0)
+        .map(([t, n]) => `${t} ${count(Number(n))}`)
+        .join(' · '),
       goLive: monthName(start, cc.goLiveMonth),
       pilotUntil: cc.inPilot ? monthName(start, cc.firstPostPilotMonth - 1) : null,
       monthly: sum(ls.filter((l) => l.billing === 'monthly' && !isPilotLine(l) && !isIntroLine(l)).map((l) => l.qty * l.unitNet)),
@@ -268,7 +279,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 </td>
                 <td className="py-1.5 px-2 text-right whitespace-nowrap">
                   {count(row.units)}
-                  {row.snf > 0 && <span className="block text-[11px] text-teton-dark-gray">incl. {count(row.snf)} SNF</span>}
+                  {row.mix && <span className="block text-[11px] text-teton-dark-gray">{row.mix}</span>}
                 </td>
                 <td className="py-1.5 px-2 whitespace-nowrap">
                   {row.goLive}

@@ -50,21 +50,23 @@ describe('NIC MAP portal copy', () => {
       zip: '42701',
       market: 'KY',
       totalUnits: 29,
-      beds: 29,
+      ilBeds: 0,
+      alBeds: 10,
+      mcBeds: 19,
       snfBeds: 0,
       careMix: { AA: 0, IL: 0, AL: 10, MC: 19, NC: 0 },
     });
-    expect(buildings.map((b) => [b.name, b.market, b.beds])).toEqual([
-      ['Maple Alcove at Elmwood', 'KY', 29],
-      ['Birch Senior Living', 'IN', 131],
-      ['Cedar Oaks of Pearland', 'TX', 80],
+    expect(buildings.map((b) => [b.name, b.market, b.ilBeds, b.alBeds, b.mcBeds, b.snfBeds])).toEqual([
+      ['Maple Alcove at Elmwood', 'KY', 0, 10, 19, 0],
+      ['Birch Senior Living', 'IN', 0, 115, 16, 0],
+      ['Cedar Oaks of Pearland', 'TX', 22, 58, 0, 0],
     ]);
   });
 
-  it('nursing-care (NC) units become SNF beds; beds + SNF = total units', () => {
+  it('nursing-care (NC) units become SNF beds; the four fields add up to total units', () => {
     const t = 'Willow Care Center\nExample Health\n1 Main St\nDayton, OH 45402\nTotal Units\t120\nAA\tIL\tAL\tMC\tNC\n0\t0\t40\t20\t60';
     const [b] = parseNicCopy(t).buildings;
-    expect([b.beds, b.snfBeds, b.totalUnits]).toEqual([60, 60, 120]);
+    expect([b.ilBeds, b.alBeds, b.mcBeds, b.snfBeds, b.totalUnits]).toEqual([0, 40, 20, 60, 120]);
   });
 
   it('copes with "View Details", page headings, a missing operator, ZIP+4 and the total on its own line', () => {

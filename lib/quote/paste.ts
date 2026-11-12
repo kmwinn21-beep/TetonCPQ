@@ -18,16 +18,24 @@
 export interface PastedCommunity {
   name: string;
   market: string;
-  beds: number;
+  ilBeds: number;
+  alBeds: number;
+  mcBeds: number;
   snfBeds: number;
 }
 
 export interface ColumnMap {
   name: number | null;
   market: number | null;
+  /** A single units / beds column. Counted as AL unless IL / AL / MC columns are given. */
   units: number | null;
   snf: number | null;
+  il?: number | null;
+  al?: number | null;
+  mc?: number | null;
 }
+
+export const pastedTotal = (c: PastedCommunity) => c.ilBeds + c.alBeds + c.mcBeds + c.snfBeds;
 
 export interface PasteResult {
   communities: PastedCommunity[];
@@ -101,7 +109,10 @@ function fromHeader(header: string[]): ColumnMap {
     market: find(/market|state/i) ?? find(/city/i),
     units: find(/total units|unit count|units\s*\/\s*beds|^units$|^beds$|^# of (units|beds)|^total beds/i, /occupied|serviceable|pilot|available|snf|skilled/i)
       ?? find(/units|beds/i, /occupied|serviceable|pilot|available|snf|skilled/i),
-    snf: find(/snf|skilled/i),
+    snf: find(/snf|skilled|^nc$|nursing/i),
+    il: find(/^(il|independent( living)?)\b/i),
+    al: find(/^(al|assisted( living)?)\b/i),
+    mc: find(/^(mc|memory( care)?)\b/i),
   };
 }
 
@@ -143,10 +154,12 @@ function inferColumns(rows: string[][], known: ColumnMap): ColumnMap {
       .sort((a, b) => b.avgLen - a.avgLen)[0]?.c ??
     null;
 
-  const unitCandidates = stats.filter((s) => s.c !== name && s.c !== market && s.c !== known.snf && s.wholeAtLeastOneFrac >= 0.8 && !s.counter);
-  const units = known.units ?? (unitCandidates.find((s) => name == null || s.c > name) ?? unitCandidates[0])?.c ?? null;
+  const taken = new Set([name, market, known.snf, known.il, known.al, known.mc].filter((x): x is number => x != null));
+  const unitCandidates = stats.filter((s) => !taken.has(s.c) && s.wholeAtLeastOneFrac >= 0.8 && !s.counter);
+  const hasTypeColumns = known.il != null || known.al != null || known.mc != null;
+  const units = known.units ?? (hasTypeColumns ? null : (unitCandidates.find((s) => name == null || s.c > name) ?? unitCandidates[0])?.c ?? null);
 
-  return { name, market, units, snf: known.snf };
+  return { name, market, units, snf: known.snf, il: known.il, al: known.al, mc: known.mc };
 }
 
 const IGNORED_NAMES = /^(total|totals|subtotal|grand total)$/i;
@@ -158,7 +171,7 @@ export function parsePaste(text: string, overrides: Partial<ColumnMap> = {}): Pa
   const hasHeader = looksLikeHeader(all[0]);
   const header = hasHeader ? all[0] : null;
   const rows = hasHeader ? all.slice(1) : all;
-  const fromHead = header ? fromHeader(header) : { name: null, market: null, units: null, snf: null };
+  const fromHead: ColumnMap = header ? fromHeader(header) : { name: null, market: null, units: null, snf: null };
   const inferred = inferColumns(rows.length ? rows : all, { ...fromHead, ...overrides });
   const columns: ColumnMap = { ...inferred, ...overrides };
 
@@ -173,17 +186,22 @@ export function parsePaste(text: string, overrides: Partial<ColumnMap> = {}): Pa
   let skipped = 0;
   for (const r of rows) {
     const name = columns.name != null ? (r[columns.name] ?? '') : '';
-    const units = columns.units != null ? toNumber(r[columns.units]) : null;
-    if (!name || IGNORED_NAMES.test(name) || !units || units <= 0) {
+    const num = (c: number | null | undefined) => (c != null ? Math.max(0, Math.round(toNumber(r[c]) ?? 0)) : 0);
+    const units = num(columns.units);
+    const c: PastedCommunity = {
+      name,
+      market: columns.market != null ? (r[columns.market] ?? '') : '',
+      ilBeds: num(columns.il),
+      // A single units column counts as AL; with care-type columns it's only added if it isn't one of them.
+      alBeds: num(columns.al) + units,
+      mcBeds: num(columns.mc),
+      snfBeds: num(columns.snf),
+    };
+    if (!name || IGNORED_NAMES.test(name) || pastedTotal(c) <= 0) {
       skipped++;
       continue;
     }
-    communities.push({
-      name,
-      market: columns.market != null ? (r[columns.market] ?? '') : '',
-      beds: Math.round(units),
-      snfBeds: columns.snf != null ? Math.max(0, Math.round(toNumber(r[columns.snf]) ?? 0)) : 0,
-    });
+    communities.push(c);
   }
   return { communities, columns, columnLabels, hasHeader, skipped };
 }

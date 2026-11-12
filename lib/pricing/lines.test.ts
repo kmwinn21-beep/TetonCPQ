@@ -15,9 +15,9 @@ function draft(): QuoteDraft {
   d.commercial.specialRate = 89;
   d.commercial.specialTermMonths = 6;
   d.communities = [
-    { ...newCommunity(0), name: 'Pilot', beds: 100, pilot: true, pilotUnits: 60, additionalSensors: 4 },
-    { ...newCommunity(1), name: 'Full', beds: 80, coverage: 'full_facility', goLiveMonth: '2027-06' },
-    { ...newCommunity(2), name: 'No e-call', beds: 50, ecall: false, goLiveMonth: '2027-06' },
+    { ...newCommunity(0), name: 'Pilot', alBeds: 100, pilot: true, pilotUnits: 60, additionalSensors: 4 },
+    { ...newCommunity(1), name: 'Full', alBeds: 80, coverage: 'full_facility', goLiveMonth: '2027-06' },
+    { ...newCommunity(2), name: 'No e-call', alBeds: 50, ecall: false, goLiveMonth: '2027-06' },
   ];
   return d;
 }

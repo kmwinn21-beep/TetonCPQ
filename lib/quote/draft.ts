@@ -13,9 +13,14 @@ export interface DraftCommunity {
   id: string;
   name: string;
   market: string;
-  beds: number;
-  /** Skilled nursing beds; priced the same as other beds. */
+  /** Beds by care type. Every bed is priced the same; the split is for scope and reporting. */
+  ilBeds: number;
+  alBeds: number;
+  mcBeds: number;
+  /** Skilled nursing beds. */
   snfBeds: number;
+  /** @deprecated single bed count from before the IL/AL/MC split; normalizeDraft moves it to alBeds. */
+  beds?: number;
   coverage: Coverage;
   /** Takes the deal's e-call add-on. */
   ecall: boolean;
@@ -96,7 +101,9 @@ export function newCommunity(i: number): DraftCommunity {
     id: `c${Date.now().toString(36)}${i}`,
     name: '',
     market: '',
-    beds: 0,
+    ilBeds: 0,
+    alBeds: 0,
+    mcBeds: 0,
     snfBeds: 0,
     coverage: 'rooms_only',
     ecall: true,
@@ -160,5 +167,24 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     ...d,
     presentation: d.presentation ?? 'opex',
     commercial: { ...d.commercial, capexDiscountRate: d.commercial.capexDiscountRate ?? 0.04 },
+    communities: (d.communities ?? []).map(normalizeCommunity),
   };
+}
+
+/** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */
+export function normalizeCommunity(c: DraftCommunity): DraftCommunity {
+  if (c.ilBeds != null || c.alBeds != null || c.mcBeds != null) {
+    const { beds: _legacy, ...rest } = c;
+    return { ...rest, ilBeds: Number(c.ilBeds) || 0, alBeds: Number(c.alBeds) || 0, mcBeds: Number(c.mcBeds) || 0, snfBeds: Number(c.snfBeds) || 0 };
+  }
+  const { beds, ...rest } = c;
+  return { ...rest, ilBeds: 0, alBeds: Number(beds) || 0, mcBeds: 0, snfBeds: Number(c.snfBeds) || 0 };
+}
+
+/** Total beds (IL + AL + MC + SNF). Tolerates un-normalized legacy communities. */
+export function bedsOf(c: Partial<DraftCommunity> | undefined | null): number {
+  if (!c) return 0;
+  const split = c.ilBeds != null || c.alBeds != null || c.mcBeds != null;
+  const nonSnf = split ? (Number(c.ilBeds) || 0) + (Number(c.alBeds) || 0) + (Number(c.mcBeds) || 0) : Number(c.beds) || 0;
+  return nonSnf + (Number(c.snfBeds) || 0);
 }

@@ -69,6 +69,11 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
     @apply block text-xs font-medium text-teton-dark-gray mb-1;
   }
 
+  /* Small uppercase label above a field. */
+  .eyebrow {
+    @apply block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1;
+  }
+
   .hint {
     @apply text-xs text-teton-ui-gray mt-1;
   }

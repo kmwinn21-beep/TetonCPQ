@@ -5,7 +5,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { newCommunity } from '@/lib/quote/draft';
-import { createDeal, getExportHtml, getQuoteEditor, getVersion, getVersionLines, listDeals, listExports, markSent, saveDraft, saveVersion } from './quotes';
+import { createDeal, DraftConflictError, getExportHtml, getQuoteEditor, getVersion, getVersionLines, listDeals, listExports, markSent, saveDraft, saveVersion } from './quotes';
 
 let db: Client;
 let dir: string;
@@ -34,7 +34,7 @@ describe('deals, drafts and versions', () => {
     expect(ed.draft.commercial.pilotRate).toBe(75);
     expect(ed.versions).toEqual([]);
 
-    const draft = { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site A', beds: 120, pilot: true }] };
+    const draft = { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site A', alBeds: 120, pilot: true }] };
     await saveDraft(db, quoteId, draft);
     const v1 = await saveVersion(db, quoteId, 'First proposal');
     expect(v1.versionNo).toBe(1);
@@ -81,7 +81,7 @@ describe('deals, drafts and versions', () => {
   it('stores price lines with each version and records a sent proposal', async () => {
     const { quoteId } = await createDeal(db, 'Sent SL');
     const ed = (await getQuoteEditor(db, quoteId))!;
-    await saveDraft(db, quoteId, { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site', beds: 50, pilot: true }] });
+    await saveDraft(db, quoteId, { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site', alBeds: 50, pilot: true }] });
     const { versionId } = await saveVersion(db, quoteId, 'to CFO');
     const lines = await getVersionLines(db, versionId, ['Site']);
     expect(lines.map((l) => l.description)).toContain('Teton subscription — pilot');
@@ -96,6 +96,20 @@ describe('deals, drafts and versions', () => {
     expect(await listExports(db, versionId)).toHaveLength(1);
     // still frozen after sending
     await expect(db.execute({ sql: "UPDATE quote_versions SET inputs_json = '{}' WHERE id = ?", args: [versionId] })).rejects.toThrow(/frozen/);
+  });
+
+  it('refuses a save from a stale copy instead of overwriting newer edits', async () => {
+    const { quoteId } = await createDeal(db, 'Two Tabs SL');
+    const ed = (await getQuoteEditor(db, quoteId))!;
+    const tabA = ed.draftUpdatedAt;
+    const tabB = ed.draftUpdatedAt;
+    // Tab A ticks a pilot and saves.
+    const a = await saveDraft(db, quoteId, { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site', alBeds: 40, pilot: true }] }, tabA);
+    // Tab B, still on the old copy, edits something else: refused, so the pilot survives.
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Two Tabs SL (B)' }, tabB)).rejects.toBeInstanceOf(DraftConflictError);
+    expect((await getQuoteEditor(db, quoteId))!.draft.communities[0].pilot).toBe(true);
+    // Tab A keeps saving with the revision it got back.
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Two Tabs SL', communities: [{ ...newCommunity(0), name: 'Site', alBeds: 41, pilot: true }] }, a.updatedAt)).resolves.toBeTruthy();
   });
 
   it('lists deals with their draft scope', async () => {

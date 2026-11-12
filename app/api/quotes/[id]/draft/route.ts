@@ -7,8 +7,8 @@ import { requireApiUser } from '@/lib/auth/server';
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     await requireApiUser();
-    const { draft } = await req.json();
-    return NextResponse.json(await saveDraft(await getDb(), idParam(params.id), draft));
+    const { draft, baseUpdatedAt } = await req.json();
+    return NextResponse.json(await saveDraft(await getDb(), idParam(params.id), draft, baseUpdatedAt ?? null));
   } catch (e) {
     return jsonError(e);
   }

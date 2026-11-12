@@ -32,7 +32,7 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
-export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[] }) {
+export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0 }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [to, setTo] = useState('');
@@ -79,6 +79,13 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           )}
         </div>
         {error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{error}</p>}
+        {pendingChanges > 0 && (
+          <p className="w-full text-sm bg-teton-pale-yellow text-teton-ink rounded px-2 py-1">
+            This is saved version v{versionNo}. The deal has {pendingChanges} {pendingChanges === 1 ? 'change' : 'changes'} since
+            {newerVersions > 0 ? ` (and ${newerVersions} newer saved ${newerVersions === 1 ? 'version' : 'versions'})` : ''} that {pendingChanges === 1 ? 'isn’t' : 'aren’t'} in this proposal.{' '}
+            <Link href={`/quotes/${quoteId}`} className="underline font-medium">Go to the deal and save a version</Link> to include {pendingChanges === 1 ? 'it' : 'them'}.
+          </p>
+        )}
         {history.length > 0 && (
           <p className="w-full text-xs text-sidebar-font/70">
             Sent copies:{' '}

@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { looksLikeNicCopy, parseNicCopy, type CareType } from '@/lib/quote/nic';
-import { parsePaste, type ColumnMap, type PastedCommunity } from '@/lib/quote/paste';
+import { parsePaste, pastedTotal, type ColumnMap, type PastedCommunity } from '@/lib/quote/paste';
 import { count } from '@/lib/format';
 import { NumInput } from '@/components/form/NumInput';
 
@@ -76,7 +76,7 @@ export function PasteDialog({
         const mix = b ? CARE_ORDER.filter((t) => (b.careMix[t] ?? 0) > 0).map((t) => `${t} ${b.careMix[t]}`).join(' · ') : '';
         const detail = b ? [b.city && `${b.city}, ${b.state}`, b.operator, mix].filter(Boolean).join(' — ') : '';
         const duplicate = existing.has(norm(c.name));
-        return { name: c.name, market: c.market, beds: c.beds, snfBeds: c.snfBeds, key, include: !duplicate, duplicate, detail };
+        return { name: c.name, market: c.market, ilBeds: c.ilBeds, alBeds: c.alBeds, mcBeds: c.mcBeds, snfBeds: c.snfBeds, key, include: !duplicate, duplicate, detail };
       }),
     );
     setStep('review');
@@ -84,8 +84,8 @@ export function PasteDialog({
 
   const update = (key: number, patch: Partial<ReviewRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const included = rows.filter((r) => r.include);
-  const invalid = included.filter((r) => !r.name.trim() || (Number(r.beds) || 0) + (Number(r.snfBeds) || 0) <= 0);
-  const totalBeds = included.reduce((s, r) => s + (Number(r.beds) || 0) + (Number(r.snfBeds) || 0), 0);
+  const invalid = included.filter((r) => !r.name.trim() || pastedTotal(r) <= 0);
+  const totalBeds = included.reduce((s, r) => s + pastedTotal(r), 0);
 
   if (!open) return null;
   return (
@@ -126,7 +126,7 @@ export function PasteDialog({
             {text.trim() && (
               <div className={`rounded-lg px-3 py-2 text-sm ${found.length ? 'bg-teton-pale-green' : 'bg-teton-pale-yellow'}`} role="status">
                 {isNic ? 'NIC MAP portal copy detected' : 'Spreadsheet rows detected'} — {found.length} {found.length === 1 ? 'community' : 'communities'} found
-                {found.length > 0 && `, ${count(found.reduce((s, c) => s + c.beds + c.snfBeds, 0))} units`}
+                {found.length > 0 && `, ${count(found.reduce((s, c) => s + pastedTotal(c), 0))} units`}
                 {skipped > 0 && ` · ${skipped} skipped (no name or no units)`}
                 {!found.length && !isNic && ' — choose the name and units columns below.'}
               </div>
@@ -182,20 +182,22 @@ export function PasteDialog({
               )}
             </div>
             <div className="px-5 py-3 overflow-x-auto">
-              <table className="w-full text-sm min-w-[760px]">
+              <table className="w-full text-sm min-w-[820px]">
                 <thead className="text-xs text-teton-dark-gray text-left">
                   <tr>
                     <th className="font-medium py-1.5 w-10"><span className="sr-only">Include</span></th>
                     <th className="font-medium py-1.5 pr-2">Community</th>
                     <th className="font-medium py-1.5 pr-2 w-24">Market</th>
-                    <th className="font-medium py-1.5 pr-2 w-24">Beds</th>
-                    <th className="font-medium py-1.5 pr-2 w-24">SNF beds</th>
+                    <th className="font-medium py-1.5 pr-2 w-[4.5rem]">IL</th>
+                    <th className="font-medium py-1.5 pr-2 w-[4.5rem]">AL</th>
+                    <th className="font-medium py-1.5 pr-2 w-[4.5rem]">MC</th>
+                    <th className="font-medium py-1.5 pr-2 w-[4.5rem]">SNF</th>
                     <th className="font-medium py-1.5">From the source</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => {
-                    const bad = r.include && (!r.name.trim() || (Number(r.beds) || 0) + (Number(r.snfBeds) || 0) <= 0);
+                    const bad = r.include && (!r.name.trim() || pastedTotal(r) <= 0);
                     return (
                       <tr key={r.key} className={`border-t border-teton-off-white align-top ${r.include ? '' : 'opacity-50'}`}>
                         <td className="py-2">
@@ -208,19 +210,19 @@ export function PasteDialog({
                         <td className="py-1.5 pr-2">
                           <input className="input-field" value={r.market} onChange={(e) => update(r.key, { market: e.target.value })} aria-label={`Market for ${r.name}`} disabled={!r.include} />
                         </td>
-                        <td className="py-1.5 pr-2">
-                          <NumInput value={r.beds} onChange={(v) => update(r.key, { beds: v ?? 0 })} min={0} invalid={bad} aria-label={`Beds for ${r.name}`} disabled={!r.include} />
-                        </td>
-                        <td className="py-1.5 pr-2">
-                          <NumInput value={r.snfBeds} onChange={(v) => update(r.key, { snfBeds: v ?? 0 })} min={0} aria-label={`SNF beds for ${r.name}`} disabled={!r.include} />
-                        </td>
+                        {(['ilBeds', 'alBeds', 'mcBeds', 'snfBeds'] as const).map((k) => (
+                          <td key={k} className="py-1.5 pr-2">
+                            <NumInput value={r[k]} onChange={(v) => update(r.key, { [k]: v ?? 0 })} min={0} invalid={bad} aria-label={`${k.replace('Beds', '').toUpperCase()} beds for ${r.name}`} disabled={!r.include} />
+                          </td>
+                        ))}
                         <td className="py-2 text-xs text-teton-dark-gray">{r.detail || '—'}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {nic && <p className="hint mt-2">NIC nursing-care (NC) units are counted as SNF beds; everything else as beds. Beds + SNF beds = NIC’s Total Units.</p>}
+              {nic && <p className="hint mt-2">From NIC’s care mix: IL (plus any AA, active adult), AL, MC, and nursing care (NC) as SNF. The four add up to NIC’s Total Units.</p>}
+              {!nic && <p className="hint mt-2">A single units column is counted as AL — adjust the split here if needed.</p>}
             </div>
           </div>
         )}
@@ -244,7 +246,7 @@ export function PasteDialog({
                 type="button"
                 className="btn-primary"
                 disabled={!included.length || invalid.length > 0}
-                onClick={() => onConfirm(included.map(({ name, market, beds, snfBeds }) => ({ name: name.trim(), market: market.trim(), beds: Number(beds) || 0, snfBeds: Number(snfBeds) || 0 })), mode)}
+                onClick={() => onConfirm(included.map(({ name, market, ilBeds, alBeds, mcBeds, snfBeds }) => ({ name: name.trim(), market: market.trim(), ilBeds: Number(ilBeds) || 0, alBeds: Number(alBeds) || 0, mcBeds: Number(mcBeds) || 0, snfBeds: Number(snfBeds) || 0 })), mode)}
               >
                 {mode === 'replace' ? 'Replace with' : 'Add'} {included.length} {included.length === 1 ? 'community' : 'communities'}
               </button>

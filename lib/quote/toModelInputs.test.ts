@@ -8,9 +8,9 @@ function draft(): QuoteDraft {
   const d = defaultDraft('Test SL', priceBook(), new Date(Date.UTC(2026, 10, 12)));
   d.implementation.desiredGoLive = '2027-03-15';
   d.communities = [
-    { ...newCommunity(0), name: 'Pilot site', beds: 100, pilot: true },
-    { ...newCommunity(1), name: 'Full facility', beds: 80, snfBeds: 20, coverage: 'full_facility', goLiveMonth: '2027-06' },
-    { ...newCommunity(2), name: 'No e-call', beds: 50, ecall: false, goLiveMonth: '2027-06' },
+    { ...newCommunity(0), name: 'Pilot site', alBeds: 100, pilot: true },
+    { ...newCommunity(1), name: 'Full facility', alBeds: 80, snfBeds: 20, coverage: 'full_facility', goLiveMonth: '2027-06' },
+    { ...newCommunity(2), name: 'No e-call', alBeds: 50, ecall: false, goLiveMonth: '2027-06' },
   ];
   return d;
 }

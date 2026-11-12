@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db/client';
-import { getVersion, getVersionLines, listExports, loadPriceBook } from '@/lib/data/quotes';
+import { getQuoteEditor, getVersion, getVersionLines, listExports, loadPriceBook } from '@/lib/data/quotes';
+import { diffDrafts } from '@/lib/quote/diff';
 import { buildPriceLines } from '@/lib/pricing/lines';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { ProposalDocument } from '@/components/proposal/ProposalDocument';
@@ -21,7 +22,11 @@ async function load(raw: string) {
   // Versions saved before price lines were stored: rebuild them from the version's own inputs.
   if (!lines.length) lines = buildPriceLines(v.inputs, toModelInputs(v.inputs), (await loadPriceBook(db)).book);
   const history = await listExports(db, id);
-  return { id, v, lines, history };
+  // Changes in the current draft that this saved version doesn't include (e.g. a pilot ticked since).
+  const editor = await getQuoteEditor(db, v.quoteId);
+  const pending = editor ? diffDrafts(v.inputs, editor.draft).length : 0;
+  const newer = editor ? editor.versions.filter((x) => x.versionNo > v.versionNo).length : 0;
+  return { id, v, lines, history, pending, newer };
 }
 
 export async function generateMetadata({ params }: { params: { versionId: string } }): Promise<Metadata> {
@@ -34,10 +39,10 @@ export default async function ProposalPage({ params }: { params: { versionId: st
   await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
-  const { id, v, lines, history } = d;
+  const { id, v, lines, history, pending, newer } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
-      <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} />
+      <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} pendingChanges={pending} newerVersions={newer} />
       <ProposalDocument draft={v.inputs} outputs={v.outputs!} lines={lines} versionNo={v.versionNo} savedAt={v.savedAt} />
     </div>
   );

@@ -12,11 +12,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await requireApiUser();
     const quoteId = idParam(params.id);
-    const { note, draft } = (await req.json()) as { note?: string; draft?: unknown };
+    const { note, draft, baseUpdatedAt } = (await req.json()) as { note?: string; draft?: unknown; baseUpdatedAt?: string | null };
     const db = await getDb();
     if (draft) {
       assertDraft(draft);
-      await saveDraft(db, quoteId, draft);
+      await saveDraft(db, quoteId, draft, baseUpdatedAt ?? null);
     }
     const saved = await saveVersion(db, quoteId, note ?? null, user.id);
     return NextResponse.json({ ...saved, editor: await getQuoteEditor(db, quoteId) }, { status: 201 });

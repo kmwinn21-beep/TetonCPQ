@@ -4,7 +4,7 @@
  */
 import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityRates, type ModelInputs } from '@/lib/model';
-import type { DraftCommunity, QuoteDraft } from './draft';
+import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -47,7 +47,7 @@ export function cashFlowStart(d: QuoteDraft): string {
   return earliest && earliest < desired ? earliest : desired;
 }
 
-export const communityUnits = (c: DraftCommunity) => (Number(c.beds) || 0) + (Number(c.snfBeds) || 0);
+export const communityUnits = (c: DraftCommunity) => bedsOf(c);
 
 export function toModelInputs(d: QuoteDraft): ModelInputs {
   const startDate = cashFlowStart(d);

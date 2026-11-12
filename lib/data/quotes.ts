@@ -15,7 +15,7 @@ import { computeCapex, runModel, ENGINE_VERSION, type CapexResult, type ModelRes
 import { priceBook, SKU, type PriceBook, type Product, type PricingModel } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
 import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';
-import { defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
+import { bedsOf, defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 
 export interface DealSummary {
@@ -94,7 +94,7 @@ export async function listDeals(db: Client): Promise<DealSummary[]> {
       updatedAt: String(r.updated_at),
       savedVersions: Number(r.saved_versions),
       communities: draft?.communities.length ?? 0,
-      beds: draft?.communities.reduce((s, c) => s + (Number(c.beds) || 0) + (Number(c.snfBeds) || 0), 0) ?? 0,
+      beds: draft?.communities.reduce((s, c) => s + bedsOf(c), 0) ?? 0,
       ownerName: r.owner_name ? String(r.owner_name) : null,
     };
   });
@@ -178,13 +178,34 @@ export function assertDraft(d: unknown): asserts d is QuoteDraft {
   }
 }
 
-export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft): Promise<{ updatedAt: string }> {
+/** The draft changed since this copy was loaded (another tab, or another person). */
+export class DraftConflictError extends Error {
+  status = 409 as const;
+  constructor() {
+    super('This deal was changed in another tab or by someone else since you opened it. Reload to get the latest — changes made here since then were not saved.');
+  }
+}
+
+/**
+ * Save the draft. When `baseUpdatedAt` is given (the editor always sends it),
+ * the save only applies if the draft is still at that revision — so an older
+ * tab can't silently overwrite newer edits made elsewhere.
+ */
+export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, baseUpdatedAt?: string | null): Promise<{ updatedAt: string }> {
   assertDraft(draft);
+  const guard = baseUpdatedAt ? ' AND updated_at = ?' : '';
   const rs = await db.execute({
-    sql: "UPDATE quote_versions SET inputs_json = ?, roi_case = ?, updated_at = datetime('now') WHERE quote_id = ? AND status = 'draft' RETURNING updated_at",
-    args: [json(draft), draft.roiCase, quoteId],
+    // Millisecond timestamps so two saves within the same second are still distinguishable.
+    sql: `UPDATE quote_versions SET inputs_json = ?, roi_case = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE quote_id = ? AND status = 'draft'${guard} RETURNING updated_at`,
+    args: baseUpdatedAt ? [json(draft), draft.roiCase, quoteId, baseUpdatedAt] : [json(draft), draft.roiCase, quoteId],
   });
-  if (!rs.rows.length) throw new Error(`Quote ${quoteId} has no draft`);
+  if (!rs.rows.length) {
+    if (baseUpdatedAt) {
+      const exists = await db.execute({ sql: "SELECT 1 FROM quote_versions WHERE quote_id = ? AND status = 'draft'", args: [quoteId] });
+      if (exists.rows.length) throw new DraftConflictError();
+    }
+    throw new Error(`Quote ${quoteId} has no draft`);
+  }
   await db.execute({
     sql: "UPDATE deals SET customer_name = ?, updated_at = datetime('now') WHERE id = (SELECT deal_id FROM quotes WHERE id = ?)",
     args: [draft.customerName.trim() || 'Untitled customer', quoteId],
@@ -227,9 +248,9 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     });
     for (const [i, c] of draft.communities.entries()) {
       await tx.execute({
-        sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [versionId, i, c.name, c.market, c.beds, c.snfBeds, c.coverage, c.ecall ? 1 : 0, c.pilot ? 1 : 0, c.pilotUnits, c.occupancy, c.goLiveMonth, c.roiDelayMonths, c.additionalSensors],
+        sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, il_beds, al_beds, mc_beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [versionId, i, c.name, c.market, c.ilBeds + c.alBeds + c.mcBeds, c.ilBeds, c.alBeds, c.mcBeds, c.snfBeds, c.coverage, c.ecall ? 1 : 0, c.pilot ? 1 : 0, c.pilotUnits, c.occupancy, c.goLiveMonth, c.roiDelayMonths, c.additionalSensors],
       });
     }
     for (const l of lines) {

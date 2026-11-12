@@ -3,7 +3,7 @@
  * "Platform rate: $99 → $89", "Added community: Riverside (120 beds)".
  * Pure; works on any two QuoteDrafts.
  */
-import type { DraftCommunity, QuoteDraft } from './draft';
+import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
 
@@ -93,10 +93,12 @@ const GROUP: Record<string, string> = {
   customerName: 'Deal',
 };
 
-const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id'>, Field> = {
+const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
   market: { label: 'Market', fmt: 'text' },
-  beds: { label: 'Beds', fmt: 'num' },
+  ilBeds: { label: 'IL beds', fmt: 'num' },
+  alBeds: { label: 'AL beds', fmt: 'num' },
+  mcBeds: { label: 'MC beds', fmt: 'num' },
   snfBeds: { label: 'SNF beds', fmt: 'num' },
   coverage: { label: 'Coverage', fmt: 'text' },
   ecall: { label: 'E-Call', fmt: 'bool' },
@@ -191,7 +193,7 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const byId = (cs: DraftCommunity[]) => new Map(cs.map((c) => [c.id, c]));
   const ma = byId(ca ?? []);
   const mb = byId(cb ?? []);
-  const units = (c: DraftCommunity) => (Number(c.beds) || 0) + (Number(c.snfBeds) || 0);
+  const units = (c: DraftCommunity) => bedsOf(c);
   for (const c of ca ?? []) {
     if (!mb.has(c.id)) changes.push({ group: 'Communities', label: `Removed ${c.name || 'community'}`, from: `${units(c)} beds`, to: '—' });
   }

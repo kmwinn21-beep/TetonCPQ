@@ -157,4 +157,15 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_deals_owner ON deals(owner_id)`,
     ],
   },
+  {
+    id: 3,
+    name: 'beds by care type',
+    sql: [
+      `ALTER TABLE communities ADD COLUMN il_beds INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE communities ADD COLUMN al_beds INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE communities ADD COLUMN mc_beds INTEGER NOT NULL DEFAULT 0`,
+      // Rows saved before the split: their single count was AL.
+      `UPDATE communities SET al_beds = beds WHERE il_beds = 0 AND al_beds = 0 AND mc_beds = 0`,
+    ],
+  },
 ];

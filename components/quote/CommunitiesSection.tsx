@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { newCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { bedsOf, newCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count } from '@/lib/format';
 import { Section } from '@/components/form/fields';
@@ -12,7 +12,7 @@ import { PasteDialog } from './PasteDialog';
 import { StaggerDialog } from './StaggerDialog';
 
 export function CommunitiesSection({ inputs, result }: SectionProps) {
-  const { control, register, formState, setValue, getValues } = useFormContext<QuoteDraft>();
+  const { control, register, formState, setValue, getValues, trigger } = useFormContext<QuoteDraft>();
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'communities', keyName: '_key' });
   const rows = useWatch({ control, name: 'communities' }) ?? [];
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
@@ -23,7 +23,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   const horizon = useWatch({ control, name: 'schedule.horizonMonths' });
 
   const start = inputs?.schedule.startDate;
-  const totalBeds = rows.reduce((s, c) => s + (Number(c?.beds) || 0) + (Number(c?.snfBeds) || 0), 0);
+  const totalBeds = rows.reduce((s, c) => s + bedsOf(c), 0);
   const errors = formState.errors.communities;
 
   return (
@@ -62,7 +62,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         onClose={() => setPasting(false)}
         existingNames={rows.map((r) => r?.name ?? '')}
         onConfirm={(pasted, mode) => {
-          const onlyEmptyStarter = rows.length === 1 && !rows[0]?.name && !Number(rows[0]?.beds);
+          const onlyEmptyStarter = rows.length === 1 && !rows[0]?.name && bedsOf(rows[0]) === 0;
           if (mode === 'replace' || onlyEmptyStarter) {
             // Replacing keeps each existing community's own settings (go-live date, pilot, coverage,
             // e-call, overrides) when the same community comes back in the paste, matched by name.
@@ -87,110 +87,164 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         }}
       />
 
-      <div className="hidden md:grid grid-cols-[1.5rem_minmax(10rem,1fr)_5.5rem_5rem_8rem_3.5rem_3.5rem_2rem] gap-2 text-xs font-medium text-teton-dark-gray pb-1.5 border-b border-teton-off-white">
-        <span>#</span>
-        <span>Community</span>
-        <span>Beds</span>
-        <span>SNF beds</span>
-        <span>Coverage</span>
-        <span className="text-center">E-Call</span>
-        <span className="text-center">Pilot</span>
-        <span />
-      </div>
-      <ul>
+      <ul className="space-y-2">
         {fields.map((f, i) => {
           const row = rows[i];
           const cf = result?.cashFlow.communities[i];
           const rowErr = errors?.[i];
           const isPilot = !!row?.pilot && withPilot;
+          const id = (k: string) => `c-${f._key}-${k}`;
+          const bedError = rowErr?.alBeds?.message;
           return (
-            <li key={f._key} className={`py-2.5 border-b border-teton-off-white ${isPilot ? 'bg-teton-pale-green -mx-2 px-2 rounded-lg' : ''}`}>
-              <div className="grid grid-cols-2 md:grid-cols-[1.5rem_minmax(10rem,1fr)_5.5rem_5rem_8rem_3.5rem_3.5rem_2rem] gap-2 items-start">
-                <span className="hidden md:block pt-2 text-teton-ui-gray tabular-nums text-sm">{i + 1}</span>
-                <div className="col-span-2 md:col-span-1">
+            <li key={f._key} className={`rounded-lg border px-3 py-3 ${isPilot ? 'bg-teton-pale-green border-teton-green/40' : 'border-teton-off-white'}`}>
+              {/* Row 1: name and beds by care type */}
+              <div className="grid grid-cols-4 md:grid-cols-[1.5rem_minmax(8rem,1fr)_repeat(4,4.25rem)_2rem] gap-x-2 gap-y-2 items-end">
+                <span className="hidden md:block pb-2.5 text-teton-ui-gray tabular-nums text-sm">{i + 1}</span>
+                <div className="col-span-4 md:col-span-1 min-w-0">
+                  <label className="eyebrow" htmlFor={id('name')}>Community</label>
                   <input
+                    id={id('name')}
                     className={`input-field ${rowErr?.name ? 'ring-2 ring-teton-red border-transparent' : ''}`}
                     placeholder="Community name"
                     aria-label={`Community ${i + 1} name`}
                     aria-invalid={rowErr?.name ? true : undefined}
                     {...register(`communities.${i}.name`, { required: 'Name required' })}
                   />
-                  {rowErr?.name && <p className="text-xs mt-0.5">{rowErr.name.message}</p>}
                 </div>
-                <Controller
-                  control={control}
-                  name={`communities.${i}.beds`}
-                  rules={{ validate: (v, all) => (Number(v) || 0) + (Number(all.communities[i]?.snfBeds) || 0) > 0 || 'Beds required' }}
-                  render={({ field, fieldState }) => (
-                    <div>
-                      <NumInput value={field.value} onChange={field.onChange} onBlur={field.onBlur} min={0} invalid={!!fieldState.error} aria-label={`Community ${i + 1} beds`} />
-                      {fieldState.error && <p className="text-xs mt-0.5">{fieldState.error.message}</p>}
-                    </div>
-                  )}
-                />
-                <Controller control={control} name={`communities.${i}.snfBeds`} render={({ field }) => <NumInput value={field.value} onChange={field.onChange} min={0} aria-label={`Community ${i + 1} SNF beds`} />} />
-                <select className="input-field" aria-label={`Community ${i + 1} coverage`} {...register(`communities.${i}.coverage`)}>
-                  <option value="rooms_only">Rooms only</option>
-                  <option value="full_facility">Full facility</option>
-                </select>
-                <label className="flex md:justify-center items-center gap-2 pt-2 text-sm">
-                  <input type="checkbox" className="h-4 w-4 accent-teton-near-black" disabled={!ecallOn} aria-label={`Community ${i + 1} e-call`} {...register(`communities.${i}.ecall`)} />
-                  <span className="md:hidden">E-Call</span>
-                </label>
-                <label className="flex md:justify-center items-center gap-2 pt-2 text-sm">
-                  <input type="checkbox" className="h-4 w-4 accent-teton-near-black" disabled={!withPilot} aria-label={`Community ${i + 1} pilot`} {...register(`communities.${i}.pilot`)} />
-                  <span className="md:hidden">Pilot</span>
-                </label>
-                <button type="button" className="btn-ghost text-teton-ui-gray justify-self-end" onClick={() => remove(i)} aria-label={`Remove community ${i + 1}`} title="Remove">
+                {(
+                  [
+                    ['ilBeds', 'IL'],
+                    ['alBeds', 'AL'],
+                    ['mcBeds', 'MC'],
+                    ['snfBeds', 'SNF'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <div key={k}>
+                    <label className="eyebrow" htmlFor={id(k)}>{label} beds</label>
+                    <Controller
+                      control={control}
+                      name={`communities.${i}.${k}`}
+                      rules={
+                        k === 'alBeds'
+                          ? { validate: (_v, all) => bedsOf(all.communities[i]) > 0 || 'Enter at least one bed' }
+                          : undefined
+                      }
+                      render={({ field }) => (
+                        <NumInput
+                          id={id(k)}
+                          value={field.value}
+                          onChange={(v) => {
+                            field.onChange(v);
+                            if (bedError) void trigger(`communities.${i}.alBeds`);
+                          }}
+                          onBlur={field.onBlur}
+                          min={0}
+                          invalid={!!bedError}
+                          aria-label={`Community ${i + 1} ${label} beds`}
+                        />
+                      )}
+                    />
+                  </div>
+                ))}
+                <button type="button" className="btn-ghost text-teton-ui-gray justify-self-end mb-1 hidden md:block" onClick={() => remove(i)} aria-label={`Remove community ${i + 1}`} title="Remove">
                   ✕
                 </button>
               </div>
-              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 items-center">
-                <input className="input-field" placeholder="Market (e.g. CO)" aria-label={`Community ${i + 1} market`} {...register(`communities.${i}.market`)} />
-                <input
-                  type="month"
-                  className="input-field px-2"
-                  title="Go-live month (blank = default)"
-                  aria-label={`Community ${i + 1} go-live month`}
-                  {...register(`communities.${i}.goLiveMonth`, { setValueAs: (v) => (v ? v : null) })}
-                />
-                {isPilot ? (
+              {(rowErr?.name || bedError) && (
+                <p className="text-xs mt-1 md:pl-8">{[rowErr?.name?.message, bedError].filter(Boolean).join(' · ')}</p>
+              )}
+
+              {/* Row 2: state, go-live, occupancy, ROI delay, sensors */}
+              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-[4.5rem_minmax(9rem,1fr)_5rem_5rem_5rem] gap-x-2 gap-y-2 items-end">
+                <div>
+                  <label className="eyebrow" htmlFor={id('market')}>State</label>
+                  <input id={id('market')} className="input-field" placeholder="CO" aria-label={`Community ${i + 1} market`} {...register(`communities.${i}.market`)} />
+                </div>
+                <div>
+                  <label className="eyebrow" htmlFor={id('golive')}>Go-live date</label>
+                  <input
+                    id={id('golive')}
+                    type="month"
+                    className="input-field px-2"
+                    title="Blank = month 1, or right after the pilot for non-pilot sites"
+                    aria-label={`Community ${i + 1} go-live month`}
+                    {...register(`communities.${i}.goLiveMonth`, { setValueAs: (v) => (v ? v : null) })}
+                  />
+                </div>
+                <div>
+                  <label className="eyebrow" htmlFor={id('occ')}>% Occ</label>
                   <Controller
                     control={control}
-                    name={`communities.${i}.pilotUnits`}
-                    render={({ field }) => <NumInput value={field.value} onChange={field.onChange} nullable placeholder="All beds" suffix="pilot" min={1} aria-label={`Community ${i + 1} pilot units`} />}
+                    name={`communities.${i}.occupancy`}
+                    render={({ field }) => (
+                      <NumInput id={id('occ')} value={field.value} onChange={field.onChange} nullable scale={100} suffix="%" placeholder={inputs ? String(Number((inputs.client.occupancy * 100).toFixed(4))) : ''} min={0} max={1} aria-label={`Community ${i + 1} occupancy`} />
+                    )}
                   />
-                ) : (
-                  <span className="text-xs text-teton-dark-gray leading-tight">
-                    <span aria-hidden="true">← </span>Set Community Go-Live Date
-                  </span>
-                )}
-                <Controller
-                  control={control}
-                  name={`communities.${i}.occupancy`}
-                  render={({ field }) => (
-                    <NumInput value={field.value} onChange={field.onChange} nullable scale={100} suffix="% occ." placeholder={inputs ? String(Number((inputs.client.occupancy * 100).toFixed(4))) : ''} min={0} max={1} aria-label={`Community ${i + 1} occupancy`} />
-                  )}
-                />
-                <Controller
-                  control={control}
-                  name={`communities.${i}.roiDelayMonths`}
-                  render={({ field }) => (
-                    <NumInput value={field.value} onChange={field.onChange} nullable placeholder={inputs ? String(inputs.schedule.roiStartDelayMonths) : ''} suffix="mo delay" min={0} aria-label={`Community ${i + 1} ROI delay`} />
-                  )}
-                />
-                <Controller
-                  control={control}
-                  name={`communities.${i}.additionalSensors`}
-                  render={({ field }) => <NumInput value={field.value} onChange={field.onChange} suffix="sensors" min={0} aria-label={`Community ${i + 1} sensors`} />}
-                />
-                {cf && start && (
-                  <p className="text-xs text-teton-ui-gray col-span-2 sm:col-span-3">
-                    Live month {cf.goLiveMonth}
-                    {!row?.goLiveMonth ? ` (default · ${monthLabel(start, cf.goLiveMonth)})` : ''} · {cf.inPilot ? `pilot to month ${cf.firstPostPilotMonth - 1} · ` : ''}ROI from month {cf.roiStartMonth}
-                  </p>
-                )}
+                </div>
+                <div>
+                  <label className="eyebrow" htmlFor={id('delay')}>Mo delay</label>
+                  <Controller
+                    control={control}
+                    name={`communities.${i}.roiDelayMonths`}
+                    render={({ field }) => (
+                      <NumInput id={id('delay')} value={field.value} onChange={field.onChange} nullable placeholder={inputs ? String(inputs.schedule.roiStartDelayMonths) : ''} min={0} aria-label={`Community ${i + 1} ROI delay`} />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="eyebrow" htmlFor={id('sensors')}>Sensors</label>
+                  <Controller
+                    control={control}
+                    name={`communities.${i}.additionalSensors`}
+                    render={({ field }) => <NumInput id={id('sensors')} value={field.value} onChange={field.onChange} min={0} aria-label={`Community ${i + 1} sensors`} />}
+                  />
+                </div>
               </div>
+
+              {/* Row 3: coverage, e-call, pilot */}
+              <div className="md:pl-8 mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
+                <div className="w-36">
+                  <label className="eyebrow" htmlFor={id('coverage')}>Coverage</label>
+                  <select id={id('coverage')} className="input-field" aria-label={`Community ${i + 1} coverage`} {...register(`communities.${i}.coverage`)}>
+                    <option value="rooms_only">Rooms only</option>
+                    <option value="full_facility">Full facility</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="eyebrow">E-Call</span>
+                  <label className="flex items-center gap-2 h-[38px] text-sm">
+                    <input type="checkbox" className="h-4 w-4 accent-teton-near-black" disabled={!ecallOn} aria-label={`Community ${i + 1} e-call`} {...register(`communities.${i}.ecall`)} />
+                    Included
+                  </label>
+                </div>
+                <div>
+                  <span className="eyebrow">Pilot</span>
+                  <label className="flex items-center gap-2 h-[38px] text-sm">
+                    <input type="checkbox" className="h-4 w-4 accent-teton-near-black" disabled={!withPilot} aria-label={`Community ${i + 1} pilot`} {...register(`communities.${i}.pilot`)} />
+                    Pilot site
+                  </label>
+                </div>
+                {isPilot && (
+                  <div className="w-28">
+                    <label className="eyebrow" htmlFor={id('pilotbeds')}>Pilot beds</label>
+                    <Controller
+                      control={control}
+                      name={`communities.${i}.pilotUnits`}
+                      render={({ field }) => <NumInput id={id('pilotbeds')} value={field.value} onChange={field.onChange} nullable placeholder="All" min={1} aria-label={`Community ${i + 1} pilot units`} />}
+                    />
+                  </div>
+                )}
+                <button type="button" className="btn-ghost text-teton-ui-gray ml-auto md:hidden" onClick={() => remove(i)} aria-label={`Remove community ${i + 1} (mobile)`}>
+                  Remove
+                </button>
+              </div>
+
+              {cf && start && (
+                <p className="text-xs text-teton-dark-gray mt-2 md:pl-8">
+                  {count(bedsOf(row))} beds · live month {cf.goLiveMonth}
+                  {!row?.goLiveMonth ? ` (default · ${monthLabel(start, cf.goLiveMonth)})` : ''} · {cf.inPilot ? `pilot to month ${cf.firstPostPilotMonth - 1} · ` : ''}ROI from month {cf.roiStartMonth}
+                </p>
+              )}
             </li>
           );
         })}
@@ -201,7 +255,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         </span>
         <span className="text-teton-ui-gray">{result ? `${count(result.kpis.totalOccupiedUnits)} occupied units at modeled occupancy` : ''}</span>
       </div>
-      <p className="hint">Second line per community: market, go-live month (blank = month 1, or right after the pilot for non-pilot sites), pilot units, occupancy and ROI delay (blank = deal values), extra sensors. Pilot sites are shaded green.</p>
+      <p className="hint">Blank go-live = month 1, or right after the pilot for non-pilot sites. Blank occupancy and delay use the deal values. Pilot sites are shaded green.</p>
       {fields.length === 0 && <p className="text-sm text-teton-ui-gray mt-3">Add at least one community.</p>}
     </Section>
   );

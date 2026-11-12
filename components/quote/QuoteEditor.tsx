@@ -8,7 +8,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { runModel, type ModelInputs, type ModelResult } from '@/lib/model';
 import { priceBook, SKU } from '@/lib/pricing/catalog';
@@ -35,7 +35,7 @@ const NAV = [
   ['cfo', 'CFO inputs'],
 ] as const;
 
-type SaveState = 'saved' | 'pending' | 'saving' | 'error';
+type SaveState = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
 
 /** Sections start collapsed; each header shows a one-line summary. */
 export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
@@ -72,27 +72,42 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   // ---- autosave ----
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const lastSaved = useRef(JSON.stringify(initial.draft));
+  // The draft revision this tab last saw; the server refuses saves based on an older one.
+  const baseRev = useRef<string | null>(initial.draftUpdatedAt);
+  const conflicted = useRef(false);
+  const putDraft = useCallback(async (snapshot: string): Promise<boolean> => {
+    const res = await fetch(`/api/quotes/${initial.quoteId}/draft`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ draft: JSON.parse(snapshot), baseUpdatedAt: baseRev.current }),
+    });
+    if (res.status === 409) {
+      conflicted.current = true;
+      setSaveState('conflict');
+      return false;
+    }
+    if (!res.ok) {
+      setSaveState('error');
+      return false;
+    }
+    baseRev.current = (await res.json()).updatedAt;
+    lastSaved.current = snapshot;
+    return true;
+  }, [initial.quoteId]);
   useEffect(() => {
     const snapshot = JSON.stringify(values);
-    if (snapshot === lastSaved.current) return;
+    if (snapshot === lastSaved.current || conflicted.current) return;
     setSaveState('pending');
     const t = setTimeout(async () => {
       setSaveState('saving');
       try {
-        const res = await fetch(`/api/quotes/${initial.quoteId}/draft`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ draft: JSON.parse(snapshot) }),
-        });
-        if (!res.ok) throw new Error((await res.json()).error);
-        lastSaved.current = snapshot;
-        setSaveState(JSON.stringify(getValues()) === snapshot ? 'saved' : 'pending');
+        if (await putDraft(snapshot)) setSaveState(JSON.stringify(getValues()) === snapshot ? 'saved' : 'pending');
       } catch {
         setSaveState('error');
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [values, initial.quoteId, getValues]);
+  }, [values, getValues, putDraft]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -125,11 +140,17 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       const res = await fetch(`/api/quotes/${initial.quoteId}/versions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ note, draft }),
+        body: JSON.stringify({ note, draft, baseUpdatedAt: baseRev.current }),
       });
       const body = await res.json();
+      if (res.status === 409) {
+        conflicted.current = true;
+        setSaveState('conflict');
+        throw new Error(body.error);
+      }
       if (!res.ok) throw new Error(body.error);
       lastSaved.current = JSON.stringify(draft);
+      baseRev.current = body.editor.draftUpdatedAt;
       setSaveState('saved');
       setVersions(body.editor.versions);
       setDraftNo(body.editor.draftVersionNo);
@@ -146,20 +167,15 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const router = useRouter();
   async function viewResults() {
     const snapshot = JSON.stringify(getValues());
-    if (snapshot !== lastSaved.current) {
+    if (snapshot !== lastSaved.current && !conflicted.current) {
       setSaveState('saving');
-      const res = await fetch(`/api/quotes/${initial.quoteId}/draft`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ draft: JSON.parse(snapshot) }) });
-      if (!res.ok) {
-        setSaveState('error');
-        return;
-      }
-      lastSaved.current = snapshot;
+      if (!(await putDraft(snapshot))) return;
       setSaveState('saved');
     }
     router.push(`/quotes/${initial.quoteId}/results`);
   }
 
-  const statusText: Record<SaveState, string> = { saved: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…', error: 'Couldn’t save — retrying on next change' };
+  const statusText: Record<SaveState, string> = { saved: 'All changes saved', pending: 'Unsaved changes…', saving: 'Saving…', error: 'Couldn’t save — retrying on next change', conflict: 'Not saved — changed elsewhere' };
 
   return (
     <FormProvider {...methods}>
@@ -173,8 +189,14 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               {...register('customerName', { required: 'Customer name is required' })}
             />
             <p className="text-sm text-teton-ui-gray mt-1">
-              Draft v{draftNo} · <span className={saveState === 'error' ? 'bg-teton-red/30 rounded px-1 text-teton-ink' : ''}>{statusText[saveState]}</span>
+              Draft v{draftNo} · <span className={saveState === 'error' || saveState === 'conflict' ? 'bg-teton-red/30 rounded px-1 text-teton-ink' : ''}>{statusText[saveState]}</span>
             </p>
+            {saveState === 'conflict' && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-teton-red/30 px-3 py-2 text-sm">
+                <span>This deal was changed in another tab or by someone else since you opened it. Edits made here since then weren’t saved, so nothing was overwritten.</span>
+                <button type="button" className="btn-primary py-1" onClick={() => window.location.reload()}>Reload latest</button>
+              </div>
+            )}
           </div>
           <div className="flex items-start gap-2">
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
