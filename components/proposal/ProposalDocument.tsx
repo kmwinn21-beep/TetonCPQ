@@ -13,7 +13,7 @@ import { POLICY } from '@/lib/pricing/catalog';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, monthName, multiple, pct, usd } from '@/lib/format';
-import { CumulativeChart, type MonthPoint } from '@/components/results/Charts';
+import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -131,7 +131,12 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
     ...(anyFull ? [{ label: 'Full-facility coverage', value: `${k.fullFacilityMultiplier}× subscription and install` }] : []),
   ];
 
-  const points: MonthPoint[] = cf.months.map((m, i) => ({ month: m, label: monthName(start, m), gross: cf.grossBenefit[i], cost: cf.totalCost[i], cumulativeDiscounted: cf.cumulativeDiscountedNet[i] }));
+  const outcomes: Array<[string, string]> = [
+    [count(sel.residentsRealigned), 'residents realigned to the right level of care'],
+    [count(sel.costlyFallsPrevented), 'costly falls prevented'],
+    [usd(sel.annualNetNoiImpact, { compact: true }), 'annual net operating income impact'],
+    [usd(sel.valuationImpact, { compact: true }), `valuation impact at a ${pct(inputs.valuation.capRate, 1)} cap rate`],
+  ];
 
   const cards: Array<[string, string, string]> = [
     ['Total Investment — 12 Mo', usd(kp.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
@@ -337,8 +342,8 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
       <section className="mb-8 avoid-break">
         <H2>Return on investment</H2>
-        <div className="grid grid-cols-[1fr_1.2fr] gap-6">
-          <div className="avoid-break">
+        <div className="grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
+          <div>
             <p className="text-[12px] text-teton-dark-gray mb-2">Annual benefit once every community is live ({CASE_LABEL[rc]} case)</p>
             <table className="w-full tabular-nums">
               <tbody>
@@ -354,15 +359,26 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 </tr>
               </tbody>
             </table>
-            <ul className="text-[12px] text-teton-dark-gray mt-3 space-y-0.5">
-              <li>{count(sel.residentsRealigned)} residents realigned to the right level of care</li>
-              <li>{count(sel.costlyFallsPrevented)} costly falls prevented a year</li>
-              <li>Annual NOI impact {usd(sel.annualNetNoiImpact)} · valuation impact {usd(sel.valuationImpact)} at a {pct(inputs.valuation.capRate, 1)} cap rate</li>
-            </ul>
           </div>
-          <div className="avoid-break">
-            <CumulativeChart data={points} paybackMonth={kp.discountedPaybackMonth} />
+          <div>
+            <p className="text-[12px] text-teton-dark-gray mb-2">What that means each year</p>
+            <div className="grid grid-cols-2 gap-2">
+              {outcomes.map(([value, label]) => (
+                <div key={label} className="rounded-lg bg-teton-almost-white p-3">
+                  <p className="text-lg font-semibold tabular-nums leading-tight">{value}</p>
+                  <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+
+        <div className="mt-6 avoid-break">
+          <p className="text-[12px] text-teton-dark-gray mb-2">
+            Net benefit by quarter after Teton fees and installation, discounted at your {pct(inputs.cfo.annualDiscountRate, 1)} cost of money. Each bar starts where the last one ended
+            {kp.discountedPaybackMonth ? `; the program pays for itself in month ${kp.discountedPaybackMonth} and stays paid for.` : '.'}
+          </p>
+          <QuarterlyWaterfall discountedNet={cf.discountedNet} startDate={start} paybackMonth={kp.discountedPaybackMonth} />
         </div>
       </section>
 
