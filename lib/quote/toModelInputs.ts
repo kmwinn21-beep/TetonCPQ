@@ -32,10 +32,25 @@ export function communityRates(d: QuoteDraft, c: DraftCommunity): CommunityRates
   };
 }
 
+/**
+ * Month 1 of the cash flow: the deal's desired go-live month, or an earlier
+ * community go-live if one is set. (A community dated before the deal start
+ * used to fall back to its default month without saying so.)
+ */
+export function cashFlowStart(d: QuoteDraft): string {
+  const desired = firstOfMonth(d.implementation.desiredGoLive);
+  const earliest = d.communities
+    .map((c) => c.goLiveMonth)
+    .filter((m): m is string => !!m && /^\d{4}-\d{2}$/.test(m))
+    .map((m) => `${m}-01`)
+    .sort()[0];
+  return earliest && earliest < desired ? earliest : desired;
+}
+
 export const communityUnits = (c: DraftCommunity) => (Number(c.beds) || 0) + (Number(c.snfBeds) || 0);
 
 export function toModelInputs(d: QuoteDraft): ModelInputs {
-  const startDate = firstOfMonth(d.implementation.desiredGoLive);
+  const startDate = cashFlowStart(d);
   const { avgRevenuePerResidentOverride, ...client } = d.client;
   const fullClient = { ...client, avgRevenuePerResident: avgRevenuePerResidentOverride ?? client.avgRent + client.careRevenuePerResident };
   const units = d.communities.reduce((s, c) => s + communityUnits(c), 0);

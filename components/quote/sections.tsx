@@ -207,7 +207,7 @@ export function ScheduleSection({ result }: SectionProps) {
     <Section
       id="schedule"
       title="Timeline & implementation"
-      description="Month 1 of the cash flow is the desired go-live month. Each community can go live later."
+      description="Month 1 of the cash flow is the desired go-live month, or an earlier community go-live if one is set. Each community can go live later."
       summary={dot(
         d.implementation?.desiredGoLive && `Go-live ${dateLabel(d.implementation.desiredGoLive)}`,
         `ROI after ${d.schedule?.roiStartDelayMonths} mo, ramp ${d.schedule?.rampMonths} mo`,

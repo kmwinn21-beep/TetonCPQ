@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { runModel } from '@/lib/model';
 import { priceBook } from '@/lib/pricing/catalog';
 import { defaultDraft, newCommunity, type QuoteDraft } from './draft';
-import { monthIndex, toModelInputs } from './toModelInputs';
+import { cashFlowStart, monthIndex, toModelInputs } from './toModelInputs';
 
 function draft(): QuoteDraft {
   const d = defaultDraft('Test SL', priceBook(), new Date(Date.UTC(2026, 10, 12)));
@@ -21,6 +21,16 @@ describe('toModelInputs', () => {
     expect(monthIndex('2027-03-01', '2027-06')).toBe(4);
     expect(monthIndex('2027-03-01', '2028-01')).toBe(11);
   });
+  it('a community going live before the deal date is honored, not silently reset to its default', () => {
+    const d = draft();
+    d.communities[1].goLiveMonth = '2027-01'; // deal go-live is 2027-03
+    expect(cashFlowStart(d)).toBe('2027-01-01');
+    const m = toModelInputs(d);
+    expect(m.schedule.startDate).toBe('2027-01-01');
+    expect(m.communities[1].goLiveMonth).toBe(1);
+    expect(m.communities[2].goLiveMonth).toBe(6); // 2027-06 counted from the new start
+  });
+
   it('per-community rates: platform × coverage + e-call', () => {
     const m = toModelInputs(draft());
     const [pilot, full, noEcall] = m.communities.map((c) => c.rates!);

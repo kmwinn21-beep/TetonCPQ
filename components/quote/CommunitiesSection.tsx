@@ -9,14 +9,18 @@ import { Section } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import type { SectionProps } from './sections';
 import { PasteDialog } from './PasteDialog';
+import { StaggerDialog } from './StaggerDialog';
 
 export function CommunitiesSection({ inputs, result }: SectionProps) {
-  const { control, register, formState } = useFormContext<QuoteDraft>();
+  const { control, register, formState, setValue, getValues } = useFormContext<QuoteDraft>();
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'communities', keyName: '_key' });
   const rows = useWatch({ control, name: 'communities' }) ?? [];
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = useWatch({ control, name: 'schedule.withPilot' });
   const [pasting, setPasting] = useState(false);
+  const [staggering, setStaggering] = useState(false);
+  const desiredGoLive = useWatch({ control, name: 'implementation.desiredGoLive' });
+  const horizon = useWatch({ control, name: 'schedule.horizonMonths' });
 
   const start = inputs?.schedule.startDate;
   const totalBeds = rows.reduce((s, c) => s + (Number(c?.beds) || 0) + (Number(c?.snfBeds) || 0), 0);
@@ -40,7 +44,10 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
               .join(' · ')
       }
       aside={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-secondary" onClick={() => setStaggering(true)} disabled={fields.length === 0}>
+            Stagger go-live dates
+          </button>
           <button type="button" className="btn-secondary" onClick={() => setPasting(true)}>
             Paste communities
           </button>
@@ -55,11 +62,28 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         onClose={() => setPasting(false)}
         existingNames={rows.map((r) => r?.name ?? '')}
         onConfirm={(pasted, mode) => {
-          const added = pasted.map((p, k) => ({ ...newCommunity(fields.length + k), ...p }));
           const onlyEmptyStarter = rows.length === 1 && !rows[0]?.name && !Number(rows[0]?.beds);
-          if (mode === 'replace' || onlyEmptyStarter) replace(added);
-          else append(added);
+          if (mode === 'replace' || onlyEmptyStarter) {
+            // Replacing keeps each existing community's own settings (go-live date, pilot, coverage,
+            // e-call, overrides) when the same community comes back in the paste, matched by name.
+            const current = getValues('communities') ?? [];
+            const byName = new Map(current.filter((c) => c?.name).map((c) => [c.name.trim().toLowerCase(), c]));
+            replace(pasted.map((p, k) => ({ ...(byName.get(p.name.trim().toLowerCase()) ?? newCommunity(k)), ...p })));
+          } else {
+            append(pasted.map((p, k) => ({ ...newCommunity(fields.length + k), ...p })));
+          }
           setPasting(false);
+        }}
+      />
+      <StaggerDialog
+        open={staggering}
+        onClose={() => setStaggering(false)}
+        communities={rows.map((r) => ({ name: r?.name ?? '', pilot: !!withPilot && !!r?.pilot, goLiveMonth: r?.goLiveMonth ?? null }))}
+        defaultFirstMonth={(desiredGoLive ?? '').slice(0, 7)}
+        horizonMonths={Number(horizon) || 36}
+        onApply={(months) => {
+          months.forEach((m, i) => setValue(`communities.${i}.goLiveMonth`, m, { shouldDirty: true }));
+          setStaggering(false);
         }}
       />
 
@@ -80,7 +104,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
           const rowErr = errors?.[i];
           const isPilot = !!row?.pilot && withPilot;
           return (
-            <li key={f._key} className="py-2.5 border-b border-teton-off-white">
+            <li key={f._key} className={`py-2.5 border-b border-teton-off-white ${isPilot ? 'bg-teton-pale-green -mx-2 px-2 rounded-lg' : ''}`}>
               <div className="grid grid-cols-2 md:grid-cols-[1.5rem_minmax(10rem,1fr)_5.5rem_5rem_8rem_3.5rem_3.5rem_2rem] gap-2 items-start">
                 <span className="hidden md:block pt-2 text-teton-ui-gray tabular-nums text-sm">{i + 1}</span>
                 <div className="col-span-2 md:col-span-1">
@@ -121,7 +145,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                   ✕
                 </button>
               </div>
-              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-center">
+              <div className="md:pl-8 mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 items-center">
                 <input className="input-field" placeholder="Market (e.g. CO)" aria-label={`Community ${i + 1} market`} {...register(`communities.${i}.market`)} />
                 <input
                   type="month"
@@ -137,7 +161,9 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                     render={({ field }) => <NumInput value={field.value} onChange={field.onChange} nullable placeholder="All beds" suffix="pilot" min={1} aria-label={`Community ${i + 1} pilot units`} />}
                   />
                 ) : (
-                  <span className="text-xs text-teton-ui-gray">Not a pilot site</span>
+                  <span className="text-xs text-teton-dark-gray leading-tight">
+                    <span aria-hidden="true">← </span>Set Community Go-Live Date
+                  </span>
                 )}
                 <Controller
                   control={control}
@@ -159,7 +185,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                   render={({ field }) => <NumInput value={field.value} onChange={field.onChange} suffix="sensors" min={0} aria-label={`Community ${i + 1} sensors`} />}
                 />
                 {cf && start && (
-                  <p className="text-xs text-teton-ui-gray col-span-2 sm:col-span-3 lg:col-span-6">
+                  <p className="text-xs text-teton-ui-gray col-span-2 sm:col-span-3">
                     Live month {cf.goLiveMonth}
                     {!row?.goLiveMonth ? ` (default · ${monthLabel(start, cf.goLiveMonth)})` : ''} · {cf.inPilot ? `pilot to month ${cf.firstPostPilotMonth - 1} · ` : ''}ROI from month {cf.roiStartMonth}
                   </p>
@@ -175,7 +201,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         </span>
         <span className="text-teton-ui-gray">{result ? `${count(result.kpis.totalOccupiedUnits)} occupied units at modeled occupancy` : ''}</span>
       </div>
-      <p className="hint">Second line per community: market, go-live month (blank = month 1, or right after the pilot for non-pilot sites), pilot units, occupancy and ROI delay (blank = deal values), extra sensors.</p>
+      <p className="hint">Second line per community: market, go-live month (blank = month 1, or right after the pilot for non-pilot sites), pilot units, occupancy and ROI delay (blank = deal values), extra sensors. Pilot sites are shaded green.</p>
       {fields.length === 0 && <p className="text-sm text-teton-ui-gray mt-3">Add at least one community.</p>}
     </Section>
   );
