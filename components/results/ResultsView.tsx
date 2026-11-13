@@ -20,6 +20,9 @@ import type { StoredOutputs, VersionSummary } from '@/lib/data/quotes';
 import { count, dateLabel, multiple, pct, usd } from '@/lib/format';
 import { CumulativeChart, MonthlyBenefitCostChart, type MonthPoint } from './Charts';
 import { TraceDrawer } from './TraceDrawer';
+import { ImplementationGantt } from '@/components/implementation/ImplementationGantt';
+import { pilotPlan } from '@/lib/quote/pilotGoLives';
+import { defaultPlan, normalizePlan } from '@/lib/quote/implementationPlan';
 import { VersionCompare, type CompareTarget } from './VersionCompare';
 
 const CASES: RoiCase[] = ['stretch', 'target', 'base', 'underperforming'];
@@ -78,6 +81,9 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
   const w = k.kpiWindowMonths;
   const start = inputs.schedule.startDate;
   const show = (id: string) => traces[id] && setOpen(traces[id]);
+  // Implementation plan for pilot sites, from the version's own inputs and go-live months.
+  const pilots = pilotPlan(draft, start, cf.communities.map((c) => c.goLiveMonth));
+  const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
 
   const points: MonthPoint[] = cf.months.map((m, i) => ({
     month: m,
@@ -281,6 +287,26 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
         </div>
         <p className="text-xs text-teton-ui-gray mt-3">Paying upfront saves {usd(capex.upfrontDiscount)} against monthly payments over the term. Each community’s term starts after its pilot.</p>
       </section>
+
+      {pilots.length > 0 && (
+        <section className="card" aria-labelledby="impl-h">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div>
+              <h2 id="impl-h" className="text-base font-semibold">Implementation</h2>
+              <p className="text-sm text-teton-ui-gray">
+                Pilot sites · {pilots.reduce((n, g) => n + g.names.length, 0)} {pilots.reduce((n, g) => n + g.names.length, 0) === 1 ? 'community' : 'communities'} · {pilots.length}{' '}
+                go-live {pilots.length === 1 ? 'date' : 'dates'} · {pilots[0].schedule.weeksToGoLive} weeks from contract start to go-live
+              </p>
+            </div>
+            <span className="badge-gray">{JSON.stringify(normalizePlan(draft.implementationPlan)) === JSON.stringify(defaultPlan()) ? 'Standard stage lengths' : 'Custom stage lengths'}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[720px]">
+              <ImplementationGantt groups={pilots} today={today} />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="card overflow-x-auto">
         <h2 className="text-base font-semibold mb-3">By community</h2>

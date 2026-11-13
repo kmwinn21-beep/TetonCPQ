@@ -20,6 +20,9 @@ import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { T } from './EditableText';
 import { renderText } from '@/lib/proposal/text';
 import { ProposalSections, V } from './ProposalSections';
+import { ImplementationGantt, longDate } from '@/components/implementation/ImplementationGantt';
+import { pilotPlan } from '@/lib/quote/pilotGoLives';
+import { STAGE_BY_KEY, weekLabel } from '@/lib/quote/implementationPlan';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -216,6 +219,50 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
   const ecallFreeInPilot = draft.commercial.ecall !== 'none' && draft.commercial.ecallPilotRate === 0;
   const nCommunities = inputs.communities.length;
+
+  // Implementation plan for pilot sites (only shown when the deal has pilot communities).
+  const pilots = pilotPlan(draft, start, cf.communities.map((c) => c.goLiveMonth));
+  const pilotDates = pilots.map((g) => `${longDate(g.goLive)} (${g.names.join(', ')})`);
+  const pilotDatesText = pilotDates.length <= 1 ? pilotDates.join('') : `${pilotDates.slice(0, -1).join(', ')} and ${pilotDates[pilotDates.length - 1]}`;
+  const pilotCount = pilots.reduce((n, g) => n + g.names.length, 0);
+  const implementationBody = pilots.length ? (
+    <>
+      <p className="mb-3 text-[14px] max-w-prose">
+        <T
+          k="impl.intro"
+          d={
+            pilotCount === 1
+              ? 'Your pilot community goes live on {dates}. Working back from that date, here is the path to go-live.'
+              : 'Your pilot communities go live on {dates}. Working back from those dates, here is the path to go-live.'
+          }
+          v={{ dates: pilotDatesText }}
+        />
+      </p>
+      <ImplementationGantt groups={pilots} labelWidth={170} />
+      <div className="grid grid-cols-3 gap-2.5 mt-4">
+        {pilots[0].schedule.stages
+          .filter((st) => st.weeks > 0)
+          .map((st) => (
+            <div key={st.key} className="rounded-lg border border-teton-pale-gray p-2.5 avoid-break">
+              <p className="text-[10.5px] text-teton-ui-gray">
+                <V k={`impl.${st.key}.weeks`} label={`${st.name} timing`}>
+                  {st.weeks} {st.weeks === 1 ? 'week' : 'weeks'} · {weekLabel(st, true).toLowerCase()}
+                </V>
+              </p>
+              <p className="text-[12px] font-semibold">
+                <T k={`impl.${st.key}.name`} d={st.name} />
+              </p>
+              <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+                <T k={`impl.${st.key}.note`} d={STAGE_BY_KEY[st.key].description} />
+              </p>
+            </div>
+          ))}
+      </div>
+      <p className="text-[11px] text-teton-dark-gray mt-2">
+        <T k="impl.footnote" d="Dates assume the order form is signed by the end of Evaluation & Contracting. Non-pilot communities follow the same path ahead of their go-live dates." />
+      </p>
+    </>
+  ) : null;
 
   const summaryBody = (
     <>
@@ -547,6 +594,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         sections={{
           summary: { body: summaryBody, className: 'avoid-break' },
           scope: { body: scopeBody },
+          ...(implementationBody ? { implementation: { body: implementationBody } } : {}),
           roi: { body: roiBody, className: 'avoid-break' },
           assumptions: { body: assumptionsBody, className: 'avoid-break' },
         }}

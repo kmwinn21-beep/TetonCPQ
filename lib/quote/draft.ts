@@ -5,6 +5,7 @@
  */
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
+import { defaultPlan, normalizePlan, type ImplementationPlan } from './implementationPlan';
 
 export type EcallOption = 'none' | 'ble' | 'inovonics';
 export type Coverage = 'rooms_only' | 'full_facility';
@@ -89,6 +90,8 @@ export interface QuoteDraft {
     baselineWeeks: number;
     onboardingDays: number;
   };
+  /** Stage lengths from contract to go-live, worked back from pilot go-live dates. */
+  implementationPlan: ImplementationPlan;
   commercial: Commercial;
   presentation: Presentation;
   communities: DraftCommunity[];
@@ -138,6 +141,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
     cfo: { annualDiscountRate: 0.08, portfolioUnitsOverride: null, reimbursementPerOccupiedUnitMonth: 86 },
     schedule: { withPilot: true, pilotLengthMonths: POLICY.standardPilotMonths, roiStartDelayMonths: 3, rampMonths: 3, horizonMonths: 36, includeReimbursement: false },
     implementation: { desiredGoLive: goLive, communicationWeeks: 3, installationWeeks: 1, baselineWeeks: 4, onboardingDays: 3 },
+    implementationPlan: defaultPlan(),
     commercial: {
       platformRate: book[SKU.platform]?.list ?? 99,
       pilotRate: POLICY.standardPilotRate,
@@ -166,6 +170,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
   return {
     ...d,
     presentation: d.presentation ?? 'opex',
+    implementationPlan: normalizePlan(d.implementationPlan),
     commercial: { ...d.commercial, capexDiscountRate: d.commercial.capexDiscountRate ?? 0.04 },
     communities: (d.communities ?? []).map(normalizeCommunity),
   };

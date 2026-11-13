@@ -76,6 +76,7 @@ export function V({ k, label, children, block = false }: { k: string; label: str
 export const SECTION_TITLES: Record<StandardSection, { key: string; title: string }> = {
   summary: { key: 'summary.title', title: 'Summary — Year 1' },
   scope: { key: 'scope.title', title: 'Scope & investment' },
+  implementation: { key: 'impl.title', title: 'Implementation' },
   roi: { key: 'roi.title', title: 'Return on investment' },
   assumptions: { key: 'assume.title', title: 'Assumptions' },
 };
@@ -308,7 +309,7 @@ function AddZone({ at }: { at: number }) {
   );
 }
 
-export function ProposalSections({ sections }: { sections: Record<StandardSection, StandardSectionContent> }) {
+export function ProposalSections({ sections }: { sections: Partial<Record<StandardSection, StandardSectionContent>> }) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const [dragging, setDragging] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);

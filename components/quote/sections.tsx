@@ -199,20 +199,19 @@ export function PricingSection({ book }: SectionProps) {
   );
 }
 
-export function ScheduleSection({ result }: SectionProps) {
+export function ScheduleSection(_props: SectionProps) {
   const { register, formState } = useFormContext<QuoteDraft>();
   const d = useDraft();
-  const impl = result?.implementation;
   return (
     <Section
       id="schedule"
-      title="Timeline & implementation"
+      title="Timeline"
       description="Month 1 of the cash flow is the desired go-live month, or an earlier community go-live if one is set. Each community can go live later."
       summary={dot(
         d.implementation?.desiredGoLive && `Go-live ${dateLabel(d.implementation.desiredGoLive)}`,
         `ROI after ${d.schedule?.roiStartDelayMonths} mo, ramp ${d.schedule?.rampMonths} mo`,
         `${d.schedule?.horizonMonths}-month model`,
-        impl && `kick off by ${dateLabel(impl.latestKickoffDate)}`,
+
       )}
     >
       <div className="space-y-5">
@@ -236,16 +235,6 @@ export function ScheduleSection({ result }: SectionProps) {
               </div>
             )}
           />
-        </Grid>
-        <Grid cols={4}>
-          <NumberField name="implementation.communicationWeeks" label="Communication" suffix="weeks" min={0} />
-          <NumberField name="implementation.installationWeeks" label="Installation" suffix="weeks" min={0} />
-          <NumberField name="implementation.baselineWeeks" label="Baseline" suffix="weeks" min={0} />
-          <NumberField name="implementation.onboardingDays" label="Onboarding" suffix="days" min={0} />
-        </Grid>
-        <Grid cols={4}>
-          <DerivedField label="Total implementation time" value={impl ? `${Number(impl.totalImplementationWeeks.toFixed(1))} weeks` : '—'} formula="Communication + Installation + Baseline weeks + Onboarding days ÷ 5" />
-          <DerivedField label="Latest kickoff date" value={impl ? dateLabel(impl.latestKickoffDate) : '—'} formula="Go-live date − implementation time in working days" />
         </Grid>
       </div>
     </Section>

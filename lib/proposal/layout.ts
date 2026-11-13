@@ -5,7 +5,7 @@
  */
 
 /** Standard sections, in their default order. The header and intro always stay on top. */
-export const STANDARD_SECTIONS = ['summary', 'scope', 'roi', 'assumptions'] as const;
+export const STANDARD_SECTIONS = ['summary', 'scope', 'implementation', 'roi', 'assumptions'] as const;
 export type StandardSection = (typeof STANDARD_SECTIONS)[number];
 
 export interface CustomSection {
@@ -61,10 +61,16 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     }
   }
 
-  // Order: keep known ids once, drop unknown ones, and append any standard or custom section missing from it.
+  // Order: keep known ids once and drop unknown ones. A standard section missing from a saved order (e.g. one
+  // added to the template later) goes in after the standard section it normally follows; custom ones go last.
   const known = new Set<string>([...STANDARD_SECTIONS, ...Object.keys(custom)]);
   const order = ids(raw.order, 60).filter((id) => known.has(id));
-  for (const id of [...STANDARD_SECTIONS, ...Object.keys(custom)]) if (!order.includes(id)) order.push(id);
+  STANDARD_SECTIONS.forEach((id, i) => {
+    if (order.includes(id)) return;
+    const before = STANDARD_SECTIONS.slice(0, i).reverse().find((p) => order.includes(p));
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, id);
+  });
+  for (const id of Object.keys(custom)) if (!order.includes(id)) order.push(id);
 
   return {
     order,
