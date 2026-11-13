@@ -22,7 +22,7 @@ import { CumulativeChart, MonthlyBenefitCostChart, type MonthPoint } from './Cha
 import { TraceDrawer } from './TraceDrawer';
 import { ImplementationGantt } from '@/components/implementation/ImplementationGantt';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
-import { defaultPlan, normalizePlan } from '@/lib/quote/implementationPlan';
+import { isDefaultPlan } from '@/lib/quote/implementationPlan';
 import { VersionCompare, type CompareTarget } from './VersionCompare';
 
 const CASES: RoiCase[] = ['stretch', 'target', 'base', 'underperforming'];
@@ -298,7 +298,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
                 go-live {pilots.length === 1 ? 'date' : 'dates'} · {pilots[0].schedule.weeksToGoLive} weeks from contract start to go-live
               </p>
             </div>
-            <span className="badge-gray">{JSON.stringify(normalizePlan(draft.implementationPlan)) === JSON.stringify(defaultPlan()) ? 'Standard stage lengths' : 'Custom stage lengths'}</span>
+            <span className="badge-gray">{isDefaultPlan(draft.implementationPlan) ? 'Standard stage lengths' : 'Custom stage lengths'}</span>
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[720px]">

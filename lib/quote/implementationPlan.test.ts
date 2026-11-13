@@ -10,6 +10,7 @@ import {
   planChanges,
   removedStandardStages,
   removeStage,
+  resetToStandard,
   restoreStage,
   scheduleFor,
   updateStage,
@@ -104,5 +105,17 @@ describe('implementation plan', () => {
       ['2027-02-01', ['Aspen A', 'Aspen B']],
       ['2027-03-01', ['Forest Hills']],
     ]);
+  });
+
+  it('renames standard stages, and Reset to standard keeps the names', () => {
+    let p = updateStage(defaultPlan(), 'kickoff', { name: 'Launch calls', weeks: 3 });
+    p = removeStage(p, 'baseline');
+    p = addCustomStage(p, 'Site survey').plan;
+    expect(isDefaultPlan(updateStage(defaultPlan(), 'kickoff', { name: 'Launch calls' }))).toBe(true); // a rename alone is still standard
+    const r = resetToStandard(p);
+    expect(r.order).toEqual(defaultPlan().order);
+    expect(r.stages.kickoff).toMatchObject({ name: 'Launch calls', weeks: 2 });
+    expect(r.stages.baseline.name).toBe('Baseline');
+    expect(planChanges(defaultPlan(), updateStage(defaultPlan(), 'golive', { name: 'Go live' }))).toEqual(['renamed Training & Go live to Go live']);
   });
 });

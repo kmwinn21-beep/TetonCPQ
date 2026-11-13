@@ -23,7 +23,7 @@ import { ProposalSections, V } from './ProposalSections';
 import { ImplementationGantt, longDate } from '@/components/implementation/ImplementationGantt';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { weekLabel } from '@/lib/quote/implementationPlan';
-import { AddStageCard, RemoveStageButton } from './StageControls';
+import { AddStageCard, RemoveStageButton, StageName } from './StageControls';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -252,7 +252,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 </V>
               </p>
               <p className="text-[12px] font-semibold">
-                <T k={`impl.${st.id}.name`} d={st.name} />
+                <StageName plan={draft.implementationPlan} id={st.id} name={st.name} />
               </p>
               {st.description && (
                 <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">

@@ -65,7 +65,7 @@ export function StagesEditor({ plan: rawPlan, onChange, compact = false }: { pla
           const s = plan.stages[id];
           const std = id in STAGE_BY_KEY ? STAGE_BY_KEY[id as StageKey] : null;
           const custom = !std;
-          const changed = std && (std.weeks !== s.weeks || std.overlapWeeks !== s.overlapWeeks || std.name !== s.name);
+          const changed = std && (std.weeks !== s.weeks || std.overlapWeeks !== s.overlapWeeks);
           const prev = i > 0 ? plan.stages[plan.order[i - 1]] : null;
           const label = s.name || 'Unnamed stage';
           // Text as typed (not tidied), so spaces survive while typing; tidied on blur.
@@ -75,28 +75,26 @@ export function StagesEditor({ plan: rawPlan, onChange, compact = false }: { pla
               <div className="flex items-start gap-2 min-w-0">
                 <span className="mt-[7px] inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: stageColor(id, plan.order) }} aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  {custom ? (
-                    <>
-                      <input
-                        className="input-field py-1 px-2 text-sm font-medium"
-                        value={typed.name}
-                        placeholder="Stage name"
-                        aria-label={`Stage ${i + 1} name`}
-                        onChange={(e) => onChange({ ...plan, stages: { ...plan.stages, [id]: { ...s, description: typed.description, name: e.target.value } } })}
-                        onBlur={() => onChange(updateStage(plan, id, {}))}
-                      />
-                      <input
-                        className="input-field py-1 px-2 text-xs mt-1"
-                        value={typed.description}
-                        placeholder="What happens in this stage (shown on the proposal)"
-                        aria-label={`${label} description`}
-                        onChange={(e) => onChange({ ...plan, stages: { ...plan.stages, [id]: { ...s, name: typed.name, description: e.target.value } } })}
-                        onBlur={() => onChange(updateStage(plan, id, {}))}
-                      />
-                    </>
-                  ) : (
-                    <p className="text-sm font-medium pt-1">{s.name}</p>
+                  {/* Every stage can be renamed; custom stages also get a description for the proposal. */}
+                  <input
+                    className="input-field py-1 px-2 text-sm font-medium"
+                    value={typed.name}
+                    placeholder={std ? std.name : 'Stage name'}
+                    aria-label={`Stage ${i + 1} name`}
+                    onChange={(e) => onChange({ ...plan, stages: { ...plan.stages, [id]: { ...s, description: typed.description, name: e.target.value } } })}
+                    onBlur={() => onChange(updateStage(plan, id, {}))}
+                  />
+                  {custom && (
+                    <input
+                      className="input-field py-1 px-2 text-xs mt-1"
+                      value={typed.description}
+                      placeholder="What happens in this stage (shown on the proposal)"
+                      aria-label={`${label} description`}
+                      onChange={(e) => onChange({ ...plan, stages: { ...plan.stages, [id]: { ...s, name: typed.name, description: e.target.value } } })}
+                      onBlur={() => onChange(updateStage(plan, id, {}))}
+                    />
                   )}
+                  {std && std.name !== s.name && <p className="hint mt-0.5">Standard name: {std.name}</p>}
                   {changed && <p className="hint mt-0">Standard: {std!.weeks} wk{std!.overlapWeeks ? `, ${std!.overlapWeeks} wk overlap` : ''}</p>}
                 </div>
               </div>

@@ -106,7 +106,19 @@ export function normalizePlan(input: unknown): ImplementationPlan {
   return out;
 }
 
-export const isDefaultPlan = (p: ImplementationPlan) => JSON.stringify(normalizePlan(p)) === JSON.stringify(defaultPlan());
+/**
+ * The standard stages, lengths and overlaps, keeping any names given to the
+ * standard stages that are in the plan ("Reset to standard" keeps renames).
+ */
+export function resetToStandard(p: ImplementationPlan): ImplementationPlan {
+  const cur = normalizePlan(p);
+  const d = defaultPlan();
+  for (const k of STAGE_KEYS) if (cur.stages[k]) d.stages[k] = { ...d.stages[k], name: cur.stages[k].name };
+  return d;
+}
+
+/** Standard stages, lengths and overlaps (names may differ). */
+export const isDefaultPlan = (p: ImplementationPlan) => JSON.stringify(normalizePlan(p)) === JSON.stringify(resetToStandard(p));
 
 /** Standard stages not in the plan (so they can be added back). */
 export const removedStandardStages = (p: ImplementationPlan) => STAGES.filter((s) => !p.order.includes(s.key));

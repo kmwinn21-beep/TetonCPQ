@@ -8,7 +8,7 @@
  */
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
-import { defaultPlan, earliestGoLive, isDefaultPlan, normalizePlan, weeksToGoLive } from '@/lib/quote/implementationPlan';
+import { earliestGoLive, isDefaultPlan, normalizePlan, resetToStandard, weeksToGoLive } from '@/lib/quote/implementationPlan';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { Section } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
@@ -51,7 +51,8 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
         .join(' · ')}
       aside={
         changed ? (
-          <button type="button" className="btn-ghost" onClick={() => setValue('implementationPlan', defaultPlan(), { shouldDirty: true })}>
+          <button type="button" className="btn-ghost" onClick={() => setValue('implementationPlan', resetToStandard(plan), { shouldDirty: true })}
+            title="Standard stages, lengths and overlaps; stage names you've changed are kept">
             Reset to standard
           </button>
         ) : undefined
