@@ -90,9 +90,9 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
   const vendor = useMemo(() => runVendorView(inputs), [inputs]);
 
   const cards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = [
-    { id: 'kpi.totalInvestment12', label: 'Total Investment — 12 Mo', value: usd(k.totalInvestment12), caption: `Install ${usd(sum(cf.install.slice(0, w)))} · Fees ${usd(sum(cf.recurringFees.slice(0, w)))}${inputs.schedule.includeReimbursement ? ` · Reimb. ${usd(sum(cf.reimbursement.slice(0, w)))}` : ''}` },
-    { id: 'kpi.netBenefit12', label: 'Net Benefit — 12 Mo', value: usd(k.netBenefit12), caption: `${caseName} case · net of all Teton costs`, negative: k.netBenefit12 < 0 },
-    { id: 'kpi.grossReturnPerDollar12', label: 'Gross Return per $1 Invested', value: multiple(k.grossReturnPerDollar12), caption: `About ${multiple(k.netReturnMultiple12)} of profit per $1 once the dollar is paid back` },
+    { id: 'kpi.totalInvestment12', label: 'Total Investment — Year 1', value: usd(k.totalInvestment12), caption: `Install ${usd(sum(cf.install.slice(0, w)))} · Fees ${usd(sum(cf.recurringFees.slice(0, w)))}${inputs.schedule.includeReimbursement ? ` · Reimb. ${usd(sum(cf.reimbursement.slice(0, w)))}` : ''}` },
+    { id: 'kpi.netBenefit12', label: 'Net Benefit — Year 1', value: usd(k.netBenefit12), caption: `${caseName} case · net of all Teton costs`, negative: k.netBenefit12 < 0 },
+    { id: 'kpi.grossReturnPerDollar12', label: 'Gross Return per $1 Invested (Year 1)', value: multiple(k.grossReturnPerDollar12), caption: `Stabilized return per $1 invested: ${multiple(sel.totals.returnOnCost, 1)} (${caseName} case return on cost)` },
     { id: 'kpi.discountedPaybackMonth', label: 'Discounted Payback', value: k.discountedPaybackMonth ? `Month ${k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: `Undiscounted: ${k.undiscountedPaybackMonth ? `month ${k.undiscountedPaybackMonth}` : 'not within horizon'} · first billing month ${k.firstBillingMonth ?? '—'}` },
     { id: 'kpi.runRateAnnualNetBenefit', label: 'Run-Rate Annual Net Benefit', value: usd(k.runRateAnnualNetBenefit), caption: `Month ${k.horizonMonths} net × 12 — every community live and ramped`, negative: k.runRateAnnualNetBenefit < 0 },
     { id: 'kpi.netBenefitPerOccupiedUnitMonth', label: 'Net Benefit per Unit per Month', value: `${usd(k.netBenefitPerOccupiedUnitMonth)} / occupied unit`, caption: `${usd(k.netBenefitPerUnitMonth)} per unit across ${count(inputs.cfo.portfolioUnits)} total units` },
@@ -113,7 +113,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
 
   const comparison: Array<{ id: string; label: string; fmt: (rc: RoiCase) => string }> = [
     { id: 'annual.annualRoi', label: 'Annual ROI', fmt: (rc) => usd(out.annual[rc].totals.annualRoi, { compact: true }) },
-    { id: 'annual.returnOnCost', label: 'Return on cost', fmt: (rc) => `${out.annual[rc].totals.returnOnCost.toFixed(1)}×` },
+    { id: 'annual.returnOnCost', label: 'Return on cost', fmt: (rc) => multiple(out.annual[rc].totals.returnOnCost, 1) },
     { id: 'annual.breakevenMonths', label: 'Breakeven', fmt: (rc) => `${out.annual[rc].totals.breakevenMonths.toFixed(1)} months` },
     { id: 'annual.netRevpor', label: 'Net RevPOR (annual)', fmt: (rc) => usd(out.annual[rc].totals.netRevpor) },
     { id: 'annual.annualNetNoiImpact', label: 'Annual net NOI impact', fmt: (rc) => usd(out.annual[rc].totals.annualNetNoiImpact, { compact: true }) },
@@ -171,7 +171,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
       )}
 
       <section aria-labelledby="kpis">
-        <h2 id="kpis" className="sr-only">Key figures</h2>
+        <h2 id="kpis" className="text-base font-semibold mb-3">Summary — Year 1</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (
             <button key={c.id} type="button" onClick={() => show(c.id)} className="card text-left hover:border-teton-pale-gray hover:shadow-md transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent">

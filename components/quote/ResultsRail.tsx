@@ -15,9 +15,9 @@ export function KpiPreview({ result, error }: { result: ModelResult | null; erro
   if (!result) return null;
   const k = result.kpis;
   const items: Array<[string, string, string?]> = [
-    ['Total Investment — 12 Mo', usd(k.totalInvestment12)],
-    ['Net Benefit — 12 Mo', usd(k.netBenefit12)],
-    ['Gross Return per $1 Invested', multiple(k.grossReturnPerDollar12)],
+    ['Total Investment — Year 1', usd(k.totalInvestment12)],
+    ['Net Benefit — Year 1', usd(k.netBenefit12)],
+    ['Gross Return per $1 Invested (Year 1)', multiple(k.grossReturnPerDollar12)],
     ['Discounted Payback', k.discountedPaybackMonth ? `Month ${k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`],
     ['Run-Rate Annual Net Benefit', usd(k.runRateAnnualNetBenefit, { compact: true })],
     ['Net Benefit / Unit / Month', `${usd(k.netBenefitPerOccupiedUnitMonth)} occ. · ${usd(k.netBenefitPerUnitMonth)} all`],

@@ -150,9 +150,9 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   ];
 
   const cards: Array<[string, string, string]> = [
-    ['Total Investment — 12 Mo', usd(kp.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
-    ['Net Benefit — 12 Mo', usd(kp.netBenefit12), 'How much better off your communities are in year one after paying for everything.'],
-    ['Gross Return per $1 Invested', multiple(kp.grossReturnPerDollar12), `For every $1 spent on Teton in year one, the benefit that comes back.`],
+    ['Total Investment — Year 1', usd(kp.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
+    ['Net Benefit — Year 1', usd(kp.netBenefit12), 'How much better off your communities are in year one after paying for everything.'],
+    ['Gross Return per $1 Invested (Year 1)', multiple(kp.grossReturnPerDollar12), `Stabilized return per $1 invested: ${multiple(sel.returnOnCost, 1)}, once every community is live and fully ramped.`],
     ['Discounted Payback', kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `Beyond month ${kp.horizonMonths}`, `When the program has paid for itself and stays paid for, using your ${pct(inputs.cfo.annualDiscountRate, 1)} cost of money.`],
     ['Run-Rate Annual Net Benefit', usd(kp.runRateAnnualNetBenefit), 'The yearly value once every community is live and fully ramped, after subscription fees.'],
     ['Net Benefit per Unit per Month', usd(kp.netBenefitPerOccupiedUnitMonth), `Per occupied apartment at run rate (${usd(kp.netBenefitPerUnitMonth)} per unit across all ${count(inputs.cfo.portfolioUnits)} units).`],
@@ -206,7 +206,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       </section>
 
       <section className="mb-8 avoid-break">
-        <H2>Summary</H2>
+        <H2>Summary — Year 1</H2>
         <div className="grid grid-cols-3 gap-3">
           {cards.map(([label, value, meaning]) => (
             <div key={label} className="rounded-lg border border-teton-pale-gray p-3">

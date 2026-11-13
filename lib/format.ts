@@ -20,8 +20,9 @@ export function pct(n: number | null | undefined, digits = 1): string {
   return `${Number((n * 100).toFixed(digits))}%`;
 }
 
-export function multiple(n: number | null | undefined): string {
-  return n == null || !Number.isFinite(n) ? '—' : `$${n.toFixed(2)}`;
+/** A return multiple: 1.92 → "1.92×". */
+export function multiple(n: number | null | undefined, digits = 2): string {
+  return n == null || !Number.isFinite(n) ? '—' : `${n.toFixed(digits)}×`;
 }
 
 /** Dates from SQLite ("2026-11-12 14:03:00", UTC) or ISO date strings. */

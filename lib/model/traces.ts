@@ -200,11 +200,11 @@ export function buildTraces(inputs: ModelInputs, annual: AnnualCaseResult, cf: C
         ]);
     }), '12 Mo Cash Flow row 79');
 
-  const investment = derived('kpi.totalInvestment12', 'Total Investment — 12 Mo', kpis.totalInvestment12, 'usd', 'Subscription fees + One-time install + Reimbursement', [recurring, installT, reimb], '12 Mo Cash Flow!B12');
+  const investment = derived('kpi.totalInvestment12', 'Total Investment — Year 1', kpis.totalInvestment12, 'usd', 'Subscription fees + One-time install + Reimbursement', [recurring, installT, reimb], '12 Mo Cash Flow!B12');
   traces['kpi.totalInvestment12'] = investment;
   traces['kpi.grossBenefit12'] = gross12;
-  traces['kpi.netBenefit12'] = derived('kpi.netBenefit12', 'Net Benefit — 12 Mo', kpis.netBenefit12, 'usd', 'Gross benefit − Total Investment', [gross12, investment], '12 Mo Cash Flow!E12');
-  traces['kpi.grossReturnPerDollar12'] = derived('kpi.grossReturnPerDollar12', 'Gross Return per $1 Invested', kpis.grossReturnPerDollar12, 'multiple', 'Gross benefit ÷ Total Investment', [gross12, investment], '12 Mo Cash Flow!H12');
+  traces['kpi.netBenefit12'] = derived('kpi.netBenefit12', 'Net Benefit — Year 1', kpis.netBenefit12, 'usd', 'Gross benefit − Total Investment', [gross12, investment], '12 Mo Cash Flow!E12');
+  traces['kpi.grossReturnPerDollar12'] = derived('kpi.grossReturnPerDollar12', 'Gross Return per $1 Invested (Year 1)', kpis.grossReturnPerDollar12, 'multiple', 'Gross benefit ÷ Total Investment', [gross12, investment], '12 Mo Cash Flow!H12');
 
   const H = kpis.horizonMonths;
   const rate = a('in.discountRate', 'Annual discount rate', inputs.cfo.annualDiscountRate, 'percent', 'Assumptions!C40');

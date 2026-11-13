@@ -40,9 +40,9 @@ export function VersionCompare({ currentLabel, current, compare, options, onPick
   const payback = (m: number | null | undefined, h: number) => (m ? `Month ${m}` : `> ${h} mo`);
   const rows: Array<[string, string, string, number | null]> = a
     ? [
-        ['Total Investment — 12 Mo', usd(a.totalInvestment12), usd(b.totalInvestment12), b.totalInvestment12 - a.totalInvestment12],
-        ['Net Benefit — 12 Mo', usd(a.netBenefit12), usd(b.netBenefit12), b.netBenefit12 - a.netBenefit12],
-        ['Gross Return per $1 Invested', multiple(a.grossReturnPerDollar12), multiple(b.grossReturnPerDollar12), null],
+        ['Total Investment — Year 1', usd(a.totalInvestment12), usd(b.totalInvestment12), b.totalInvestment12 - a.totalInvestment12],
+        ['Net Benefit — Year 1', usd(a.netBenefit12), usd(b.netBenefit12), b.netBenefit12 - a.netBenefit12],
+        ['Gross Return per $1 Invested (Year 1)', multiple(a.grossReturnPerDollar12), multiple(b.grossReturnPerDollar12), null],
         ['Discounted Payback', payback(a.discountedPaybackMonth, a.horizonMonths), payback(b.discountedPaybackMonth, b.horizonMonths), null],
         ['Run-Rate Annual Net Benefit', usd(a.runRateAnnualNetBenefit), usd(b.runRateAnnualNetBenefit), b.runRateAnnualNetBenefit - a.runRateAnnualNetBenefit],
         ...(compare?.outputs.capex && current.outputs.capex
