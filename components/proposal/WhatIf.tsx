@@ -15,7 +15,8 @@ import type { PriceLine } from '@/lib/pricing/lines';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
-import { allFields, applyChanges, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, traceFields, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
+import { allFields, applyChanges, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
+import { Switch } from '@/components/quote/CommunityEditor';
 import { NumInput } from '@/components/form/NumInput';
 
 /* ------------------------------------------------------------------ */
@@ -27,7 +28,7 @@ interface WhatIfCtx {
   /** Valid changes, as applied to the preview. */
   changes: Changes;
   dirty: boolean;
-  setChange: (path: string, v: number | null | undefined) => void;
+  setChange: (path: string, v: ChangeValue | undefined) => void;
   discard: () => void;
   selected: { key: string; label: string } | null;
   select: (key: string, label: string) => void;
@@ -167,7 +168,7 @@ export function WhatIfWorkspace({
   }, [raw, draft, versionId, restore]);
 
   const setChange = useCallback(
-    (path: string, v: number | null | undefined) =>
+    (path: string, v: ChangeValue | undefined) =>
       setRaw((r) => {
         const next = { ...r };
         if (v === undefined || (getPath(draft, path) ?? null) === v) delete next[path];
@@ -495,12 +496,28 @@ function LeaveDialog({
   );
 }
 
-function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: QuoteDraft; raw: Changes; error?: string; onChange: (path: string, v: number | null | undefined) => void }) {
-  const saved = (getPath(draft, f.path) as number | null | undefined) ?? null;
+function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: QuoteDraft; raw: Changes; error?: string; onChange: (path: string, v: ChangeValue | undefined) => void }) {
+  const saved = (getPath(draft, f.path) as ChangeValue | undefined) ?? null;
   const changed = f.path in raw;
+  if (f.kind === 'toggle') {
+    const on = !!(changed ? raw[f.path] : saved);
+    return (
+      <div className="py-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Switch id={`wi-${f.path.replace(/\W/g, '-')}`} label={f.label} checked={on} onChange={(v) => onChange(f.path, v)} />
+          {changed ? (
+            <button type="button" className="text-teton-ui-gray hover:text-teton-ink text-sm" onClick={() => onChange(f.path, undefined)} title="Back to the saved value" aria-label={`Undo ${f.label}`}>
+              ↺
+            </button>
+          ) : null}
+        </div>
+        {changed && <p className="text-[11px] text-[#8A5A00] mt-0.5">Saved: {saved ? 'On' : 'Off'}{!on ? ' · this benefit is left out of the ROI' : ''}</p>}
+      </div>
+    );
+  }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (
@@ -512,7 +529,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
         <NumInput
           id={id}
           className={changed ? '[&_input]:border-[#E2A72B] [&_input]:bg-[#FFFBEF]' : ''}
-          value={value}
+          value={value as number | null}
           onChange={(v) => onChange(f.path, v)}
           scale={scale}
           prefix={prefix}
@@ -553,7 +570,7 @@ function FigurePanel({
   invalid: Record<string, string>;
   traces: Record<string, Trace>;
   changesCount: number;
-  onChange: (path: string, v: number | null | undefined) => void;
+  onChange: (path: string, v: ChangeValue | undefined) => void;
   onClose: () => void;
 }) {
   const w = useWhatIf();

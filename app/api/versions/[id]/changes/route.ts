@@ -8,7 +8,7 @@ import { requireApiUser } from '@/lib/auth/server';
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireApiUser();
-    const { changes } = (await req.json()) as { changes?: Record<string, number | null> };
+    const { changes } = (await req.json()) as { changes?: Record<string, number | boolean | null> };
     return NextResponse.json(await saveProposalChanges(await getDb(), idParam(params.id), changes ?? {}, user.id), { status: 201 });
   } catch (e) {
     return jsonError(e);

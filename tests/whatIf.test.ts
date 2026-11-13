@@ -60,4 +60,15 @@ describe('proposal what-if', () => {
     expect(getPath(setPath(o, 'a.b.c', 2), 'a.b.c')).toBe(2);
     expect(o.a.b.c).toBe(1);
   });
+
+  it('offers the Case setup switch for ROI line items and accepts on/off', () => {
+    expect(figureSpec('roi.benefit.los.value')!.fields).toContain('components.fallsDischarge');
+    expect(figureSpec('roi.total.value')!.fields).toHaveLength(6);
+    const d = draft();
+    const off = applyChanges(d, { 'components.fallsDischarge': false });
+    expect(off.components.fallsDischarge).toBe(false);
+    expect(runModel(toModelInputs(off)).annual[d.roiCase].totals.revenueFromLosIncrease).toBe(0);
+    expect(() => applyChanges(d, { 'components.fallsDischarge': 0 })).toThrow('on or off');
+    expect(describeChanges(d, { 'components.fallsDischarge': false })).toBe('Falls → Discharge On → Off');
+  });
 });

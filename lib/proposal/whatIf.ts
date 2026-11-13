@@ -10,7 +10,7 @@
 import type { RoiCase, Trace } from '@/lib/model';
 import type { QuoteDraft } from '@/lib/quote/draft';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -28,6 +28,8 @@ export interface WhatIfField {
 
 const F = (path: string, label: string, group: string, where: string, kind: FieldKind, extra: Partial<WhatIfField> = {}): WhatIfField => ({ path, label, group, where, kind, min: 0, ...extra });
 
+const BENEFITS = 'Benefits included';
+const BENEFITS_AT = 'Case setup';
 const PRICING = 'Pricing';
 const PRICING_AT = 'Pricing & products';
 const CLIENT = 'Client';
@@ -44,6 +46,14 @@ const IMPL_AT = 'Implementation timeline';
 
 /** Every deal input the proposal can change, in the order the panel lists them. */
 export const FIELDS: WhatIfField[] = [
+  // The same on/off switches as Case setup: turning one off drops that benefit from the ROI.
+  F('components.careRevenueRecapture', 'Care Revenue Recapture', BENEFITS, BENEFITS_AT, 'toggle'),
+  F('components.fallsHospitalization', 'Falls → Hospitalization', BENEFITS, BENEFITS_AT, 'toggle'),
+  F('components.fallsDischarge', 'Falls → Discharge', BENEFITS, BENEFITS_AT, 'toggle'),
+  F('components.staffingAlignment', 'Staffing Alignment', BENEFITS, BENEFITS_AT, 'toggle'),
+  F('components.moveInImpact', 'Move-in Impact', BENEFITS, BENEFITS_AT, 'toggle'),
+  F('components.techReplacement', 'Tech Replacement', BENEFITS, BENEFITS_AT, 'toggle'),
+
   F('commercial.platformRate', 'Platform rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.pilotRate', 'Pilot rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.ecallRate', 'E-Call rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
@@ -143,6 +153,7 @@ const TRACE_INPUT: Record<string, string[]> = {
 };
 const PRICE_FIELDS = ['commercial.platformRate', 'commercial.pilotRate', 'commercial.ecallRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier', 'commercial.specialRate'];
 const INSTALL_FIELDS = ['commercial.installRate', 'commercial.installCreditPct', 'commercial.fullFacilityMultiplier'];
+const ALL_TOGGLES = ['components.careRevenueRecapture', 'components.fallsHospitalization', 'components.fallsDischarge', 'components.staffingAlignment', 'components.moveInImpact', 'components.techReplacement'];
 const METRIC_TRACE: Record<string, string> = { fallReduction: 'fallReduction', locGap: 'locGapIdentifiedPerMonth', moveIn: 'moveInUplift', staffing: 'staffingAlignment', tech: 'techReplacement' };
 
 /** Deal fields found anywhere in a trace, in catalog order. */
@@ -200,7 +211,21 @@ export function figureSpec(key: string): FigureSpec | null {
     'roi.outcome.noi': 'annual.annualNetNoiImpact',
     'roi.outcome.valuation': 'annual.valuationImpact',
   };
-  if (kpi[k]) return { trace: kpi[k], fields: k.startsWith('card.') ? INSTALL_FIELDS : [] };
+  // ROI line items come with their Case setup switch (and the total with all of them), so a benefit can be turned off.
+  const toggle: Record<string, string[]> = {
+    'roi.benefit.care': ['components.careRevenueRecapture'],
+    'roi.benefit.falls': ['components.fallsHospitalization'],
+    'roi.benefit.los': ['components.fallsDischarge'],
+    'roi.benefit.staffing': ['components.staffingAlignment'],
+    'roi.benefit.moveIn': ['components.moveInImpact'],
+    'roi.benefit.tech': ['components.techReplacement'],
+    'roi.outcome.realigned': ['components.careRevenueRecapture'],
+    'roi.outcome.falls': ['components.fallsHospitalization', 'components.fallsDischarge'],
+    'roi.total': ALL_TOGGLES,
+    'roi.outcome.noi': ALL_TOGGLES,
+    'roi.outcome.valuation': ALL_TOGGLES,
+  };
+  if (kpi[k]) return { trace: kpi[k], fields: [...(toggle[k] ?? []), ...(k.startsWith('card.') ? INSTALL_FIELDS : [])] };
   if (k === 'scope.oneTime') return { formula: 'Installation for every bed, at the install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
   if (k === 'scope.pilotMonthly') return { formula: 'Pilot beds × (pilot rate + E-Call during pilot)', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
@@ -244,7 +269,8 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type Changes = Record<string, number | null>;
+export type ChangeValue = number | boolean | null;
+export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
 export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
@@ -253,7 +279,9 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
   for (const [path, v] of Object.entries(changes)) {
     if (!known.has(path)) throw new Error(`Can't change ${path} from the proposal`);
     const f = fieldByPath(draft, path)!;
-    if (v == null) {
+    if (f.kind === 'toggle') {
+      if (typeof v !== 'boolean') throw new Error(`${f.label} must be on or off`);
+    } else if (v == null) {
       if (!f.nullable) throw new Error(`${f.label} needs a value`);
     } else if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`${f.label} must be a number`);
     else if ((f.min != null && v < f.min) || (f.max != null && v > f.max)) throw new Error(`${f.label} is out of range`);
@@ -269,6 +297,7 @@ export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
 
 /** Display a field value: "$99", "90%", "3 mo", "1.3×". */
 export function formatField(f: WhatIfField, v: unknown): string {
+  if (f.kind === 'toggle') return v ? 'On' : 'Off';
   if (v == null || v === '') return f.nullable ? 'default' : '—';
   const n = Number(v);
   switch (f.kind) {
