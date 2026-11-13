@@ -129,7 +129,7 @@ export function ProposalTextProvider({
 }
 
 /** Read an edited element back into a template: locked value chips become {token}. */
-function serialize(el: HTMLElement): string {
+export function serialize(el: HTMLElement): string {
   let out = '';
   el.childNodes.forEach((n) => {
     if (n.nodeType === Node.TEXT_NODE) out += n.nodeValue ?? '';

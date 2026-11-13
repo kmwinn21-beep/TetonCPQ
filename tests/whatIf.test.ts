@@ -80,6 +80,17 @@ describe('proposal what-if', () => {
     const out = applyChanges(d, { implementationPlan: plan });
     expect(out.implementationPlan.order).not.toContain('baseline');
     expect(effectiveChanges(d, { implementationPlan: JSON.parse(JSON.stringify(d.implementationPlan)) })).toEqual({});
-    expect(describeChanges(d, { implementationPlan: plan })).toBe('Implementation timeline: removed Baseline, added Site survey (2 wk)');
+    expect(describeChanges(d, { implementationPlan: plan })).toBe('Implementation: removed Baseline, added Site survey (2 wk)');
+  });
+
+  it('changes terms as one change, described term by term', async () => {
+    const { addTerm, removeTerm } = await import('@/lib/quote/terms');
+    const d = draft();
+    let t = removeTerm(d, 'billing');
+    t = addTerm({ ...d, terms: t }, 'Pricing valid for 60 days.').terms;
+    const out = applyChanges(d, { terms: t });
+    expect(out.terms?.removed).toEqual(['billing']);
+    expect(effectiveChanges(d, { terms: null })).toEqual({});
+    expect(describeChanges(d, { terms: t, 'commercial.platformRate': 89 })).toBe('Terms / Notes: removed Billing term, added “Pricing valid for 60 days.”; Platform rate / bed / mo $99 → $89');
   });
 });

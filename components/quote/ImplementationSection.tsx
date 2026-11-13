@@ -40,7 +40,7 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
   return (
     <Section
       id="implplan"
-      title="Implementation timeline"
+      title="Implementation"
       description="The stages from contract to go-live for this deal: change lengths and overlaps, remove or reorder stages, or add your own. Worked back from each pilot community’s go-live date."
       summary={[
         `${total} weeks from contract start to go-live`,

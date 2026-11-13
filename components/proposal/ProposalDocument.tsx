@@ -24,6 +24,7 @@ import { ImplementationGantt, longDate } from '@/components/implementation/Imple
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { AddStageCard, RemoveStageButton, StageName } from './StageControls';
+import { TermsList } from './TermControls';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -269,6 +270,9 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
     </>
   ) : null;
 
+  // Terms / Notes: the deal's terms (standard ones written from the deal, plus the rep's edits and notes).
+  const termsBody = <TermsList draft={draft} />;
+
   const summaryBody = (
     <>
 
@@ -305,20 +309,20 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           {anyPilot && (
             <div className="rounded-lg bg-teton-almost-white p-3">
               <p className="text-[11px] text-teton-dark-gray">
-                <T k="scope.pilotMonthly" d="Monthly during the pilot" />
+                <T k="scope.pilotMonthly" d="Monthly (Pilot)" />
               </p>
               <p className="text-lg font-semibold tabular-nums"><V k="scope.pilotMonthly.value" label="Monthly during the pilot amount">{usd(pilotMonthly)}</V></p>
             </div>
           )}
           <div className="rounded-lg bg-teton-almost-white p-3">
             <p className="text-[11px] text-teton-dark-gray">
-              <T k="scope.serviceMonthly" d="Monthly, all sites in service" />
+              <T k="scope.serviceMonthly" d="Monthly (post-pilot)" />
             </p>
             <p className="text-lg font-semibold tabular-nums"><V k="scope.serviceMonthly.value" label="Monthly in service amount">{usd(serviceMonthly)}</V></p>
           </div>
           <div className="rounded-lg bg-teton-almost-white p-3">
             <p className="text-[11px] text-teton-dark-gray">
-              <T k="scope.total" d={anyPilot ? 'Total over pilot + {term} term' : 'Total over {term} term'} v={{ term: termLength }} />
+              <T k="scope.total" d="Total Cost Over Term" />
             </p>
             <p className="text-lg font-semibold tabular-nums"><V k="scope.total.value" label="Term total amount">{usd(termTotal)}</V></p>
           </div>
@@ -444,50 +448,6 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         </div>
       )}
 
-      <div className="mt-5 avoid-break">
-        <p className="font-semibold mb-1">
-          <T k="terms.title" d="Terms" />
-        </p>
-        <ul className="list-disc pl-5 space-y-0.5 text-[12px]">
-          {anyPilot && (
-            <li>
-              <T
-                k="terms.pilot"
-                d={`Pilot: {pilotMonths} at {pilotRate} per bed per month${ecallFreeInPilot ? ', with E-Call included at no charge' : ''}, converting to a {term} service term.`}
-                v={{ pilotMonths: `${inputs.schedule.pilotLengthMonths} months`, pilotRate: usd(draft.commercial.pilotRate), term: termLength }}
-              />
-            </li>
-          )}
-          <li>
-            <T
-              k="terms.service"
-              d={`Service term of {termMonths} per community, starting ${anyPilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.`}
-              v={{ termMonths: `${term} months` }}
-            />
-          </li>
-          {credit > 0 && anyPilot && (
-            <li>
-              <T
-                k="terms.credit"
-                d={`Installation credit of {credit} on pilot beds${draft.commercial.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`}
-                v={{ credit: `${Math.round(credit * 100)}%` }}
-              />
-            </li>
-          )}
-          {draft.commercial.specialRate != null && draft.commercial.specialTermMonths > 0 && (
-            <li>
-              <T
-                k="terms.intro"
-                d="Introductory rate of {rate} per bed for the first {months} of the service term."
-                v={{ rate: usd(draft.commercial.specialRate, { cents: true }), months: `${draft.commercial.specialTermMonths} months` }}
-              />
-            </li>
-          )}
-          <li>
-            <T k="terms.billing" d="Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live." />
-          </li>
-        </ul>
-      </div>
     </>
   );
 
@@ -599,6 +559,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         sections={{
           summary: { body: summaryBody, className: 'avoid-break' },
           scope: { body: scopeBody },
+          terms: { body: termsBody, className: 'avoid-break' },
           ...(implementationBody ? { implementation: { body: implementationBody } } : {}),
           roi: { body: roiBody, className: 'avoid-break' },
           assumptions: { body: assumptionsBody, className: 'avoid-break' },

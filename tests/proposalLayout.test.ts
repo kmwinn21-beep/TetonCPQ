@@ -13,25 +13,25 @@ describe('proposal layout', () => {
   it('keeps a reorder, removed sections and figures, and added sections', () => {
     const l = sanitizeLayout(
       {
-        order: ['roi', 'custom-a', 'summary', 'scope', 'implementation', 'assumptions'],
+        order: ['roi', 'custom-a', 'summary', 'scope', 'terms', 'implementation', 'assumptions'],
         hiddenSections: ['assumptions'],
         hiddenValues: ['card.net.value'],
         custom: { 'custom-a': { title: 'Why now', html: '<b>Hi</b>' } },
       },
       id,
     );
-    expect(l.order).toEqual(['roi', 'custom-a', 'summary', 'scope', 'implementation', 'assumptions']);
+    expect(l.order).toEqual(['roi', 'custom-a', 'summary', 'scope', 'terms', 'implementation', 'assumptions']);
     expect(layoutChanges(l)).toBe(4);
   });
 
   it('repairs the order: drops unknown ids, appends missing sections', () => {
     const l = sanitizeLayout({ order: ['scope', 'nope', 'custom-gone'], custom: { 'custom-b': { title: 'x', html: '' } } }, id);
-    expect(l.order).toEqual(['summary', 'scope', 'implementation', 'roi', 'assumptions', 'custom-b']);
+    expect(l.order).toEqual(['summary', 'scope', 'terms', 'implementation', 'roi', 'assumptions', 'custom-b']);
   });
 
   it('puts a newly added standard section after the one it normally follows', () => {
     // A layout saved before Implementation existed, with Scope moved to the end.
-    expect(sanitizeLayout({ order: ['summary', 'roi', 'assumptions', 'scope'] }, id).order).toEqual(['summary', 'roi', 'assumptions', 'scope', 'implementation']);
+    expect(sanitizeLayout({ order: ['summary', 'roi', 'assumptions', 'scope'] }, id).order).toEqual(['summary', 'roi', 'assumptions', 'scope', 'terms', 'implementation']);
   });
 
   it('only hides standard sections', () => {

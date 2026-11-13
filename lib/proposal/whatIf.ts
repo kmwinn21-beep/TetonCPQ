@@ -10,8 +10,9 @@
 import type { RoiCase, Trace } from '@/lib/model';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { normalizePlan, planChanges, weeksToGoLive, type ImplementationPlan } from '@/lib/quote/implementationPlan';
+import { normalizeTerms, termsChanges, type TermsSetting } from '@/lib/quote/terms';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan' | 'terms';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -43,7 +44,7 @@ const VAL_AT = 'Assumptions · Valuation & margin';
 const METRICS = 'Improvement metrics';
 const METRICS_AT = 'Assumptions · Improvement metrics';
 const IMPL = 'Implementation';
-const IMPL_AT = 'Implementation timeline';
+const IMPL_AT = 'Implementation';
 
 /** Every deal input the proposal can change, in the order the panel lists them. */
 export const FIELDS: WhatIfField[] = [
@@ -96,6 +97,9 @@ export const FIELDS: WhatIfField[] = [
 
   // The whole stage list: lengths, overlaps, order, removed and custom stages.
   F('implementationPlan', 'Implementation stages', IMPL, IMPL_AT, 'plan'),
+
+  // The Terms / Notes bullet list (reworded, removed and added terms).
+  F('terms', 'Terms / Notes', 'Terms / Notes', 'Terms / Notes', 'terms'),
 
 ];
 
@@ -267,7 +271,7 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type ChangeValue = number | boolean | null | ImplementationPlan;
+export type ChangeValue = number | boolean | null | ImplementationPlan | TermsSetting;
 export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
@@ -277,6 +281,11 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
   for (const [path, v] of Object.entries(changes)) {
     if (!known.has(path)) throw new Error(`Can't change ${path} from the proposal`);
     const f = fieldByPath(draft, path)!;
+    if (f.kind === 'terms') {
+      if (v !== null && (typeof v !== 'object' || Array.isArray(v))) throw new Error(`${f.label} must be a list of terms`);
+      out = setPath(out, path, normalizeTerms(v));
+      continue;
+    }
     if (f.kind === 'plan') {
       if (!v || typeof v !== 'object') throw new Error(`${f.label} must be a list of stages`);
       out = setPath(out, path, normalizePlan(v));
@@ -296,8 +305,29 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
 /** Changes that actually differ from the draft they're based on. */
 /** Whether a change equals the saved value (plans compared by content). */
 export function sameValue(saved: unknown, v: unknown): boolean {
-  if (v && typeof v === 'object') return JSON.stringify(normalizePlan(saved)) === JSON.stringify(normalizePlan(v));
-  return (saved ?? null) === v;
+  if (v && typeof v === 'object') {
+    // Implementation plans have stages; anything else object-valued is a terms setting.
+    if ('stages' in v) return JSON.stringify(normalizePlan(saved)) === JSON.stringify(normalizePlan(v));
+    return JSON.stringify(normalizeTerms(saved)) === JSON.stringify(normalizeTerms(v));
+  }
+  return JSON.stringify(saved ?? null) === JSON.stringify(v ?? null);
+}
+
+/** One change, as readable lines: a list of what changed (stages, terms) or saved → new. */
+export interface ChangeDetail {
+  path: string;
+  label: string;
+  lines: Array<{ text: string } | { from: string; to: string }>;
+}
+
+export function changeDetails(draft: QuoteDraft, changes: Changes): ChangeDetail[] {
+  return Object.entries(changes).flatMap(([p, v]): ChangeDetail[] => {
+    const f = fieldByPath(draft, p);
+    if (!f) return [];
+    if (f.kind === 'plan') return [{ path: p, label: 'Implementation', lines: planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).map((text) => ({ text })) }];
+    if (f.kind === 'terms') return [{ path: p, label: 'Terms / Notes', lines: termsChanges(draft, { ...draft, terms: normalizeTerms(v) }).map((text) => ({ text })) }];
+    return [{ path: p, label: f.label, lines: [{ from: formatField(f, getPath(draft, p)), to: formatField(f, v) }] }];
+  });
 }
 
 export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
@@ -307,6 +337,7 @@ export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
 /** Display a field value: "$99", "90%", "3 mo", "1.3×". */
 export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
+  if (f.kind === 'terms') return v == null ? 'standard terms' : 'customized terms';
   if (f.kind === 'plan') {
     const p = normalizePlan(v);
     return `${p.order.length} stages, ${weeksToGoLive(p)} wk`;
@@ -333,11 +364,7 @@ export function formatField(f: WhatIfField, v: unknown): string {
 
 /** "Platform rate / bed / mo $99 → $89; Occupancy 90% → 92%" for a version note. */
 export function describeChanges(draft: QuoteDraft, changes: Changes): string {
-  return Object.entries(changes)
-    .map(([p, v]) => {
-      const f = fieldByPath(draft, p);
-      if (f?.kind === 'plan') return `Implementation timeline: ${planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).join(', ')}`;
-      return f ? `${f.label} ${formatField(f, getPath(draft, p))} → ${formatField(f, v)}` : p;
-    })
+  return changeDetails(draft, changes)
+    .map((d) => `${d.label}${d.lines.map((l, i) => ('text' in l ? `${i ? ',' : ':'} ${l.text}` : ` ${l.from} → ${l.to}`)).join('')}`)
     .join('; ');
 }

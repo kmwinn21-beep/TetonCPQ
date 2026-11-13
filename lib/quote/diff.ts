@@ -4,6 +4,7 @@
  * Pure; works on any two QuoteDrafts.
  */
 import { planChanges } from './implementationPlan';
+import { normalizeTerms, termsChanges } from './terms';
 import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
@@ -171,10 +172,11 @@ const METRIC_LABEL: Record<string, string> = {
 /** Changes from `before` to `after`. Communities are matched by their id, so a rename is a change, not a remove + add. */
 export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const changes: Change[] = [];
-  const { communities: ca, implementationPlan: pa, ...ra } = before;
-  const { communities: cb, implementationPlan: pb, ...rb } = after;
+  const { communities: ca, implementationPlan: pa, terms: _ta, ...ra } = before;
+  const { communities: cb, implementationPlan: pb, terms: _tb, ...rb } = after;
+
   // Implementation stages are compared as a plan (stages can be added, removed and reordered).
-  for (const c of planChanges(pa, pb)) changes.push({ group: 'Implementation', label: 'Implementation timeline', from: '', to: c });
+
   const la = leaves(ra);
   const lb = leaves(rb);
   for (const path of Array.from(new Set([...Object.keys(la), ...Object.keys(lb)]))) {
@@ -211,6 +213,11 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
       if (!same(prev[k], c[k])) changes.push({ group: 'Communities', label: `${c.name || prev.name}: ${f.label}`, from: fmtValue(prev[k], f.fmt), to: fmtValue(c[k], f.fmt) });
     }
   }
-  const order = ['Deal', 'Pricing', 'Communities', 'Timeline', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
+  // Stages and terms are lists: described item by item.
+  for (const c of planChanges(pa, pb)) changes.push({ group: 'Implementation', label: 'Implementation stages', from: '', to: c });
+  // Only edits to the terms themselves (a pricing change that adds a standard term isn't one).
+  if (JSON.stringify(normalizeTerms(_ta)) !== JSON.stringify(normalizeTerms(_tb)))
+    for (const c of termsChanges(before, after)) changes.push({ group: 'Terms / Notes', label: 'Terms / Notes', from: '', to: c });
+  const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Timeline', 'Terms / Notes', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
   return changes.sort((x, y) => order.indexOf(x.group) - order.indexOf(y.group));
 }

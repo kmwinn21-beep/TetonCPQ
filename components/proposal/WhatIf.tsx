@@ -15,7 +15,7 @@ import type { PriceLine } from '@/lib/pricing/lines';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
-import { allFields, applyChanges, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, sameValue, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
+import { allFields, applyChanges, changeDetails, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, sameValue, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
 import { StagesEditor } from '@/components/implementation/StagesEditor';
 import { normalizePlan, planChanges, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { Switch } from '@/components/quote/CommunityEditor';
@@ -357,29 +357,32 @@ export function WhatIfWorkspace({
 /* ------------------------------------------------------------------ */
 
 function ChangeList({ draft, changes, onUndo }: { draft: QuoteDraft; changes: Changes; onUndo?: (path: string) => void }) {
+  // One row per change; stage and term changes are split into a row each.
+  const rows = changeDetails(draft, changes).flatMap((d) => d.lines.map((line, i) => ({ d, line, first: i === 0, key: `${d.path}-${i}` })));
   return (
-    <ul className="divide-y divide-teton-off-white rounded-lg border border-teton-off-white text-sm">
-      {Object.entries(changes).map(([p, v]) => {
-        const f = fieldByPath(draft, p);
-        if (!f) return null;
-        return (
-          <li key={p} className="flex items-center gap-3 px-3 py-1.5">
-            <span className="flex-1 min-w-0">{f.label}</span>
-            {f.kind === 'plan' ? (
-              <span className="text-right">{planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).join(', ')}</span>
+    <ul className="divide-y divide-teton-off-white rounded-lg border border-teton-off-white text-sm max-h-[60vh] overflow-y-auto">
+      {rows.map(({ d, line, first, key }) => (
+        <li key={key} className="flex items-start gap-3 px-3 py-2">
+          <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-teton-ink flex-shrink-0" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-teton-ui-gray leading-tight">{d.label}</p>
+            {'text' in line ? (
+              <p className="leading-snug">{line.text.charAt(0).toUpperCase() + line.text.slice(1)}</p>
             ) : (
-              <span className="whitespace-nowrap tabular-nums">
-                <s className="text-teton-ui-gray">{formatField(f, getPath(draft, p))}</s> → <b>{formatField(f, v)}</b>
-              </span>
+              <p className="tabular-nums">
+                <s className="text-teton-ui-gray">{line.from}</s> → <b>{line.to}</b>
+              </p>
             )}
-            {onUndo && (
-              <button type="button" className="btn-ghost px-1.5 py-0.5 text-xs" onClick={() => onUndo(p)} aria-label={`Undo ${f.label}`} title="Undo">
-                ↺
-              </button>
-            )}
-          </li>
-        );
-      })}
+          </div>
+          {onUndo && first ? (
+            <button type="button" className="btn-ghost px-1.5 py-0.5 text-xs" onClick={() => onUndo(d.path)} aria-label={`Undo ${d.label}`} title={d.lines.length > 1 ? `Undo all ${d.label} changes` : 'Undo'}>
+              ↺
+            </button>
+          ) : (
+            onUndo && <span className="w-6" />
+          )}
+        </li>
+      ))}
     </ul>
   );
 }
@@ -440,7 +443,7 @@ function AmberBar({
         {error && <p className="w-full rounded bg-teton-red/30 px-2 py-1">{error}</p>}
       </div>
       {review && (
-        <div className="absolute right-4 top-full mt-1 w-[420px] max-w-[calc(100vw-2rem)] rounded-xl border border-teton-pale-gray bg-white p-3 shadow-xl">
+        <div className="absolute right-4 top-full mt-1 w-[480px] max-w-[calc(100vw-2rem)] rounded-xl border border-teton-pale-gray bg-white p-3 shadow-xl">
           <p className="text-sm font-semibold mb-2">Unsaved changes</p>
           <ChangeList draft={draft} changes={changes} onUndo={onUndo} />
         </div>
@@ -539,7 +542,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
   }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined, terms: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (
@@ -604,7 +607,8 @@ function FigurePanel({
     const paths = new Set([...(trace ? traceFields(trace, draft) : []), ...(spec?.fields ?? [])]);
     return all.filter((f) => paths.has(f.path));
   }, [draft, trace, spec]);
-  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f)), [draft, fields]);
+  // Terms are edited right on the proposal (Terms / Notes section), not in this panel.
+  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f) && f.kind !== 'terms'), [draft, fields]);
 
   // Current text of the figure on the page, and what it was in the saved version.
   const [now, setNow] = useState('');
