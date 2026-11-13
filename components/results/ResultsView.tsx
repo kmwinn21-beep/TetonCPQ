@@ -123,7 +123,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
     { id: 'annual.breakevenMonths', label: 'Breakeven', fmt: (rc) => `${out.annual[rc].totals.breakevenMonths.toFixed(1)} months` },
     { id: 'annual.netRevpor', label: 'Net RevPOR (annual)', fmt: (rc) => usd(out.annual[rc].totals.netRevpor) },
     { id: 'annual.annualNetNoiImpact', label: 'Annual net NOI impact', fmt: (rc) => usd(out.annual[rc].totals.annualNetNoiImpact, { compact: true }) },
-    { id: 'annual.valuationImpact', label: `Valuation impact (${pct(inputs.valuation.capRate, 1)} cap)`, fmt: (rc) => usd(out.annual[rc].totals.valuationImpact, { compact: true }) },
+    { id: 'annual.valuationImpact', label: `Asset value added (${pct(inputs.valuation.capRate, 1)} cap)`, fmt: (rc) => usd(out.annual[rc].totals.valuationImpact, { compact: true }) },
   ];
 
   return (

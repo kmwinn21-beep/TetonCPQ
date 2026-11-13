@@ -233,7 +233,7 @@ export function buildTraces(inputs: ModelInputs, annual: AnnualCaseResult, cf: C
   traces['annual.annualNetNoiImpact'] = derived('annual.annualNetNoiImpact', 'Annual net NOI impact', t.annualNetNoiImpact, 'usd',
     '(Recaptured care revenue + Rev from LOS increase + Move-in impact) × Operating margin + Fall cost avoidance + Night shift savings − Annual subscription',
     [traces['annual.recapturedCareRevenue'], traces['annual.revenueFromLosIncrease'], traces['annual.moveInImpact'], margin, traces['annual.fallCostAvoidance'], traces['annual.nightShiftSavings'], annualSub], 'Teton ROI row 85');
-  traces['annual.valuationImpact'] = derived('annual.valuationImpact', 'Valuation impact', t.valuationImpact, 'usd', 'Annual net NOI impact ÷ Cap rate',
+  traces['annual.valuationImpact'] = derived('annual.valuationImpact', 'Asset value added', t.valuationImpact, 'usd', 'Annual net NOI impact ÷ Cap rate',
     [traces['annual.annualNetNoiImpact'], a('in.capRate', 'Cap rate', inputs.valuation.capRate, 'percent', 'Assumptions!E9')], 'Teton ROI row 86');
   return traces;
 }

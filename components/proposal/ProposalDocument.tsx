@@ -162,7 +162,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
     { key: 'roi.outcome.realigned', value: count(sel.residentsRealigned), label: 'residents realigned to the right level of care' },
     { key: 'roi.outcome.falls', value: count(sel.costlyFallsPrevented), label: 'costly falls prevented' },
     { key: 'roi.outcome.noi', value: usd(sel.annualNetNoiImpact, { compact: true }), label: 'annual net operating income impact' },
-    { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'valuation impact at a {capRate} cap rate', v: { capRate } },
+    { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'Asset Value Added at a {capRate} cap rate (one-time)', v: { capRate } },
   ];
 
   const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string> }> = [
