@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { dateLabel } from '@/lib/format';
+import { useProposalText } from './EditableText';
 
 export interface SentRecord {
   id: number;
@@ -18,8 +19,17 @@ export interface SentRecord {
 
 /** A self-contained copy of the proposal: its HTML plus the page's CSS inlined. */
 function snapshot(): string {
-  const doc = document.getElementById('proposal');
-  if (!doc) return '';
+  const live = document.getElementById('proposal');
+  if (!live) return '';
+  // The sent copy is a static document: drop the click-to-edit hooks.
+  const doc = live.cloneNode(true) as HTMLElement;
+  doc.querySelectorAll('[contenteditable]').forEach((el) => {
+    el.removeAttribute('contenteditable');
+    el.removeAttribute('role');
+    el.removeAttribute('aria-label');
+    el.removeAttribute('data-placeholder');
+    el.removeAttribute('class');
+  });
   const css: string[] = [];
   const links: string[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
@@ -38,8 +48,14 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const text = useProposalText();
+  const editCount = Object.keys(text.edits).length;
 
   async function record() {
+    if (text.state !== 'saved') {
+      setError('Wait for the wording changes to finish saving, then record it.');
+      return;
+    }
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/versions/${versionId}/sent`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sentTo: to, html: snapshot() }) });
@@ -78,6 +94,19 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             </>
           )}
         </div>
+        <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>Click any text to reword it; figures stay as calculated.</span>
+          {editCount > 0 && (
+            <span>
+              {editCount} wording {editCount === 1 ? 'change' : 'changes'} ·{' '}
+              <button type="button" className="underline hover:text-sidebar-font" onClick={() => window.confirm('Put all the proposal wording back to the standard text?') && text.resetAll()}>
+                Reset wording
+              </button>
+            </span>
+          )}
+          <span aria-live="polite">{text.state === 'saving' ? 'Saving…' : text.state === 'error' ? '' : editCount > 0 ? 'Saved' : ''}</span>
+        </p>
+        {text.error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{text.error}</p>}
         {error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{error}</p>}
         {pendingChanges > 0 && (
           <p className="w-full text-sm bg-teton-pale-yellow text-teton-ink rounded px-2 py-1">

@@ -8,6 +8,8 @@ import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { ProposalDocument } from '@/components/proposal/ProposalDocument';
 import { ProposalToolbar } from '@/components/proposal/ProposalToolbar';
 import { getSessionUser, requirePageUser } from '@/lib/auth/server';
+import { getProposalText } from '@/lib/data/proposalText';
+import { ProposalTextProvider } from '@/components/proposal/EditableText';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +28,8 @@ async function load(raw: string) {
   const editor = await getQuoteEditor(db, v.quoteId);
   const pending = editor ? diffDrafts(v.inputs, editor.draft).length : 0;
   const newer = editor ? editor.versions.filter((x) => x.versionNo > v.versionNo).length : 0;
-  return { id, v, lines, history, pending, newer };
+  const text = await getProposalText(db, id);
+  return { id, v, lines, history, pending, newer, text };
 }
 
 export async function generateMetadata({ params }: { params: { versionId: string } }): Promise<Metadata> {
@@ -39,11 +42,14 @@ export default async function ProposalPage({ params }: { params: { versionId: st
   await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
-  const { id, v, lines, history, pending, newer } = d;
+  const { id, v, lines, history, pending, newer, text } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
-      <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} pendingChanges={pending} newerVersions={newer} />
-      <ProposalDocument draft={v.inputs} outputs={v.outputs!} lines={lines} versionNo={v.versionNo} savedAt={v.savedAt} />
+      {/* Wording is editable on screen; numbers come from the saved version and aren't. */}
+      <ProposalTextProvider versionId={id} initial={text}>
+        <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} pendingChanges={pending} newerVersions={newer} />
+        <ProposalDocument draft={v.inputs} outputs={v.outputs!} lines={lines} versionNo={v.versionNo} savedAt={v.savedAt} />
+      </ProposalTextProvider>
     </div>
   );
 }

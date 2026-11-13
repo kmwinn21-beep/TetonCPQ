@@ -3,6 +3,9 @@
  * inputs, stored outputs and stored price lines. Nothing is recalculated here,
  * so the document always matches what the version recorded.
  *
+ * Prose is wrapped in <T> so a rep can reword it on screen (see EditableText);
+ * figures are never editable.
+ *
  * Content: summary KPI cards, scope & investment in one table (subscription and/or upfront),
  * return on investment, and the assumptions behind it.
  */
@@ -14,6 +17,7 @@ import type { QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, monthName, multiple, pct, usd } from '@/lib/format';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
+import { T } from './EditableText';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -133,57 +137,85 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
     listOf((l) => l.description === 'Installation & implementation') ?? listOf((l) => l.description === 'Installation & implementation, full-facility coverage', k.fullFacilityMultiplier);
   const ecallList = listOf((l) => l.description.startsWith('E-Call (') );
   const money = (n: number) => usd(n, { cents: !Number.isInteger(n) });
-  const rateSummary: Array<{ label: string; value: string; list?: string }> = [
-    { label: 'Teton subscription', value: `${money(k.platformRate)}/bed/mo`, list: platformList != null && platformList > k.platformRate ? money(platformList) : undefined },
+  const rateSummary: Array<{ key: string; label: string; value: string; list?: string }> = [
+    { key: 'rate.subscription', label: 'Teton subscription', value: `${money(k.platformRate)}/bed/mo`, list: platformList != null && platformList > k.platformRate ? money(platformList) : undefined },
     ...(k.ecall !== 'none' && draft.communities.some((dc) => dc.ecall)
-      ? [{ label: `E-Call (${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'})`, value: `${money(k.ecallRate)}/bed/mo`, list: ecallList != null && ecallList > k.ecallRate ? money(ecallList) : undefined }]
+      ? [{ key: 'rate.ecall', label: `E-Call (${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'})`, value: `${money(k.ecallRate)}/bed/mo`, list: ecallList != null && ecallList > k.ecallRate ? money(ecallList) : undefined }]
       : []),
-    { label: 'Installation', value: `${money(k.installRate)}/bed one-time`, list: installList != null && installList > k.installRate ? money(installList) : undefined },
-    ...(anyFull ? [{ label: 'Full-facility coverage', value: `${k.fullFacilityMultiplier}× subscription and install` }] : []),
+    { key: 'rate.install', label: 'Installation', value: `${money(k.installRate)}/bed one-time`, list: installList != null && installList > k.installRate ? money(installList) : undefined },
+    ...(anyFull ? [{ key: 'rate.fullFacility', label: 'Full-facility coverage', value: `${k.fullFacilityMultiplier}× subscription and install` }] : []),
   ];
 
-  const outcomes: Array<[string, string]> = [
-    [count(sel.residentsRealigned), 'residents realigned to the right level of care'],
-    [count(sel.costlyFallsPrevented), 'costly falls prevented'],
-    [usd(sel.annualNetNoiImpact, { compact: true }), 'annual net operating income impact'],
-    [usd(sel.valuationImpact, { compact: true }), `valuation impact at a ${pct(inputs.valuation.capRate, 1)} cap rate`],
+  // Values that can appear inside editable sentences. They render from the stored version and can't be retyped.
+  const capRate = pct(inputs.valuation.capRate, 1);
+  const costOfMoney = pct(inputs.cfo.annualDiscountRate, 1);
+  const caseName = CASE_LABEL[rc];
+  const pilotLength = `${inputs.schedule.pilotLengthMonths}-month`;
+  const termLength = `${term}-month`;
+
+  const outcomes: Array<{ key: string; value: string; label: string; v?: Record<string, string> }> = [
+    { key: 'roi.outcome.realigned', value: count(sel.residentsRealigned), label: 'residents realigned to the right level of care' },
+    { key: 'roi.outcome.falls', value: count(sel.costlyFallsPrevented), label: 'costly falls prevented' },
+    { key: 'roi.outcome.noi', value: usd(sel.annualNetNoiImpact, { compact: true }), label: 'annual net operating income impact' },
+    { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'valuation impact at a {capRate} cap rate', v: { capRate } },
   ];
 
-  const cards: Array<[string, string, string]> = [
-    ['Total Investment — Year 1', usd(kp.totalInvestment12), 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.'],
-    ['Net Benefit — Year 1', usd(kp.netBenefit12), 'How much better off your communities are in year one after paying for everything.'],
-    ['Gross Return per $1 Invested (Year 1)', multiple(kp.grossReturnPerDollar12), `Stabilized return per $1 invested: ${multiple(sel.returnOnCost, 1)}, once every community is live and fully ramped.`],
-    ['Discounted Payback', kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `Beyond month ${kp.horizonMonths}`, `When the program has paid for itself and stays paid for, using your ${pct(inputs.cfo.annualDiscountRate, 1)} cost of money.`],
-    ['Run-Rate Annual Net Benefit', usd(kp.runRateAnnualNetBenefit), 'The yearly value once every community is live and fully ramped, after subscription fees.'],
-    ['Net Benefit per Unit per Month', usd(kp.netBenefitPerOccupiedUnitMonth), `Per occupied apartment at run rate (${usd(kp.netBenefitPerUnitMonth)} per unit across all ${count(inputs.cfo.portfolioUnits)} units).`],
+  const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string> }> = [
+    { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(kp.totalInvestment12), note: 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.' },
+    { key: 'card.net', label: 'Net Benefit — Year 1', value: usd(kp.netBenefit12), note: 'How much better off your communities are in year one after paying for everything.' },
+    {
+      key: 'card.gross',
+      label: 'Gross Return per $1 Invested (Year 1)',
+      value: multiple(kp.grossReturnPerDollar12),
+      note: 'Stabilized return per $1 invested: {stabilized}, once every community is live and fully ramped.',
+      v: { stabilized: multiple(sel.returnOnCost, 1) },
+    },
+    {
+      key: 'card.payback',
+      label: 'Discounted Payback',
+      value: kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `Beyond month ${kp.horizonMonths}`,
+      note: 'When the program has paid for itself and stays paid for, using your {costOfMoney} cost of money.',
+      v: { costOfMoney },
+    },
+    { key: 'card.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(kp.runRateAnnualNetBenefit), note: 'The yearly value once every community is live and fully ramped, after subscription fees.' },
+    {
+      key: 'card.perUnit',
+      label: 'Net Benefit per Unit per Month',
+      value: usd(kp.netBenefitPerOccupiedUnitMonth),
+      note: 'Per occupied apartment at run rate ({perUnit} per unit across all {units}).',
+      v: { perUnit: usd(kp.netBenefitPerUnitMonth), units: `${count(inputs.cfo.portfolioUnits)} units` },
+    },
   ];
 
-  const benefits: Array<[string, string]> = [
-    ['Recaptured care revenue', usd(sel.recapturedCareRevenue)],
-    ['Fall cost avoidance', usd(sel.fallCostAvoidance)],
-    ['Revenue from longer length of stay', usd(sel.revenueFromLosIncrease)],
-    ['Night shift savings', usd(sel.nightShiftSavings)],
-    ['Move-in impact', usd(sel.moveInImpact)],
-    ['Tech replacement', usd(sel.techReplacement)],
+  const benefits: Array<[string, string, string]> = [
+    ['roi.benefit.care', 'Recaptured care revenue', usd(sel.recapturedCareRevenue)],
+    ['roi.benefit.falls', 'Fall cost avoidance', usd(sel.fallCostAvoidance)],
+    ['roi.benefit.los', 'Revenue from longer length of stay', usd(sel.revenueFromLosIncrease)],
+    ['roi.benefit.staffing', 'Night shift savings', usd(sel.nightShiftSavings)],
+    ['roi.benefit.moveIn', 'Move-in impact', usd(sel.moveInImpact)],
+    ['roi.benefit.tech', 'Tech replacement', usd(sel.techReplacement)],
   ];
 
   const c = inputs.client;
-  const assumptions: Array<[string, string]> = [
-    ['Occupancy', pct(c.occupancy)],
-    ['Average rent / resident / month', usd(c.avgRent)],
-    ['Care revenue / resident / month', usd(c.careRevenuePerResident)],
-    ['Care revenue uplift per level-of-care step', `${usd(c.locGapUpliftPerTierStep)} / month`],
-    ['Falls per resident per year', String(c.fallsPerResidentYear)],
-    ['Falls leading to hospitalization', pct(c.pctFallsHospitalization)],
-    ['Cost per hospitalization', usd(c.costPerHospitalization)],
-    ['Falls leading to discharge', pct(c.pctFallsDischarge)],
-    ['Length-of-stay protected per avoided discharge', `${c.losIncreaseMonths} months`],
-    ['Move-ins per month (share of occupied)', pct(c.moveInRatePerMonth)],
-    ['Night staffing ratio (residents per staff)', String(c.nightResidentToStaffRatio)],
-    ['Night staff hourly wage', usd(c.nightHourlyWage, { cents: true })],
-    ['Your discount rate', pct(inputs.cfo.annualDiscountRate)],
-    ['Benefits start after go-live', `${inputs.schedule.roiStartDelayMonths} months, ramping over ${inputs.schedule.rampMonths}`],
+  const assumptions: Array<[string, string, string]> = [
+    ['assume.occupancy', 'Occupancy', pct(c.occupancy)],
+    ['assume.rent', 'Average rent / resident / month', usd(c.avgRent)],
+    ['assume.care', 'Care revenue / resident / month', usd(c.careRevenuePerResident)],
+    ['assume.locUplift', 'Care revenue uplift per level-of-care step', `${usd(c.locGapUpliftPerTierStep)} / month`],
+    ['assume.falls', 'Falls per resident per year', String(c.fallsPerResidentYear)],
+    ['assume.hospitalization', 'Falls leading to hospitalization', pct(c.pctFallsHospitalization)],
+    ['assume.hospitalCost', 'Cost per hospitalization', usd(c.costPerHospitalization)],
+    ['assume.discharge', 'Falls leading to discharge', pct(c.pctFallsDischarge)],
+    ['assume.los', 'Length-of-stay protected per avoided discharge', `${c.losIncreaseMonths} months`],
+    ['assume.moveIns', 'Move-ins per month (share of occupied)', pct(c.moveInRatePerMonth)],
+    ['assume.nightRatio', 'Night staffing ratio (residents per staff)', String(c.nightResidentToStaffRatio)],
+    ['assume.wage', 'Night staff hourly wage', usd(c.nightHourlyWage, { cents: true })],
+    ['assume.discountRate', 'Your discount rate', pct(inputs.cfo.annualDiscountRate)],
+    ['assume.benefitStart', 'Benefits start after go-live', `${inputs.schedule.roiStartDelayMonths} months, ramping over ${inputs.schedule.rampMonths}`],
   ];
+
+  const ecallFreeInPilot = draft.commercial.ecall !== 'none' && draft.commercial.ecallPilotRate === 0;
+  const nCommunities = inputs.communities.length;
 
   return (
     <article id="proposal" className="proposal-sheet bg-white max-w-[8.5in] mx-auto my-6 p-[0.6in] shadow-lg text-teton-ink text-[13px] leading-relaxed">
@@ -196,49 +228,75 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       </header>
 
       <section className="mb-8">
-        <p className="text-xs uppercase tracking-widest text-teton-dark-gray">Proposal for</p>
-        <h1 className="text-3xl font-semibold mt-1">{draft.customerName}</h1>
+        <p className="text-xs uppercase tracking-widest text-teton-dark-gray">
+          <T k="eyebrow" d="Proposal for" />
+        </p>
+        <h1 className="text-3xl font-semibold mt-1">
+          <T k="customer" d={draft.customerName} />
+        </h1>
         <p className="mt-3 text-[14px] max-w-prose">
-          Teton ambient monitoring for {inputs.communities.length} {inputs.communities.length === 1 ? 'community' : 'communities'} and {count(units)} beds
-          {anyPilot ? `, starting with a ${inputs.schedule.pilotLengthMonths}-month pilot` : ''}, going live from {monthName(start, 1)}.
-          Figures below use the {CASE_LABEL[rc]} case.
+          <T
+            k="intro"
+            d={
+              anyPilot
+                ? 'Teton ambient monitoring for {communities} and {beds}, starting with a {pilotLength} pilot, going live from {goLive}. Figures below use the {case} case.'
+                : 'Teton ambient monitoring for {communities} and {beds}, going live from {goLive}. Figures below use the {case} case.'
+            }
+            v={{ communities: `${nCommunities} ${nCommunities === 1 ? 'community' : 'communities'}`, beds: `${count(units)} beds`, pilotLength, goLive: monthName(start, 1), case: caseName }}
+          />
         </p>
       </section>
 
       <section className="mb-8 avoid-break">
-        <H2>Summary — Year 1</H2>
+        <H2>
+          <T k="summary.title" d="Summary — Year 1" />
+        </H2>
         <div className="grid grid-cols-3 gap-3">
-          {cards.map(([label, value, meaning]) => (
-            <div key={label} className="rounded-lg border border-teton-pale-gray p-3">
-              <p className="text-[11px] font-medium text-teton-dark-gray">{label}</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">{value}</p>
-              <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">{meaning}</p>
+          {cards.map((card) => (
+            <div key={card.key} className="rounded-lg border border-teton-pale-gray p-3">
+              <p className="text-[11px] font-medium text-teton-dark-gray">
+                <T k={`${card.key}.label`} d={card.label} />
+              </p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{card.value}</p>
+              <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+                <T k={`${card.key}.note`} d={card.note} v={card.v} />
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       <section className="mb-8">
-        <H2>Scope &amp; investment</H2>
+        <H2>
+          <T k="scope.title" d="Scope & investment" />
+        </H2>
 
         {showOpex && (
           <div className={`grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">One-time{credit > 0 && anyPilot ? ', after credits' : ''}</p>
+              <p className="text-[11px] text-teton-dark-gray">
+                <T k="scope.oneTime" d={`One-time${credit > 0 && anyPilot ? ', after credits' : ''}`} />
+              </p>
               <p className="text-lg font-semibold tabular-nums">{usd(oneTime)}</p>
             </div>
             {anyPilot && (
               <div className="rounded-lg bg-teton-almost-white p-3">
-                <p className="text-[11px] text-teton-dark-gray">Monthly during the pilot</p>
+                <p className="text-[11px] text-teton-dark-gray">
+                  <T k="scope.pilotMonthly" d="Monthly during the pilot" />
+                </p>
                 <p className="text-lg font-semibold tabular-nums">{usd(pilotMonthly)}</p>
               </div>
             )}
             <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">Monthly, all sites in service</p>
+              <p className="text-[11px] text-teton-dark-gray">
+                <T k="scope.serviceMonthly" d="Monthly, all sites in service" />
+              </p>
               <p className="text-lg font-semibold tabular-nums">{usd(serviceMonthly)}</p>
             </div>
             <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">Total over {anyPilot ? 'pilot + ' : ''}{term}-month term</p>
+              <p className="text-[11px] text-teton-dark-gray">
+                <T k="scope.total" d={anyPilot ? 'Total over pilot + {term} term' : 'Total over {term} term'} v={{ term: termLength }} />
+              </p>
               <p className="text-lg font-semibold tabular-nums">{usd(termTotal)}</p>
             </div>
           </div>
@@ -246,9 +304,9 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
         <p className="text-[12px] text-teton-dark-gray mb-2">
           {rateSummary.map((r, i) => (
-            <span key={r.label}>
+            <span key={r.key}>
               {i > 0 && ' · '}
-              {r.label} <span className="font-medium text-teton-ink">{r.value}</span>
+              <T k={r.key} d={r.label} /> <span className="font-medium text-teton-ink">{r.value}</span>
               {r.list && <span className="text-teton-ui-gray"> (list {r.list})</span>}
             </span>
           ))}
@@ -257,11 +315,11 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         <table className="w-full">
           <thead className="text-[11px] text-teton-dark-gray text-left">
             <tr className="border-b border-teton-pale-gray">
-              <th className="font-medium py-1.5">Community</th>
-              <th className="font-medium py-1.5 px-2 text-right">Beds</th>
-              <th className="font-medium py-1.5 px-2">Go-live</th>
-              {showOpex && <th className="font-medium py-1.5 px-2 text-right">Monthly</th>}
-              {showOpex && <th className="font-medium py-1.5 pl-2 text-right">One-time</th>}
+              <th className="font-medium py-1.5"><T k="table.community" d="Community" /></th>
+              <th className="font-medium py-1.5 px-2 text-right"><T k="table.beds" d="Beds" /></th>
+              <th className="font-medium py-1.5 px-2"><T k="table.goLive" d="Go-live" /></th>
+              {showOpex && <th className="font-medium py-1.5 px-2 text-right"><T k="table.monthly" d="Monthly" /></th>}
+              {showOpex && <th className="font-medium py-1.5 pl-2 text-right"><T k="table.oneTime" d="One-time" /></th>}
             </tr>
           </thead>
           <tbody className="tabular-nums">
@@ -313,71 +371,134 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         </table>
         {anyPilot && (
           <p className="text-[11px] text-teton-dark-gray mt-2 flex items-center gap-1.5">
-            <PilotIcon /> Pilot site — starts with a {inputs.schedule.pilotLengthMonths}-month pilot, then converts to the {term}-month service term.
+            <PilotIcon />
+            <span>
+              <T k="scope.pilotNote" d="Pilot site — starts with a {pilotLength} pilot, then converts to the {term} service term." v={{ pilotLength, term: termLength }} />
+            </span>
           </p>
         )}
 
         {showCapex && capex && (
           <div className="rounded-lg border border-teton-pale-gray p-4 mt-4 avoid-break">
-            <p className="font-semibold">{showOpex ? 'Alternative: pay upfront (capital purchase)' : 'Upfront investment (capital purchase)'}</p>
+            <p className="font-semibold">
+              <T k="capex.title" d={showOpex ? 'Alternative: pay upfront (capital purchase)' : 'Upfront investment (capital purchase)'} />
+            </p>
             <p className="text-[12px] text-teton-dark-gray mt-1">
-              The {capex.termMonths}-month service term paid in one payment, priced at its present value ({pct(capex.annualDiscountRate, 1)} a year), plus installation.
+              <T
+                k="capex.note"
+                d="The {term} service term paid in one payment, priced at its present value ({rate} a year), plus installation."
+                v={{ term: `${capex.termMonths}-month`, rate: pct(capex.annualDiscountRate, 1) }}
+              />
             </p>
             <table className="w-full mt-3 tabular-nums">
               <tbody>
-                <tr className="border-b border-teton-off-white"><td className="py-1">Installation{credit > 0 && anyPilot ? ' (after pilot credits)' : ''}</td><td className="py-1 text-right">{usd(capex.install)}</td></tr>
-                <tr className="border-b border-teton-off-white"><td className="py-1">Service term, paid upfront</td><td className="py-1 text-right">{usd(capex.upfrontSubscription)}</td></tr>
-                <tr className="font-semibold"><td className="py-1.5">Upfront price</td><td className="py-1.5 text-right">{usd(capex.capexTotal)}</td></tr>
-                {capex.pilotFees > 0 && <tr className="text-teton-dark-gray"><td className="py-1">Plus pilot fees, billed monthly during the pilot</td><td className="py-1 text-right">{usd(capex.pilotFees)}</td></tr>}
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1"><T k="capex.install" d={`Installation${credit > 0 && anyPilot ? ' (after pilot credits)' : ''}`} /></td>
+                  <td className="py-1 text-right">{usd(capex.install)}</td>
+                </tr>
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1"><T k="capex.service" d="Service term, paid upfront" /></td>
+                  <td className="py-1 text-right">{usd(capex.upfrontSubscription)}</td>
+                </tr>
+                <tr className="font-semibold">
+                  <td className="py-1.5"><T k="capex.price" d="Upfront price" /></td>
+                  <td className="py-1.5 text-right">{usd(capex.capexTotal)}</td>
+                </tr>
+                {capex.pilotFees > 0 && (
+                  <tr className="text-teton-dark-gray">
+                    <td className="py-1"><T k="capex.pilotFees" d="Plus pilot fees, billed monthly during the pilot" /></td>
+                    <td className="py-1 text-right">{usd(capex.pilotFees)}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
-            <p className="text-[12px] text-teton-dark-gray mt-2">Saves {usd(capex.upfrontDiscount)} compared with paying the subscription monthly.</p>
+            <p className="text-[12px] text-teton-dark-gray mt-2">
+              <T k="capex.saves" d="Saves {saving} compared with paying the subscription monthly." v={{ saving: usd(capex.upfrontDiscount) }} />
+            </p>
           </div>
         )}
 
         <div className="mt-5 avoid-break">
-          <p className="font-semibold mb-1">Terms</p>
+          <p className="font-semibold mb-1">
+            <T k="terms.title" d="Terms" />
+          </p>
           <ul className="list-disc pl-5 space-y-0.5 text-[12px]">
             {anyPilot && (
               <li>
-                Pilot: {inputs.schedule.pilotLengthMonths} months at {usd(draft.commercial.pilotRate)} per bed per month{draft.commercial.ecall !== 'none' && draft.commercial.ecallPilotRate === 0 ? ', with E-Call included at no charge' : ''}, converting to a {term}-month service term.
+                <T
+                  k="terms.pilot"
+                  d={`Pilot: {pilotMonths} at {pilotRate} per bed per month${ecallFreeInPilot ? ', with E-Call included at no charge' : ''}, converting to a {term} service term.`}
+                  v={{ pilotMonths: `${inputs.schedule.pilotLengthMonths} months`, pilotRate: usd(draft.commercial.pilotRate), term: termLength }}
+                />
               </li>
             )}
-            <li>Service term of {term} months per community, starting {anyPilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.</li>
-            {credit > 0 && anyPilot && <li>Installation credit of {Math.round(credit * 100)}% on pilot beds{draft.commercial.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.</li>}
-            {draft.commercial.specialRate != null && draft.commercial.specialTermMonths > 0 && <li>Introductory rate of {usd(draft.commercial.specialRate, { cents: true })} per bed for the first {draft.commercial.specialTermMonths} months of the service term.</li>}
-            <li>Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live.</li>
+            <li>
+              <T
+                k="terms.service"
+                d={`Service term of {termMonths} per community, starting ${anyPilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.`}
+                v={{ termMonths: `${term} months` }}
+              />
+            </li>
+            {credit > 0 && anyPilot && (
+              <li>
+                <T
+                  k="terms.credit"
+                  d={`Installation credit of {credit} on pilot beds${draft.commercial.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`}
+                  v={{ credit: `${Math.round(credit * 100)}%` }}
+                />
+              </li>
+            )}
+            {draft.commercial.specialRate != null && draft.commercial.specialTermMonths > 0 && (
+              <li>
+                <T
+                  k="terms.intro"
+                  d="Introductory rate of {rate} per bed for the first {months} of the service term."
+                  v={{ rate: usd(draft.commercial.specialRate, { cents: true }), months: `${draft.commercial.specialTermMonths} months` }}
+                />
+              </li>
+            )}
+            <li>
+              <T k="terms.billing" d="Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live." />
+            </li>
           </ul>
         </div>
       </section>
 
       <section className="mb-8 avoid-break">
-        <H2>Return on investment</H2>
+        <H2>
+          <T k="roi.title" d="Return on investment" />
+        </H2>
         <div className="grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
           <div>
-            <p className="text-[12px] text-teton-dark-gray mb-2">Annual benefit once every community is live ({CASE_LABEL[rc]} case)</p>
+            <p className="text-[12px] text-teton-dark-gray mb-2">
+              <T k="roi.benefitsNote" d="Annual benefit once every community is live ({case} case)" v={{ case: caseName }} />
+            </p>
             <table className="w-full tabular-nums">
               <tbody>
-                {benefits.map(([l, v]) => (
-                  <tr key={l} className="border-b border-teton-off-white">
-                    <td className="py-1">{l}</td>
+                {benefits.map(([key, l, v]) => (
+                  <tr key={key} className="border-b border-teton-off-white">
+                    <td className="py-1"><T k={key} d={l} /></td>
                     <td className="py-1 text-right">{v}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold border-t-2 border-teton-ink">
-                  <td className="py-1.5">Total annual benefit</td>
+                  <td className="py-1.5"><T k="roi.total" d="Total annual benefit" /></td>
                   <td className="py-1.5 text-right">{usd(sel.annualRoi)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div>
-            <p className="text-[12px] text-teton-dark-gray mb-2">What that means each year</p>
+            <p className="text-[12px] text-teton-dark-gray mb-2">
+              <T k="roi.meansNote" d="What that means each year" />
+            </p>
             <div className="grid grid-cols-2 gap-2">
-              {outcomes.map(([value, label]) => (
-                <div key={label} className="rounded-lg bg-teton-almost-white p-3">
-                  <p className="text-lg font-semibold tabular-nums leading-tight">{value}</p>
-                  <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">{label}</p>
+              {outcomes.map((o) => (
+                <div key={o.key} className="rounded-lg bg-teton-almost-white p-3">
+                  <p className="text-lg font-semibold tabular-nums leading-tight">{o.value}</p>
+                  <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+                    <T k={o.key} d={o.label} v={o.v} />
+                  </p>
                 </div>
               ))}
             </div>
@@ -386,26 +507,34 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
         <div className="mt-6 avoid-break">
           <p className="text-[12px] text-teton-dark-gray mb-2">
-            Net benefit by quarter after Teton fees and installation, discounted at your {pct(inputs.cfo.annualDiscountRate, 1)} cost of money. Each bar starts where the last one ended
-            {kp.discountedPaybackMonth ? `; the program pays for itself in month ${kp.discountedPaybackMonth} and stays paid for.` : '.'}
+            <T
+              k="roi.waterfallNote"
+              d={`Net benefit by quarter after Teton fees and installation, discounted at your {costOfMoney} cost of money. Each bar starts where the last one ended${kp.discountedPaybackMonth ? '; the program pays for itself in {payback} and stays paid for.' : '.'}`}
+              v={{ costOfMoney, payback: `month ${kp.discountedPaybackMonth ?? ''}` }}
+            />
           </p>
           <QuarterlyWaterfall discountedNet={cf.discountedNet} startDate={start} paybackMonth={kp.discountedPaybackMonth} />
         </div>
       </section>
 
       <section className="avoid-break">
-        <H2>Assumptions</H2>
+        <H2>
+          <T k="assume.title" d="Assumptions" />
+        </H2>
         <div className="grid grid-cols-2 gap-x-8">
-          {assumptions.map(([l, v]) => (
-            <div key={l} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
-              <span>{l}</span>
+          {assumptions.map(([key, l, v]) => (
+            <div key={key} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
+              <span><T k={key} d={l} /></span>
               <span className="tabular-nums font-medium whitespace-nowrap">{v}</span>
             </div>
           ))}
         </div>
         <p className="text-[11px] text-teton-dark-gray mt-4">
-          Benefits are modeled estimates based on the assumptions above and the {CASE_LABEL[rc]} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes.
-          Final pricing is set by the order form.
+          <T
+            k="assume.disclaimer"
+            d="Benefits are modeled estimates based on the assumptions above and the {case} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes. Final pricing is set by the order form."
+            v={{ case: caseName }}
+          />
         </p>
       </section>
     </article>

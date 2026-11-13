@@ -168,4 +168,16 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `UPDATE communities SET al_beds = beds WHERE il_beds = 0 AND al_beds = 0 AND mc_beds = 0`,
     ],
   },
+  {
+    id: 4,
+    name: 'proposal wording edits per version',
+    sql: [
+      `CREATE TABLE proposal_text (
+        quote_version_id INTEGER PRIMARY KEY REFERENCES quote_versions(id),
+        edits_json TEXT NOT NULL DEFAULT '{}',
+        updated_by INTEGER REFERENCES users(id),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
 ];

@@ -92,6 +92,12 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 }
 
 /* ---- Proposal document (client-facing, prints to PDF) ---- */
+/* While a piece of wording is being edited, show which parts are locked calculated values. */
+.proposal-editable:focus .proposal-value {
+  background: rgb(var(--teton-off-white-rgb));
+  box-shadow: 0 0 0 1px rgb(var(--teton-pale-gray-rgb));
+  cursor: default;
+}
 .proposal-page {
   background: white;
 }
