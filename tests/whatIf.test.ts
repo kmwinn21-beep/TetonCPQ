@@ -71,4 +71,15 @@ describe('proposal what-if', () => {
     expect(() => applyChanges(d, { 'components.fallsDischarge': 0 })).toThrow('on or off');
     expect(describeChanges(d, { 'components.fallsDischarge': false })).toBe('Falls → Discharge On → Off');
   });
+
+  it('changes implementation stages as one plan change', async () => {
+    const { removeStage, addCustomStage, defaultPlan } = await import('@/lib/quote/implementationPlan');
+    const d = draft();
+    const plan = addCustomStage(removeStage(defaultPlan(), 'baseline'), 'Site survey', 2).plan;
+    expect(figureSpec('impl.custom-abc.weeks')!.fields).toEqual(['implementationPlan']);
+    const out = applyChanges(d, { implementationPlan: plan });
+    expect(out.implementationPlan.order).not.toContain('baseline');
+    expect(effectiveChanges(d, { implementationPlan: JSON.parse(JSON.stringify(d.implementationPlan)) })).toEqual({});
+    expect(describeChanges(d, { implementationPlan: plan })).toBe('Implementation timeline: removed Baseline, added Site survey (2 wk)');
+  });
 });

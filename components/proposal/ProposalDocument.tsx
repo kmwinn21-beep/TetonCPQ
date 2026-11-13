@@ -22,7 +22,8 @@ import { renderText } from '@/lib/proposal/text';
 import { ProposalSections, V } from './ProposalSections';
 import { ImplementationGantt, longDate } from '@/components/implementation/ImplementationGantt';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
-import { STAGE_BY_KEY, weekLabel } from '@/lib/quote/implementationPlan';
+import { weekLabel } from '@/lib/quote/implementationPlan';
+import { AddStageCard, RemoveStageButton } from './StageControls';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -243,20 +244,24 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         {pilots[0].schedule.stages
           .filter((st) => st.weeks > 0)
           .map((st) => (
-            <div key={st.key} className="rounded-lg border border-teton-pale-gray p-2.5 avoid-break">
+            <div key={st.id} className="relative group/stage rounded-lg border border-teton-pale-gray p-2.5 avoid-break">
+              <RemoveStageButton plan={draft.implementationPlan} id={st.id} name={st.name} />
               <p className="text-[10.5px] text-teton-ui-gray">
-                <V k={`impl.${st.key}.weeks`} label={`${st.name} timing`}>
+                <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>
                   {st.weeks} {st.weeks === 1 ? 'week' : 'weeks'} · {weekLabel(st, true).toLowerCase()}
                 </V>
               </p>
               <p className="text-[12px] font-semibold">
-                <T k={`impl.${st.key}.name`} d={st.name} />
+                <T k={`impl.${st.id}.name`} d={st.name} />
               </p>
-              <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
-                <T k={`impl.${st.key}.note`} d={STAGE_BY_KEY[st.key].description} />
-              </p>
+              {st.description && (
+                <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+                  <T k={`impl.${st.id}.note`} d={st.description} />
+                </p>
+              )}
             </div>
           ))}
+        <AddStageCard plan={draft.implementationPlan} />
       </div>
       <p className="text-[11px] text-teton-dark-gray mt-2">
         <T k="impl.footnote" d="Dates assume the order form is signed by the end of Evaluation & Contracting. Non-pilot communities follow the same path ahead of their go-live dates." />

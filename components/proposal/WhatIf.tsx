@@ -15,7 +15,9 @@ import type { PriceLine } from '@/lib/pricing/lines';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
-import { allFields, applyChanges, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
+import { allFields, applyChanges, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, sameValue, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
+import { StagesEditor } from '@/components/implementation/StagesEditor';
+import { normalizePlan, planChanges, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { Switch } from '@/components/quote/CommunityEditor';
 import { NumInput } from '@/components/form/NumInput';
 
@@ -171,7 +173,7 @@ export function WhatIfWorkspace({
     (path: string, v: ChangeValue | undefined) =>
       setRaw((r) => {
         const next = { ...r };
-        if (v === undefined || (getPath(draft, path) ?? null) === v) delete next[path];
+        if (v === undefined || sameValue(getPath(draft, path), v)) delete next[path];
         else next[path] = v;
         return next;
       }),
@@ -363,9 +365,13 @@ function ChangeList({ draft, changes, onUndo }: { draft: QuoteDraft; changes: Ch
         return (
           <li key={p} className="flex items-center gap-3 px-3 py-1.5">
             <span className="flex-1 min-w-0">{f.label}</span>
-            <span className="whitespace-nowrap tabular-nums">
-              <s className="text-teton-ui-gray">{formatField(f, getPath(draft, p))}</s> → <b>{formatField(f, v)}</b>
-            </span>
+            {f.kind === 'plan' ? (
+              <span className="text-right">{planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).join(', ')}</span>
+            ) : (
+              <span className="whitespace-nowrap tabular-nums">
+                <s className="text-teton-ui-gray">{formatField(f, getPath(draft, p))}</s> → <b>{formatField(f, v)}</b>
+              </span>
+            )}
             {onUndo && (
               <button type="button" className="btn-ghost px-1.5 py-0.5 text-xs" onClick={() => onUndo(p)} aria-label={`Undo ${f.label}`} title="Undo">
                 ↺
@@ -499,6 +505,22 @@ function LeaveDialog({
 function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: QuoteDraft; raw: Changes; error?: string; onChange: (path: string, v: ChangeValue | undefined) => void }) {
   const saved = (getPath(draft, f.path) as ChangeValue | undefined) ?? null;
   const changed = f.path in raw;
+  if (f.kind === 'plan') {
+    const plan = (changed ? raw[f.path] : saved) as ImplementationPlan;
+    return (
+      <div className="py-1.5">
+        <StagesEditor compact plan={plan} onChange={(p) => onChange(f.path, p)} />
+        {changed && (
+          <p className="text-[11px] text-[#8A5A00] mt-1.5 flex items-center justify-between gap-2">
+            Saved: {formatField(f, saved)}
+            <button type="button" className="text-teton-ui-gray hover:text-teton-ink text-sm" onClick={() => onChange(f.path, undefined)} title="Back to the saved stages" aria-label="Undo stage changes">
+              ↺
+            </button>
+          </p>
+        )}
+      </div>
+    );
+  }
   if (f.kind === 'toggle') {
     const on = !!(changed ? raw[f.path] : saved);
     return (
@@ -517,7 +539,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
   }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (
@@ -621,10 +643,12 @@ function FigurePanel({
           ✕
         </button>
       </div>
+      {now && (
       <p className="mt-1 flex flex-wrap items-baseline gap-2">
-        <span className="text-xl font-semibold tabular-nums">{now || '—'}</span>
-        {was && now && was !== now && <span className="badge bg-[#FFF1CC]">was {was}</span>}
+        <span className="text-xl font-semibold tabular-nums">{now}</span>
+        {was && was !== now && <span className="badge bg-[#FFF1CC]">was {was}</span>}
       </p>
+      )}
       <p className="mt-2 rounded-lg bg-teton-almost-white px-3 py-2 text-[12px] text-teton-dark-gray">= {trace?.formula && trace.formula !== 'Input' ? trace.formula : spec?.formula}</p>
 
       {fields.length === 0 && <p className="hint mt-3">This figure doesn’t depend on deal-level inputs that can be changed here. Change it on the deal page.</p>}

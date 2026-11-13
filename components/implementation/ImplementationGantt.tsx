@@ -6,8 +6,7 @@
  * go-live (Evaluation & Contracting, before kick-off, is neutral); every bar
  * also carries its stage name and dates, so color is never the only cue.
  */
-import type { PilotGroup, StageKey } from '@/lib/quote/implementationPlan';
-import { STAGES } from '@/lib/quote/implementationPlan';
+import type { PilotGroup, ScheduledStage, StageKey } from '@/lib/quote/implementationPlan';
 import { PilotFlag } from './PilotFlag';
 
 export const STAGE_COLORS: Record<StageKey, string> = {
@@ -17,6 +16,15 @@ export const STAGE_COLORS: Record<StageKey, string> = {
   baseline: '#4FAF7E',
   golive: '#2E8A5C',
 };
+/** Custom stages: a blue family, so they read as added to the standard (green) path. */
+const CUSTOM_COLORS = ['#9CC3EE', '#6FA6E3', '#4F8AD6', '#B7CDEB'];
+
+/** Color for a stage: its standard color, or a custom-stage blue by its place among the custom stages. */
+export function stageColor(id: string, order: string[]): string {
+  if (id in STAGE_COLORS) return STAGE_COLORS[id as StageKey];
+  const k = order.filter((x) => !(x in STAGE_COLORS)).indexOf(id);
+  return CUSTOM_COLORS[Math.max(k, 0) % CUSTOM_COLORS.length];
+}
 
 const DAY = 86_400_000;
 const t = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
@@ -39,6 +47,9 @@ export function ImplementationGantt({ groups, today, labelWidth = 220 }: { group
     months.push({ at: pct(m.getTime()), label: m.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }) + (jan ? ` ${m.getUTCFullYear()}` : ''), year: jan });
   }
   const grid = { gridTemplateColumns: `${labelWidth}px minmax(0,1fr)` };
+  const legendStages: ScheduledStage[] = groups[0].schedule.stages.filter((s) => s.weeks > 0);
+  const order = groups[0].schedule.stages.map((s) => s.id);
+  const hasGoLiveStage = order.includes('golive');
   const todayPct = today ? pct(t(today)) : null;
 
   return (
@@ -86,25 +97,26 @@ export function ImplementationGantt({ groups, today, labelWidth = 220 }: { group
                   {late && <span className="ml-2 badge-yellow relative z-10">Contracting was due {longDate(g.schedule.contractStart)}</span>}
                 </p>
               </div>
-              {g.schedule.stages.map((s) => {
+              {g.schedule.stages.map((s, si) => {
                 if (s.weeks <= 0) return null;
                 const left = pct(t(s.start));
                 const width = pct(t(s.end) + DAY) - left;
                 const labelLeft = left + width > 82; // near the right edge: label goes before the bar
                 return (
-                  <div key={s.key} className="grid items-center h-[25px]" style={grid}>
+                  <div key={s.id} className="grid items-center h-[25px]" style={grid}>
                     <div className="pl-3 pr-3 text-[12px] truncate">{s.name}</div>
                     <div className="relative h-full">
-                      <div className="absolute top-[6px] h-[13px] rounded-[4px]" style={{ left: `${left}%`, width: `${width}%`, background: STAGE_COLORS[s.key] }}>
+                      <div className="absolute top-[6px] h-[13px] rounded-[4px]" style={{ left: `${left}%`, width: `${width}%`, background: stageColor(s.id, order) }}>
                         <span
                           className={`absolute -top-[1px] text-[10.5px] text-teton-dark-gray whitespace-nowrap ${
-                            labelLeft ? (s.key === 'golive' ? 'right-[calc(100%+14px)]' : 'right-[calc(100%+6px)]') : 'left-[calc(100%+6px)]'
+                            labelLeft ? (s.id === 'golive' ? 'right-[calc(100%+14px)]' : 'right-[calc(100%+6px)]') : 'left-[calc(100%+6px)]'
                           }`}
                         >
                           {short(s.start)} – {short(s.end)}
                         </span>
                       </div>
-                      {s.key === 'golive' && (
+                      {/* Go-live: start of Training & Go live, or the day after the last stage if that stage was removed. */}
+                      {(s.id === 'golive' || (!hasGoLiveStage && si === g.schedule.stages.length - 1)) && (
                         <div className="absolute top-[6px] w-[13px] h-[13px] rounded-[2px] bg-teton-ink" style={{ left: `${pct(t(g.goLive))}%`, transform: 'translateX(-50%) rotate(45deg)' }} title={`Go-live ${longDate(g.goLive)}`} />
                       )}
                     </div>
@@ -116,9 +128,9 @@ export function ImplementationGantt({ groups, today, labelWidth = 220 }: { group
         })}
       </div>
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] text-teton-dark-gray">
-        {STAGES.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: STAGE_COLORS[s.key] }} />
+        {legendStages.map((s) => (
+          <span key={s.id} className="flex items-center gap-1.5">
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: stageColor(s.id, order) }} />
             {s.name}
           </span>
         ))}

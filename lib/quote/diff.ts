@@ -3,6 +3,7 @@
  * "Platform rate: $99 → $89", "Added community: Riverside (120 beds)".
  * Pure; works on any two QuoteDrafts.
  */
+import { planChanges } from './implementationPlan';
 import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
@@ -62,14 +63,6 @@ const FIELDS: Record<string, Field> = {
   'implementation.installationWeeks': { label: 'Installation (weeks)', fmt: 'num' },
   'implementation.baselineWeeks': { label: 'Baseline (weeks)', fmt: 'num' },
   'implementation.onboardingDays': { label: 'Onboarding (days)', fmt: 'num' },
-  'implementationPlan.evaluation.weeks': { label: 'Evaluation & Contracting (weeks)', fmt: 'num' },
-  'implementationPlan.kickoff.weeks': { label: 'Kick-off (weeks)', fmt: 'num' },
-  'implementationPlan.implementation.weeks': { label: 'Implementation stage (weeks)', fmt: 'num' },
-  'implementationPlan.implementation.overlapWeeks': { label: 'Implementation overlap (weeks)', fmt: 'num' },
-  'implementationPlan.baseline.weeks': { label: 'Baseline (weeks)', fmt: 'num' },
-  'implementationPlan.baseline.overlapWeeks': { label: 'Baseline overlap (weeks)', fmt: 'num' },
-  'implementationPlan.golive.weeks': { label: 'Training & Go live (weeks)', fmt: 'num' },
-  'implementationPlan.golive.overlapWeeks': { label: 'Training & Go live overlap (weeks)', fmt: 'num' },
   'commercial.platformRate': { label: 'Platform rate / bed / mo', fmt: 'usd' },
   'commercial.pilotRate': { label: 'Pilot rate / bed / mo', fmt: 'usd' },
   'commercial.ecall': { label: 'E-Call', fmt: 'text' },
@@ -178,8 +171,10 @@ const METRIC_LABEL: Record<string, string> = {
 /** Changes from `before` to `after`. Communities are matched by their id, so a rename is a change, not a remove + add. */
 export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const changes: Change[] = [];
-  const { communities: ca, ...ra } = before;
-  const { communities: cb, ...rb } = after;
+  const { communities: ca, implementationPlan: pa, ...ra } = before;
+  const { communities: cb, implementationPlan: pb, ...rb } = after;
+  // Implementation stages are compared as a plan (stages can be added, removed and reordered).
+  for (const c of planChanges(pa, pb)) changes.push({ group: 'Implementation', label: 'Implementation timeline', from: '', to: c });
   const la = leaves(ra);
   const lb = leaves(rb);
   for (const path of Array.from(new Set([...Object.keys(la), ...Object.keys(lb)]))) {

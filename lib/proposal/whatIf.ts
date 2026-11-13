@@ -9,8 +9,9 @@
  */
 import type { RoiCase, Trace } from '@/lib/model';
 import type { QuoteDraft } from '@/lib/quote/draft';
+import { normalizePlan, planChanges, weeksToGoLive, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -93,11 +94,9 @@ export const FIELDS: WhatIfField[] = [
   F('valuation.operatingMargin', 'Operating margin', VAL, VAL_AT, 'pct', { max: 1 }),
   F('monthsUntilCocNoticed', 'Months until change of condition noticed', VAL, VAL_AT, 'months'),
 
-  F('implementationPlan.evaluation.weeks', 'Evaluation & Contracting', IMPL, IMPL_AT, 'weeks', { max: 52 }),
-  F('implementationPlan.kickoff.weeks', 'Kick-off', IMPL, IMPL_AT, 'weeks', { max: 52 }),
-  F('implementationPlan.implementation.weeks', 'Implementation', IMPL, IMPL_AT, 'weeks', { max: 52 }),
-  F('implementationPlan.baseline.weeks', 'Baseline', IMPL, IMPL_AT, 'weeks', { max: 52 }),
-  F('implementationPlan.golive.weeks', 'Training & Go live', IMPL, IMPL_AT, 'weeks', { max: 52 }),
+  // The whole stage list: lengths, overlaps, order, removed and custom stages.
+  F('implementationPlan', 'Implementation stages', IMPL, IMPL_AT, 'plan'),
+
 ];
 
 const METRIC_FIELDS: Array<[keyof QuoteDraft['caseMetrics'][RoiCase], string]> = [
@@ -249,8 +248,7 @@ export function figureSpec(key: string): FigureSpec | null {
     'assume.benefitStart': ['schedule.roiStartDelayMonths', 'schedule.rampMonths'],
   };
   if (assume[k]) return { formula: 'An assumption entered on the deal', fields: assume[k] };
-  const impl = /^impl\.(\w+)\.weeks$/.exec(key);
-  if (impl) return { formula: 'Stage length from the implementation timeline', fields: [`implementationPlan.${impl[1]}.weeks`] };
+  if (/^impl\.[\w-]+\.weeks$/.test(key) || key === 'impl.plan') return { formula: 'Stages and lengths from the implementation timeline, worked back from each pilot go-live', fields: ['implementationPlan'] };
   return null;
 }
 
@@ -269,7 +267,7 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type ChangeValue = number | boolean | null;
+export type ChangeValue = number | boolean | null | ImplementationPlan;
 export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
@@ -279,6 +277,11 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
   for (const [path, v] of Object.entries(changes)) {
     if (!known.has(path)) throw new Error(`Can't change ${path} from the proposal`);
     const f = fieldByPath(draft, path)!;
+    if (f.kind === 'plan') {
+      if (!v || typeof v !== 'object') throw new Error(`${f.label} must be a list of stages`);
+      out = setPath(out, path, normalizePlan(v));
+      continue;
+    }
     if (f.kind === 'toggle') {
       if (typeof v !== 'boolean') throw new Error(`${f.label} must be on or off`);
     } else if (v == null) {
@@ -291,13 +294,23 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
 }
 
 /** Changes that actually differ from the draft they're based on. */
+/** Whether a change equals the saved value (plans compared by content). */
+export function sameValue(saved: unknown, v: unknown): boolean {
+  if (v && typeof v === 'object') return JSON.stringify(normalizePlan(saved)) === JSON.stringify(normalizePlan(v));
+  return (saved ?? null) === v;
+}
+
 export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
-  return Object.fromEntries(Object.entries(changes).filter(([p, v]) => (getPath(draft, p) ?? null) !== v));
+  return Object.fromEntries(Object.entries(changes).filter(([p, v]) => !sameValue(getPath(draft, p), v)));
 }
 
 /** Display a field value: "$99", "90%", "3 mo", "1.3×". */
 export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
+  if (f.kind === 'plan') {
+    const p = normalizePlan(v);
+    return `${p.order.length} stages, ${weeksToGoLive(p)} wk`;
+  }
   if (v == null || v === '') return f.nullable ? 'default' : '—';
   const n = Number(v);
   switch (f.kind) {
@@ -323,6 +336,7 @@ export function describeChanges(draft: QuoteDraft, changes: Changes): string {
   return Object.entries(changes)
     .map(([p, v]) => {
       const f = fieldByPath(draft, p);
+      if (f?.kind === 'plan') return `Implementation timeline: ${planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).join(', ')}`;
       return f ? `${f.label} ${formatField(f, getPath(draft, p))} → ${formatField(f, v)}` : p;
     })
     .join('; ');
