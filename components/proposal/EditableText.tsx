@@ -8,6 +8,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fillTemplate, renderText, tidy, type TextEdits } from '@/lib/proposal/text';
+import { DEFAULT_LAYOUT, type ProposalLayout } from '@/lib/proposal/layout';
 
 type SaveState = 'saved' | 'saving' | 'error';
 
@@ -15,60 +16,101 @@ interface Ctx {
   editable: boolean;
   edits: TextEdits;
   set: (key: string, template: string | null) => void;
+  layout: ProposalLayout;
+  setLayout: (update: (l: ProposalLayout) => ProposalLayout) => void;
+  /** Put wording and layout back to the standard proposal. */
   resetAll: () => void;
+  /** Save now instead of waiting for the pause after typing. */
+  saveNow: () => void;
   state: SaveState;
   error: string | null;
 }
 
-const ProposalTextContext = createContext<Ctx>({ editable: false, edits: {}, set: () => {}, resetAll: () => {}, state: 'saved', error: null });
+const ProposalTextContext = createContext<Ctx>({
+  editable: false,
+  edits: {},
+  set: () => {},
+  layout: DEFAULT_LAYOUT,
+  setLayout: () => {},
+  resetAll: () => {},
+  saveNow: () => {},
+  state: 'saved',
+  error: null,
+});
 export const useProposalText = () => useContext(ProposalTextContext);
 
-export function ProposalTextProvider({ versionId, initial, editable = true, children }: { versionId: number; initial: TextEdits; editable?: boolean; children: React.ReactNode }) {
-  const [edits, setEdits] = useState<TextEdits>(initial);
+interface Saved {
+  edits: TextEdits;
+  layout: ProposalLayout;
+}
+
+/**
+ * Holds this version's wording edits and layout, and saves both to the server
+ * a moment after each change (or right away with saveNow), so a rep can leave
+ * and come back to the proposal exactly as they arranged it.
+ */
+export function ProposalTextProvider({
+  versionId,
+  initial,
+  initialLayout = DEFAULT_LAYOUT,
+  editable = true,
+  children,
+}: {
+  versionId: number;
+  initial: TextEdits;
+  initialLayout?: ProposalLayout;
+  editable?: boolean;
+  children: React.ReactNode;
+}) {
+  const [doc, setDoc] = useState<Saved>({ edits: initial, layout: initialLayout });
   const [state, setState] = useState<SaveState>('saved');
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef(edits);
+  const latest = useRef(doc);
 
   const save = useCallback(
-    async (next: TextEdits) => {
+    async (next: Saved) => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
       setState('saving');
       try {
-        const res = await fetch(`/api/versions/${versionId}/text`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ edits: next }) });
+        const res = await fetch(`/api/versions/${versionId}/text`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next) });
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error ?? 'Could not save the wording');
+        if (!res.ok) throw new Error(body.error ?? 'Could not save your changes');
         // Only mark saved if nothing changed while this request was in flight.
         if (latest.current === next) setState('saved');
         setError(null);
       } catch (e) {
         setState('error');
-        setError(e instanceof Error ? e.message : 'Could not save the wording');
+        setError(e instanceof Error ? e.message : 'Could not save your changes');
       }
     },
     [versionId],
   );
 
   const schedule = useCallback(
-    (next: TextEdits) => {
+    (next: Saved, delay = 600) => {
       latest.current = next;
-      setEdits(next);
+      setDoc(next);
       setState('saving');
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void save(next), 500);
+      timer.current = setTimeout(() => void save(next), delay);
     },
     [save],
   );
 
   const set = useCallback(
     (key: string, template: string | null) => {
-      const next = { ...latest.current };
-      if (template == null) delete next[key];
-      else next[key] = template;
-      schedule(next);
+      const edits = { ...latest.current.edits };
+      if (template == null) delete edits[key];
+      else edits[key] = template;
+      schedule({ ...latest.current, edits });
     },
     [schedule],
   );
-  const resetAll = useCallback(() => schedule({}), [schedule]);
+  const setLayout = useCallback((update: (l: ProposalLayout) => ProposalLayout) => schedule({ ...latest.current, layout: update(latest.current.layout) }), [schedule]);
+  const resetAll = useCallback(() => schedule({ edits: {}, layout: structuredClone(DEFAULT_LAYOUT) }, 0), [schedule]);
+  const saveNow = useCallback(() => void save(latest.current), [save]);
 
   // Don't lose a pending save when the tab closes.
   useEffect(() => {
@@ -79,7 +121,10 @@ export function ProposalTextProvider({ versionId, initial, editable = true, chil
     return () => window.removeEventListener('beforeunload', warn);
   }, [state]);
 
-  const value = useMemo(() => ({ editable, edits, set, resetAll, state, error }), [editable, edits, set, resetAll, state, error]);
+  const value = useMemo(
+    () => ({ editable, edits: doc.edits, set, layout: doc.layout, setLayout, resetAll, saveNow, state, error }),
+    [editable, doc, set, setLayout, resetAll, saveNow, state, error],
+  );
   return <ProposalTextContext.Provider value={value}>{children}</ProposalTextContext.Provider>;
 }
 

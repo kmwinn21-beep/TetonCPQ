@@ -18,6 +18,8 @@ import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, monthName, multiple, pct, usd } from '@/lib/format';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { T } from './EditableText';
+import { renderText } from '@/lib/proposal/text';
+import { ProposalSections, V } from './ProposalSections';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -54,10 +56,6 @@ function PilotIcon() {
   );
 }
 
-function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold border-b-2 border-teton-ink pb-1 mb-3">{children}</h2>;
-}
-
 export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: ProposalProps) {
   const inputs = toModelInputs(draft);
   const start = inputs.schedule.startDate;
@@ -70,6 +68,8 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const showCapex = (draft.presentation === 'capex' || draft.presentation === 'both') && !!capex;
   const units = inputs.communities.reduce((s, c) => s + c.units, 0);
   const anyPilot = cf.communities.some((c) => c.inPilot);
+  // The pilot phase ends when the last pilot site converts to the service term.
+  const pilotEndMonth = anyPilot ? Math.max(...cf.communities.filter((c) => c.inPilot).map((c) => c.firstPostPilotMonth - 1)) : null;
   const term = POLICY.serviceTermMonths;
   const credit = draft.commercial.installCreditPct;
 
@@ -217,6 +217,302 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const ecallFreeInPilot = draft.commercial.ecall !== 'none' && draft.commercial.ecallPilotRate === 0;
   const nCommunities = inputs.communities.length;
 
+  const summaryBody = (
+    <>
+
+      <div className="grid grid-cols-3 gap-3">
+        {cards.map((card) => (
+          <div key={card.key} className="rounded-lg border border-teton-pale-gray p-3">
+            <p className="text-[11px] font-medium text-teton-dark-gray">
+              <T k={`${card.key}.label`} d={card.label} />
+            </p>
+            <p className="text-xl font-semibold tabular-nums mt-0.5">
+              <V k={`${card.key}.value`} label={`${card.label} figure`}>{card.value}</V>
+            </p>
+            <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+              <T k={`${card.key}.note`} d={card.note} v={card.v} />
+            </p>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  const scopeBody = (
+    <>
+
+
+      {showOpex && (
+        <div className={`grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <div className="rounded-lg bg-teton-almost-white p-3">
+            <p className="text-[11px] text-teton-dark-gray">
+              <T k="scope.oneTime" d={`One-time${credit > 0 && anyPilot ? ', after credits' : ''}`} />
+            </p>
+            <p className="text-lg font-semibold tabular-nums"><V k="scope.oneTime.value" label="One-time amount">{usd(oneTime)}</V></p>
+          </div>
+          {anyPilot && (
+            <div className="rounded-lg bg-teton-almost-white p-3">
+              <p className="text-[11px] text-teton-dark-gray">
+                <T k="scope.pilotMonthly" d="Monthly during the pilot" />
+              </p>
+              <p className="text-lg font-semibold tabular-nums"><V k="scope.pilotMonthly.value" label="Monthly during the pilot amount">{usd(pilotMonthly)}</V></p>
+            </div>
+          )}
+          <div className="rounded-lg bg-teton-almost-white p-3">
+            <p className="text-[11px] text-teton-dark-gray">
+              <T k="scope.serviceMonthly" d="Monthly, all sites in service" />
+            </p>
+            <p className="text-lg font-semibold tabular-nums"><V k="scope.serviceMonthly.value" label="Monthly in service amount">{usd(serviceMonthly)}</V></p>
+          </div>
+          <div className="rounded-lg bg-teton-almost-white p-3">
+            <p className="text-[11px] text-teton-dark-gray">
+              <T k="scope.total" d={anyPilot ? 'Total over pilot + {term} term' : 'Total over {term} term'} v={{ term: termLength }} />
+            </p>
+            <p className="text-lg font-semibold tabular-nums"><V k="scope.total.value" label="Term total amount">{usd(termTotal)}</V></p>
+          </div>
+        </div>
+      )}
+
+      <p className="text-[12px] text-teton-dark-gray mb-2">
+        {rateSummary.map((r, i) => (
+          <span key={r.key}>
+            {i > 0 && ' · '}
+            <T k={r.key} d={r.label} />{' '}
+            <V k={`${r.key}.value`} label={`${r.label} rate`}>
+              <span className="font-medium text-teton-ink">{r.value}</span>
+              {r.list && <span className="text-teton-ui-gray"> (list {r.list})</span>}
+            </V>
+          </span>
+        ))}
+      </p>
+
+      <table className="w-full">
+        <thead className="text-[11px] text-teton-dark-gray text-left">
+          <tr className="border-b border-teton-pale-gray">
+            <th className="font-medium py-1.5"><T k="table.community" d="Community" /></th>
+            <th className="font-medium py-1.5 px-2 text-right"><T k="table.beds" d="Beds" /></th>
+            <th className="font-medium py-1.5 px-2"><T k="table.goLive" d="Go-live" /></th>
+            {showOpex && <th className="font-medium py-1.5 px-2 text-right"><T k="table.monthly" d="Monthly" /></th>}
+            {showOpex && <th className="font-medium py-1.5 pl-2 text-right"><T k="table.oneTime" d="One-time" /></th>}
+          </tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {perCommunity.map((row) => (
+            <tr key={row.key} className="border-b border-teton-off-white avoid-break align-top">
+              <td className="py-1.5 pr-2">
+                <span className="flex items-start gap-1.5">
+                  {row.pilot ? <PilotIcon /> : <span className="w-4 flex-shrink-0" aria-hidden="true" />}
+                  <span>
+                    {row.name}
+                    {row.pilot && <span className="sr-only"> (pilot site)</span>}
+                    <span className="block text-[11px] text-teton-dark-gray">{row.detail}</span>
+                  </span>
+                </span>
+              </td>
+              <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                {count(row.units)}
+                {row.mix && <span className="block text-[11px] text-teton-dark-gray">{row.mix}</span>}
+              </td>
+              <td className="py-1.5 px-2 whitespace-nowrap">
+                {row.goLive}
+                {row.pilotUntil && <span className="block text-[11px] text-teton-dark-gray">pilot to {row.pilotUntil}</span>}
+              </td>
+              {showOpex && (
+                <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                  {usd(row.monthly)}
+                  {row.pilotMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.pilotMonthly)} during pilot</span>}
+                  {row.introMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.introMonthly)} first {row.introMonths} mo</span>}
+                </td>
+              )}
+              {showOpex && (
+                <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+                  {usd(row.oneTime)}
+                  {row.credit > 0 && <span className="block text-[11px] text-teton-dark-gray">after {usd(row.credit)} credit</span>}
+                </td>
+              )}
+            </tr>
+          ))}
+          <tr className="font-semibold border-t-2 border-teton-ink avoid-break">
+            <td className="py-2">
+              {perCommunity.length} {perCommunity.length === 1 ? 'community' : 'communities'}
+            </td>
+            <td className="py-2 px-2 text-right">{count(units)}</td>
+            <td className="py-2 px-2" />
+            {showOpex && <td className="py-2 px-2 text-right">{usd(serviceMonthly)}</td>}
+            {showOpex && <td className="py-2 pl-2 text-right">{usd(oneTime)}</td>}
+          </tr>
+        </tbody>
+      </table>
+      {anyPilot && (
+        <p className="text-[11px] text-teton-dark-gray mt-2 flex items-center gap-1.5">
+          <PilotIcon />
+          <span>
+            <T k="scope.pilotNote" d="Pilot site — starts with a {pilotLength} pilot, then converts to the {term} service term." v={{ pilotLength, term: termLength }} />
+          </span>
+        </p>
+      )}
+
+      {showCapex && capex && (
+        <div className="rounded-lg border border-teton-pale-gray p-4 mt-4 avoid-break">
+          <p className="font-semibold">
+            <T k="capex.title" d={showOpex ? 'Alternative: pay upfront (capital purchase)' : 'Upfront investment (capital purchase)'} />
+          </p>
+          <p className="text-[12px] text-teton-dark-gray mt-1">
+            <T
+              k="capex.note"
+              d="The {term} service term paid in one payment, priced at its present value ({rate} a year), plus installation."
+              v={{ term: `${capex.termMonths}-month`, rate: pct(capex.annualDiscountRate, 1) }}
+            />
+          </p>
+          <table className="w-full mt-3 tabular-nums">
+            <tbody>
+              <tr className="border-b border-teton-off-white">
+                <td className="py-1"><T k="capex.install" d={`Installation${credit > 0 && anyPilot ? ' (after pilot credits)' : ''}`} /></td>
+                <td className="py-1 text-right"><V k="capex.install.value" label="Upfront installation amount">{usd(capex.install)}</V></td>
+              </tr>
+              <tr className="border-b border-teton-off-white">
+                <td className="py-1"><T k="capex.service" d="Service term, paid upfront" /></td>
+                <td className="py-1 text-right"><V k="capex.service.value" label="Service term upfront amount">{usd(capex.upfrontSubscription)}</V></td>
+              </tr>
+              <tr className="font-semibold">
+                <td className="py-1.5"><T k="capex.price" d="Upfront price" /></td>
+                <td className="py-1.5 text-right"><V k="capex.price.value" label="Upfront price">{usd(capex.capexTotal)}</V></td>
+              </tr>
+              {capex.pilotFees > 0 && (
+                <tr className="text-teton-dark-gray">
+                  <td className="py-1"><T k="capex.pilotFees" d="Plus pilot fees, billed monthly during the pilot" /></td>
+                  <td className="py-1 text-right"><V k="capex.pilotFees.value" label="Pilot fees amount">{usd(capex.pilotFees)}</V></td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="text-[12px] text-teton-dark-gray mt-2">
+            <T k="capex.saves" d="Saves {saving} compared with paying the subscription monthly." v={{ saving: usd(capex.upfrontDiscount) }} />
+          </p>
+        </div>
+      )}
+
+      <div className="mt-5 avoid-break">
+        <p className="font-semibold mb-1">
+          <T k="terms.title" d="Terms" />
+        </p>
+        <ul className="list-disc pl-5 space-y-0.5 text-[12px]">
+          {anyPilot && (
+            <li>
+              <T
+                k="terms.pilot"
+                d={`Pilot: {pilotMonths} at {pilotRate} per bed per month${ecallFreeInPilot ? ', with E-Call included at no charge' : ''}, converting to a {term} service term.`}
+                v={{ pilotMonths: `${inputs.schedule.pilotLengthMonths} months`, pilotRate: usd(draft.commercial.pilotRate), term: termLength }}
+              />
+            </li>
+          )}
+          <li>
+            <T
+              k="terms.service"
+              d={`Service term of {termMonths} per community, starting ${anyPilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.`}
+              v={{ termMonths: `${term} months` }}
+            />
+          </li>
+          {credit > 0 && anyPilot && (
+            <li>
+              <T
+                k="terms.credit"
+                d={`Installation credit of {credit} on pilot beds${draft.commercial.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`}
+                v={{ credit: `${Math.round(credit * 100)}%` }}
+              />
+            </li>
+          )}
+          {draft.commercial.specialRate != null && draft.commercial.specialTermMonths > 0 && (
+            <li>
+              <T
+                k="terms.intro"
+                d="Introductory rate of {rate} per bed for the first {months} of the service term."
+                v={{ rate: usd(draft.commercial.specialRate, { cents: true }), months: `${draft.commercial.specialTermMonths} months` }}
+              />
+            </li>
+          )}
+          <li>
+            <T k="terms.billing" d="Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live." />
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+
+  const roiBody = (
+    <>
+
+      <div className="grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
+        <div>
+          <p className="text-[12px] text-teton-dark-gray mb-2">
+            <T k="roi.benefitsNote" d="Annual benefit once every community is live ({case} case)" v={{ case: caseName }} />
+          </p>
+          <table className="w-full tabular-nums">
+            <tbody>
+              {benefits.map(([key, l, v]) => (
+                <tr key={key} className="border-b border-teton-off-white">
+                  <td className="py-1"><T k={key} d={l} /></td>
+                  <td className="py-1 text-right"><V k={`${key}.value`} label={`${l} amount`}>{v}</V></td>
+                </tr>
+              ))}
+              <tr className="font-semibold border-t-2 border-teton-ink">
+                <td className="py-1.5"><T k="roi.total" d="Total annual benefit" /></td>
+                <td className="py-1.5 text-right"><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <p className="text-[12px] text-teton-dark-gray mb-2">
+            <T k="roi.meansNote" d="What that means each year" />
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {outcomes.map((o) => (
+              <div key={o.key} className="rounded-lg bg-teton-almost-white p-3">
+                <p className="text-lg font-semibold tabular-nums leading-tight"><V k={`${o.key}.value`} label={`${renderText(o.label, o.v)} figure`}>{o.value}</V></p>
+                <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
+                  <T k={o.key} d={o.label} v={o.v} />
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 avoid-break">
+        <p className="text-[12px] text-teton-dark-gray mb-2">
+          <T
+            k="roi.waterfallNote"
+            d={`Net benefit by quarter after Teton fees and installation, discounted at your {costOfMoney} cost of money. Each bar starts where the last one ended${kp.discountedPaybackMonth ? '; the program pays for itself in {payback} and stays paid for.' : '.'}`}
+            v={{ costOfMoney, payback: `month ${kp.discountedPaybackMonth ?? ''}` }}
+          />
+        </p>
+        <QuarterlyWaterfall discountedNet={cf.discountedNet} startDate={start} paybackMonth={kp.discountedPaybackMonth} pilotEndMonth={pilotEndMonth} />
+      </div>
+    </>
+  );
+
+  const assumptionsBody = (
+    <>
+
+      <div className="grid grid-cols-2 gap-x-8">
+        {assumptions.map(([key, l, v]) => (
+          <div key={key} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
+            <span><T k={key} d={l} /></span>
+            <span className="tabular-nums font-medium whitespace-nowrap"><V k={`${key}.value`} label={`${l} value`}>{v}</V></span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-teton-dark-gray mt-4">
+        <T
+          k="assume.disclaimer"
+          d="Benefits are modeled estimates based on the assumptions above and the {case} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes. Final pricing is set by the order form."
+          v={{ case: caseName }}
+        />
+      </p>
+    </>
+  );
+
   return (
     <article id="proposal" className="proposal-sheet bg-white max-w-[8.5in] mx-auto my-6 p-[0.6in] shadow-lg text-teton-ink text-[13px] leading-relaxed">
       <header className="flex items-start justify-between gap-6 mb-8">
@@ -247,296 +543,18 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         </p>
       </section>
 
-      <section className="mb-8 avoid-break">
-        <H2>
-          <T k="summary.title" d="Summary — Year 1" />
-        </H2>
-        <div className="grid grid-cols-3 gap-3">
-          {cards.map((card) => (
-            <div key={card.key} className="rounded-lg border border-teton-pale-gray p-3">
-              <p className="text-[11px] font-medium text-teton-dark-gray">
-                <T k={`${card.key}.label`} d={card.label} />
-              </p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">{card.value}</p>
-              <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
-                <T k={`${card.key}.note`} d={card.note} v={card.v} />
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <ProposalSections
+        sections={{
+          summary: { body: summaryBody, className: 'avoid-break' },
+          scope: { body: scopeBody },
+          roi: { body: roiBody, className: 'avoid-break' },
+          assumptions: { body: assumptionsBody, className: 'avoid-break' },
+        }}
+      />
 
-      <section className="mb-8">
-        <H2>
-          <T k="scope.title" d="Scope & investment" />
-        </H2>
 
-        {showOpex && (
-          <div className={`grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
-            <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">
-                <T k="scope.oneTime" d={`One-time${credit > 0 && anyPilot ? ', after credits' : ''}`} />
-              </p>
-              <p className="text-lg font-semibold tabular-nums">{usd(oneTime)}</p>
-            </div>
-            {anyPilot && (
-              <div className="rounded-lg bg-teton-almost-white p-3">
-                <p className="text-[11px] text-teton-dark-gray">
-                  <T k="scope.pilotMonthly" d="Monthly during the pilot" />
-                </p>
-                <p className="text-lg font-semibold tabular-nums">{usd(pilotMonthly)}</p>
-              </div>
-            )}
-            <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">
-                <T k="scope.serviceMonthly" d="Monthly, all sites in service" />
-              </p>
-              <p className="text-lg font-semibold tabular-nums">{usd(serviceMonthly)}</p>
-            </div>
-            <div className="rounded-lg bg-teton-almost-white p-3">
-              <p className="text-[11px] text-teton-dark-gray">
-                <T k="scope.total" d={anyPilot ? 'Total over pilot + {term} term' : 'Total over {term} term'} v={{ term: termLength }} />
-              </p>
-              <p className="text-lg font-semibold tabular-nums">{usd(termTotal)}</p>
-            </div>
-          </div>
-        )}
 
-        <p className="text-[12px] text-teton-dark-gray mb-2">
-          {rateSummary.map((r, i) => (
-            <span key={r.key}>
-              {i > 0 && ' · '}
-              <T k={r.key} d={r.label} /> <span className="font-medium text-teton-ink">{r.value}</span>
-              {r.list && <span className="text-teton-ui-gray"> (list {r.list})</span>}
-            </span>
-          ))}
-        </p>
 
-        <table className="w-full">
-          <thead className="text-[11px] text-teton-dark-gray text-left">
-            <tr className="border-b border-teton-pale-gray">
-              <th className="font-medium py-1.5"><T k="table.community" d="Community" /></th>
-              <th className="font-medium py-1.5 px-2 text-right"><T k="table.beds" d="Beds" /></th>
-              <th className="font-medium py-1.5 px-2"><T k="table.goLive" d="Go-live" /></th>
-              {showOpex && <th className="font-medium py-1.5 px-2 text-right"><T k="table.monthly" d="Monthly" /></th>}
-              {showOpex && <th className="font-medium py-1.5 pl-2 text-right"><T k="table.oneTime" d="One-time" /></th>}
-            </tr>
-          </thead>
-          <tbody className="tabular-nums">
-            {perCommunity.map((row) => (
-              <tr key={row.key} className="border-b border-teton-off-white avoid-break align-top">
-                <td className="py-1.5 pr-2">
-                  <span className="flex items-start gap-1.5">
-                    {row.pilot ? <PilotIcon /> : <span className="w-4 flex-shrink-0" aria-hidden="true" />}
-                    <span>
-                      {row.name}
-                      {row.pilot && <span className="sr-only"> (pilot site)</span>}
-                      <span className="block text-[11px] text-teton-dark-gray">{row.detail}</span>
-                    </span>
-                  </span>
-                </td>
-                <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                  {count(row.units)}
-                  {row.mix && <span className="block text-[11px] text-teton-dark-gray">{row.mix}</span>}
-                </td>
-                <td className="py-1.5 px-2 whitespace-nowrap">
-                  {row.goLive}
-                  {row.pilotUntil && <span className="block text-[11px] text-teton-dark-gray">pilot to {row.pilotUntil}</span>}
-                </td>
-                {showOpex && (
-                  <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                    {usd(row.monthly)}
-                    {row.pilotMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.pilotMonthly)} during pilot</span>}
-                    {row.introMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.introMonthly)} first {row.introMonths} mo</span>}
-                  </td>
-                )}
-                {showOpex && (
-                  <td className="py-1.5 pl-2 text-right whitespace-nowrap">
-                    {usd(row.oneTime)}
-                    {row.credit > 0 && <span className="block text-[11px] text-teton-dark-gray">after {usd(row.credit)} credit</span>}
-                  </td>
-                )}
-              </tr>
-            ))}
-            <tr className="font-semibold border-t-2 border-teton-ink avoid-break">
-              <td className="py-2">
-                {perCommunity.length} {perCommunity.length === 1 ? 'community' : 'communities'}
-              </td>
-              <td className="py-2 px-2 text-right">{count(units)}</td>
-              <td className="py-2 px-2" />
-              {showOpex && <td className="py-2 px-2 text-right">{usd(serviceMonthly)}</td>}
-              {showOpex && <td className="py-2 pl-2 text-right">{usd(oneTime)}</td>}
-            </tr>
-          </tbody>
-        </table>
-        {anyPilot && (
-          <p className="text-[11px] text-teton-dark-gray mt-2 flex items-center gap-1.5">
-            <PilotIcon />
-            <span>
-              <T k="scope.pilotNote" d="Pilot site — starts with a {pilotLength} pilot, then converts to the {term} service term." v={{ pilotLength, term: termLength }} />
-            </span>
-          </p>
-        )}
-
-        {showCapex && capex && (
-          <div className="rounded-lg border border-teton-pale-gray p-4 mt-4 avoid-break">
-            <p className="font-semibold">
-              <T k="capex.title" d={showOpex ? 'Alternative: pay upfront (capital purchase)' : 'Upfront investment (capital purchase)'} />
-            </p>
-            <p className="text-[12px] text-teton-dark-gray mt-1">
-              <T
-                k="capex.note"
-                d="The {term} service term paid in one payment, priced at its present value ({rate} a year), plus installation."
-                v={{ term: `${capex.termMonths}-month`, rate: pct(capex.annualDiscountRate, 1) }}
-              />
-            </p>
-            <table className="w-full mt-3 tabular-nums">
-              <tbody>
-                <tr className="border-b border-teton-off-white">
-                  <td className="py-1"><T k="capex.install" d={`Installation${credit > 0 && anyPilot ? ' (after pilot credits)' : ''}`} /></td>
-                  <td className="py-1 text-right">{usd(capex.install)}</td>
-                </tr>
-                <tr className="border-b border-teton-off-white">
-                  <td className="py-1"><T k="capex.service" d="Service term, paid upfront" /></td>
-                  <td className="py-1 text-right">{usd(capex.upfrontSubscription)}</td>
-                </tr>
-                <tr className="font-semibold">
-                  <td className="py-1.5"><T k="capex.price" d="Upfront price" /></td>
-                  <td className="py-1.5 text-right">{usd(capex.capexTotal)}</td>
-                </tr>
-                {capex.pilotFees > 0 && (
-                  <tr className="text-teton-dark-gray">
-                    <td className="py-1"><T k="capex.pilotFees" d="Plus pilot fees, billed monthly during the pilot" /></td>
-                    <td className="py-1 text-right">{usd(capex.pilotFees)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <p className="text-[12px] text-teton-dark-gray mt-2">
-              <T k="capex.saves" d="Saves {saving} compared with paying the subscription monthly." v={{ saving: usd(capex.upfrontDiscount) }} />
-            </p>
-          </div>
-        )}
-
-        <div className="mt-5 avoid-break">
-          <p className="font-semibold mb-1">
-            <T k="terms.title" d="Terms" />
-          </p>
-          <ul className="list-disc pl-5 space-y-0.5 text-[12px]">
-            {anyPilot && (
-              <li>
-                <T
-                  k="terms.pilot"
-                  d={`Pilot: {pilotMonths} at {pilotRate} per bed per month${ecallFreeInPilot ? ', with E-Call included at no charge' : ''}, converting to a {term} service term.`}
-                  v={{ pilotMonths: `${inputs.schedule.pilotLengthMonths} months`, pilotRate: usd(draft.commercial.pilotRate), term: termLength }}
-                />
-              </li>
-            )}
-            <li>
-              <T
-                k="terms.service"
-                d={`Service term of {termMonths} per community, starting ${anyPilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.`}
-                v={{ termMonths: `${term} months` }}
-              />
-            </li>
-            {credit > 0 && anyPilot && (
-              <li>
-                <T
-                  k="terms.credit"
-                  d={`Installation credit of {credit} on pilot beds${draft.commercial.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`}
-                  v={{ credit: `${Math.round(credit * 100)}%` }}
-                />
-              </li>
-            )}
-            {draft.commercial.specialRate != null && draft.commercial.specialTermMonths > 0 && (
-              <li>
-                <T
-                  k="terms.intro"
-                  d="Introductory rate of {rate} per bed for the first {months} of the service term."
-                  v={{ rate: usd(draft.commercial.specialRate, { cents: true }), months: `${draft.commercial.specialTermMonths} months` }}
-                />
-              </li>
-            )}
-            <li>
-              <T k="terms.billing" d="Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live." />
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <section className="mb-8 avoid-break">
-        <H2>
-          <T k="roi.title" d="Return on investment" />
-        </H2>
-        <div className="grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
-          <div>
-            <p className="text-[12px] text-teton-dark-gray mb-2">
-              <T k="roi.benefitsNote" d="Annual benefit once every community is live ({case} case)" v={{ case: caseName }} />
-            </p>
-            <table className="w-full tabular-nums">
-              <tbody>
-                {benefits.map(([key, l, v]) => (
-                  <tr key={key} className="border-b border-teton-off-white">
-                    <td className="py-1"><T k={key} d={l} /></td>
-                    <td className="py-1 text-right">{v}</td>
-                  </tr>
-                ))}
-                <tr className="font-semibold border-t-2 border-teton-ink">
-                  <td className="py-1.5"><T k="roi.total" d="Total annual benefit" /></td>
-                  <td className="py-1.5 text-right">{usd(sel.annualRoi)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <p className="text-[12px] text-teton-dark-gray mb-2">
-              <T k="roi.meansNote" d="What that means each year" />
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {outcomes.map((o) => (
-                <div key={o.key} className="rounded-lg bg-teton-almost-white p-3">
-                  <p className="text-lg font-semibold tabular-nums leading-tight">{o.value}</p>
-                  <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
-                    <T k={o.key} d={o.label} v={o.v} />
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 avoid-break">
-          <p className="text-[12px] text-teton-dark-gray mb-2">
-            <T
-              k="roi.waterfallNote"
-              d={`Net benefit by quarter after Teton fees and installation, discounted at your {costOfMoney} cost of money. Each bar starts where the last one ended${kp.discountedPaybackMonth ? '; the program pays for itself in {payback} and stays paid for.' : '.'}`}
-              v={{ costOfMoney, payback: `month ${kp.discountedPaybackMonth ?? ''}` }}
-            />
-          </p>
-          <QuarterlyWaterfall discountedNet={cf.discountedNet} startDate={start} paybackMonth={kp.discountedPaybackMonth} />
-        </div>
-      </section>
-
-      <section className="avoid-break">
-        <H2>
-          <T k="assume.title" d="Assumptions" />
-        </H2>
-        <div className="grid grid-cols-2 gap-x-8">
-          {assumptions.map(([key, l, v]) => (
-            <div key={key} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
-              <span><T k={key} d={l} /></span>
-              <span className="tabular-nums font-medium whitespace-nowrap">{v}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-[11px] text-teton-dark-gray mt-4">
-          <T
-            k="assume.disclaimer"
-            d="Benefits are modeled estimates based on the assumptions above and the {case} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes. Final pricing is set by the order form."
-            v={{ case: caseName }}
-          />
-        </p>
-      </section>
     </article>
   );
 }

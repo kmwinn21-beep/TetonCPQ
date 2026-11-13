@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
+import { layoutChanges } from '@/lib/proposal/layout';
 
 export interface SentRecord {
   id: number;
@@ -23,6 +24,8 @@ function snapshot(): string {
   if (!live) return '';
   // The sent copy is a static document: drop the click-to-edit hooks.
   const doc = live.cloneNode(true) as HTMLElement;
+  doc.querySelectorAll('[data-edit-ui]').forEach((el) => el.remove());
+  doc.querySelectorAll('[draggable]').forEach((el) => el.removeAttribute('draggable'));
   doc.querySelectorAll('[contenteditable]').forEach((el) => {
     el.removeAttribute('contenteditable');
     el.removeAttribute('role');
@@ -49,7 +52,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const text = useProposalText();
-  const editCount = Object.keys(text.edits).length;
+  const editCount = Object.keys(text.edits).length + layoutChanges(text.layout);
 
   async function record() {
     if (text.state !== 'saved') {
@@ -95,16 +98,21 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           )}
         </div>
         <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>Click any text to reword it; figures stay as calculated.</span>
+          <span>Click text to reword it · hover a section to remove or drag it · hover between sections to add one. Figures can be removed, not changed.</span>
           {editCount > 0 && (
             <span>
-              {editCount} wording {editCount === 1 ? 'change' : 'changes'} ·{' '}
-              <button type="button" className="underline hover:text-sidebar-font" onClick={() => window.confirm('Put all the proposal wording back to the standard text?') && text.resetAll()}>
-                Reset wording
+              {editCount} {editCount === 1 ? 'change' : 'changes'} to this proposal ·{' '}
+              <button type="button" className="underline hover:text-sidebar-font" onClick={() => window.confirm('Put this proposal back to the standard wording and layout? Added sections will be deleted.') && text.resetAll()}>
+                Reset to standard
               </button>
             </span>
           )}
-          <span aria-live="polite">{text.state === 'saving' ? 'Saving…' : text.state === 'error' ? '' : editCount > 0 ? 'Saved' : ''}</span>
+          <span className="ml-auto flex items-center gap-2" aria-live="polite">
+            <span>{text.state === 'saving' ? 'Saving…' : text.state === 'error' ? 'Not saved' : 'All changes saved'}</span>
+            <button type="button" className="px-2 py-0.5 rounded border border-white/30 hover:bg-white/10 disabled:opacity-40" disabled={text.state === 'saved'} onClick={text.saveNow}>
+              Save
+            </button>
+          </span>
         </p>
         {text.error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{text.error}</p>}
         {error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{error}</p>}
