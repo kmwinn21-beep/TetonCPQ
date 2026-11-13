@@ -99,7 +99,7 @@ export function VersionsPanel({ versions, quoteId }: { versions: VersionSummary[
               </div>
               {v.changeNote && <p className="text-teton-dark-gray">{v.changeNote}</p>}
               <p className="text-xs text-teton-ui-gray tabular-nums">
-                12-mo investment {usd(v.totalInvestment12, { compact: true })} · net {usd(v.netBenefit12, { compact: true })} · {v.rung ? `rung ${v.rung}` : 'below ladder'}
+                Year 1 investment {usd(v.totalInvestment12, { compact: true })} · net {usd(v.netBenefit12, { compact: true })} · {v.rung ? `rung ${v.rung}` : 'below ladder'}
                 {v.status === 'sent' && ` · sent ${dateLabel(v.sentAt)}${v.sentByName ? ` by ${v.sentByName}` : ''}`}
               </p>
               <p className="text-xs mt-0.5 space-x-3">

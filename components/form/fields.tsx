@@ -175,7 +175,7 @@ export function Section({
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <button
           type="button"
-          className="flex items-start gap-3 text-left flex-1 min-w-0 group"
+          className="flex items-start gap-3 text-left flex-1 min-w-[16rem] group"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setOpen(id, !open)}
@@ -216,3 +216,49 @@ export function Section({
 export const Grid = ({ children, cols = 3 }: { children: React.ReactNode; cols?: 2 | 3 | 4 }) => (
   <div className={`grid gap-4 grid-cols-1 sm:grid-cols-2 ${cols === 3 ? 'lg:grid-cols-3' : cols === 4 ? 'lg:grid-cols-4' : ''}`}>{children}</div>
 );
+
+/** Height animation for expanding content: grid rows 0fr ↔ 1fr, with a fade. */
+export function Collapse({ open, id, children, className = '' }: { open: boolean; id?: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      id={id}
+      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'} ${className}`}
+      // Hidden content stays mounted (its fields still validate) but can't be tabbed into.
+      {...((open ? {} : { inert: '' }) as Record<string, string>)}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * A collapsible group of sections (e.g. Assumptions). Collapsed by default;
+ * opening it reveals its sections, each still collapsed until clicked.
+ */
+export function SectionGroup({ id, title, summary, children }: { id: string; title: string; summary?: React.ReactNode; children: React.ReactNode }) {
+  const { isOpen, setOpen } = useSections();
+  const open = isOpen(id);
+  const bodyId = `${id}-group`;
+  return (
+    <div data-group={id}>
+      <button
+        type="button"
+        className="w-full flex items-start gap-3 text-left rounded-xl border border-dashed border-teton-pale-gray bg-teton-almost-white px-5 py-4 group hover:border-teton-light-gray transition-colors"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={() => setOpen(id, !open)}
+      >
+        <svg className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+        </svg>
+        <span className="min-w-0">
+          <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
+          {summary && <span className="block text-sm text-teton-dark-gray mt-0.5">{summary}</span>}
+        </span>
+      </button>
+      <Collapse open={open} id={bodyId}>
+        <div className="space-y-4 pt-4">{children}</div>
+      </Collapse>
+    </div>
+  );
+}

@@ -45,6 +45,10 @@ export function useSections(): SectionsState {
 export function revealInvalidSections(setOpen: (id: string, open: boolean) => void) {
   const invalid = Array.from(document.querySelectorAll<HTMLElement>('[aria-invalid="true"], [data-invalid="true"]'));
   const ids = Array.from(new Set(invalid.map((el) => el.closest('section[id]')?.id).filter((x): x is string => !!x)));
+  // Sections inside a collapsed group (e.g. Assumptions) need the group opened too.
+  const groups = new Set(invalid.map((el) => el.closest<HTMLElement>('[data-group]')?.dataset.group).filter((x): x is string => !!x));
+  groups.forEach((g) => setOpen(g, true));
   ids.forEach((id) => setOpen(id, true));
-  if (ids[0]) requestAnimationFrame(() => document.getElementById(ids[0])?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  // Wait for a group's open animation before scrolling, so the target is where it'll end up.
+  if (ids[0]) setTimeout(() => document.getElementById(ids[0])?.scrollIntoView({ behavior: 'smooth', block: 'start' }), groups.size ? 320 : 16);
 }

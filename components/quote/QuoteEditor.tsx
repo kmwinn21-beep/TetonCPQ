@@ -21,12 +21,19 @@ import { RailSlotContext, type RailSlot } from './RailSlot';
 import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
+import { Collapse, SectionGroup } from '@/components/form/fields';
+
+const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
 const NAV = [
   ['case', 'Case setup'],
   ['communities', 'Communities'],
   ['pricing', 'Pricing & products'],
   ['schedule', 'Timeline'],
+] as const;
+
+/** Sections inside the collapsible Assumptions group. */
+const ASSUMPTIONS_NAV = [
   ['valuation', 'Valuation & margin'],
   ['metrics', 'Improvement metrics'],
   ['revenue', 'Revenue'],
@@ -49,6 +56,7 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
 
 function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const sections = useSections();
+  const assumptionsOpen = sections.isOpen('assumptions');
   // The rail column can host the Communities editor panel (wide screens only; below xl the rail sits under the form).
   const [railEl, setRailEl] = useState<HTMLDivElement | null>(null);
   const [railActive, setRailActive] = useState(false);
@@ -236,19 +244,50 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
         <div className="grid gap-6 grid-cols-1 xl:grid-cols-[170px_minmax(0,1fr)_340px]">
           <nav className="hidden xl:block" aria-label="Form sections">
-            <ul className="sticky top-0 space-y-0.5 text-sm">
-              {NAV.map(([id, label]) => (
-                <li key={id}>
-                  <a
-                    href={`#${id}`}
-                    onClick={() => sections.setOpen(id, true)}
-                    className={`block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${sections.isOpen(id) ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`}
-                  >
-                    {label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <div className="sticky top-0 text-sm">
+              <ul className="space-y-0.5">
+                {NAV.map(([id, label]) => (
+                  <li key={id}>
+                    <a href={`#${id}`} onClick={() => sections.setOpen(id, true)} className={navLink(sections.isOpen(id))}>
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="mt-0.5 w-full flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-teton-off-white text-left text-teton-ink font-medium"
+                aria-expanded={assumptionsOpen}
+                aria-controls="nav-assumptions"
+                onClick={() => sections.setOpen('assumptions', !assumptionsOpen)}
+              >
+                <svg className={`w-3.5 h-3.5 text-teton-ui-gray transition-transform duration-300 ${assumptionsOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+                </svg>
+                Assumptions
+              </button>
+              <Collapse open={assumptionsOpen} id="nav-assumptions">
+                <ul className="space-y-0.5 pl-3 ml-3 border-l border-teton-off-white">
+                  {ASSUMPTIONS_NAV.map(([id, label]) => (
+                    <li key={id}>
+                      <a
+                        href={`#${id}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          sections.setOpen(id, true);
+                          // Already open: jump now. Otherwise wait for the group to finish expanding.
+                          setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), assumptionsOpen ? 16 : 320);
+                          sections.setOpen('assumptions', true);
+                        }}
+                        className={navLink(sections.isOpen(id))}
+                      >
+                        {label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </Collapse>
+            </div>
           </nav>
 
           <div className="space-y-4 min-w-0">
@@ -263,10 +302,12 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </RailSlotContext.Provider>
             <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
-            <ValuationSection />
-            <MetricsSection inputs={computed.inputs} result={computed.result} book={book} />
-            <ClientSection inputs={computed.inputs} result={computed.result} book={book} />
-            <CfoSection inputs={computed.inputs} result={computed.result} book={book} />
+            <SectionGroup id="assumptions" title="Assumptions" summary="Valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">
+              <ValuationSection />
+              <MetricsSection inputs={computed.inputs} result={computed.result} book={book} />
+              <ClientSection inputs={computed.inputs} result={computed.result} book={book} />
+              <CfoSection inputs={computed.inputs} result={computed.result} book={book} />
+            </SectionGroup>
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto">
