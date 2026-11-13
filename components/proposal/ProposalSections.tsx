@@ -11,6 +11,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { renderText } from '@/lib/proposal/text';
 import { isCustomId, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
+import { useFigure } from './WhatIf';
 
 /* ------------------------------------------------------------------ */
 /* Labels of figures, so removed ones can be listed and added back.    */
@@ -48,23 +49,53 @@ const GripIcon = () => (
 export function V({ k, label, children, block = false }: { k: string; label: string; children: React.ReactNode; block?: boolean }) {
   const { editable, layout, setLayout } = useProposalText();
   const { register } = useContext(LabelsCtx);
+  const fig = useFigure(k, label);
   useEffect(() => register(k, label), [k, label, register]);
   if (layout.hiddenValues.includes(k)) return null;
-  if (!editable) return <>{children}</>;
+  if (!editable && !fig.clickable) return <>{children}</>;
   const Tag = block ? 'div' : 'span';
+  const open = fig.clickable ? fig.open : undefined;
   return (
-    <Tag className={`relative group/v ${block ? '' : 'inline-block'}`}>
-      {children}
-      <button
-        type="button"
-        data-edit-ui
-        className="no-print absolute -top-2 -right-3 hidden group-hover/v:flex w-4 h-4 items-center justify-center rounded-full bg-teton-near-black text-white shadow"
-        title={`Remove ${label}`}
-        aria-label={`Remove ${label}`}
-        onClick={() => setLayout((l) => ({ ...l, hiddenValues: [...l.hiddenValues, k] }))}
-      >
-        <MinusIcon />
-      </button>
+    <Tag ref={fig.ref as React.Ref<HTMLDivElement & HTMLSpanElement>} data-fig={k} className={`relative group/v ${block ? '' : 'inline-block'}`}>
+      {fig.clickable ? (
+        <span
+          data-fig-value
+          role="button"
+          tabIndex={0}
+          title={`See and change the inputs behind ${label}`}
+          onClick={open}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              open?.();
+            }
+          }}
+          className={`cursor-pointer rounded-[4px] -mx-0.5 px-0.5 outline-none decoration-dotted decoration-teton-blue underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-brand-accent ${
+            fig.selected ? 'bg-teton-blue/10 ring-2 ring-teton-blue' : fig.was ? 'bg-[#FFF1CC] ring-1 ring-[#E2A72B]' : ''
+          }`}
+        >
+          {children}
+        </span>
+      ) : (
+        <span data-fig-value>{children}</span>
+      )}
+      {fig.clickable && fig.was && (
+        <span data-edit-ui className="no-print block text-[10px] font-medium leading-tight text-[#8A5A00] whitespace-nowrap">
+          was {fig.was}
+        </span>
+      )}
+      {editable && (
+        <button
+          type="button"
+          data-edit-ui
+          className="no-print absolute -top-2 -right-3 hidden group-hover/v:flex w-4 h-4 items-center justify-center rounded-full bg-teton-near-black text-white shadow"
+          title={`Remove ${label}`}
+          aria-label={`Remove ${label}`}
+          onClick={() => setLayout((l) => ({ ...l, hiddenValues: [...l.hiddenValues, k] }))}
+        >
+          <MinusIcon />
+        </button>
+      )}
     </Tag>
   );
 }

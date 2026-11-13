@@ -7,9 +7,10 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
+import { useWhatIf } from './WhatIf';
 import { layoutChanges } from '@/lib/proposal/layout';
 
 export interface SentRecord {
@@ -26,6 +27,7 @@ function snapshot(): string {
   const doc = live.cloneNode(true) as HTMLElement;
   doc.querySelectorAll('[data-edit-ui]').forEach((el) => el.remove());
   doc.querySelectorAll('[draggable]').forEach((el) => el.removeAttribute('draggable'));
+  doc.querySelectorAll('[data-fig-value]').forEach((el) => ['role', 'tabindex', 'title', 'class'].forEach((x) => el.removeAttribute(x)));
   doc.querySelectorAll('[contenteditable]').forEach((el) => {
     el.removeAttribute('contenteditable');
     el.removeAttribute('role');
@@ -45,13 +47,25 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
-export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0 }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number }) {
+export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const text = useProposalText();
+  const whatIf = useWhatIf();
+  const locked = !!whatIf?.dirty;
+  const lockedWhy = 'Save or discard the input changes first, so what you print or send matches a saved version';
+  // Panels below the toolbar start where it ends.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--proposal-chrome-h', `${Math.round(el.getBoundingClientRect().bottom)}px`));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const editCount = Object.keys(text.edits).length + layoutChanges(text.layout);
 
   async function record() {
@@ -74,7 +88,8 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   }
 
   return (
-    <div className="no-print sticky top-0 z-10 bg-teton-ink text-sidebar-font">
+    <div ref={rootRef} className="no-print sticky top-0 z-30">
+    <div className="bg-teton-ink text-sidebar-font">
       <div className="max-w-[8.5in] mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
         <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="text-sm text-sidebar-font/80 hover:text-sidebar-font">← Results</Link>
         <span className="text-sm text-sidebar-font/70">
@@ -92,13 +107,13 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             </>
           ) : (
             <>
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" onClick={() => setOpen(true)}>Record as sent</button>
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink" onClick={() => window.print()}>Print / Save as PDF</button>
+              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}>Record as sent</button>
+              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()}>Print / Save as PDF</button>
             </>
           )}
         </div>
         <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>Click text to reword it · hover a section to remove or drag it · hover between sections to add one. Figures can be removed, not changed.</span>
+          <span>Click text to reword it · click a figure to see and change its inputs · hover a section to remove or drag it · hover between sections to add one.</span>
           {editCount > 0 && (
             <span>
               {editCount} {editCount === 1 ? 'change' : 'changes'} to this proposal ·{' '}
@@ -135,6 +150,8 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           </p>
         )}
       </div>
+    </div>
+    {banner}
     </div>
   );
 }

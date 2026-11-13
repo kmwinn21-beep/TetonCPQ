@@ -59,7 +59,8 @@ export interface QuoteEditorData {
 }
 
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
-export type StoredOutputs = Omit<ModelResult, 'traces'> & { capex?: Omit<CapexResult, 'trace'> };
+export { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
+import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 
 const json = (v: unknown) => JSON.stringify(v);
 
@@ -211,18 +212,6 @@ export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, 
     args: [draft.customerName.trim() || 'Untitled customer', quoteId],
   });
   return { updatedAt: String(rs.rows[0].updated_at) };
-}
-
-export function computeOutputs(draft: QuoteDraft, book: PriceBook): { outputs: StoredOutputs; guardrails: GuardrailResult; lines: PriceLine[] } {
-  const inputs = toModelInputs(draft);
-  const { traces: _traces, ...model } = runModel(inputs);
-  const { trace: _capexTrace, ...capex } = computeCapex(inputs, draft.commercial.capexDiscountRate);
-  const outputs: StoredOutputs = { ...model, capex };
-  const guardrails = evaluateGuardrails(draft, book[SKU.platform]?.list ?? 99, {
-    ble: book[SKU.ecallBle]?.list ?? 10,
-    inovonics: book[SKU.ecallInovonics]?.list ?? 15,
-  });
-  return { outputs, guardrails, lines: buildPriceLines(draft, inputs, book) };
 }
 
 /**

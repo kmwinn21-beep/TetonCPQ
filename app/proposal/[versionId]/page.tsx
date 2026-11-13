@@ -5,12 +5,11 @@ import { getQuoteEditor, getVersion, getVersionLines, listExports, loadPriceBook
 import { diffDrafts } from '@/lib/quote/diff';
 import { buildPriceLines } from '@/lib/pricing/lines';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
-import { ProposalDocument } from '@/components/proposal/ProposalDocument';
-import { ProposalToolbar } from '@/components/proposal/ProposalToolbar';
+import { ProposalView } from '@/components/proposal/ProposalView';
 import { getSessionUser, requirePageUser } from '@/lib/auth/server';
 import { getProposalCustomization } from '@/lib/data/proposalText';
 import { ProposalTextProvider } from '@/components/proposal/EditableText';
-import { RemovedPanel, ValueLabelsProvider } from '@/components/proposal/ProposalSections';
+import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +29,10 @@ async function load(raw: string) {
   const pending = editor ? diffDrafts(v.inputs, editor.draft).length : 0;
   const newer = editor ? editor.versions.filter((x) => x.versionNo > v.versionNo).length : 0;
   const custom = await getProposalCustomization(db, id);
-  return { id, v, lines, history, pending, newer, custom };
+  // For previewing input changes in the browser: the price book, and the number the next saved version gets.
+  const { products } = await loadPriceBook(db);
+  const nextVersionNo = editor?.draftVersionNo ?? v.versionNo + 1;
+  return { id, v, lines, history, pending, newer, custom, products, nextVersionNo };
 }
 
 export async function generateMetadata({ params }: { params: { versionId: string } }): Promise<Metadata> {
@@ -43,22 +45,30 @@ export default async function ProposalPage({ params }: { params: { versionId: st
   await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
-  const { id, v, lines, history, pending, newer, custom } = d;
+  const { id, v, lines, history, pending, newer, custom, products, nextVersionNo } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
-      {/* Wording is editable on screen; numbers come from the saved version and aren't. */}
+      {/* Wording and layout are editable on screen; figures come from the saved version, or a preview of input changes. */}
       <ProposalTextProvider versionId={id} initial={custom.edits} initialLayout={custom.layout}>
         <ValueLabelsProvider>
-          <ProposalToolbar versionId={id} quoteId={v.quoteId} versionNo={v.versionNo} status={v.status} sentTo={v.sentTo} sentAt={v.sentAt} sentBy={v.sentByName} history={history} pendingChanges={pending} newerVersions={newer} />
-          <div className="relative max-w-[8.5in] mx-auto">
-            {/* Removed sections and figures, to add back: beside the page on wide screens, above it otherwise. */}
-            <div className="no-print px-4 pt-4 2xl:p-0 2xl:absolute 2xl:right-full 2xl:top-6 2xl:mr-6 2xl:w-56 2xl:h-full">
-              <div className="2xl:sticky 2xl:top-24">
-                <RemovedPanel />
-              </div>
-            </div>
-            <ProposalDocument draft={v.inputs} outputs={v.outputs!} lines={lines} versionNo={v.versionNo} savedAt={v.savedAt} />
-          </div>
+          <ProposalView
+            versionId={id}
+            quoteId={v.quoteId}
+            versionNo={v.versionNo}
+            nextVersionNo={nextVersionNo}
+            status={v.status}
+            sentTo={v.sentTo}
+            sentAt={v.sentAt}
+            sentBy={v.sentByName}
+            savedAt={v.savedAt}
+            history={history}
+            pendingChanges={pending}
+            newerVersions={newer}
+            draft={v.inputs}
+            outputs={v.outputs!}
+            lines={lines}
+            products={products}
+          />
         </ValueLabelsProvider>
       </ProposalTextProvider>
     </div>
