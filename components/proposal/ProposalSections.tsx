@@ -109,7 +109,7 @@ export const SECTION_TITLES: Record<StandardSection, { key: string; title: strin
   scope: { key: 'scope.title', title: 'Scope & investment' },
   terms: { key: 'terms.title', title: 'Terms / Notes' },
   implementation: { key: 'impl.title', title: 'Implementation' },
-  resources: { key: 'resources.title', title: '{company} Estimated Resource Allocation' },
+  resources: { key: 'resources.title', title: 'Implementation – Estimated Resource Allocation' },
   roi: { key: 'roi.title', title: 'Return on investment' },
   assumptions: { key: 'assume.title', title: 'Assumptions' },
 };

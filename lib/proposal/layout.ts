@@ -5,7 +5,11 @@
  */
 
 /** Standard sections, in their default order. The header and intro always stay on top. */
-export const STANDARD_SECTIONS = ['summary', 'scope', 'terms', 'implementation', 'resources', 'roi', 'assumptions'] as const;
+export const STANDARD_SECTIONS = ['scope', 'terms', 'implementation', 'resources', 'summary', 'roi', 'assumptions'] as const;
+
+/** The default order before Nov 2026 (summary first). Saved layouts still in it move to the new default once. */
+const OLD_DEFAULT = ['summary', 'scope', 'terms', 'implementation', 'resources', 'roi', 'assumptions'];
+const LAYOUT_VERSION = 2;
 export type StandardSection = (typeof STANDARD_SECTIONS)[number];
 
 export interface CustomSection {
@@ -22,9 +26,11 @@ export interface ProposalLayout {
   /** Figures the rep removed, by key (can be added back). */
   hiddenValues: string[];
   custom: Record<string, CustomSection>;
+  /** 2 = saved with the current default order in mind. */
+  version?: number;
 }
 
-export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {} };
+export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, version: LAYOUT_VERSION };
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;
 export const isCustomId = (id: string) => id.startsWith('custom-');
@@ -72,8 +78,23 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
   });
   for (const id of Object.keys(custom)) if (!order.includes(id)) order.push(id);
 
+  // A layout saved before the default order changed, and still in the old default order (never rearranged):
+  // move it to the new default, keeping each added section after the standard section it followed.
+  let finalOrder = order;
+  if ((Number(raw.version) || 1) < LAYOUT_VERSION && order.filter((id) => !isCustomId(id)).join() === OLD_DEFAULT.join()) {
+    const leading = order.slice(0, order.findIndex((id) => !isCustomId(id)));
+    const after = (std: string) => {
+      const i = order.indexOf(std);
+      const out: string[] = [];
+      for (let j = i + 1; j < order.length && isCustomId(order[j]); j++) out.push(order[j]);
+      return out;
+    };
+    finalOrder = [...leading, ...STANDARD_SECTIONS.flatMap((id) => [id, ...after(id)])];
+  }
+
   return {
-    order,
+    version: LAYOUT_VERSION,
+    order: finalOrder,
     hiddenSections: ids(raw.hiddenSections, 10).filter((id) => (STANDARD_SECTIONS as readonly string[]).includes(id)),
     hiddenValues: ids(raw.hiddenValues, 200),
     custom,

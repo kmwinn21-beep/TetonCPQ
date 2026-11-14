@@ -26,12 +26,22 @@ describe('proposal layout', () => {
 
   it('repairs the order: drops unknown ids, appends missing sections', () => {
     const l = sanitizeLayout({ order: ['scope', 'nope', 'custom-gone'], custom: { 'custom-b': { title: 'x', html: '' } } }, id);
-    expect(l.order).toEqual(['summary', 'scope', 'terms', 'implementation', 'resources', 'roi', 'assumptions', 'custom-b']);
+    expect(l.order).toEqual(['scope', 'terms', 'implementation', 'resources', 'summary', 'roi', 'assumptions', 'custom-b']);
   });
 
   it('puts a newly added standard section after the one it normally follows', () => {
     // A layout saved before Implementation existed, with Scope moved to the end.
     expect(sanitizeLayout({ order: ['summary', 'roi', 'assumptions', 'scope'] }, id).order).toEqual(['summary', 'roi', 'assumptions', 'scope', 'terms', 'implementation', 'resources']);
+  });
+
+  it('moves layouts still in the old default order to the new one, once', () => {
+    const old = { order: ['summary', 'custom-x', 'scope', 'terms', 'implementation', 'resources', 'roi', 'assumptions'], custom: { 'custom-x': { title: 'Why now', html: '' } } };
+    const l = sanitizeLayout(old, id);
+    expect(l.order).toEqual(['scope', 'terms', 'implementation', 'resources', 'summary', 'custom-x', 'roi', 'assumptions']);
+    // Saved again in the old order on purpose (version 2): kept.
+    expect(sanitizeLayout({ ...old, version: 2 }, id).order).toEqual(old.order);
+    // A rearranged old layout isn't touched.
+    expect(sanitizeLayout({ order: ['roi', 'summary', 'scope', 'terms', 'implementation', 'resources', 'assumptions'] }, id).order[0]).toBe('roi');
   });
 
   it('only hides standard sections', () => {
