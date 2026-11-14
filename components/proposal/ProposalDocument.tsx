@@ -242,7 +242,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         />
       </p>
       <ImplementationGantt groups={pilots} labelWidth={170} />
-      <div className="grid grid-cols-3 gap-2.5 mt-4">
+      <div className="m-stack grid grid-cols-3 gap-2.5 mt-4">
         {pilots[0].schedule.stages
           .filter((st) => st.weeks > 0)
           .map((st) => (
@@ -278,7 +278,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const summaryBody = (
     <>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="m-stack grid grid-cols-3 gap-3">
         {cards.map((card) => (
           <div key={card.key} className="rounded-lg border border-teton-pale-gray p-3">
             <p className="text-[11px] font-medium text-teton-dark-gray">
@@ -301,7 +301,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
 
       {showOpex && (
-        <div className={`grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <div className={`m-stack grid gap-3 mb-4 avoid-break ${anyPilot ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div className="rounded-lg bg-teton-almost-white p-3">
             <p className="text-[11px] text-teton-dark-gray">
               <T k="scope.oneTime" d={`One-time${credit > 0 && anyPilot ? ', after credits' : ''}`} />
@@ -344,7 +344,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         ))}
       </p>
 
-      <table className="w-full">
+      <table className="m-table w-full">
         <thead className="text-[11px] text-teton-dark-gray text-left">
           <tr className="border-b border-teton-pale-gray">
             <th className="font-medium py-1.5"><T k="table.community" d="Community" /></th>
@@ -367,23 +367,23 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                   </span>
                 </span>
               </td>
-              <td className="py-1.5 px-2 text-right whitespace-nowrap">
+              <td className="py-1.5 px-2 text-right whitespace-nowrap" data-label="Beds">
                 {count(row.units)}
                 {row.mix && <span className="block text-[11px] text-teton-dark-gray">{row.mix}</span>}
               </td>
-              <td className="py-1.5 px-2 whitespace-nowrap">
+              <td className="py-1.5 px-2 whitespace-nowrap" data-label="Go-live">
                 {row.goLive}
                 {row.pilotUntil && <span className="block text-[11px] text-teton-dark-gray">pilot to {row.pilotUntil}</span>}
               </td>
               {showOpex && (
-                <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                <td className="py-1.5 px-2 text-right whitespace-nowrap" data-label="Monthly">
                   {usd(row.monthly)}
                   {row.pilotMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.pilotMonthly)} during pilot</span>}
                   {row.introMonthly != null && <span className="block text-[11px] text-teton-dark-gray">{usd(row.introMonthly)} first {row.introMonths} mo</span>}
                 </td>
               )}
               {showOpex && (
-                <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+                <td className="py-1.5 pl-2 text-right whitespace-nowrap" data-label="One-time">
                   {usd(row.oneTime)}
                   {row.credit > 0 && <span className="block text-[11px] text-teton-dark-gray">after {usd(row.credit)} credit</span>}
                 </td>
@@ -394,10 +394,10 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
             <td className="py-2">
               {perCommunity.length} {perCommunity.length === 1 ? 'community' : 'communities'}
             </td>
-            <td className="py-2 px-2 text-right">{count(units)}</td>
-            <td className="py-2 px-2" />
-            {showOpex && <td className="py-2 px-2 text-right">{usd(serviceMonthly)}</td>}
-            {showOpex && <td className="py-2 pl-2 text-right">{usd(oneTime)}</td>}
+            <td className="py-2 px-2 text-right" data-label="Beds">{count(units)}</td>
+            <td className="py-2 px-2 m-hide" />
+            {showOpex && <td className="py-2 px-2 text-right" data-label="Monthly">{usd(serviceMonthly)}</td>}
+            {showOpex && <td className="py-2 pl-2 text-right" data-label="One-time">{usd(oneTime)}</td>}
           </tr>
         </tbody>
       </table>
@@ -456,7 +456,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const roiBody = (
     <>
 
-      <div className="grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
+      <div className="m-stack grid grid-cols-[1.15fr_1fr] gap-6 avoid-break">
         <div>
           <p className="text-[12px] text-teton-dark-gray mb-2">
             <T k="roi.benefitsNote" d="Annual benefit once every community is live ({case} case)" v={{ case: caseName }} />
@@ -480,7 +480,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           <p className="text-[12px] text-teton-dark-gray mb-2">
             <T k="roi.meansNote" d="What that means each year" />
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="m-stack grid grid-cols-2 gap-2">
             {outcomes.map((o) => (
               <div key={o.key} className="rounded-lg bg-teton-almost-white p-3">
                 <p className="text-lg font-semibold tabular-nums leading-tight"><V k={`${o.key}.value`} label={`${renderText(o.label, o.v)} figure`}>{o.value}</V></p>
@@ -509,7 +509,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const assumptionsBody = (
     <>
 
-      <div className="grid grid-cols-2 gap-x-8">
+      <div className="m-stack grid grid-cols-2 gap-x-8">
         {assumptions.map(([key, l, v]) => (
           <div key={key} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
             <span><T k={key} d={l} /></span>

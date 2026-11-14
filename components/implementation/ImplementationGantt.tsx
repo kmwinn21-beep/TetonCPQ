@@ -54,7 +54,7 @@ export function ImplementationGantt({ groups, today, labelWidth = 220 }: { group
   const todayPct = today ? pct(t(today)) : null;
 
   return (
-    <figure className="m-0">
+    <figure className="m-gantt m-0">
       <div className="relative" role="img" aria-label={`Implementation timeline for ${groups.reduce((n, g) => n + g.names.length, 0)} pilot communities, ${groups.length} go-live ${groups.length === 1 ? 'date' : 'dates'}.`}>
         {/* Month grid (and today line) behind the bars */}
         <div className="absolute inset-y-0 right-0 pointer-events-none" style={{ left: labelWidth }} aria-hidden="true">

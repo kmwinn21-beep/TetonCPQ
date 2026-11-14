@@ -473,7 +473,7 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
                   <button
                     type="button"
                     data-edit-ui
-                    className="no-print absolute -right-9 top-0.5 w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white opacity-0 group-hover/sec:opacity-100 focus:opacity-100 transition-opacity shadow"
+                    className="no-print absolute right-0 md:-right-9 top-0.5 w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white opacity-0 group-hover/sec:opacity-100 focus:opacity-100 transition-opacity shadow"
                     title={custom ? 'Delete this section' : 'Remove this section (you can add it back)'}
                     aria-label={`Remove section ${label}`}
                     onMouseDown={(e) => e.stopPropagation()}

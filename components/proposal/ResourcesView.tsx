@@ -25,7 +25,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
         <button
           type="button"
           data-edit-ui
-          className="no-print absolute -top-11 right-0 rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] text-teton-dark-gray hover:text-teton-ink"
+          className="m-inline no-print absolute -top-11 right-0 rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] text-teton-dark-gray hover:text-teton-ink"
           onClick={() => w.select('resources.edit', 'Estimated resource allocation')}
         >
           Edit roles &amp; hours
@@ -34,7 +34,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
       <p className="text-[12.5px] text-teton-dark-gray mb-2">
         <T k="resources.intro" d="Estimated hours from your team by stage. Teton’s implementation and customer success team leads each stage." />
       </p>
-      <table className="w-full text-[12px] tabular-nums">
+      <table className="m-table w-full text-[12px] tabular-nums">
         <thead>
           <tr className="border-b border-teton-pale-gray text-[10.5px] text-teton-dark-gray">
             <th className="text-left font-medium py-1.5 pr-2 align-bottom w-[26%]">Role</th>
@@ -52,26 +52,26 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
             <tr key={r.id} className="border-b border-teton-off-white">
               <td className="py-1.5 pr-2">{r.role}</td>
               {t.stages.map((s) => (
-                <td key={s.id} className={`py-1.5 px-1.5 text-right ${s.id in r.hours ? '' : 'text-teton-light-gray'}`}>
+                <td key={s.id} data-label={s.name} className={`py-1.5 px-1.5 text-right ${s.id in r.hours ? '' : 'm-hide text-teton-light-gray'}`}>
                   {s.id in r.hours ? num(r.hours[s.id]) : '–'}
                 </td>
               ))}
-              <td className="py-1.5 pl-1.5 text-right font-semibold">{num(r.total)}</td>
+              <td className="py-1.5 pl-1.5 text-right font-semibold" data-label="Total">{num(r.total)}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-teton-ink font-semibold">
             <td className="py-1.5 pr-2">Total hours</td>
             {t.stages.map((s) => (
-              <td key={s.id} className="py-1.5 px-1.5 text-right">
+              <td key={s.id} className="py-1.5 px-1.5 text-right" data-label={s.name}>
                 {num(t.stageTotals[s.id])}
               </td>
             ))}
-            <td className="py-1.5 pl-1.5 text-right">{num(t.total)}</td>
+            <td className="py-1.5 pl-1.5 text-right" data-label="Total">{num(t.total)}</td>
           </tr>
         </tbody>
       </table>
       {t.rows.some((r) => r.notes.some((n) => n.note)) && (
-        <div className="mt-3 columns-2 gap-6">
+        <div className="m-cols-1 mt-3 columns-2 gap-6">
           {t.rows
             .filter((r) => r.notes.some((n) => n.note))
             .map((r) => (

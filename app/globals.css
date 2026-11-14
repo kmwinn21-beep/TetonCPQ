@@ -127,3 +127,22 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @media (min-width: 1024px) {
   .whatif-open .proposal-bar { margin-right: -380px; padding-right: 380px; }
 }
+
+/* Proposal on a phone: one column, tables as stacked rows, the timeline scrolls sideways. Screen only; print keeps the page layout. */
+@media screen and (max-width: 639px) {
+  .proposal-sheet { margin: 0 !important; padding: 24px 16px !important; box-shadow: none !important; }
+  .proposal-sheet .m-stack { grid-template-columns: minmax(0, 1fr) !important; }
+  .proposal-sheet .m-cols-1 { columns: 1 !important; }
+  .proposal-sheet .m-table thead { display: none; }
+  .proposal-sheet .m-table, .proposal-sheet .m-table tbody, .proposal-sheet .m-table tr { display: block; width: 100%; }
+  .proposal-sheet .m-table tr { padding: 8px 0; }
+  .proposal-sheet .m-table td { display: block; padding: 1px 0 !important; text-align: right; white-space: normal !important; }
+  .proposal-sheet .m-table td[data-label]::before { content: attr(data-label); float: left; margin-right: 12px; color: rgb(var(--teton-dark-gray-rgb, 85 85 85)); font-weight: 400; }
+  .proposal-sheet .m-table td:first-child { text-align: left; font-weight: 600; padding-bottom: 4px !important; }
+  .proposal-sheet .m-table td.m-hide { display: none; }
+  .proposal-sheet .m-table td:first-child .block { font-weight: 400; }
+  .proposal-sheet .m-gantt::after { content: 'Swipe sideways to see the full timeline'; display: block; margin-top: 4px; font-size: 11px; color: rgb(var(--teton-ui-gray-rgb, 120 128 133)); }
+  .proposal-sheet .m-inline { position: static !important; display: inline-block; margin-bottom: 8px; }
+  .proposal-sheet .m-gantt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .proposal-sheet .m-gantt > div:first-child { min-width: 560px; }
+}
