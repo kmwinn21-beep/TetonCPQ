@@ -121,3 +121,9 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .print-own-page { break-before: page; break-after: page; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* With the proposal's inputs drawer open, the black toolbar still spans the full width (the drawer starts under it). */
+.proposal-bar { transition: margin-right 200ms cubic-bezier(0.4, 0, 0.2, 1), padding-right 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+@media (min-width: 1024px) {
+  .whatif-open .proposal-bar { margin-right: -380px; padding-right: 380px; }
+}

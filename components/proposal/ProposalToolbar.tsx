@@ -58,12 +58,21 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const locked = !!whatIf?.dirty;
   const lockedWhy = 'Save or discard the input changes first, so what you print or send matches a saved version';
   // Panels below the toolbar start where it ends.
+  // --proposal-chrome-h: bottom of the whole sticky area (bar + banner); --proposal-header-h: bottom of the black bar.
   const rootRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = rootRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--proposal-chrome-h', `${Math.round(el.getBoundingClientRect().bottom)}px`));
+    const bar = barRef.current;
+    if (!el || !bar || typeof ResizeObserver === 'undefined') return;
+    const set = () => {
+      const root = document.documentElement.style;
+      root.setProperty('--proposal-chrome-h', `${Math.round(el.getBoundingClientRect().bottom)}px`);
+      root.setProperty('--proposal-header-h', `${Math.round(bar.getBoundingClientRect().bottom)}px`);
+    };
+    const ro = new ResizeObserver(set);
     ro.observe(el);
+    ro.observe(bar);
     return () => ro.disconnect();
   }, []);
   const editCount = Object.keys(text.edits).length + layoutChanges(text.layout);
@@ -89,7 +98,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
 
   return (
     <div ref={rootRef} className="no-print sticky top-0 z-30">
-    <div className="bg-teton-ink text-sidebar-font">
+    <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
       <div className="max-w-[8.5in] mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
         <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="text-sm text-sidebar-font/80 hover:text-sidebar-font">← Results</Link>
         <span className="text-sm text-sidebar-font/70">

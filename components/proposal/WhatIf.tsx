@@ -315,7 +315,7 @@ export function WhatIfWorkspace({
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className={selected ? 'lg:pr-[380px] transition-[padding] duration-200' : 'transition-[padding] duration-200'}>
+      <div className={selected ? 'whatif-open lg:pr-[380px] transition-[padding] duration-200' : 'transition-[padding] duration-200'}>
         {children(preview, banner)}
       </div>
 
@@ -654,8 +654,8 @@ function FigurePanel({
 
   return (
     <aside
-      className="no-print fixed right-0 bottom-0 z-20 w-full sm:w-[380px] overflow-y-auto border-l border-teton-off-white bg-white px-4 pb-6 pt-4 shadow-xl"
-      style={{ top: 'var(--proposal-chrome-h, 64px)' }}
+      // Wide screens: starts right under the black bar (the unsaved-changes bar sits beside it). Narrow: under the whole toolbar.
+      className="no-print fixed right-0 bottom-0 z-20 w-full sm:w-[380px] overflow-y-auto border-l border-teton-off-white bg-white px-4 pb-6 pt-4 shadow-xl sm:rounded-tl-2xl sm:border-t top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
       aria-label={`Inputs behind ${figure.label}`}
     >
       <div className="flex items-start gap-2">
