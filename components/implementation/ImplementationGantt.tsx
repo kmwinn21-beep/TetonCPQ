@@ -11,6 +11,7 @@ import { PilotFlag } from './PilotFlag';
 
 export const STAGE_COLORS: Record<StageKey, string> = {
   evaluation: '#C2D0D3',
+  queue: '#9FB4B9',
   kickoff: '#A9DEC0',
   implementation: '#7FCDA1',
   baseline: '#4FAF7E',

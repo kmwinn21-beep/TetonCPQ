@@ -162,7 +162,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
     { key: 'roi.outcome.realigned', value: count(sel.residentsRealigned), label: 'residents realigned to the right level of care' },
     { key: 'roi.outcome.falls', value: count(sel.costlyFallsPrevented), label: 'costly falls prevented' },
     { key: 'roi.outcome.noi', value: usd(sel.annualNetNoiImpact, { compact: true }), label: 'annual net operating income impact' },
-    { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'Asset Value Added at a {capRate} cap rate (one-time)', v: { capRate } },
+    { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'Asset Value Impact (one year @ {capRate} Cap)', v: { capRate } },
   ];
 
   const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string> }> = [
@@ -224,20 +224,17 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
   // Implementation plan for pilot sites (only shown when the deal has pilot communities).
   const pilots = pilotPlan(draft, start, cf.communities.map((c) => c.goLiveMonth));
-  const pilotDates = pilots.map((g) => `${longDate(g.goLive)} (${g.names.join(', ')})`);
+  const pilotDates = pilots.map((g) => longDate(g.goLive));
   const pilotDatesText = pilotDates.length <= 1 ? pilotDates.join('') : `${pilotDates.slice(0, -1).join(', ')} and ${pilotDates[pilotDates.length - 1]}`;
-  const pilotCount = pilots.reduce((n, g) => n + g.names.length, 0);
+  // "a Mar 1, 2027" / "an Apr 1, 2027" for one date; "Feb 1, 2027 and Mar 1, 2027" for several.
+  const goLivePhrase = pilotDates.length === 1 ? `${/^(Apr|Aug|Oct)/.test(pilotDatesText) ? 'an' : 'a'} ${pilotDatesText}` : pilotDatesText;
   const implementationBody = pilots.length ? (
     <>
       <p className="mb-3 text-[14px] max-w-prose">
         <T
           k="impl.intro"
-          d={
-            pilotCount === 1
-              ? 'Your pilot community goes live on {dates}. Working back from that date, here is the path to go-live.'
-              : 'Your pilot communities go live on {dates}. Working back from those dates, here is the path to go-live.'
-          }
-          v={{ dates: pilotDatesText }}
+          d={pilots.length === 1 ? 'Preliminary path to achieve {goLive} go-live.' : 'Preliminary path to achieve {goLive} go-lives.'}
+          v={{ goLive: goLivePhrase }}
         />
       </p>
       <ImplementationGantt groups={pilots} labelWidth={170} />

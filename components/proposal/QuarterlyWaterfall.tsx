@@ -3,7 +3,8 @@
  * (benefit after Teton fees and install, discounted at the customer's rate),
  * floating from where the previous quarter ended; the last bar is the running
  * total. Each bar is labeled with the months it covers (1–3, 4–6, …).
- * Payback and the end of the pilot are marked at their months. Plain SVG so it prints crisply and
+ * Estimated payback is marked and labeled; the end of the pilot is a dashed
+ * line (named in the legend). Plain SVG so it prints crisply and
  * renders on the server.
  *
  * Colors validated with the dataviz checker: green #66C995 / red #FC6845 pass
@@ -77,15 +78,6 @@ export function QuarterlyWaterfall({
   const paybackX = paybackMonth ? left + slot * (paybackMonth / 3) : null;
   const pilotX = pilotEndMonth ? left + slot * (pilotEndMonth / 3) : null;
   // Pilot label sits on the side away from the payback label so they don't collide.
-  // Full label if it fits left of the line (clear of the y-axis labels), else the short one.
-  const fitsLeft = (label: string) => pilotX != null && pilotX - 5 - label.length * 5.9 >= left + 4; // ~11px font
-  const fullPilotLabel = pilotEndMonth ? `Pilot ends · ${monthName(startDate, pilotEndMonth)}` : '';
-  const pilotLabel = fitsLeft(fullPilotLabel) || !fitsLeft('Pilot ends') ? fullPilotLabel : 'Pilot ends';
-  const pilotLabelW = pilotLabel.length * 5.9;
-  const pilotFitsLeft = fitsLeft(pilotLabel);
-  const pilotLabelLeft = pilotX != null && pilotFitsLeft && (paybackX == null || pilotX <= paybackX);
-  // When it can't sit left of its line and payback is close on the right, drop it a line so the two don't overlap.
-  const pilotLabelY = !pilotLabelLeft && paybackX != null && pilotX != null && Math.abs(paybackX - pilotX) < pilotLabelW + 140 ? top + 10 : top - 4;
   const axisY = H - bottom;
 
   return (
@@ -127,15 +119,12 @@ export function QuarterlyWaterfall({
         {pilotX != null && pilotEndMonth && (
           <g>
             <line x1={pilotX} x2={pilotX} y1={top - 14} y2={axisY} stroke={AXIS} strokeWidth={1} strokeDasharray="4 3" />
-            <text x={pilotLabelLeft ? pilotX - 5 : pilotX + 5} y={pilotLabelY} textAnchor={pilotLabelLeft ? 'end' : 'start'} fontSize={11} fill={LABEL}>
-              {pilotLabel}
-            </text>
           </g>
         )}
         {paybackX != null && paybackMonth && (
           <g>
             <line x1={paybackX} x2={paybackX} y1={top - 14} y2={axisY} stroke={INK} strokeWidth={1} />
-            <text x={paybackX + 5} y={top - 4} fontSize={11} fill={INK}>{`Payback · month ${paybackMonth}`}</text>
+            <text x={paybackX + 5} y={top - 4} fontSize={11} fill={INK}>{`Est. Payback · Month ${paybackMonth}`}</text>
           </g>
         )}
       </svg>

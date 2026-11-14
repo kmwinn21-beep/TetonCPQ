@@ -11,7 +11,7 @@
  * Kick-off (week 1), or from the first stage after Evaluation & Contracting.
  */
 
-export const STAGE_KEYS = ['evaluation', 'kickoff', 'implementation', 'baseline', 'golive'] as const;
+export const STAGE_KEYS = ['evaluation', 'queue', 'kickoff', 'implementation', 'baseline', 'golive'] as const;
 export type StageKey = (typeof STAGE_KEYS)[number];
 
 export interface StageInfo {
@@ -25,6 +25,13 @@ export interface StageInfo {
 /** The standard stages, in order, with their standard lengths. */
 export const STAGES: StageInfo[] = [
   { key: 'evaluation', name: 'Evaluation & Contracting', weeks: 8, overlapWeeks: 0, description: 'Review the proposal, complete security and legal review, and sign the order form.' },
+  {
+    key: 'queue',
+    name: 'Implementation Queue',
+    weeks: 2,
+    overlapWeeks: 0,
+    description: 'Estimated timeframe for Teton to allocate implementation/customer success resources to project and for pre-project planning & provisioning.',
+  },
   {
     key: 'kickoff',
     name: 'Kick-off',
@@ -52,7 +59,11 @@ export interface PlanStage {
 export interface ImplementationPlan {
   order: string[];
   stages: Record<string, PlanStage>;
+  /** 2 = includes the Implementation Queue stage by default (plans saved before it get it added once). */
+  version?: number;
 }
+
+const PLAN_VERSION = 2;
 
 export const MAX_STAGES = 12;
 const ID = /^[a-z][a-z0-9-]{0,40}$/;
@@ -63,7 +74,7 @@ export function standardStage(key: StageKey): PlanStage {
 }
 
 export function defaultPlan(): ImplementationPlan {
-  return { order: [...STAGE_KEYS], stages: Object.fromEntries(STAGE_KEYS.map((k) => [k, standardStage(k)])) };
+  return { order: [...STAGE_KEYS], stages: Object.fromEntries(STAGE_KEYS.map((k) => [k, standardStage(k)])), version: PLAN_VERSION };
 }
 
 const int = (v: unknown, fallback: number, lo: number, hi: number) => {
@@ -83,12 +94,19 @@ export function normalizePlan(input: unknown): ImplementationPlan {
   if (Array.isArray(raw.order) && raw.stages && typeof raw.stages === 'object') {
     order = (raw.order as unknown[]).filter((x): x is string => typeof x === 'string');
     stages = raw.stages as Record<string, Partial<PlanStage>>;
+    // Plans saved before Implementation Queue was a standard stage get it, after Evaluation & Contracting.
+    if ((Number(raw.version) || 1) < 2 && !order.includes('queue')) {
+      const at = order.indexOf('evaluation');
+      order = [...order];
+      order.splice(at >= 0 ? at + 1 : 0, 0, 'queue');
+      stages = { ...stages, queue: standardStage('queue') };
+    }
   } else {
     // Legacy: { evaluation: { weeks, overlapWeeks }, kickoff: {…}, … }
     order = [...STAGE_KEYS];
     stages = Object.fromEntries(STAGE_KEYS.map((k) => [k, { ...standardStage(k), ...((raw[k] as Partial<PlanStage>) ?? {}) }]));
   }
-  const out: ImplementationPlan = { order: [], stages: {} };
+  const out: ImplementationPlan = { order: [], stages: {}, version: PLAN_VERSION };
   let prevWeeks = 0;
   for (const id of order) {
     if (!ID.test(id) || out.order.includes(id) || out.order.length >= MAX_STAGES) continue;
@@ -130,7 +148,7 @@ export function restoreStage(p: ImplementationPlan, key: StageKey): Implementati
   const after = STAGE_KEYS.slice(0, pos).reverse().find((k) => p.order.includes(k));
   const order = [...p.order];
   order.splice(after ? order.indexOf(after) + 1 : 0, 0, key);
-  return normalizePlan({ order, stages: { ...p.stages, [key]: standardStage(key) } });
+  return normalizePlan({ order, stages: { ...p.stages, [key]: standardStage(key) }, version: PLAN_VERSION });
 }
 
 /** Add a custom stage, before Training & Go live (or at the end). Returns the plan and the new id. */
@@ -139,14 +157,14 @@ export function addCustomStage(p: ImplementationPlan, name = 'New stage', weeks 
   const order = [...p.order];
   const at = order.indexOf('golive');
   order.splice(at >= 0 ? at : order.length, 0, id);
-  return { plan: normalizePlan({ order, stages: { ...p.stages, [id]: { name, weeks, overlapWeeks: 0, description: '' } } }), id };
+  return { plan: normalizePlan({ order, stages: { ...p.stages, [id]: { name, weeks, overlapWeeks: 0, description: '' } }, version: PLAN_VERSION }), id };
 }
 
 export function removeStage(p: ImplementationPlan, id: string): ImplementationPlan {
   if (p.order.length <= 1) return p;
   const stages = { ...p.stages };
   delete stages[id];
-  return normalizePlan({ order: p.order.filter((x) => x !== id), stages });
+  return normalizePlan({ order: p.order.filter((x) => x !== id), stages, version: PLAN_VERSION });
 }
 
 export function moveStage(p: ImplementationPlan, id: string, by: -1 | 1): ImplementationPlan {
@@ -155,12 +173,12 @@ export function moveStage(p: ImplementationPlan, id: string, by: -1 | 1): Implem
   if (i < 0 || j < 0 || j >= p.order.length) return p;
   const order = [...p.order];
   [order[i], order[j]] = [order[j], order[i]];
-  return normalizePlan({ order, stages: p.stages });
+  return normalizePlan({ order, stages: p.stages, version: PLAN_VERSION });
 }
 
 export function updateStage(p: ImplementationPlan, id: string, patch: Partial<PlanStage>): ImplementationPlan {
   if (!p.stages[id]) return p;
-  return normalizePlan({ order: p.order, stages: { ...p.stages, [id]: { ...p.stages[id], ...patch } } });
+  return normalizePlan({ order: p.order, stages: { ...p.stages, [id]: { ...p.stages[id], ...patch } }, version: PLAN_VERSION });
 }
 
 /* ------------------------------------------------------------------ */
@@ -244,10 +262,11 @@ export function earliestGoLive(today: string, plan: ImplementationPlan): string 
   return toIso(t + ((8 - dow) % 7) * DAY);
 }
 
-/** "Weeks 2–4", "Week 9", or "8 weeks before kick-off" for stages before week 1. */
+/** "Weeks 2–4", "Week 9", or "Before kick-off" for stages before week 1. */
 export function weekLabel(s: ScheduledStage, short = false): string {
   if (s.weeks <= 0) return 'none';
-  if (s.toWeek <= 0) return short ? 'before kick-off' : `${s.weeks} ${s.weeks === 1 ? 'week' : 'weeks'} before kick-off`;
+  // Stages before week 1 (e.g. Evaluation & Contracting, Implementation Queue): their length is shown alongside.
+  if (s.toWeek <= 0) return short ? 'before kick-off' : 'Before kick-off';
   const from = Math.max(s.fromWeek, 1);
   return from === s.toWeek ? `Week ${from}` : `Weeks ${from}–${s.toWeek}`;
 }

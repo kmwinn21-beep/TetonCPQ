@@ -177,7 +177,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
       )}
 
       <section aria-labelledby="kpis">
-        <h2 id="kpis" className="text-base font-semibold mb-3">Summary — Year 1</h2>
+        <h2 id="kpis" className="text-base font-semibold mb-3">Year 1 Financial Summary</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (
             <button key={c.id} type="button" onClick={() => show(c.id)} className="card text-left hover:border-teton-pale-gray hover:shadow-md transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent">

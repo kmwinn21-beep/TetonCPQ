@@ -105,7 +105,7 @@ export function V({ k, label, children, block = false }: { k: string; label: str
 /* ------------------------------------------------------------------ */
 
 export const SECTION_TITLES: Record<StandardSection, { key: string; title: string }> = {
-  summary: { key: 'summary.title', title: 'Summary — Year 1' },
+  summary: { key: 'summary.title', title: 'Year 1 Financial Summary' },
   scope: { key: 'scope.title', title: 'Scope & investment' },
   terms: { key: 'terms.title', title: 'Terms / Notes' },
   implementation: { key: 'impl.title', title: 'Implementation' },
