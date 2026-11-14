@@ -17,6 +17,8 @@ import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { allFields, applyChanges, changeDetails, effectiveChanges, fieldByPath, figureSpec, formatField, getPath, sameValue, traceFields, type ChangeValue, type Changes, type WhatIfField } from '@/lib/proposal/whatIf';
 import { StagesEditor } from '@/components/implementation/StagesEditor';
+import { ResourcesEditor } from '@/components/implementation/ResourcesEditor';
+import type { Resources } from '@/lib/quote/resources';
 import { normalizePlan, planChanges, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { Switch } from '@/components/quote/CommunityEditor';
 import { NumInput } from '@/components/form/NumInput';
@@ -508,6 +510,24 @@ function LeaveDialog({
 function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: QuoteDraft; raw: Changes; error?: string; onChange: (path: string, v: ChangeValue | undefined) => void }) {
   const saved = (getPath(draft, f.path) as ChangeValue | undefined) ?? null;
   const changed = f.path in raw;
+  if (f.kind === 'resources') {
+    // The stage list follows any unsaved stage changes too.
+    const plan = ((raw.implementationPlan as ImplementationPlan | undefined) ?? draft.implementationPlan) as ImplementationPlan;
+    const rs = (changed ? raw[f.path] : saved) as Resources;
+    return (
+      <div className="py-1.5">
+        <ResourcesEditor compact resources={rs ?? []} plan={plan} onChange={(r) => onChange(f.path, r)} />
+        {changed && (
+          <p className="text-[11px] text-[#8A5A00] mt-1.5 flex items-center justify-between gap-2">
+            Saved: {formatField(f, saved)}
+            <button type="button" className="text-teton-ui-gray hover:text-teton-ink text-sm" onClick={() => onChange(f.path, undefined)} title="Back to the saved roles" aria-label="Undo resource changes">
+              ↺
+            </button>
+          </p>
+        )}
+      </div>
+    );
+  }
   if (f.kind === 'plan') {
     const plan = (changed ? raw[f.path] : saved) as ImplementationPlan;
     return (
@@ -542,7 +562,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
   }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined, terms: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined, terms: undefined, resources: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (
@@ -608,7 +628,7 @@ function FigurePanel({
     return all.filter((f) => paths.has(f.path));
   }, [draft, trace, spec]);
   // Terms are edited right on the proposal (Terms / Notes section), not in this panel.
-  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f) && f.kind !== 'terms'), [draft, fields]);
+  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f) && f.kind !== 'terms' && f.kind !== 'resources'), [draft, fields]);
 
   // Current text of the figure on the page, and what it was in the saved version.
   const [now, setNow] = useState('');

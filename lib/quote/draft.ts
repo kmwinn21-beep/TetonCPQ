@@ -7,6 +7,7 @@ import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAss
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { defaultPlan, normalizePlan, type ImplementationPlan } from './implementationPlan';
 import { normalizeTerms, type TermsSetting } from './terms';
+import { normalizeResources, type Resources } from './resources';
 
 export type EcallOption = 'none' | 'ble' | 'inovonics';
 export type Coverage = 'rooms_only' | 'full_facility';
@@ -95,6 +96,8 @@ export interface QuoteDraft {
   implementationPlan: ImplementationPlan;
   /** Terms / Notes on the proposal. null = the standard terms for this deal. */
   terms: TermsSetting | null;
+  /** The customer's estimated hours by role and implementation stage. */
+  resources: Resources;
   commercial: Commercial;
   presentation: Presentation;
   communities: DraftCommunity[];
@@ -146,6 +149,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
     implementation: { desiredGoLive: goLive, communicationWeeks: 3, installationWeeks: 1, baselineWeeks: 4, onboardingDays: 3 },
     implementationPlan: defaultPlan(),
     terms: null,
+    resources: [],
     commercial: {
       platformRate: book[SKU.platform]?.list ?? 99,
       pilotRate: POLICY.standardPilotRate,
@@ -176,6 +180,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     presentation: d.presentation ?? 'opex',
     implementationPlan: normalizePlan(d.implementationPlan),
     terms: normalizeTerms(d.terms),
+    resources: normalizeResources(d.resources),
     commercial: { ...d.commercial, capexDiscountRate: d.commercial.capexDiscountRate ?? 0.04 },
     communities: (d.communities ?? []).map(normalizeCommunity),
   };

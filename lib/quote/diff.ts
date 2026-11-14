@@ -5,6 +5,7 @@
  */
 import { planChanges } from './implementationPlan';
 import { normalizeTerms, termsChanges } from './terms';
+import { resourcesChanges } from './resources';
 import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
@@ -172,8 +173,8 @@ const METRIC_LABEL: Record<string, string> = {
 /** Changes from `before` to `after`. Communities are matched by their id, so a rename is a change, not a remove + add. */
 export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const changes: Change[] = [];
-  const { communities: ca, implementationPlan: pa, terms: _ta, ...ra } = before;
-  const { communities: cb, implementationPlan: pb, terms: _tb, ...rb } = after;
+  const { communities: ca, implementationPlan: pa, terms: _ta, resources: xa, ...ra } = before;
+  const { communities: cb, implementationPlan: pb, terms: _tb, resources: xb, ...rb } = after;
 
   // Implementation stages are compared as a plan (stages can be added, removed and reordered).
 
@@ -218,6 +219,7 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   // Only edits to the terms themselves (a pricing change that adds a standard term isn't one).
   if (JSON.stringify(normalizeTerms(_ta)) !== JSON.stringify(normalizeTerms(_tb)))
     for (const c of termsChanges(before, after)) changes.push({ group: 'Terms / Notes', label: 'Terms / Notes', from: '', to: c });
-  const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Timeline', 'Terms / Notes', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
+  for (const c of resourcesChanges(xa, xb, pb)) changes.push({ group: 'Resource allocation', label: 'Estimated resource allocation', from: '', to: c });
+  const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Resource allocation', 'Timeline', 'Terms / Notes', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
   return changes.sort((x, y) => order.indexOf(x.group) - order.indexOf(y.group));
 }

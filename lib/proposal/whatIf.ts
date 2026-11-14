@@ -11,8 +11,9 @@ import type { RoiCase, Trace } from '@/lib/model';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { normalizePlan, planChanges, weeksToGoLive, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { normalizeTerms, termsChanges, type TermsSetting } from '@/lib/quote/terms';
+import { normalizeResources, resourcesChanges, type Resources } from '@/lib/quote/resources';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan' | 'terms';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan' | 'terms' | 'resources';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -100,6 +101,9 @@ export const FIELDS: WhatIfField[] = [
 
   // The Terms / Notes bullet list (reworded, removed and added terms).
   F('terms', 'Terms / Notes', 'Terms / Notes', 'Terms / Notes', 'terms'),
+
+  // The customer's roles, stages and hours (Estimated Resource Allocation).
+  F('resources', 'Estimated resource allocation', 'Resource allocation', 'Estimated Resource Allocation', 'resources'),
 
 ];
 
@@ -252,6 +256,7 @@ export function figureSpec(key: string): FigureSpec | null {
     'assume.benefitStart': ['schedule.roiStartDelayMonths', 'schedule.rampMonths'],
   };
   if (assume[k]) return { formula: 'An assumption entered on the deal', fields: assume[k] };
+  if (key === 'resources.edit' || key.startsWith('resources.')) return { formula: 'Your team’s estimated hours by role and implementation stage', fields: ['resources'] };
   if (/^impl\.[\w-]+\.weeks$/.test(key) || key === 'impl.plan') return { formula: 'Stages and lengths from the implementation timeline, worked back from each pilot go-live', fields: ['implementationPlan'] };
   return null;
 }
@@ -271,7 +276,7 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type ChangeValue = number | boolean | null | ImplementationPlan | TermsSetting;
+export type ChangeValue = number | boolean | null | ImplementationPlan | TermsSetting | Resources;
 export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
@@ -281,6 +286,11 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
   for (const [path, v] of Object.entries(changes)) {
     if (!known.has(path)) throw new Error(`Can't change ${path} from the proposal`);
     const f = fieldByPath(draft, path)!;
+    if (f.kind === 'resources') {
+      if (!Array.isArray(v)) throw new Error(`${f.label} must be a list of roles`);
+      out = setPath(out, path, normalizeResources(v));
+      continue;
+    }
     if (f.kind === 'terms') {
       if (v !== null && (typeof v !== 'object' || Array.isArray(v))) throw new Error(`${f.label} must be a list of terms`);
       out = setPath(out, path, normalizeTerms(v));
@@ -307,6 +317,7 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
 export function sameValue(saved: unknown, v: unknown): boolean {
   if (v && typeof v === 'object') {
     // Implementation plans have stages; anything else object-valued is a terms setting.
+    if (Array.isArray(v)) return JSON.stringify(normalizeResources(saved)) === JSON.stringify(normalizeResources(v));
     if ('stages' in v) return JSON.stringify(normalizePlan(saved)) === JSON.stringify(normalizePlan(v));
     return JSON.stringify(normalizeTerms(saved)) === JSON.stringify(normalizeTerms(v));
   }
@@ -325,6 +336,8 @@ export function changeDetails(draft: QuoteDraft, changes: Changes): ChangeDetail
     const f = fieldByPath(draft, p);
     if (!f) return [];
     if (f.kind === 'plan') return [{ path: p, label: 'Implementation', lines: planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).map((text) => ({ text })) }];
+    if (f.kind === 'resources')
+      return [{ path: p, label: 'Resource allocation', lines: resourcesChanges(normalizeResources(getPath(draft, p)), normalizeResources(v), draft.implementationPlan).map((text) => ({ text })) }];
     if (f.kind === 'terms') return [{ path: p, label: 'Terms / Notes', lines: termsChanges(draft, { ...draft, terms: normalizeTerms(v) }).map((text) => ({ text })) }];
     return [{ path: p, label: f.label, lines: [{ from: formatField(f, getPath(draft, p)), to: formatField(f, v) }] }];
   });
@@ -338,6 +351,10 @@ export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
 export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
   if (f.kind === 'terms') return v == null ? 'standard terms' : 'customized terms';
+  if (f.kind === 'resources') {
+    const rs = normalizeResources(v);
+    return `${rs.length} ${rs.length === 1 ? 'role' : 'roles'}`;
+  }
   if (f.kind === 'plan') {
     const p = normalizePlan(v);
     return `${p.order.length} stages, ${weeksToGoLive(p)} wk`;

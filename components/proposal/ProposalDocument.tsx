@@ -25,6 +25,8 @@ import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { AddStageCard, RemoveStageButton, StageName } from './StageControls';
 import { TermsList } from './TermControls';
+import { AddResourcesLink, ResourcesView } from './ResourcesView';
+import { allocationTable } from '@/lib/quote/resources';
 
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -224,6 +226,8 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
   // Implementation plan for pilot sites (only shown when the deal has pilot communities).
   const pilots = pilotPlan(draft, start, cf.communities.map((c) => c.goLiveMonth));
+  // The customer's estimated resource allocation (its own section, shown once a role is named).
+  const hasResources = allocationTable(draft.resources ?? [], draft.implementationPlan).rows.length > 0;
   const pilotDates = pilots.map((g) => longDate(g.goLive));
   const pilotDatesText = pilotDates.length <= 1 ? pilotDates.join('') : `${pilotDates.slice(0, -1).join(', ')} and ${pilotDates[pilotDates.length - 1]}`;
   // "a Mar 1, 2027" / "an Apr 1, 2027" for one date; "Feb 1, 2027 and Mar 1, 2027" for several.
@@ -264,6 +268,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       <p className="text-[11px] text-teton-dark-gray mt-2">
         <T k="impl.footnote" d="Dates assume the order form is signed by the end of Evaluation & Contracting. Non-pilot communities follow the same path ahead of their go-live dates." />
       </p>
+      {!hasResources && <AddResourcesLink />}
     </>
   ) : null;
 
@@ -557,7 +562,8 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           summary: { body: summaryBody, className: 'avoid-break' },
           scope: { body: scopeBody },
           terms: { body: termsBody, className: 'avoid-break' },
-          ...(implementationBody ? { implementation: { body: implementationBody } } : {}),
+          ...(implementationBody ? { implementation: { body: implementationBody, className: 'print-own-page' } } : {}),
+          ...(hasResources ? { resources: { body: <ResourcesView draft={draft} />, className: 'avoid-break', titleVars: { company: draft.customerName || 'Customer' } } } : {}),
           roi: { body: roiBody, className: 'avoid-break' },
           assumptions: { body: assumptionsBody, className: 'avoid-break' },
         }}

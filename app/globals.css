@@ -117,5 +117,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .proposal-sheet { box-shadow: none !important; margin: 0 !important; padding: 0 !important; max-width: none !important; }
   .avoid-break { break-inside: avoid; }
   .page-break { break-before: page; }
+  /* A section that gets its own page (Implementation). */
+  .print-own-page { break-before: page; break-after: page; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

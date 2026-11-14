@@ -19,6 +19,7 @@ import type { QuoteEditorData, VersionSummary } from '@/lib/data/quotes';
 import { CommunitiesSection } from './CommunitiesSection';
 import { ImplementationSection } from './ImplementationSection';
 import { TermsSection } from './TermsSection';
+import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
 import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
@@ -32,6 +33,7 @@ const NAV = [
   ['communities', 'Communities'],
   ['pricing', 'Pricing & products'],
   ['implplan', 'Implementation'],
+  ['resources', 'Resource allocation'],
   ['schedule', 'Timeline'],
   ['terms', 'Terms / Notes'],
 ] as const;
@@ -306,6 +308,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </RailSlotContext.Provider>
             <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <ImplementationSection inputs={computed.inputs} result={computed.result} book={book} />
+            <ResourcesSection inputs={computed.inputs} result={computed.result} book={book} />
             <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
             <TermsSection inputs={computed.inputs} result={computed.result} book={book} />
             <SectionGroup id="assumptions" title="Assumptions" summary="Valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">

@@ -5,7 +5,7 @@
  */
 
 /** Standard sections, in their default order. The header and intro always stay on top. */
-export const STANDARD_SECTIONS = ['summary', 'scope', 'terms', 'implementation', 'roi', 'assumptions'] as const;
+export const STANDARD_SECTIONS = ['summary', 'scope', 'terms', 'implementation', 'resources', 'roi', 'assumptions'] as const;
 export type StandardSection = (typeof STANDARD_SECTIONS)[number];
 
 export interface CustomSection {

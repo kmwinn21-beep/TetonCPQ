@@ -93,4 +93,16 @@ describe('proposal what-if', () => {
     expect(effectiveChanges(d, { terms: null })).toEqual({});
     expect(describeChanges(d, { terms: t, 'commercial.platformRate': 89 })).toBe('Terms / Notes: removed Billing term, added “Pricing valid for 60 days.”; Platform rate / bed / mo $99 → $89');
   });
+
+  it('changes resource allocation as one change, described role by role', async () => {
+    const { addRole, toggleStage, setEffort } = await import('@/lib/quote/resources');
+    const d = draft();
+    let r = addRole([], 'IT');
+    let rs = toggleStage(r.resources, r.id, 'implementation');
+    rs = setEffort(rs, r.id, 'implementation', { hours: 8, note: 'Wi-Fi' });
+    expect(figureSpec('resources.edit')!.fields).toEqual(['resources']);
+    expect(applyChanges(d, { resources: rs }).resources[0].role).toBe('IT');
+    expect(effectiveChanges(d, { resources: [] })).toEqual({});
+    expect(describeChanges(d, { resources: rs })).toBe('Resource allocation: added IT (8 hrs)');
+  });
 });

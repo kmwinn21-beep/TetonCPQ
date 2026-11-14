@@ -109,6 +109,7 @@ export const SECTION_TITLES: Record<StandardSection, { key: string; title: strin
   scope: { key: 'scope.title', title: 'Scope & investment' },
   terms: { key: 'terms.title', title: 'Terms / Notes' },
   implementation: { key: 'impl.title', title: 'Implementation' },
+  resources: { key: 'resources.title', title: '{company} Estimated Resource Allocation' },
   roi: { key: 'roi.title', title: 'Return on investment' },
   assumptions: { key: 'assume.title', title: 'Assumptions' },
 };
@@ -301,6 +302,8 @@ export interface StandardSectionContent {
   /** Body under the heading. */
   body: React.ReactNode;
   className?: string;
+  /** Values for {tokens} in the section's title (e.g. the company name). */
+  titleVars?: Record<string, string>;
 }
 
 /** "Add section" hover strip between sections. */
@@ -435,8 +438,8 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
         const custom = isCustomId(id) ? layout.custom[id] : null;
         const std = custom ? null : sections[id as StandardSection];
         const title = custom ? null : SECTION_TITLES[id as StandardSection];
-        const label = custom ? custom.title || 'Added section' : renderText(edits[title!.key] ?? title!.title);
-        const heading = custom ? <CustomTitle id={id} title={custom.title} /> : <T k={title!.key} d={title!.title} />;
+        const label = custom ? custom.title || 'Added section' : renderText(edits[title!.key] ?? title!.title, std?.titleVars);
+        const heading = custom ? <CustomTitle id={id} title={custom.title} /> : <T k={title!.key} d={title!.title} v={std?.titleVars} />;
         const showDrop = drop?.id === id && dragging && dragging !== id;
         return (
           <div key={id}>
@@ -520,7 +523,7 @@ export function RemovedPanel() {
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Sections</p>
           <ul>
             {sections.map((id) =>
-              item(id, renderText(edits[SECTION_TITLES[id].key] ?? SECTION_TITLES[id].title), () => setLayout((l) => ({ ...l, hiddenSections: l.hiddenSections.filter((x) => x !== id) }))),
+              item(id, renderText(edits[SECTION_TITLES[id].key] ?? SECTION_TITLES[id].title).replace(/\{\w+\}\s*/g, ''), () => setLayout((l) => ({ ...l, hiddenSections: l.hiddenSections.filter((x) => x !== id) }))),
             )}
           </ul>
         </>
