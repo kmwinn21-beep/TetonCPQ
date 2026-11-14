@@ -184,11 +184,18 @@ export function ResourcesEditor({
                             {k === 0 && !compact && <span className="eyebrow">What they’ll do</span>}
                             <input
                               className="input-field py-1.5"
-                              value={e.note}
+                              // Show the note as typed (normalizing on each keystroke would eat the space before the next word).
+                              value={(Array.isArray(raw) ? raw.find((x) => x.id === r.id)?.stages?.[sid]?.note : undefined) ?? e.note}
                               placeholder="What this role does in this stage"
                               aria-label={`${r.role || 'Role'} note for ${plan.stages[sid].name}`}
-                              onChange={(ev) => onChange(rs.map((x) => (x.id === r.id ? { ...x, stages: { ...x.stages, [sid]: { ...x.stages[sid], note: ev.target.value } } } : x)))}
-                              onBlur={() => onChange(normalizeResources(rs))}
+                              onChange={(ev) =>
+                                onChange(
+                                  (Array.isArray(raw) && raw.length ? raw : rs).map((x) =>
+                                    x.id === r.id ? { ...x, stages: { ...x.stages, [sid]: { ...(x.stages?.[sid] ?? e), note: ev.target.value } } } : x,
+                                  ),
+                                )
+                              }
+                              onBlur={() => onChange(normalizeResources(raw))}
                             />
                           </div>
                         </div>
