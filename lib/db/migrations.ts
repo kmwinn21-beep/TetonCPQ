@@ -185,4 +185,9 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
     name: 'proposal layout per version',
     sql: [`ALTER TABLE proposal_text ADD COLUMN layout_json TEXT`],
   },
+  {
+    id: 6,
+    name: 'who last changed a list price',
+    sql: [`ALTER TABLE products ADD COLUMN updated_by INTEGER REFERENCES users(id)`],
+  },
 ];

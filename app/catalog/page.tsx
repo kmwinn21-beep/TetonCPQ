@@ -1,50 +1,22 @@
 import { getDb } from '@/lib/db/client';
-import { loadPriceBook } from '@/lib/data/quotes';
+import { listPriceBookRows } from '@/lib/data/priceBook';
+import { PriceBookTable } from '@/components/catalog/PriceBookTable';
 import { POLICY } from '@/lib/pricing/catalog';
 import { LADDER } from '@/lib/pricing/guardrails';
 import { requirePageUser } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
-const MODEL_LABEL: Record<string, string> = {
-  per_bed_month: 'per bed / month',
-  per_bed_once: 'per bed, one-time',
-  per_unit_once: 'each, one-time',
-  per_unit_month: 'each / month',
-  multiplier: '× rooms-only price',
-};
-
 export default async function CatalogPage() {
-  await requirePageUser();
-  const { products } = await loadPriceBook(await getDb());
+  const user = await requirePageUser();
+  const rows = await listPriceBookRows(await getDb());
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Price book</h1>
-        <p className="text-sm text-teton-ui-gray">US list prices and pricing policy. New quotes start from these.</p>
+        <p className="text-sm text-teton-ui-gray">US list prices and pricing policy. New deals start from these list prices. Existing deals keep their own rates (discounts are measured against the current list), and saved versions keep their figures.</p>
       </div>
-      <div className="card p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Product</th>
-              <th className="px-4 py-2.5 font-medium text-right">List</th>
-              <th className="px-4 py-2.5 font-medium">Unit</th>
-              <th className="px-4 py-2.5 font-medium">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.sku} className="border-t border-teton-off-white">
-                <td className="px-4 py-3 font-medium">{p.name}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{p.pricingModel === 'multiplier' ? `${p.list}×` : `$${p.list}`}</td>
-                <td className="px-4 py-3 text-teton-ui-gray">{MODEL_LABEL[p.pricingModel]}</td>
-                <td className="px-4 py-3 text-teton-dark-gray">{p.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PriceBookTable rows={rows} canEdit={user.role === 'admin'} />
       <div className="card">
         <h2 className="text-base font-semibold mb-3">Policy</h2>
         <ul className="text-sm space-y-1 list-disc pl-5">

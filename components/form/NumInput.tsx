@@ -23,6 +23,7 @@ export interface NumInputProps {
   invalid?: boolean;
   className?: string;
   'aria-label'?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }
 
 const show = (v: number | null | undefined, scale: number) =>
