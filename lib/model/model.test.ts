@@ -112,9 +112,9 @@ describe('per-community rates', () => {
   });
 });
 
-import { computeCapex } from './capex';
+import { subscriptionTotals } from './subscription';
 
-describe('capex presentation', () => {
+describe('subscription totals (for comparing with an equipment purchase)', () => {
   const d = defaultInputs('2027-03-01');
   const base = { market: 'CO', units: 100, pilotUnits: null, occupancy: null, roiDelayMonths: null, additionalSensors: 0 };
   d.communities = [
@@ -123,27 +123,10 @@ describe('capex presentation', () => {
   ];
   d.cfo.portfolioUnits = 200;
 
-  it('at 0% the upfront price equals the nominal subscription', () => {
-    const c = computeCapex(d, 0, 36);
-    expect(c.upfrontSubscription).toBeCloseTo(c.nominalSubscription, 6);
-    expect(c.nominalSubscription).toBe(2 * 100 * 99 * 36);
-  });
-
-  it('discounts monthly in advance at (1+r)^(1/12)−1 from each site’s service start', () => {
-    const c = computeCapex(d, 0.04, 36);
-    const mr = 1.04 ** (1 / 12) - 1;
-    let pv = 0;
-    for (let k = 0; k < 36; k++) pv += 9900 / (1 + mr) ** k;
-    expect(c.communities[0].upfrontSubscription).toBeCloseTo(pv, 6);
-    expect(c.communities[0].serviceStartMonth).toBe(4); // after the 3-month pilot
-    expect(c.communities[1].serviceStartMonth).toBe(6);
-    expect(c.capexTotal).toBeCloseTo(c.upfrontSubscription + c.install, 6);
-  });
-
-  it('keeps pilot fees as operating spend', () => {
-    const c = computeCapex(d, 0.04, 36);
-    expect(c.pilotFees).toBe(3 * 100 * 75);
-    expect(c.opexTotal).toBe(c.install + c.pilotFees + c.nominalSubscription);
-    expect(c.trace.value).toBeCloseTo(c.capexTotal, 6);
+  it('adds install, pilot fees and the subscription for the period after each pilot', () => {
+    const t = subscriptionTotals(d, 48);
+    expect(t.subscription).toBe(2 * 100 * 99 * 48);
+    expect(t.pilotFees).toBe(3 * 100 * 75);
+    expect(t.total).toBe(t.install + t.pilotFees + t.subscription);
   });
 });

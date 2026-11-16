@@ -13,6 +13,8 @@ import type { StoredOutputs } from '@/lib/data/quotes';
 import type { RoiCase } from '@/lib/model';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { POLICY } from '@/lib/pricing/catalog';
+import { basePackageRows } from '@/lib/pricing/capex';
+import { capexFor } from '@/lib/quote/outputs';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, monthName, multiple, pct, usd } from '@/lib/format';
@@ -70,9 +72,9 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
   const cf = outputs.cashFlow;
   const rc = outputs.roiCase;
   const sel = outputs.annual[rc].totals;
-  const capex = outputs.capex;
-  const showOpex = draft.presentation !== 'capex' || !capex;
-  const showCapex = (draft.presentation === 'capex' || draft.presentation === 'both') && !!capex;
+  const capex = capexFor(outputs, draft);
+  const showOpex = draft.presentation !== 'capex';
+  const showCapex = draft.presentation === 'capex' || draft.presentation === 'both';
   const units = inputs.communities.reduce((s, c) => s + c.units, 0);
   const anyPilot = cf.communities.some((c) => c.inPilot);
   // The pilot phase ends when the last pilot site converts to the service term.
@@ -413,39 +415,70 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       {showCapex && capex && (
         <div className="rounded-lg border border-teton-pale-gray p-4 mt-4 avoid-break">
           <p className="font-semibold">
-            <T k="capex.title" d={showOpex ? 'Alternative: pay upfront (capital purchase)' : 'Upfront investment (capital purchase)'} />
+            <T k="capex.title" d={showOpex ? 'Alternative: equipment purchase (capital expenditure)' : 'Equipment purchase (capital expenditure)'} />
           </p>
           <p className="text-[12px] text-teton-dark-gray mt-1">
             <T
               k="capex.note"
-              d="The {term} service term paid in one payment, priced at its present value ({rate} a year), plus installation."
-              v={{ term: `${capex.termMonths}-month`, rate: pct(capex.annualDiscountRate, 1) }}
+              d="You buy the hardware: title passes to you at install and the embedded license is perpetual. No separate installation charge and no license fee."
             />
           </p>
           <table className="w-full mt-3 tabular-nums">
             <tbody>
-              <tr className="border-b border-teton-off-white">
-                <td className="py-1"><T k="capex.install" d={`Installation${credit > 0 && anyPilot ? ' (after pilot credits)' : ''}`} /></td>
-                <td className="py-1 text-right"><V k="capex.install.value" label="Upfront installation amount">{usd(capex.install)}</V></td>
-              </tr>
-              <tr className="border-b border-teton-off-white">
-                <td className="py-1"><T k="capex.service" d="Service term, paid upfront" /></td>
-                <td className="py-1 text-right"><V k="capex.service.value" label="Service term upfront amount">{usd(capex.upfrontSubscription)}</V></td>
-              </tr>
-              <tr className="font-semibold">
-                <td className="py-1.5"><T k="capex.price" d="Upfront price" /></td>
-                <td className="py-1.5 text-right"><V k="capex.price.value" label="Upfront price">{usd(capex.capexTotal)}</V></td>
-              </tr>
-              {capex.pilotFees > 0 && (
-                <tr className="text-teton-dark-gray">
-                  <td className="py-1"><T k="capex.pilotFees" d="Plus pilot fees, billed monthly during the pilot" /></td>
-                  <td className="py-1 text-right"><V k="capex.pilotFees.value" label="Pilot fees amount">{usd(capex.pilotFees)}</V></td>
+              {basePackageRows(capex).map((r) => (
+                <tr key={r.ecall} className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k={`capex.base.${r.ecall}`} d={r.ecall === 'none' ? 'Base packages (Edge unit + sensor, installed)' : r.ecall === 'ble' ? 'Base packages with E-Call (pendant and wall-mount pendant)' : 'Base packages with Inovonics E-Call (pendant and wall-mount pull cord)'} />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(r.beds)} beds × {usd(r.perBed)}
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k={`capex.base.${r.ecall}.value`} label={`${r.label} amount`}>{usd(r.total)}</V></td>
+                </tr>
+              ))}
+              {capex.sensors > 0 && (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k="capex.sensors" d="Additional sensors" />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(capex.sensors)} × {usd(capex.pricing.sensorPrice)}
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k="capex.sensors.value" label="Additional sensors amount">{usd(capex.sensorCost)}</V></td>
                 </tr>
               )}
+              <tr className="font-semibold border-b border-teton-off-white">
+                <td className="py-1.5"><T k="capex.price" d="One-time equipment cost, paid at install" /></td>
+                <td className="py-1.5 text-right"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
+              </tr>
+              <tr className="border-b border-teton-off-white">
+                <td className="py-1">
+                  <T k="capex.software" d="Software and services, billed monthly" />
+                  <span className="block text-[11px] text-teton-dark-gray">
+                    {count(capex.beds)} beds × {usd(capex.pricing.softwareRate)} per month
+                  </span>
+                </td>
+                <td className="py-1 text-right"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
+              </tr>
+              {capex.renewals > 0 && (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1"><T k="capex.renewals" d="E-Call renewals within {years} years" v={{ years: String(capex.ownershipMonths / 12) }} /></td>
+                  <td className="py-1 text-right"><V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V></td>
+                </tr>
+              )}
+              <tr className="font-semibold">
+                <td className="py-1.5">
+                  <T k="capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />
+                  <span className="block text-[11px] font-normal text-teton-dark-gray">
+                    <T k="capex.ownershipNote" d="Equipment plus software over the hardware’s useful life" />
+                  </span>
+                </td>
+                <td className="py-1.5 text-right"><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V></td>
+              </tr>
             </tbody>
           </table>
           <p className="text-[12px] text-teton-dark-gray mt-2">
-            <T k="capex.saves" d="Saves {saving} compared with paying the subscription monthly." v={{ saving: usd(capex.upfrontDiscount) }} />
+            <T k="capex.share" d="About {share} of the total cost is equipment, treated as a capital purchase rather than an operating expense." v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />
           </p>
         </div>
       )}

@@ -11,7 +11,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { Client, Row } from '@libsql/client';
-import { computeCapex, runModel, ENGINE_VERSION, type CapexResult, type ModelResult } from '@/lib/model';
+import { runModel, ENGINE_VERSION, type ModelResult } from '@/lib/model';
 import { priceBook, SKU, type PriceBook, type Product, type PricingModel } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
 import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';

@@ -50,5 +50,5 @@ export function runVendorView(inputs: ModelInputs, costs?: VendorCostAssumptions
 export * from './types';
 export * from './defaults';
 export type { Trace } from './trace';
-export { computeCapex, type CapexResult } from './capex';
+export { subscriptionTotals, type SubscriptionTotals } from './subscription';
 export { findTrace } from './trace';

@@ -4,6 +4,7 @@
  * What changed between the version on screen and another one: the inputs that
  * moved, and what that did to the headline numbers.
  */
+import { capexFor } from '@/lib/quote/outputs';
 import type { StoredOutputs, VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { diffDrafts } from '@/lib/quote/diff';
@@ -45,8 +46,12 @@ export function VersionCompare({ currentLabel, current, compare, options, onPick
         ['Gross Return per $1 Invested (Year 1)', multiple(a.grossReturnPerDollar12), multiple(b.grossReturnPerDollar12), null],
         ['Discounted Payback', payback(a.discountedPaybackMonth, a.horizonMonths), payback(b.discountedPaybackMonth, b.horizonMonths), null],
         ['Run-Rate Annual Net Benefit', usd(a.runRateAnnualNetBenefit), usd(b.runRateAnnualNetBenefit), b.runRateAnnualNetBenefit - a.runRateAnnualNetBenefit],
-        ...(compare?.outputs.capex && current.outputs.capex
-          ? [['Upfront (capex) price', usd(compare.outputs.capex.capexTotal), usd(current.outputs.capex.capexTotal), current.outputs.capex.capexTotal - compare.outputs.capex.capexTotal] as [string, string, string, number]]
+        ...(compare
+          ? (() => {
+              const ca = capexFor(compare.outputs, compare.inputs).equipment;
+              const cb = capexFor(current.outputs, current.inputs).equipment;
+              return [['Equipment purchase (one-time)', usd(ca), usd(cb), cb - ca] as [string, string, string, number]];
+            })()
           : []),
       ]
     : [];

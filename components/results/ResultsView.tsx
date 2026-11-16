@@ -8,10 +8,12 @@
  * The drill-down is rebuilt from the version's stored inputs; if the engine has
  * changed since and the rebuilt numbers differ, a banner says so.
  */
+import { basePackageRows, computeCapex } from '@/lib/pricing/capex';
+import { capexFor } from '@/lib/quote/outputs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { computeCapex, runModel, runVendorView, type ModelResult, type RoiCase, type Trace } from '@/lib/model';
+import { runModel, runVendorView, subscriptionTotals, type ModelResult, type RoiCase, type Trace } from '@/lib/model';
 import { priceBook, SKU, type Product } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
 import type { QuoteDraft } from '@/lib/quote/draft';
@@ -58,14 +60,14 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
   const model = useMemo(() => {
     const inputs = toModelInputs(draft);
     const live = runModel(inputs);
-    const capexLive = computeCapex(inputs, draft.commercial.capexDiscountRate);
-    return { inputs, live, capexLive };
+    const capexLive = computeCapex(draft);
+    return { inputs, live, capexLive, opex4: subscriptionTotals(inputs, capexLive.ownershipMonths) };
   }, [draft]);
-  const { inputs, live, capexLive } = model;
+  const { inputs, live, capexLive, opex4 } = model;
 
   // What to display: the stored numbers for a saved version, live numbers for the draft.
   const out: Omit<ModelResult, 'traces'> = stored?.outputs ?? live;
-  const capex = stored?.outputs?.capex ?? capexLive;
+  const capex = stored?.outputs ? capexFor(stored.outputs, draft) : capexLive;
   const guardrails = stored?.guardrails ?? evaluateGuardrails(draft, book[SKU.platform]?.list, { ble: book[SKU.ecallBle]?.list ?? 10, inovonics: book[SKU.ecallInovonics]?.list ?? 15 });
   const traces = live.traces;
   const drift =
@@ -259,33 +261,42 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
 
       <section className="card">
         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-          <h2 className="text-base font-semibold">Investment: subscription or upfront</h2>
-          <span className="badge-gray">Proposal shows: {draft.presentation === 'both' ? 'both' : draft.presentation === 'capex' ? 'upfront (capex)' : 'subscription (opex)'}</span>
+          <h2 className="text-base font-semibold">Investment: subscription or equipment purchase</h2>
+          <span className="badge-gray">Proposal shows: {draft.presentation === 'both' ? 'both' : draft.presentation === 'capex' ? 'equipment purchase (capex)' : 'subscription (opex)'}</span>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
           <table className="w-full text-sm">
-            <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Subscription (opex), {capex.termMonths}-month service term</caption>
+            <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Subscription (opex) over {opex4.months / 12} years · no title transfer</caption>
             <tbody className="tabular-nums">
-              <tr className="border-t border-teton-off-white"><td className="py-2">Installation</td><td className="py-2 text-right">{usd(capex.install)}</td></tr>
-              <tr className="border-t border-teton-off-white"><td className="py-2">Pilot fees</td><td className="py-2 text-right">{usd(capex.pilotFees)}</td></tr>
-              <tr className="border-t border-teton-off-white"><td className="py-2">Subscription, paid monthly</td><td className="py-2 text-right">{usd(capex.nominalSubscription)}</td></tr>
-              <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">Total over the term</td><td className="py-2 text-right">{usd(capex.opexTotal)}</td></tr>
+              <tr className="border-t border-teton-off-white"><td className="py-2">Installation</td><td className="py-2 text-right">{usd(opex4.install)}</td></tr>
+              <tr className="border-t border-teton-off-white"><td className="py-2">Pilot fees</td><td className="py-2 text-right">{usd(opex4.pilotFees)}</td></tr>
+              <tr className="border-t border-teton-off-white"><td className="py-2">Subscription, {opex4.months} months after each pilot</td><td className="py-2 text-right">{usd(opex4.subscription)}</td></tr>
+              <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">Total over {opex4.months / 12} years</td><td className="py-2 text-right">{usd(opex4.total)}</td></tr>
             </tbody>
           </table>
           <table className="w-full text-sm">
-            <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Upfront (capex), discounted at {pct(capex.annualDiscountRate, 1)} a year</caption>
+            <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Equipment purchase (capex) · title passes at install</caption>
             <tbody className="tabular-nums">
-              <tr className="border-t border-teton-off-white"><td className="py-2">Installation</td><td className="py-2 text-right">{usd(capex.install)}</td></tr>
-              <tr className="border-t border-teton-off-white">
-                <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>Subscription, paid upfront</button></td>
-                <td className="py-2 text-right">{usd(capex.upfrontSubscription)}</td>
+              {basePackageRows(capex).map((r) => (
+                <tr key={r.ecall} className="border-t border-teton-off-white">
+                  <td className="py-2">{r.label}s <span className="text-teton-ui-gray">· {count(r.beds)} beds × {usd(r.perBed)}</span></td>
+                  <td className="py-2 text-right">{usd(r.total)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-teton-off-white"><td className="py-2">Additional sensors <span className="text-teton-ui-gray">· {count(capex.sensors)} × {usd(capex.pricing.sensorPrice)}</span></td><td className="py-2 text-right">{usd(capex.sensorCost)}</td></tr>
+              <tr className="border-t border-teton-off-white font-semibold">
+                <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>One-time equipment cost</button></td>
+                <td className="py-2 text-right">{usd(capex.equipment)}</td>
               </tr>
-              <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">Capex price</td><td className="py-2 text-right">{usd(capex.capexTotal)}</td></tr>
-              <tr className="border-t border-teton-off-white text-teton-dark-gray"><td className="py-2">Plus pilot fees (operating)</td><td className="py-2 text-right">{usd(capex.pilotFees)}</td></tr>
+              <tr className="border-t border-teton-off-white"><td className="py-2">Software &amp; services <span className="text-teton-ui-gray">· {usd(capex.softwareMonthly)}/mo × {capex.ownershipMonths}</span></td><td className="py-2 text-right">{usd(capex.software)}</td></tr>
+              {capex.renewals > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">E-Call renewals within {capex.ownershipMonths / 12} years</td><td className="py-2 text-right">{usd(capex.renewals)}</td></tr>}
+              <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">{capex.ownershipMonths / 12}-year cost of ownership</td><td className="py-2 text-right">{usd(capex.ownershipTotal)}</td></tr>
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-teton-ui-gray mt-3">Paying upfront saves {usd(capex.upfrontDiscount)} against monthly payments over the term. Each community’s term starts after its pilot.</p>
+        <p className="text-xs text-teton-ui-gray mt-3">
+          About {Math.round(capex.equipmentShare * 100)}% of the equipment-purchase cost is equipment (capital). Over {capex.ownershipMonths / 12} years, the equipment purchase costs {usd(Math.abs(opex4.total - capex.ownershipTotal))} {capex.ownershipTotal <= opex4.total ? 'less' : 'more'} than the subscription. The ROI figures use the subscription pricing.
+        </p>
       </section>
 
       {pilots.length > 0 && (

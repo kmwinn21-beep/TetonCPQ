@@ -66,7 +66,13 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.fullFacilityMultiplier', 'Full-facility multiplier', PRICING, PRICING_AT, 'mult'),
   F('commercial.specialRate', 'Intro rate / bed / mo', PRICING, PRICING_AT, 'usd2', { nullable: true }),
   F('commercial.specialTermMonths', 'Intro term', PRICING, PRICING_AT, 'months'),
-  F('commercial.capexDiscountRate', 'Upfront price discount rate', PRICING, PRICING_AT, 'pct', { max: 1 }),
+  F('commercial.capex.basePrice', 'Equipment: base package / bed', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.bleBasePrice', 'Equipment: with E-Call / bed', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.inovonicsBasePrice', 'Equipment: with Inovonics E-Call / bed', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.sensorPrice', 'Equipment: additional sensor', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.softwareRate', 'Equipment: software & services / bed / mo', PRICING, PRICING_AT, 'usd2'),
+  F('commercial.capex.bleRenewal', 'Equipment: E-Call renewal / bed (4 yr)', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.inovonicsRenewal', 'Equipment: Inovonics renewal / bed (3 yr)', PRICING, PRICING_AT, 'usd'),
 
   F('client.occupancy', 'Occupancy', CLIENT, CLIENT_AT, 'pct', { max: 1 }),
   F('client.avgRent', 'Average rent / resident / mo', CLIENT, CLIENT_AT, 'usd'),
@@ -238,7 +244,11 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');
-  if (k.startsWith('capex.')) return pricing('The service term paid in one payment at its present value, plus installation', ['commercial.capexDiscountRate']);
+  if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice'] };
+  if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase)', fields: ['commercial.capex.sensorPrice'] };
+  if (k.startsWith('capex.software')) return { formula: 'Beds × software & services rate, per month', fields: ['commercial.capex.softwareRate'] };
+  if (k.startsWith('capex.renewals')) return { formula: 'E-Call renewals that fall within the four years: Bluetooth every 4 years, Inovonics every 3', fields: ['commercial.capex.bleRenewal', 'commercial.capex.inovonicsRenewal'] };
+  if (k.startsWith('capex.')) return { formula: 'One-time equipment + software & services over four years + E-Call renewals within them', fields: ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate'] };
   const assume: Record<string, string[]> = {
     'assume.occupancy': ['client.occupancy'],
     'assume.rent': ['client.avgRent'],

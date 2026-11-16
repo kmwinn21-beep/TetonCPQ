@@ -22,6 +22,14 @@ export const SKU = {
   ecallInovonics: 'ECALL-INOVONICS',
   fullFacility: 'COVERAGE-FULL-FACILITY',
   sensor: 'SENSOR-ADDITIONAL',
+  // Equipment purchase (CapEx): title passes at install, perpetual embedded license.
+  capexBase: 'CAPEX-BASE',
+  capexBaseBle: 'CAPEX-BASE-ECALL-BLE',
+  capexBaseInovonics: 'CAPEX-BASE-ECALL-INOVONICS',
+  capexSensor: 'CAPEX-SENSOR',
+  capexSoftware: 'CAPEX-SOFTWARE',
+  capexBleRenewal: 'CAPEX-ECALL-BLE-RENEWAL',
+  capexInovonicsRenewal: 'CAPEX-ECALL-INOVONICS-RENEWAL',
 } as const;
 
 export const SEED_PRODUCTS: Product[] = [
@@ -31,7 +39,17 @@ export const SEED_PRODUCTS: Product[] = [
   { sku: SKU.ecallInovonics, name: 'E-Call (Inovonics)', pricingModel: 'per_bed_month', list: 15, description: 'Add-on nurse call on Inovonics 900 MHz; supports UL 2560 path.' },
   { sku: SKU.fullFacility, name: 'Full-facility coverage', pricingModel: 'multiplier', list: 1.3, description: 'Common areas and hallways. Typical range 1.2–1.4× rooms-only.' },
   { sku: SKU.sensor, name: 'Additional sensor', pricingModel: 'per_unit_once', list: 300, description: 'One-time, per sensor.' },
+  { sku: SKU.capexBase, name: 'Base package', pricingModel: 'per_bed_once', list: 4600, description: 'Edge unit + sensor, installed. No separate installation charge and no license fee; title passes at install.' },
+  { sku: SKU.capexBaseBle, name: 'Base package + E-Call (Bluetooth/WiFi)', pricingModel: 'per_bed_once', list: 5300, description: 'Teton One + E-Call: base package plus E-Call pendant and wall-mount pendant. Replaces the base package price for beds with E-Call.' },
+  { sku: SKU.capexBaseInovonics, name: 'Base package + Inovonics E-Call', pricingModel: 'per_bed_once', list: 5450, description: 'Teton One + Inovonics E-Call: base package plus E-Call pendant and wall-mount pull cord. Replaces the base package price for beds with E-Call.' },
+  { sku: SKU.capexSensor, name: 'Additional sensor', pricingModel: 'per_unit_once', list: 450, description: 'One-time, per sensor.' },
+  { sku: SKU.capexSoftware, name: 'Software and services', pricingModel: 'per_bed_month', list: 10, description: 'Per bed per month, billed monthly.' },
+  { sku: SKU.capexBleRenewal, name: 'E-Call (Bluetooth/WiFi) renewal', pricingModel: 'per_bed_once', list: 480, description: 'Every 4 years, per bed.' },
+  { sku: SKU.capexInovonicsRenewal, name: 'Inovonics E-Call renewal', pricingModel: 'per_bed_once', list: 400, description: 'Every 3 years after the first 3-year contract, per bed.' },
 ];
+
+/** Which buying model a product belongs to, for the price book. */
+export const productGroup = (sku: string): 'subscription' | 'capex' => (sku.startsWith('CAPEX-') ? 'capex' : 'subscription');
 
 /** List prices keyed by SKU, as the app reads them. */
 export type PriceBook = Record<string, Product>;
@@ -51,4 +69,8 @@ export const POLICY = {
   /** Service-term rate below this fraction of list is a soft warning. */
   serviceTermFloorPct: 0.9,
   fullFacilityRange: [1.2, 1.4] as const,
+  /** Equipment purchase: cost of ownership is shown over the hardware's useful life. */
+  capexOwnershipMonths: 48,
+  capexBleRenewalYears: 4,
+  capexInovonicsRenewalYears: 3,
 } as const;

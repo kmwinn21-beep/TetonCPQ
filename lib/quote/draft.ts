@@ -3,6 +3,7 @@
  * holds, what a quote version stores (inputs_json), and what toModelInputs()
  * turns into engine inputs. Rates are fractions; money is dollars.
  */
+import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { defaultPlan, normalizePlan, type ImplementationPlan } from './implementationPlan';
@@ -58,8 +59,8 @@ export interface Commercial {
   specialTermMonths: number;
   fullFacilityMultiplier: number;
   sensorPrice: number;
-  /** Annual rate used to discount the service-term subscription into an upfront capex price. */
-  capexDiscountRate: number;
+  /** Equipment-purchase (CapEx) prices for this deal. */
+  capex: CapexPricing;
 }
 
 /** How the investment is presented to the customer. */
@@ -163,7 +164,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
-      capexDiscountRate: 0.04,
+      capex: capexPricingFrom((sku) => book[sku]?.list),
     },
     presentation: 'opex',
     communities: [{ ...newCommunity(0), pilot: true }],
@@ -181,9 +182,15 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     implementationPlan: normalizePlan(d.implementationPlan),
     terms: normalizeTerms(d.terms),
     resources: normalizeResources(d.resources),
-    commercial: { ...d.commercial, capexDiscountRate: d.commercial.capexDiscountRate ?? 0.04 },
+    commercial: normalizeCommercial(d.commercial),
     communities: (d.communities ?? []).map(normalizeCommunity),
   };
+}
+
+/** Drafts from before equipment-purchase pricing had a capex discount rate instead: drop it, add the list prices. */
+function normalizeCommercial(c: Commercial): Commercial {
+  const { capexDiscountRate: _old, ...rest } = c as Commercial & { capexDiscountRate?: number };
+  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) } };
 }
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */

@@ -77,7 +77,13 @@ const FIELDS: Record<string, Field> = {
   'commercial.specialTermMonths': { label: 'Intro term (months)', fmt: 'num' },
   'commercial.fullFacilityMultiplier': { label: 'Full-facility multiplier', fmt: 'mult' },
   'commercial.sensorPrice': { label: 'Additional sensor price', fmt: 'usd' },
-  'commercial.capexDiscountRate': { label: 'Capex discount rate', fmt: 'pct' },
+  'commercial.capex.basePrice': { label: 'Equipment: base package / bed', fmt: 'usd' },
+  'commercial.capex.bleBasePrice': { label: 'Equipment: with E-Call / bed', fmt: 'usd' },
+  'commercial.capex.inovonicsBasePrice': { label: 'Equipment: with Inovonics E-Call / bed', fmt: 'usd' },
+  'commercial.capex.sensorPrice': { label: 'Equipment: additional sensor', fmt: 'usd' },
+  'commercial.capex.softwareRate': { label: 'Equipment: software & services / bed / mo', fmt: 'usd' },
+  'commercial.capex.bleRenewal': { label: 'Equipment: E-Call renewal / bed', fmt: 'usd' },
+  'commercial.capex.inovonicsRenewal': { label: 'Equipment: Inovonics renewal / bed', fmt: 'usd' },
 };
 
 const GROUP: Record<string, string> = {
@@ -121,7 +127,7 @@ const TEXT: Record<string, string> = {
   ble: 'Bluetooth',
   inovonics: 'Inovonics',
   opex: 'Subscription',
-  capex: 'Upfront',
+  capex: 'Equipment purchase',
   both: 'Both',
   stretch: 'Stretch',
   target: 'Target',

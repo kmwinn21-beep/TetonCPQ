@@ -71,7 +71,7 @@ export function PricingSection({ book }: SectionProps) {
         d.schedule?.withPilot ? `pilot ${money(k.pilotRate)} for ${d.schedule.pilotLengthMonths} mo` : 'no pilot',
         k.ecall === 'none' ? 'no E-Call' : `E-Call ${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'} ${money(k.ecallRate)}`,
         `install ${money(k.installRate)}${k.installCreditPct ? ` (${Math.round(k.installCreditPct * 100)}% credit)` : ''}`,
-        d.presentation === 'capex' ? 'upfront' : d.presentation === 'both' ? 'opex + capex' : false,
+        d.presentation === 'capex' ? 'equipment purchase' : d.presentation === 'both' ? 'subscription + equipment purchase' : false,
       )}
     >
       <div className="space-y-6">
@@ -151,14 +151,25 @@ export function PricingSection({ book }: SectionProps) {
               label="Proposal shows"
               options={[
                 { value: 'opex', label: 'Subscription (opex)' },
-                { value: 'capex', label: 'Upfront (capex)' },
+                { value: 'capex', label: 'Equipment purchase (capex)' },
                 { value: 'both', label: 'Both' },
               ]}
             />
-            <div className="w-48">
-              <PercentField name="commercial.capexDiscountRate" label="Capex discount rate" hint="Annual; prices the term upfront" min={0} />
-            </div>
           </div>
+          {d.presentation !== 'opex' && (
+            <div className="mt-4">
+              <p className="eyebrow mb-2">Equipment purchase prices (title passes at install; no install charge or license fee)</p>
+              <Grid cols={4}>
+                <MoneyField name="commercial.capex.basePrice" label="Base package per bed" hint="Edge unit + sensor, installed" min={0} />
+                <MoneyField name="commercial.capex.bleBasePrice" label="With E-Call per bed" hint="Replaces the base price" disabled={k.ecall !== 'ble'} min={0} />
+                <MoneyField name="commercial.capex.inovonicsBasePrice" label="With Inovonics E-Call per bed" hint="Replaces the base price" disabled={k.ecall !== 'inovonics'} min={0} />
+                <MoneyField name="commercial.capex.sensorPrice" label="Additional sensor" hint="One-time" min={0} />
+                <MoneyField name="commercial.capex.softwareRate" label="Software & services" hint="Per bed / month" min={0} />
+                <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" disabled={k.ecall !== 'ble'} min={0} />
+                <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" disabled={k.ecall !== 'inovonics'} min={0} />
+              </Grid>
+            </div>
+          )}
         </div>
 
         <div>

@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { NumInput } from '@/components/form/NumInput';
 import type { PriceBookRow } from '@/lib/data/priceBook';
+import { productGroup } from '@/lib/pricing/catalog';
 
 const MODEL_LABEL: Record<string, string> = {
   per_bed_month: 'per bed / month',
@@ -65,11 +66,22 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {rows.map((r, ri) => {
             const st = state[r.sku] ?? {};
+            const group = productGroup(r.sku);
+            const header =
+              ri === 0 || productGroup(rows[ri - 1].sku) !== group ? (
+                <tr key={`${group}-h`} className="border-t border-teton-off-white bg-teton-almost-white/60">
+                  <td colSpan={4} className="px-4 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-teton-dark-gray">{group === 'capex' ? 'Equipment purchase (CapEx)' : 'Recurring subscription'}</span>
+                    <span className="ml-2 text-xs text-teton-ui-gray">{group === 'capex' ? 'Title passes at install; perpetual embedded license; no separate installation charge or license fee.' : 'No title transfer.'}</span>
+                  </td>
+                </tr>
+              ) : null;
             const changed = r.defaultList != null && r.list !== r.defaultList;
             const value = r.sku in typed ? typed[r.sku] : r.list;
-            return (
+            return [
+              header,
               <tr key={r.sku} className="border-t border-teton-off-white align-top">
                 <td className="px-4 py-3 font-medium">{r.name}</td>
                 <td className="px-4 py-3 text-right tabular-nums">
@@ -117,8 +129,8 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
                     </span>
                   )}
                 </td>
-              </tr>
-            );
+              </tr>,
+            ];
           })}
         </tbody>
       </table>
