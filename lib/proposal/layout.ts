@@ -26,11 +26,16 @@ export interface ProposalLayout {
   /** Figures the rep removed, by key (can be added back). */
   hiddenValues: string[];
   custom: Record<string, CustomSection>;
+  /**
+   * Printed pages chosen by the rep: the sections that start a new page (the
+   * first section always starts page 1). Null = the browser breaks pages itself.
+   */
+  pageStarts?: string[] | null;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
 
-export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, version: LAYOUT_VERSION };
+export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, version: LAYOUT_VERSION };
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;
 export const isCustomId = (id: string) => id.startsWith('custom-');
@@ -98,11 +103,12 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     hiddenSections: ids(raw.hiddenSections, 10).filter((id) => (STANDARD_SECTIONS as readonly string[]).includes(id)),
     hiddenValues: ids(raw.hiddenValues, 200),
     custom,
+    pageStarts: raw.pageStarts == null ? null : ids(raw.pageStarts, 60).filter((id) => finalOrder.includes(id)),
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0);
 }

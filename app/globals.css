@@ -119,6 +119,10 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .page-break { break-before: page; }
   /* A section that gets its own page (Implementation). */
   .print-own-page { break-before: page; break-after: page; }
+  /* A section the rep's page plan starts on a new page. */
+  .print-break-before { break-before: page; }
+  /* Never leave a section heading alone at the bottom of a page. */
+  .proposal-sheet h2 { break-after: avoid; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 

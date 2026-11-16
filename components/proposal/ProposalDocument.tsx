@@ -511,7 +511,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
 
       <div className="m-stack grid grid-cols-2 gap-x-8">
         {assumptions.map(([key, l, v]) => (
-          <div key={key} className="flex justify-between gap-3 border-b border-teton-off-white py-1">
+          <div key={key} className="avoid-break flex justify-between gap-3 border-b border-teton-off-white py-1">
             <span><T k={key} d={l} /></span>
             <span className="tabular-nums font-medium whitespace-nowrap"><V k={`${key}.value`} label={`${l} value`}>{v}</V></span>
           </div>
@@ -564,8 +564,9 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           terms: { body: termsBody, className: 'avoid-break' },
           ...(implementationBody ? { implementation: { body: implementationBody, className: 'print-own-page' } } : {}),
           ...(hasResources ? { resources: { body: <ResourcesView draft={draft} />, className: 'avoid-break', titleVars: { company: draft.customerName || 'Customer' } } } : {}),
-          roi: { body: roiBody, className: 'avoid-break' },
-          assumptions: { body: assumptionsBody, className: 'avoid-break' },
+          // Tall sections may continue onto the next page (their tables, cards and chart stay whole) instead of jumping.
+          roi: { body: roiBody },
+          assumptions: { body: assumptionsBody },
         }}
       />
 

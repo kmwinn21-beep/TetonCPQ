@@ -428,11 +428,16 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
     } else setLayout((l) => ({ ...l, hiddenSections: [...l.hiddenSections, id] }));
   };
 
+  // A page plan replaces the automatic print rules: its sections start pages where the rep chose, and a
+  // section may run onto the next page rather than jump whole (its smaller parts still never split).
+  const pageStarts = layout.pageStarts ? new Set(layout.pageStarts) : null;
+  const printClass = (id: string, k: number, auto: string | undefined) => (pageStarts ? (k > 0 && pageStarts.has(id) ? 'print-break-before' : '') : (auto ?? ''));
+
   // Insert positions are indexes into the full order, so hidden sections keep their place.
   const insertAt = (k: number) => (k < visible.length ? layout.order.indexOf(visible[k]) : layout.order.length);
 
   return (
-    <div>
+    <div data-sections-root>
       {editable && <AddZone at={insertAt(0)} />}
       {visible.map((id, k) => {
         const custom = isCustomId(id) ? layout.custom[id] : null;
@@ -445,7 +450,8 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
           <div key={id}>
             <section
               data-section={id}
-              className={`group/sec relative mb-8 ${std?.className ?? ''} ${dragging === id ? 'opacity-40' : ''}`}
+              data-print-auto={std?.className ?? ''}
+              className={`group/sec relative mb-8 ${printClass(id, k, std?.className)} ${dragging === id ? 'opacity-40' : ''}`}
             >
               {showDrop && <div data-edit-ui className={`no-print absolute inset-x-0 h-0.5 rounded bg-teton-blue ${drop!.after ? '-bottom-3' : '-top-3'}`} />}
               <div

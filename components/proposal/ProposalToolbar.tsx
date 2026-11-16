@@ -8,6 +8,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { PagePlanner } from './PagePlanner';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
 import { useWhatIf } from './WhatIf';
@@ -50,6 +51,7 @@ function snapshot(): string {
 export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +118,17 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             </>
           ) : (
             <>
+              {text.editable && (
+                <button
+                  type="button"
+                  aria-expanded={pagesOpen}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border ${pagesOpen ? 'bg-white text-teton-ink border-white' : 'border-white/30 hover:bg-white/10'}`}
+                  onClick={() => setPagesOpen((o) => !o)}
+                  title="Choose which sections print on which page"
+                >
+                  ▤ Pages{text.layout.pageStarts ? ' · custom' : ''}
+                </button>
+              )}
               <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}>Record as sent</button>
               <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()}>Print / Save as PDF</button>
             </>
@@ -160,6 +173,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
         )}
       </div>
     </div>
+    {pagesOpen && text.editable && <PagePlanner onClose={() => setPagesOpen(false)} />}
     {banner}
     </div>
   );
