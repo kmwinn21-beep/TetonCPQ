@@ -244,6 +244,8 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         />
       </p>
       <ImplementationGantt groups={pilots} labelWidth={170} />
+      {/* Removable (and addable back) like a figure: some proposals want only the timeline. */}
+      <V k="stageCards" label="Stage descriptions (implementation)" block>
       <div className="m-stack grid grid-cols-3 gap-2.5 mt-4">
         {pilots[0].schedule.stages
           .filter((st) => st.weeks > 0)
@@ -270,6 +272,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       <p className="text-[11px] text-teton-dark-gray mt-2">
         <T k="impl.footnote" d="Dates assume the order form is signed by the end of Evaluation & Contracting. Non-pilot communities follow the same path ahead of their go-live dates." />
       </p>
+      </V>
       {!hasResources && <AddResourcesLink />}
     </>
   ) : null;

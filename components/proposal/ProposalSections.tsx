@@ -56,7 +56,8 @@ export function V({ k, label, children, block = false }: { k: string; label: str
   const Tag = block ? 'div' : 'span';
   const open = fig.clickable ? fig.open : undefined;
   return (
-    <Tag ref={fig.ref as React.Ref<HTMLDivElement & HTMLSpanElement>} data-fig={k} className={`relative group/v ${block ? '' : 'inline-block'}`}>
+    // Blocks get their own hover group, so hovering one doesn't reveal the controls of every figure inside it.
+    <Tag ref={fig.ref as React.Ref<HTMLDivElement & HTMLSpanElement>} data-fig={k} className={`relative ${block ? 'group/blk' : 'group/v inline-block'}`}>
       {fig.clickable ? (
         <span
           data-fig-value
@@ -88,7 +89,7 @@ export function V({ k, label, children, block = false }: { k: string; label: str
         <button
           type="button"
           data-edit-ui
-          className="no-print absolute -top-2 -right-3 hidden group-hover/v:flex w-4 h-4 items-center justify-center rounded-full bg-teton-near-black text-white shadow"
+          className={`no-print absolute hidden items-center justify-center rounded-full bg-teton-near-black text-white shadow ${block ? 'z-10 -top-3 -right-3 w-6 h-6 group-hover/blk:flex focus:flex' : '-top-2 -right-3 w-4 h-4 group-hover/v:flex'}`}
           title={`Remove ${label}`}
           aria-label={`Remove ${label}`}
           onClick={() => setLayout((l) => ({ ...l, hiddenValues: [...l.hiddenValues, k] }))}
