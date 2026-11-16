@@ -11,6 +11,7 @@ import { normalizePlan } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor } from '@/components/implementation/ImplementationGantt';
 import { T } from './EditableText';
+import { V } from './ProposalSections';
 import { useWhatIf } from './WhatIf';
 
 const num = (h: number) => (Number.isInteger(h) ? String(h) : h.toFixed(1));
@@ -71,6 +72,8 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
         </tbody>
       </table>
       {t.rows.some((r) => r.notes.some((n) => n.note)) && (
+        // Removable (and addable back) like a figure: some proposals want only the hours table.
+        <V k="roleNotes" label="Role descriptions (resource allocation)" block>
         <div className="m-cols-1 mt-3 columns-2 gap-6">
           {t.rows
             .filter((r) => r.notes.some((n) => n.note))
@@ -89,6 +92,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
               </div>
             ))}
         </div>
+        </V>
       )}
     </div>
   );
