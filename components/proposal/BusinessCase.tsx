@@ -464,6 +464,59 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // Year 1: one-time charges and monthly fees billed in the first 12 months (they add up to the Year 1 investment).
   const y1OneTime = sum(cf.install.slice(0, 12));
   const y1Monthly = kp.totalInvestment12 - y1OneTime;
+
+  /** Every community: beds by care type, and its total cost (a main figure with a smaller one under it). */
+  const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }) => (
+    <>
+      <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
+      <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Community</th>
+              <th>AL beds</th>
+              <th>MC beds</th>
+              <th>SNF beds</th>
+              <th className="bc-hl">Total cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {draft.communities.map((dc, i) => {
+              const b = bedsOf(dc);
+              const c = cell(i);
+              return (
+                <tr key={dc.id}>
+                  <td className="bc-m">
+                    {d.perCommunity[i].name}
+                    <small>{d.perCommunity[i].detail}</small>
+                  </td>
+                  <td>{count(b.al)}</td>
+                  <td>{count(b.mc)}</td>
+                  <td>{count(b.snf)}</td>
+                  <td className="bc-hl bc-big">
+                    {c.main}
+                    <small>{c.sub}</small>
+                  </td>
+                </tr>
+              );
+            })}
+            {draft.communities.length > 1 && (
+              <tr className="bc-tot">
+                <td className="bc-m">{`${draft.communities.length} communities`}</td>
+                <td>{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
+                <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
+                <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
+                <td className="bc-hl bc-big">
+                  {total.main}
+                  <small>{total.sub}</small>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
   {
     defs.scope = (no) => (
       <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
@@ -471,10 +524,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         {capexShown ? (
           <>
             <h1 className="bc-h1">
-              <T k="bc.scope.title.capex" d="{equipment} of equipment, returned through {site}’s operating income." v={{ ...vars, equipment: usd(capex.equipment) }} />
+              <T k="bc.scope.title.capex" d="{equipment} of equipment, returned through operating income." v={{ ...vars, equipment: usd(capex.equipment) }} />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install and the embedded license is perpetual, so nearly all of the cost is a capital purchase." v={vars} />
+              <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install, and the license is perpetual." v={vars} />
             </p>
           </>
         ) : (
@@ -489,6 +542,17 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         )}
         {capexShown ? (
           <Blocks page="scope-capex">
+            <B id="overview" label="Overview">
+              <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
+              <div className="bc-two bc-three-compact">
+                <Stat value={<V k="capex.share.value" label="Share of the cost that is capitalized">{Math.round(capex.equipmentShare * 100)}%</V>}>
+                  <T k="bc.overview.capitalized" d="of the total cost is capitalized & treated as a capital expenditure" />
+                </Stat>
+                <Stat value={<V k="capex.perUnit.value" label="Total cost per unit">{usd(capex.beds ? capex.ownershipTotal / capex.beds : 0)}</V>}>
+                  <T k="bc.overview.perUnit" d="Total Cost per Unit ({years}-year cost of ownership ÷ {units} units)" v={{ years: String(capex.ownershipMonths / 12), units: count(capex.beds) }} />
+                </Stat>
+              </div>
+            </B>
             <B id="costs" label="Equipment purchase">
             <div className="bc-card bc-req bc-req-tight">
               <ScopeRow ecall={anyEcall} />
@@ -520,7 +584,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 amount={<V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V>}
               />
               <CostRow
-                name={<T k="bc.capex.software" d="Software and services" />}
+                name={<T k="bc.capex.software" d={'Software & services'} />}
                 sub={<T k="bc.capex.billedMonthly" d="(billed monthly)" />}
                 desc={<T k="bc.capex.softwareMath" d="{beds} beds × {rate} per month." v={{ beds: count(capex.beds), rate: usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }) }} />}
                 amount={<V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V>}
@@ -535,7 +599,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <CostRow
                 total
                 name={<T k="bc.capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />}
-                desc={<T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life. About {share} is equipment, a capital purchase rather than an operating expense." v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />}
+                desc={<T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life." />}
                 amount={<V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V>}
               />
             </div>
@@ -544,7 +608,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <div style={{ flex: platform, background: 'var(--bc-lav)' }}>
                   <T k="bc.split.platform" d="AI Resident Monitoring & Fall Prevention/Detection" /> · {pctOf(platform, capex.ownershipTotal)} of four-year cost
                 </div>
-                <div style={{ flex: Math.max(ecall, capex.ownershipTotal * 0.12), background: 'var(--bc-sage)' }}>E-Call · {pctOf(ecall, capex.ownershipTotal)}</div>
+                <div style={{ flex: Math.max(ecall, capex.ownershipTotal * 0.12), background: '#F08D79', color: '#fff' }}>E-Call · {pctOf(ecall, capex.ownershipTotal)}</div>
               </div>
             )}
             {draft.presentation === 'both' && (
@@ -553,22 +617,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </p>
             )}
             </B>
-            {shown('roi') && (
-              <B id="numbers" label="The case in three numbers">
-            <p className="bc-eyebrow bc-gray"><T k="bc.scope.three" d="The case in three numbers" /></p>
-            <div className="bc-three">
-              <Stat value={<V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V>}>
-                <T k="bc.stat.benefit" d="projected annual benefit once {site} is live, {case} case" v={vars} />
-              </Stat>
-              <Stat value={<V k="roi.outcome.realigned.value" label="residents realigned figure">{count(sel.residentsRealigned)}</V>}>
-                <T k="bc.stat.realigned" d="residents a year realigned to the right level of care" />
-              </Stat>
-              <Stat value={<V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V>}>
-                <T k="bc.stat.valuation" d="asset value impact: one year of added net operating income at a {capRate} cap rate" v={vars} />
-              </Stat>
-            </div>
-              </B>
-            )}
+            <B id="communities" label="Communities">
+              {communityTable(
+                (i) => ({ main: usd(capex.communities[i]?.equipment ?? 0), sub: `(${usd(capex.communities[i]?.softwareMonthly ?? 0)} / mo)` }),
+                { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` },
+              )}
+            </B>
           </Blocks>
         ) : (
           <Blocks page="scope">
@@ -621,53 +675,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
             </B>
             <B id="communities" label="Communities">
-            <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
-            <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Community</th>
-                    <th>AL beds</th>
-                    <th>MC beds</th>
-                    <th>SNF beds</th>
-                    <th className="bc-hl">Total cost</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.communities.map((dc, i) => {
-                    const b = bedsOf(dc);
-                    const row = d.perCommunity[i];
-                    return (
-                      <tr key={dc.id}>
-                        <td className="bc-m">
-                          {row.name}
-                          <small>{row.detail}</small>
-                        </td>
-                        <td>{count(b.al)}</td>
-                        <td>{count(b.mc)}</td>
-                        <td>{count(b.snf)}</td>
-                        <td className="bc-hl bc-big">
-                          {usd(row.monthly)} / mo
-                          <small>({usd(row.oneTime)} one-time)</small>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {draft.communities.length > 1 && (
-                  <tr className="bc-tot">
-                    <td className="bc-m">{`${draft.communities.length} communities`}</td>
-                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
-                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
-                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
-                    <td className="bc-hl bc-big">
-                      {usd(d.serviceMonthly)} / mo
-                      <small>({usd(d.oneTime)} one-time)</small>
-                    </td>
-                  </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+              {communityTable(
+                (i) => ({ main: `${usd(d.perCommunity[i].monthly)} / mo`, sub: `(${usd(d.perCommunity[i].oneTime)} one-time)` }),
+                { main: `${usd(d.serviceMonthly)} / mo`, sub: `(${usd(d.oneTime)} one-time)` },
+              )}
             </B>
           </Blocks>
         )}
