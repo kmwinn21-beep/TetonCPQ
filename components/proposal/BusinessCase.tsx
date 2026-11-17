@@ -213,12 +213,23 @@ function installMath(ls: PriceLine[]): { gross: number; credit: number; text: st
 }
 
 /** "50 sensors × $300", from one-time sensor lines. */
-function sensorMath(ls: PriceLine[]): { total: number; text: string } {
+/**
+ * "50 sensors × $300", at list price, less any discount shown as a credit ("− $15,000 pilot credit"
+ * when the discounted sensors are all at pilot sites), so free or discounted sensors read like the install credit.
+ */
+function sensorMath(ls: PriceLine[], isPilot: (position: number | null | undefined) => boolean = () => false): { total: number; text: string } {
   const sensors = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0);
   const groups = new Map<number, number>();
-  sensors.forEach((l) => groups.set(l.unitNet, (groups.get(l.unitNet) ?? 0) + l.qty));
+  sensors.forEach((l) => {
+    const unit = Math.max(l.unitList, l.unitNet);
+    groups.set(unit, (groups.get(unit) ?? 0) + l.qty);
+  });
   const parts = Array.from(groups.entries()).map(([unit, qty]) => `${count(qty)} ${qty === 1 ? 'sensor' : 'sensors'} × ${usd(unit)}`);
-  return { total: sum(sensors.map(lineTotal)), text: parts.join(' + ') || 'None included' };
+  const discounted = sensors.filter((l) => l.unitList > l.unitNet);
+  const credit = sum(discounted.map((l) => l.qty * (l.unitList - l.unitNet)));
+  const label = discounted.length && discounted.every((l) => isPilot(l.communityPosition)) ? 'pilot credit' : 'credit';
+  const text = (parts.join(' + ') || 'None included') + (credit > 0 ? ` − ${usd(credit)} ${label}` : '');
+  return { total: sum(sensors.map(lineTotal)), text };
 }
 
 /** What's in scope, as pills: filled when included, dimmed when not. */
@@ -333,7 +344,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const pilotFees = sum(pilotFeeLines.map(lineTotal));
     const pilotMonthlyTotal = sum(pilotFeeLines.map((l) => l.qty * l.unitNet));
     const pIns = installMath(siteLines);
-    const pSen = sensorMath(siteLines);
+    const pSen = sensorMath(siteLines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
     const install = pIns.gross - pIns.credit;
     const pilotTotal = pilotFees + install + pSen.total;
     const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => x.dc.ecall);
@@ -445,7 +456,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // ---------- The investment ----------
   // Investment page (subscription): the math behind each line, and all-in cost per bed per month over each community's pilot and term.
   const allIns = installMath(lines);
-  const allSen = sensorMath(lines);
+  const allSen = sensorMath(lines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
   const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => c.ecall);
   const perBed = units > 0 ? d.serviceMonthly / units : 0;
   const perBedMonthly = usd(perBed, { cents: !Number.isInteger(Math.round(perBed * 100) / 100) });
@@ -599,7 +610,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     v={{ beds: `${count(units)} beds`, perBed: perBedMonthly, pilot: String(inputs.schedule.pilotLengthMonths) }}
                   />
                 }
-                amount={<V k="scope.serviceMonthly.value" label="Monthly once in service amount">{usd(d.serviceMonthly)} / mo</V>}
+                amount={<V k="scope.serviceMonthly.value" label="Monthly once in service amount">{usd(d.serviceMonthly)}</V>}
               />
               <CostRow
                 total
