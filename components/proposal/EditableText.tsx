@@ -146,7 +146,7 @@ export function serialize(el: HTMLElement): string {
  * Editable text. `d` is the default wording; `v` holds the values for its
  * {tokens}. Without a provider (or when not editable) it renders plain text.
  */
-export function T({ k, d, v }: { k: string; d: string; v?: Record<string, string> }) {
+export function T({ k, d, v, placeholder = 'Add text' }: { k: string; d: string; v?: Record<string, string>; placeholder?: string }) {
   const { editable, edits, set } = useProposalText();
   // Bumped to throw away typing (Escape) by remounting the element.
   const [rev, setRev] = useState(0);
@@ -165,7 +165,7 @@ export function T({ k, d, v }: { k: string; d: string; v?: Record<string, string
       aria-label="Edit text"
       spellCheck
       data-edit-key={k}
-      data-placeholder="Add text"
+      data-placeholder={placeholder}
       className="proposal-editable rounded-sm outline-none decoration-dotted underline-offset-4 hover:bg-teton-pale-yellow/60 focus:bg-teton-pale-yellow/60 focus:ring-2 focus:ring-brand-accent/60 empty:inline-block empty:min-w-[3rem] empty:before:content-[attr(data-placeholder)] empty:before:text-teton-light-gray print:empty:before:content-none"
       onKeyDown={(e) => {
         if (e.key === 'Enter') {

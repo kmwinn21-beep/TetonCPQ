@@ -219,7 +219,6 @@ export function figureSpec(key: string): FigureSpec | null {
     'card.investment': 'kpi.totalInvestment12',
     'card.net': 'kpi.netBenefit12',
     'card.gross': 'kpi.grossReturnPerDollar12',
-    'bc.cover.roc': 'annual.returnOnCost',
     'card.payback': 'kpi.discountedPaybackMonth',
     'card.runRate': 'kpi.runRateAnnualNetBenefit',
     'card.perUnit': 'kpi.netBenefitPerOccupiedUnitMonth',

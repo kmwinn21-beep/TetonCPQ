@@ -1031,13 +1031,13 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <br />
           {dateLabel(savedAt)}
         </p>
-        {shown('roi') && (
+        {/* The rep's own figure and caption (blank by default); the whole circle can be removed and added back. */}
+        <V k="bc.cover.circle" label="Cover circle" block>
           <div className="bc-stat">
-            {/* Stabilized gross return per $1 invested (return on cost), once every community is live and ramped. */}
-            <b><V k="bc.cover.roc.value" label="Estimated return on cost">{multiple(sel.returnOnCost, 2)}</V></b>
-            <span><T k="bc.cover.roc" d="Estimated Return on Cost" /></span>
+            <b><T k="bc.cover.circleValue" d="" placeholder="Add a figure" /></b>
+            <span><T k="bc.cover.circleText" d="" placeholder="Add a caption" /></span>
           </div>
-        )}
+        </V>
       </div>
       <div className="bc-band"><T k="bc.cover.band" d="Prevention becomes measurable once the environment becomes observable." /></div>
     </section>
