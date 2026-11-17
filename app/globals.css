@@ -183,6 +183,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-req { margin-top: 24px; padding: 4px 24px; }
 .bc-req-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 130px 48px; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--bc-line); align-items: start; }
 .bc-req-row:last-child { border-bottom: 0; }
+.bc-req-tight .bc-req-row { padding: 9px 0; }
+.bc-req-tight + .bc-split { margin-top: 10px; }
 .bc-req-name { font-weight: 700; font-size: 15px; }
 .bc-req-desc { font-size: 12.5px; line-height: 1.55; color: var(--bc-body); }
 .bc-req-amt { font-size: 21px; text-align: right; font-weight: 500; white-space: nowrap; }
@@ -193,7 +195,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-pills { flex-wrap: nowrap; }
 .bc-pills > span { border-radius: 99px; padding: 5px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .bc-pilot-tbl td { padding-top: 9px; padding-bottom: 9px; }
-.bc-pill-mint { background: var(--bc-mint); color: var(--bc-night); }
+.bc-pill-lav { background: var(--bc-lav); color: var(--bc-night); }
 .bc-pill-coral { background: #F08D79; color: #fff; }
 .bc-pill-off { background: #EFEDE9; color: #A9ADB3; border: 1px dashed #D6D3CD; }
 .bc-req-pct { font-size: 11.5px; color: var(--bc-muted); text-align: right; padding-top: 6px; }

@@ -544,6 +544,36 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
       </div>
     );
   }
+  if (f.kind === 'choice') {
+    const cur = String(changed ? raw[f.path] : saved);
+    return (
+      <div className="py-1.5">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[13px] text-teton-dark-gray">{f.label}</span>
+          {changed ? (
+            <button type="button" className="text-teton-ui-gray hover:text-teton-ink text-sm" onClick={() => onChange(f.path, undefined)} title="Back to the saved value" aria-label={`Undo ${f.label}`}>
+              ↺
+            </button>
+          ) : null}
+        </div>
+        <div role="radiogroup" aria-label={f.label} className="flex rounded-lg border border-teton-pale-gray p-0.5 text-[12px]">
+          {(f.options ?? []).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={cur === v}
+              className={`flex-1 rounded-md px-2 py-1.5 font-medium ${cur === v ? 'bg-teton-near-black text-white' : 'text-teton-dark-gray hover:bg-teton-off-white'}`}
+              onClick={() => onChange(f.path, v === String(saved) ? undefined : v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {changed && <p className="text-[11px] text-[#8A5A00] mt-0.5">Saved: {f.options?.find(([o]) => o === saved)?.[1] ?? String(saved)}</p>}
+      </div>
+    );
+  }
   if (f.kind === 'toggle') {
     const on = !!(changed ? raw[f.path] : saved);
     return (
@@ -562,7 +592,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
   }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, plan: undefined, terms: undefined, resources: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, choice: undefined, plan: undefined, terms: undefined, resources: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (

@@ -12,6 +12,7 @@
  * the sections the rep keeps: a removed section drops its page.
  */
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
+import { basePackageRows } from '@/lib/pricing/capex';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
@@ -168,7 +169,7 @@ function sensorMath(ls: PriceLine[]): { total: number; text: string } {
 function ScopePills({ ecall }: { ecall: boolean }) {
   return (
     <div className="bc-pills">
-      <span className="bc-pill-on bc-pill-mint"><T k="bc.scope.pill.monitoring" d="Resident Monitoring & Fall Prevention/Detection" /></span>
+      <span className="bc-pill-on bc-pill-lav"><T k="bc.scope.pill.monitoring" d="AI Resident Monitoring & Fall Prevention/Detection" /></span>
       <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
         <T k="bc.scope.pill.ecall" d="Teton E-Call / Nurse Call" />
       </span>
@@ -186,9 +187,9 @@ function ScopeRow({ ecall }: { ecall: boolean }) {
 }
 
 /** A cost line: a name with an optional "(one-time)" under it, the math, and the amount. */
-function CostRow({ name, sub, desc, amount, pct }: { name: React.ReactNode; sub?: React.ReactNode; desc: React.ReactNode; amount: React.ReactNode; pct?: string }) {
+function CostRow({ name, sub, desc, amount, pct, total }: { name: React.ReactNode; sub?: React.ReactNode; desc: React.ReactNode; amount: React.ReactNode; pct?: string; total?: boolean }) {
   return (
-    <div className="bc-req-row">
+    <div className={`bc-req-row ${total ? 'bc-req-total' : ''}`}>
       <div className="bc-req-name">
         {name}
         {sub && <span className="bc-req-sub">{sub}</span>}
@@ -390,62 +391,63 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <T k="bc.scope.title.capex" d="{equipment} of equipment, returned through {site}’s operating income." v={{ ...vars, equipment: usd(capex.equipment) }} />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install and the embedded license is perpetual, so nearly all of the cost is a capital purchase. This document sets out the investment, what it returns, and how quickly it pays for itself." v={vars} />
+              <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install and the embedded license is perpetual, so nearly all of the cost is a capital purchase." v={vars} />
             </p>
-            <div className="bc-card bc-req">
-              {ecall === 0 && (
-                <>
-                  <div className="bc-req-row">
-                    <div className="bc-req-name"><T k="bc.scope.equipment" d="Equipment" /></div>
-                    <div className="bc-req-desc">
-                      <T k="bc.scope.equipmentNote" d="Edge units and sensors installed in all {beds}{sensors}. Paid once at install; title passes to {customer}." v={{ ...vars, sensors: capex.sensors ? `, plus ${count(capex.sensors)} additional sensors` : '' }} />
-                    </div>
-                    <div className="bc-req-amt"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></div>
-                    <div className="bc-req-pct">{pctOf(capex.equipment, capex.ownershipTotal)}</div>
-                  </div>
-                  <div className="bc-req-row">
-                    <div className="bc-req-name"><T k="bc.scope.software" d="Software and services" /></div>
-                    <div className="bc-req-desc">
-                      <T k="bc.scope.softwareNote" d="{monthly} a month, four years, billed monthly." v={{ monthly: usd(capex.softwareMonthly) }} />
-                    </div>
-                    <div className="bc-req-amt"><V k="capex.software4.value" label="Software and services over four years">{usd(capex.software)}</V></div>
-                    <div className="bc-req-pct">{pctOf(capex.software, capex.ownershipTotal)}</div>
-                  </div>
-                </>
+            <div className="bc-card bc-req bc-req-tight">
+              <ScopeRow ecall={anyEcall} />
+              {basePackageRows(capex).map((r) => (
+                <CostRow
+                  key={r.ecall}
+                  name={<T k={`bc.capex.base.${r.ecall}`} d="Base packages" />}
+                  sub={<T k="bc.oneTime" d="(one-time)" />}
+                  desc={
+                    <T
+                      k={`bc.capex.base.${r.ecall}.math`}
+                      d={r.ecall === 'none' ? '{math}. Edge unit + sensor, installed.' : r.ecall === 'ble' ? '{math}. Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant.' : '{math}. Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord.'}
+                      v={{ math: `${count(r.beds)} beds × ${usd(r.perBed)}` }}
+                    />
+                  }
+                  amount={<V k={`capex.base.${r.ecall}.value`} label={`${r.label} amount`}>{usd(r.total)}</V>}
+                />
+              ))}
+              <CostRow
+                name={<T k="bc.sensors" d="Additional Sensors" />}
+                sub={<T k="bc.oneTime" d="(one-time)" />}
+                desc={<T k="bc.capex.sensorMath" d="{math}" v={{ math: capex.sensors ? `${count(capex.sensors)} ${capex.sensors === 1 ? 'sensor' : 'sensors'} × ${usd(capex.pricing.sensorPrice)}` : 'None included' }} />}
+                amount={<V k="capex.sensors.value" label="Additional sensors amount">{usd(capex.sensorCost)}</V>}
+              />
+              <CostRow
+                total
+                name={<T k="capex.price" d="One-time equipment cost" />}
+                desc={<T k="bc.capex.equipmentNote" d="Paid at install. No separate installation charge and no license fee." />}
+                amount={<V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V>}
+              />
+              <CostRow
+                name={<T k="bc.capex.software" d="Software and services" />}
+                sub={<T k="bc.capex.billedMonthly" d="(billed monthly)" />}
+                desc={<T k="bc.capex.softwareMath" d="{beds} beds × {rate} per month." v={{ beds: count(capex.beds), rate: usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }) }} />}
+                amount={<V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V>}
+              />
+              {capex.renewals > 0 && (
+                <CostRow
+                  name={<T k="capex.renewals" d="E-Call renewals" />}
+                  desc={<T k="bc.capex.renewalsNote" d="Renewals that fall within the {years} years." v={{ years: String(capex.ownershipMonths / 12) }} />}
+                  amount={<V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V>}
+                />
               )}
-              {ecall > 0 && (
-              <div className="bc-req-row">
-                <div className="bc-req-name"><T k="bc.scope.platform" d="AI Platform" /></div>
-                <div className="bc-req-desc">
-                  <T k="bc.scope.platformNote" d="Edge units and sensors in all {beds}{sensors}. Equipment {equipment}, plus software and services for four years, {software}." v={{ ...vars, sensors: capex.sensors ? `, plus ${count(capex.sensors)} additional sensors` : '', equipment: usd(platformEquipment), software: usd(capex.software) }} />
-                </div>
-                <div className="bc-req-amt"><V k="capex.platform.value" label="AI Platform amount">{usd(platform)}</V></div>
-                <div className="bc-req-pct">{pctOf(platform, capex.ownershipTotal)}</div>
-              </div>
-              )}
-              {ecall > 0 && (
-                <div className="bc-req-row">
-                  <div className="bc-req-name"><T k="bc.scope.ecall" d="E-Call" /></div>
-                  <div className="bc-req-desc">
-                    <T k="bc.scope.ecallNote" d="E-Call pendants and wall-mount devices for every bed with E-Call. Equipment {equipment}{renewals}." v={{ equipment: usd(ecallEquipment), renewals: capex.renewals ? `, plus renewals within four years, ${usd(capex.renewals)}` : '' }} />
-                  </div>
-                  <div className="bc-req-amt"><V k="capex.ecall.value" label="E-Call amount">{usd(ecall)}</V></div>
-                  <div className="bc-req-pct">{pctOf(ecall, capex.ownershipTotal)}</div>
-                </div>
-              )}
-              <div className="bc-req-row bc-req-total">
-                <div className="bc-req-name"><T k="bc.scope.total" d="Complete solution" /></div>
-                <div className="bc-req-desc">
-                  <T k="bc.scope.totalNote" d="One-time equipment cost {equipment}, paid at install. Software and services {monthly} a month. No separate installation charge and no license fee." v={{ equipment: usd(capex.equipment), monthly: usd(capex.softwareMonthly) }} />
-                </div>
-                <div className="bc-req-amt"><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V></div>
-                <div className="bc-req-pct">100%</div>
-              </div>
+              <CostRow
+                total
+                name={<T k="bc.capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />}
+                desc={<T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life. About {share} is equipment, a capital purchase rather than an operating expense." v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />}
+                amount={<V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V>}
+              />
             </div>
             {ecall > 0 && capex.ownershipTotal > 0 && (
               <div className="bc-split">
-                <div style={{ flex: platform, background: 'var(--bc-lav)' }}>AI Platform · {pctOf(platform, capex.ownershipTotal)} of four-year cost</div>
-                <div style={{ flex: Math.max(ecall, capex.ownershipTotal * 0.1), background: 'var(--bc-sage)' }}>E-Call · {pctOf(ecall, capex.ownershipTotal)}</div>
+                <div style={{ flex: platform, background: 'var(--bc-lav)' }}>
+                  <T k="bc.split.platform" d="AI Resident Monitoring & Fall Prevention/Detection" /> · {pctOf(platform, capex.ownershipTotal)} of four-year cost
+                </div>
+                <div style={{ flex: Math.max(ecall, capex.ownershipTotal * 0.12), background: 'var(--bc-sage)' }}>E-Call · {pctOf(ecall, capex.ownershipTotal)}</div>
               </div>
             )}
             {draft.presentation === 'both' && (

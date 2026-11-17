@@ -13,7 +13,7 @@ import { normalizePlan, planChanges, weeksToGoLive, type ImplementationPlan } fr
 import { normalizeTerms, termsChanges, type TermsSetting } from '@/lib/quote/terms';
 import { normalizeResources, resourcesChanges, type Resources } from '@/lib/quote/resources';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'plan' | 'terms' | 'resources';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'choice' | 'plan' | 'terms' | 'resources';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -27,6 +27,8 @@ export interface WhatIfField {
   nullable?: boolean;
   min?: number;
   max?: number;
+  /** For 'choice': the allowed values and their labels. */
+  options?: Array<[string, string]>;
 }
 
 const F = (path: string, label: string, group: string, where: string, kind: FieldKind, extra: Partial<WhatIfField> = {}): WhatIfField => ({ path, label, group, where, kind, min: 0, ...extra });
@@ -57,6 +59,13 @@ export const FIELDS: WhatIfField[] = [
   F('components.moveInImpact', 'Move-in Impact', BENEFITS, BENEFITS_AT, 'toggle'),
   F('components.techReplacement', 'Tech Replacement', BENEFITS, BENEFITS_AT, 'toggle'),
 
+  F('presentation', 'How the investment is shown', PRICING, PRICING_AT, 'choice', {
+    options: [
+      ['opex', 'Subscription'],
+      ['capex', 'Equipment purchase'],
+      ['both', 'Both'],
+    ],
+  }),
   F('commercial.platformRate', 'Platform rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.pilotRate', 'Pilot rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.ecallRate', 'E-Call rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
@@ -201,7 +210,7 @@ export interface FigureSpec {
   fields?: string[];
 }
 
-const pricing = (formula: string, extra: string[] = []): FigureSpec => ({ formula, fields: [...PRICE_FIELDS, ...INSTALL_FIELDS, 'commercial.specialTermMonths', ...extra] });
+const pricing = (formula: string, extra: string[] = []): FigureSpec => ({ formula, fields: ['presentation', ...PRICE_FIELDS, ...INSTALL_FIELDS, 'commercial.specialTermMonths', ...extra] });
 
 /** Figure keys (the V keys in ProposalDocument) → their inputs. */
 export function figureSpec(key: string): FigureSpec | null {
@@ -250,11 +259,11 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');
-  if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice'] };
-  if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase)', fields: ['commercial.capex.sensorPrice'] };
-  if (k.startsWith('capex.software')) return { formula: 'Beds × software & services rate, per month', fields: ['commercial.capex.softwareRate'] };
-  if (k.startsWith('capex.renewals')) return { formula: 'E-Call renewals that fall within the four years: Bluetooth every 4 years, Inovonics every 3', fields: ['commercial.capex.bleRenewal', 'commercial.capex.inovonicsRenewal'] };
-  if (k.startsWith('capex.')) return { formula: 'One-time equipment + software & services over four years + E-Call renewals within them', fields: ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate'] };
+  if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice'] };
+  if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase)', fields: ['presentation', 'commercial.capex.sensorPrice'] };
+  if (k.startsWith('capex.software')) return { formula: 'Beds × software & services rate, per month', fields: ['presentation', 'commercial.capex.softwareRate'] };
+  if (k.startsWith('capex.renewals')) return { formula: 'E-Call renewals that fall within the four years: Bluetooth every 4 years, Inovonics every 3', fields: ['presentation', 'commercial.capex.bleRenewal', 'commercial.capex.inovonicsRenewal'] };
+  if (k.startsWith('capex.')) return { formula: 'One-time equipment + software & services over four years + E-Call renewals within them', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate'] };
   const assume: Record<string, string[]> = {
     'assume.occupancy': ['client.occupancy'],
     'assume.rent': ['client.avgRent'],
@@ -292,7 +301,7 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type ChangeValue = number | boolean | null | ImplementationPlan | TermsSetting | Resources;
+export type ChangeValue = number | boolean | string | null | ImplementationPlan | TermsSetting | Resources;
 export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
@@ -317,7 +326,9 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
       out = setPath(out, path, normalizePlan(v));
       continue;
     }
-    if (f.kind === 'toggle') {
+    if (f.kind === 'choice') {
+      if (typeof v !== 'string' || !f.options?.some(([o]) => o === v)) throw new Error(`${f.label} must be one of the choices`);
+    } else if (f.kind === 'toggle') {
       if (typeof v !== 'boolean') throw new Error(`${f.label} must be on or off`);
     } else if (v == null) {
       if (!f.nullable) throw new Error(`${f.label} needs a value`);
@@ -366,6 +377,7 @@ export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
 /** Display a field value: "$99", "90%", "3 mo", "1.3×". */
 export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
+  if (f.kind === 'choice') return f.options?.find(([o]) => o === v)?.[1] ?? String(v);
   if (f.kind === 'terms') return v == null ? 'standard terms' : 'customized terms';
   if (f.kind === 'resources') {
     const rs = normalizeResources(v);
