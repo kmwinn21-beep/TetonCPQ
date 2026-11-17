@@ -1033,8 +1033,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </p>
         {shown('roi') && (
           <div className="bc-stat">
-            <b><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></b>
-            <span><T k="bc.cover.stat" d="projected annual benefit once {site} is live ({case} case)" v={vars} /></span>
+            {/* Stabilized gross return per $1 invested (return on cost), once every community is live and ramped. */}
+            <b><V k="bc.cover.roc.value" label="Estimated return on cost">{multiple(sel.returnOnCost, 2)}</V></b>
+            <span><T k="bc.cover.roc" d="Estimated Return on Cost" /></span>
           </div>
         )}
       </div>
