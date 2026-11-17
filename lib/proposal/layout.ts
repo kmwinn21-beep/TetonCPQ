@@ -35,11 +35,22 @@ export interface ProposalLayout {
   pageStarts?: string[] | null;
   /** Document style: the standard proposal, or the business-case layout (cover page, stat cards). */
   format?: ProposalFormat;
+  /**
+   * Business-case format: its pages in order (built-in page ids and added
+   * pages). Null = the standard set, following the sections kept above.
+   */
+  bcPages?: string[] | null;
+  /** Business-case format: pages the rep added (formatted text), by id ("bcpage-…"). */
+  bcCustom?: Record<string, CustomSection>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
 
-export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', version: LAYOUT_VERSION };
+export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', bcPages: null, bcCustom: {}, version: LAYOUT_VERSION };
+
+/** The business-case format's built-in pages, in their standard order. */
+export const BC_PAGES = ['cover', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'terms'] as const;
+export const isBcCustomId = (id: string) => id.startsWith('bcpage-');
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;
 export const isCustomId = (id: string) => id.startsWith('custom-');
@@ -62,19 +73,24 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     })));
   };
 
-  const custom: Record<string, CustomSection> = {};
-  if (raw.custom != null) {
-    if (typeof raw.custom !== 'object' || Array.isArray(raw.custom)) throw new Error('Bad custom sections');
-    const entries = Object.entries(raw.custom as Record<string, unknown>);
+  const parseCustom = (v: unknown, isId: (id: string) => boolean): Record<string, CustomSection> => {
+    const out: Record<string, CustomSection> = {};
+    if (v == null) return out;
+    if (typeof v !== 'object' || Array.isArray(v)) throw new Error('Bad custom sections');
+    const entries = Object.entries(v as Record<string, unknown>);
     if (entries.length > 30) throw new Error('Too many added sections');
-    for (const [id, v] of entries) {
-      if (!isCustomId(id) || !ID.test(id)) throw new Error('Bad section id');
-      const s = v as Record<string, unknown>;
-      if (!s || typeof s.title !== 'string' || typeof s.html !== 'string') throw new Error('Bad added section');
-      if (s.title.length > 200 || s.html.length > MAX_HTML) throw new Error('Added section is too long');
-      custom[id] = { title: s.title, html: cleanHtml(s.html) };
+    for (const [id, e] of entries) {
+      if (!isId(id) || !ID.test(id)) throw new Error('Bad section id');
+      const c = e as Record<string, unknown>;
+      if (!c || typeof c.title !== 'string' || typeof c.html !== 'string') throw new Error('Bad added section');
+      if (c.title.length > 200 || c.html.length > MAX_HTML) throw new Error('Added section is too long');
+      out[id] = { title: c.title, html: cleanHtml(c.html) };
     }
-  }
+    return out;
+  };
+  const custom = parseCustom(raw.custom, isCustomId);
+  const bcCustom = parseCustom(raw.bcCustom, isBcCustomId);
+  const bcKnown = new Set<string>([...BC_PAGES, ...Object.keys(bcCustom)]);
 
   // Order: keep known ids once and drop unknown ones. A standard section missing from a saved order (e.g. one
   // added to the template later) goes in after the standard section it normally follows; custom ones go last.
@@ -109,11 +125,13 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     custom,
     pageStarts: raw.pageStarts == null ? null : ids(raw.pageStarts, 60).filter((id) => finalOrder.includes(id)),
     format: raw.format === 'businessCase' ? 'businessCase' : 'standard',
+    bcPages: raw.bcPages == null ? null : ids(raw.bcPages, 60).filter((id) => bcKnown.has(id)),
+    bcCustom,
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0);
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length;
 }

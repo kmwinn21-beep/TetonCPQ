@@ -19,7 +19,8 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { T, useProposalText } from './EditableText';
-import { V } from './ProposalSections';
+import { CustomTitle, RichBody, V } from './ProposalSections';
+import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { buildProposalData } from './proposalData';
@@ -64,11 +65,89 @@ function Stat({ value, children }: { value: React.ReactNode; children: React.Rea
   );
 }
 
+/** "+ Add page" in the gap before a page (or after the last one): inserts a page of formatted text. */
+function AddPageZone({ at }: { at: string | null }) {
+  const { editable, setLayout } = useProposalText();
+  if (!editable) return null;
+  return (
+    <div data-edit-ui className="no-print bc-addzone group/add">
+      <div className="bc-addband">
+      <button
+        type="button"
+        className="opacity-0 group-hover/add:opacity-100 focus:opacity-100 transition-opacity rounded-full bg-white border border-teton-blue/60 text-teton-ink text-[11px] font-medium px-3 py-1 shadow-sm"
+        onClick={() => {
+          const id = `bcpage-${Date.now().toString(36)}`;
+          setLayout((l) => {
+            const pages = bcPagesOf(l);
+            const i = at ? pages.indexOf(at) : -1;
+            return { ...l, bcPages: insertBcPage(pages, i < 0 ? pages.length : i, id), bcCustom: { ...(l.bcCustom ?? {}), [id]: { title: 'New page', html: '' } } };
+          });
+          setTimeout(() => {
+            const el = document.querySelector<HTMLElement>(`[data-custom-title="${id}"]`);
+            if (!el) return;
+            el.scrollIntoView({ block: 'center' });
+            el.focus();
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            getSelection()?.removeAllRanges();
+            getSelection()?.addRange(r);
+          }, 60);
+        }}
+      >
+        + Add page
+      </button>
+      </div>
+    </div>
+  );
+}
+
+/** A page with its screen-only controls: move earlier / later, remove. */
+function PageSlot({ id, index, order, children }: { id: string; index: number; order: string[]; children: React.ReactNode }) {
+  const { editable, layout, setLayout } = useProposalText();
+  const custom = layout.bcCustom?.[id];
+  const title = custom ? custom.title || 'Added page' : (BC_PAGE_TITLES as Record<string, string>)[id] ?? id;
+  const move = (dir: -1 | 1) => setLayout((l) => ({ ...l, bcPages: moveBcPage(bcPagesOf(l), id, dir, order) }));
+  const remove = () => {
+    if (custom && (custom.html.replace(/<[^>]*>/g, '').trim() || (custom.title && custom.title !== 'New page')) && !window.confirm('Delete this page and its text?')) return;
+    setLayout((l) => {
+      const bcCustom = { ...(l.bcCustom ?? {}) };
+      delete bcCustom[id];
+      return { ...l, bcPages: removeBcPage(bcPagesOf(l), id), bcCustom };
+    });
+  };
+  const btn = 'w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent';
+  return (
+    <>
+      <AddPageZone at={id} />
+      <div className={`bc-slot group/bcp ${index === order.length - 1 ? 'bc-last' : ''}`} data-bc-page={id}>
+        {editable && (
+          <div data-edit-ui className="no-print bc-controls opacity-0 group-hover/bcp:opacity-100 focus-within:opacity-100 transition-opacity">
+            <span className="px-2 text-[11px] font-medium">
+              Page {index + 1} · {title}
+            </span>
+            <button type="button" className={btn} disabled={index === 0} onClick={() => move(-1)} aria-label={`Move ${title} earlier`} title="Move earlier">
+              ↑
+            </button>
+            <button type="button" className={btn} disabled={index === order.length - 1} onClick={() => move(1)} aria-label={`Move ${title} later`} title="Move later">
+              ↓
+            </button>
+            <button type="button" className={btn} onClick={remove} aria-label={`Remove page ${title}`} title={custom ? 'Delete this page' : 'Remove this page (you can add it back)'}>
+              ✕
+            </button>
+          </div>
+        )}
+        {children}
+      </div>
+    </>
+  );
+}
+
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
   const { layout } = useProposalText();
   const d = buildProposalData(draft, outputs, lines);
   const { kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
-  const shown = (id: string) => !layout.hiddenSections.includes(id);
+  // Until the rep arranges the pages, a removed standard section also drops its part of a page.
+  const shown = (id: string) => !!layout.bcPages || !layout.hiddenSections.includes(id);
   const customer = draft.customerName || 'Customer';
   const site = inputs.communities.length === 1 ? inputs.communities[0].name || customer : customer;
   const sites = inputs.communities.length === 1 ? site : `${inputs.communities.length} communities`;
@@ -108,11 +187,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const goLive = pilots[0] ? longDate(pilots[0].goLive) : null;
   const contractEnd = stages.find((s) => s.id === 'evaluation');
 
-  const pages: Array<(no: number) => React.ReactNode> = [];
+  // Each page, by id; a page with nothing to show (no implementation plan, no roles) has no entry.
+  const defs: Record<string, (no: number) => React.ReactNode> = {};
 
   // ---------- The investment ----------
-  if (shown('scope')) {
-    pages.push((no) => (
+  {
+    defs.scope = (no) => (
       <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
         <p className="bc-eyebrow"><T k="bc.scope.eyebrow" d="The investment" /></p>
         {capexShown ? (
@@ -235,12 +315,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </>
         )}
       </Page>
-    ));
+    );
   }
 
   // ---------- The return ----------
-  if (shown('roi')) {
-    pages.push((no) => (
+  {
+    defs.roi = (no) => (
       <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
         <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
         <h1 className="bc-h1"><T k="bc.roi.title" d="{benefit} a year, once every bed is live." v={{ benefit: usd(sel.annualRoi) }} /></h1>
@@ -289,15 +369,15 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </div>
         </div>
       </Page>
-    ));
+    );
   }
 
   // ---------- Year 1 and cash flow ----------
-  if (shown('summary')) {
+  {
     const basis = capexShown ? (
       <p className="bc-note"><T k="bc.y1.basis" d="Year 1 figures and the cash flow use the subscription pricing." /></p>
     ) : null;
-    pages.push((no) => (
+    defs.summary = (no) => (
       <Page key="summary" no={no} crumb={<T k="bc.y1.crumb" d="Year 1 financial summary" />}>
         <p className="bc-eyebrow"><T k="bc.y1.eyebrow" d="Year 1 financial summary" /></p>
         <h1 className="bc-h1"><T k="bc.y1.title" d="{net} better off in the first year, after paying for everything." v={{ net: usd(kp.netBenefit12) }} /></h1>
@@ -360,8 +440,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         )}
         {basis}
       </Page>
-    ));
-    pages.push((no) => (
+    );
+    defs.cashflow = (no) => (
       <Page key="cashflow" no={no} crumb={<T k="bc.cf.crumb" d="Cash flow over the term" />}>
         <p className="bc-eyebrow"><T k="bc.cf.eyebrow" d="Cash flow over the term" /></p>
         <h1 className="bc-h1">
@@ -389,12 +469,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </div>
         {basis}
       </Page>
-    ));
+    );
   }
 
   // ---------- Implementation ----------
-  if (shown('implementation') && stages.length) {
-    pages.push((no) => (
+  if (stages.length) {
+    defs.implementation = (no) => (
       <Page key="implementation" no={no} crumb={<T k="bc.impl.crumb" d="Implementation · {site}" v={vars} />}>
         <p className="bc-eyebrow"><T k="bc.impl.eyebrow" d="Implementation" /></p>
         <h1 className="bc-h1"><T k="bc.impl.title" d="Live at {site} on {goLive}." v={{ ...vars, goLive: goLive ?? '' }} /></h1>
@@ -436,12 +516,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </div>
         </div>
       </Page>
-    ));
+    );
   }
 
   // ---------- The customer's team ----------
-  if (shown('resources') && hasResources) {
-    pages.push((no) => (
+  if (hasResources) {
+    defs.resources = (no) => (
       <Page key="resources" no={no} crumb={<T k="bc.team.crumb" d="Your team" />}>
         <p className="bc-eyebrow"><T k="bc.team.eyebrow" d="Estimated resource allocation" /></p>
         <h1 className="bc-h1"><T k="bc.team.title" d="{hours} hours from {customer}’s team." v={{ ...vars, hours: count(team.total) }} /></h1>
@@ -486,13 +566,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </table>
         </div>
       </Page>
-    ));
+    );
   }
 
   // ---------- Terms, notes and assumptions ----------
-  const customIds = layout.order.filter((id) => id.startsWith('custom-') && layout.custom[id]);
-  if (shown('terms') || shown('assumptions') || customIds.length) {
-    pages.push((no) => (
+  {
+    defs.terms = (no) => (
       <Page key="terms" no={no} crumb={<T k="bc.terms.crumb" d="Terms and assumptions" />}>
         <p className="bc-eyebrow"><T k="bc.terms.eyebrow" d="Terms and assumptions" /></p>
         <h1 className="bc-h1"><T k="bc.terms.title" d="What the figures assume." /></h1>
@@ -504,13 +583,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           </>
         )}
-        {customIds.map((id) => (
-          <div key={id}>
-            <p className="bc-eyebrow bc-gray">{layout.custom[id].title}</p>
-            {/* Added sections are sanitized on save; they're edited in the standard format. */}
-            <div className="bc-card bc-terms proposal-rich" dangerouslySetInnerHTML={{ __html: layout.custom[id].html }} />
-          </div>
-        ))}
         {shown('assumptions') && (
           <>
             <p className="bc-eyebrow bc-gray"><T k="assume.title" d="Assumptions" /></p>
@@ -537,41 +609,60 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </div>
         )}
       </Page>
-    ));
+    );
   }
 
+  defs.cover = () => (
+    <section className="bc-page bc-cover">
+      <div className="bc-blob1" />
+      <div className="bc-blob2" />
+      <div className="bc-cover-top">
+        <Logo />
+        <span className="bc-pill"><T k="bc.cover.pill" d="Prepared for {customer}" v={vars} /></span>
+      </div>
+      <div className="bc-cover-main">
+        <p className="bc-kicker"><T k="bc.cover.kicker" d="Proposal" /></p>
+        <h1 className="bc-title"><T k="customer" d={customer} /></h1>
+        <p className="bc-sub">
+          <T k="bc.cover.sub" d="Teton ambient monitoring for {site}’s {beds}: the investment, what it returns once live, and how quickly it pays for itself." v={vars} />
+        </p>
+      </div>
+      <div className="bc-cover-bottom">
+        <p className="bc-sig">
+          <b>Proposal v{versionNo} · {sites}</b>
+          <br />
+          {dateLabel(savedAt)}
+        </p>
+        {shown('roi') && (
+          <div className="bc-stat">
+            <b><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></b>
+            <span><T k="bc.cover.stat" d="projected annual benefit once {site} is live ({case} case)" v={vars} /></span>
+          </div>
+        )}
+      </div>
+      <div className="bc-band"><T k="bc.cover.band" d="Prevention becomes measurable once the environment becomes observable." /></div>
+    </section>
+  );
+
+  const custom = layout.bcCustom ?? {};
+  const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);
   return (
     <article id="proposal" className="bc-doc" data-format="businessCase">
-      <section className="bc-page bc-cover">
-        <div className="bc-blob1" />
-        <div className="bc-blob2" />
-        <div className="bc-cover-top">
-          <Logo />
-          <span className="bc-pill"><T k="bc.cover.pill" d="Prepared for {customer}" v={vars} /></span>
-        </div>
-        <div className="bc-cover-main">
-          <p className="bc-kicker"><T k="bc.cover.kicker" d="Proposal" /></p>
-          <h1 className="bc-title"><T k="customer" d={customer} /></h1>
-          <p className="bc-sub">
-            <T k="bc.cover.sub" d="Teton ambient monitoring for {site}’s {beds}: the investment, what it returns once live, and how quickly it pays for itself." v={vars} />
-          </p>
-        </div>
-        <div className="bc-cover-bottom">
-          <p className="bc-sig">
-            <b>Proposal v{versionNo} · {sites}</b>
-            <br />
-            {dateLabel(savedAt)}
-          </p>
-          {shown('roi') && (
-            <div className="bc-stat">
-              <b><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></b>
-              <span><T k="bc.cover.stat" d="projected annual benefit once {site} is live ({case} case)" v={vars} /></span>
-            </div>
+      {order.map((id, i) => (
+        <PageSlot key={id} id={id} index={i} order={order}>
+          {custom[id] ? (
+            <Page no={i + 1} crumb={custom[id].title || 'Added page'}>
+              <h1 className="bc-h1 bc-custom-title">
+                <CustomTitle id={id} title={custom[id].title} store="bcCustom" />
+              </h1>
+              <RichBody id={id} html={custom[id].html} store="bcCustom" className="proposal-rich bc-rich" />
+            </Page>
+          ) : (
+            defs[id](i + 1)
           )}
-        </div>
-        <div className="bc-band"><T k="bc.cover.band" d="Prevention becomes measurable once the environment becomes observable." /></div>
-      </section>
-      {pages.map((render, i) => render(i + 2))}
+        </PageSlot>
+      ))}
+      <AddPageZone at={null} />
     </article>
   );
 }

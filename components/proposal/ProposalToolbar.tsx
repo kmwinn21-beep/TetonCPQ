@@ -162,7 +162,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           )}
         </div>
         <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>Click text to reword it · click a figure to see and change its inputs · hover a section to remove or drag it · hover between sections to add one.</span>
+          <span>{text.layout.format === 'businessCase' ? 'Click text to reword it · click a figure to see and change its inputs · hover a page to move or remove it · hover between pages to add one.' : 'Click text to reword it · click a figure to see and change its inputs · hover a section to remove or drag it · hover between sections to add one.'}</span>
           {editCount > 0 && (
             <span>
               {editCount} {editCount === 1 ? 'change' : 'changes'} to this proposal ·{' '}

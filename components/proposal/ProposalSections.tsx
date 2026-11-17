@@ -9,7 +9,8 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { renderText } from '@/lib/proposal/text';
-import { isCustomId, type StandardSection } from '@/lib/proposal/layout';
+import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
+import { isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
 
@@ -230,8 +231,17 @@ function FormatBar({ editor }: { editor: React.RefObject<HTMLDivElement> }) {
   );
 }
 
+/** Which added-content store a section lives in: the standard format's sections, or the business case's pages. */
+export type CustomStore = 'custom' | 'bcCustom';
+const patchCustom = (store: CustomStore, id: string, patch: Partial<{ title: string; html: string }>) => (l: ProposalLayout): ProposalLayout => {
+  const all = { ...(l[store] ?? {}) };
+  if (!all[id]) return l;
+  all[id] = { ...all[id], ...patch };
+  return { ...l, [store]: all };
+};
+
 /** Formatted body of an added section. Uncontrolled while editing so the caret never jumps. */
-function RichBody({ id, html }: { id: string; html: string }) {
+export function RichBody({ id, html, store = 'custom', className: cls }: { id: string; html: string; store?: CustomStore; className?: string }) {
   const { editable, setLayout } = useProposalText();
   const ref = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
@@ -241,7 +251,7 @@ function RichBody({ id, html }: { id: string; html: string }) {
     if (ref.current) ref.current.innerHTML = initial.current;
   }, []);
 
-  const className = 'proposal-rich text-[14px] leading-relaxed max-w-prose';
+  const className = cls ?? 'proposal-rich text-[14px] leading-relaxed max-w-prose';
   if (!editable) return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
   return (
     <div className="relative">
@@ -259,7 +269,7 @@ function RichBody({ id, html }: { id: string; html: string }) {
         onBlur={() => setFocused(false)}
         onInput={(e) => {
           const next = (e.currentTarget as HTMLDivElement).innerHTML;
-          setLayout((l) => ({ ...l, custom: { ...l.custom, [id]: { ...l.custom[id], html: next } } }));
+          setLayout(patchCustom(store, id, { html: next }));
         }}
       />
     </div>
@@ -267,7 +277,7 @@ function RichBody({ id, html }: { id: string; html: string }) {
 }
 
 /** Plain editable heading for an added section. */
-function CustomTitle({ id, title }: { id: string; title: string }) {
+export function CustomTitle({ id, title, store = 'custom' }: { id: string; title: string; store?: CustomStore }) {
   const { editable, setLayout } = useProposalText();
   if (!editable) return <>{title}</>;
   return (
@@ -287,7 +297,7 @@ function CustomTitle({ id, title }: { id: string; title: string }) {
       }}
       onBlur={(e) => {
         const next = (e.currentTarget.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (next !== title) setLayout((l) => ({ ...l, custom: { ...l.custom, [id]: { ...l.custom[id], title: next } } }));
+        if (next !== title) setLayout(patchCustom(store, id, { title: next }));
       }}
     >
       {title}
@@ -509,9 +519,12 @@ export function RemovedPanel() {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   if (!editable) return null;
-  const sections = layout.hiddenSections.filter((id): id is StandardSection => id in SECTION_TITLES);
+  const businessCase = layout.format === 'businessCase';
+  // The business-case format arranges pages instead of sections.
+  const sections = businessCase ? [] : layout.hiddenSections.filter((id): id is StandardSection => id in SECTION_TITLES);
+  const pages = businessCase ? removedBcPages(bcPagesOf(layout)) : [];
   const values = layout.hiddenValues;
-  if (!sections.length && !values.length) return null;
+  if (!sections.length && !values.length && !pages.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -532,6 +545,14 @@ export function RemovedPanel() {
             {sections.map((id) =>
               item(id, renderText(edits[SECTION_TITLES[id].key] ?? SECTION_TITLES[id].title).replace(/\{\w+\}\s*/g, ''), () => setLayout((l) => ({ ...l, hiddenSections: l.hiddenSections.filter((x) => x !== id) }))),
             )}
+          </ul>
+        </>
+      )}
+      {pages.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Pages</p>
+          <ul>
+            {pages.map((id) => item(`page-${id}`, BC_PAGE_TITLES[id], () => setLayout((l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }))))}
           </ul>
         </>
       )}
