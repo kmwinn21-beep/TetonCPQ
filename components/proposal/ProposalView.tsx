@@ -8,7 +8,9 @@ import type { PriceLine } from '@/lib/pricing/lines';
 import type { Product } from '@/lib/pricing/catalog';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import type { StoredOutputs } from '@/lib/quote/outputs';
-import { ProposalDocument } from './ProposalDocument';
+import { ProposalDocument, type ProposalProps } from './ProposalDocument';
+import { BusinessCaseDocument } from './BusinessCase';
+import { useProposalText } from './EditableText';
 import { ProposalToolbar, type SentRecord } from './ProposalToolbar';
 import { RemovedPanel } from './ProposalSections';
 import { WhatIfWorkspace } from './WhatIf';
@@ -64,10 +66,16 @@ export function ProposalView(p: {
                 <RemovedPanel />
               </div>
             </div>
-            <ProposalDocument draft={data.draft} outputs={data.outputs} lines={data.lines} versionNo={p.versionNo} savedAt={p.savedAt} />
+            <DocumentInFormat draft={data.draft} outputs={data.outputs} lines={data.lines} versionNo={p.versionNo} savedAt={p.savedAt} />
           </div>
         </>
       )}
     </WhatIfWorkspace>
   );
+}
+
+/** The proposal in the format chosen for this version: standard, or business case. */
+function DocumentInFormat(props: ProposalProps) {
+  const { layout } = useProposalText();
+  return layout.format === 'businessCase' ? <BusinessCaseDocument {...props} /> : <ProposalDocument {...props} />;
 }

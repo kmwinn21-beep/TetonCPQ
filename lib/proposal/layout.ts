@@ -12,6 +12,8 @@ const OLD_DEFAULT = ['summary', 'scope', 'terms', 'implementation', 'resources',
 const LAYOUT_VERSION = 2;
 export type StandardSection = (typeof STANDARD_SECTIONS)[number];
 
+export type ProposalFormat = 'standard' | 'businessCase';
+
 export interface CustomSection {
   title: string;
   /** Sanitized rich text (bold, italic, underline, lists, indents, size, color). */
@@ -31,11 +33,13 @@ export interface ProposalLayout {
    * first section always starts page 1). Null = the browser breaks pages itself.
    */
   pageStarts?: string[] | null;
+  /** Document style: the standard proposal, or the business-case layout (cover page, stat cards). */
+  format?: ProposalFormat;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
 
-export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, version: LAYOUT_VERSION };
+export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', version: LAYOUT_VERSION };
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;
 export const isCustomId = (id: string) => id.startsWith('custom-');
@@ -104,6 +108,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     hiddenValues: ids(raw.hiddenValues, 200),
     custom,
     pageStarts: raw.pageStarts == null ? null : ids(raw.pageStarts, 60).filter((id) => finalOrder.includes(id)),
+    format: raw.format === 'businessCase' ? 'businessCase' : 'standard',
   };
 }
 

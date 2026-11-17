@@ -119,6 +119,33 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           ) : (
             <>
               {text.editable && (
+                <div role="group" aria-label="Proposal format" className="flex rounded-lg border border-white/30 p-0.5 text-sm">
+                  {(
+                    [
+                      ['standard', 'Standard'],
+                      ['businessCase', 'Business case'],
+                    ] as const
+                  ).map(([f, label]) => {
+                    const on = (text.layout.format ?? 'standard') === f;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        aria-pressed={on}
+                        className={`px-2.5 py-1.5 rounded-md font-medium ${on ? 'bg-white text-teton-ink' : 'text-sidebar-font/80 hover:text-sidebar-font'}`}
+                        onClick={() => {
+                          if (f === 'businessCase') setPagesOpen(false);
+                          text.setLayout((l) => ({ ...l, format: f }));
+                        }}
+                        title={f === 'businessCase' ? 'A cover page and full-page sections, like a business case' : 'The standard proposal'}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {text.editable && text.layout.format !== 'businessCase' && (
                 <button
                   type="button"
                   aria-expanded={pagesOpen}
@@ -173,7 +200,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
         )}
       </div>
     </div>
-    {pagesOpen && text.editable && <PagePlanner onClose={() => setPagesOpen(false)} />}
+    {pagesOpen && text.editable && text.layout.format !== 'businessCase' && <PagePlanner onClose={() => setPagesOpen(false)} />}
     {banner}
     </div>
   );
