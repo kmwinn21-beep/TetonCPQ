@@ -81,7 +81,7 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
       introMonthly,
       introMonths: introLines[0]?.termMonths ?? 0,
       oneTime: sum(ls.filter((l) => l.billing === 'one_time').map(lineTotal)),
-      credit: -sum(ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal)),
+      credit: -sum(ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT') || l.concessionCode?.startsWith('SENSOR_CREDIT')).map(lineTotal)),
     };
   });
 

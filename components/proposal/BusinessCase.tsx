@@ -219,7 +219,9 @@ function installMath(ls: PriceLine[]): { gross: number; credit: number; text: st
  * when the discounted sensors are all at pilot sites), so free or discounted sensors read like the install credit.
  */
 function sensorMath(ls: PriceLine[], isPilot: (position: number | null | undefined) => boolean = () => false): { total: number; text: string } {
-  const sensors = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0);
+  const sensors = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0 && !l.concessionCode?.startsWith('SENSOR_CREDIT'));
+  // The pilot install credit applied to sensors (its own price line).
+  const sensorCredit = ls.filter((l) => l.concessionCode?.startsWith('SENSOR_CREDIT'));
   const groups = new Map<number, number>();
   sensors.forEach((l) => {
     const unit = Math.max(l.unitList, l.unitNet);
@@ -227,10 +229,11 @@ function sensorMath(ls: PriceLine[], isPilot: (position: number | null | undefin
   });
   const parts = Array.from(groups.entries()).map(([unit, qty]) => `${count(qty)} ${qty === 1 ? 'sensor' : 'sensors'} × ${usd(unit)}`);
   const discounted = sensors.filter((l) => l.unitList > l.unitNet);
-  const credit = sum(discounted.map((l) => l.qty * (l.unitList - l.unitNet)));
-  const label = discounted.length && discounted.every((l) => isPilot(l.communityPosition)) ? 'pilot credit' : 'credit';
+  const credit = sum(discounted.map((l) => l.qty * (l.unitList - l.unitNet))) - sum(sensorCredit.map(lineTotal));
+  const credited = [...discounted, ...sensorCredit];
+  const label = credited.length && credited.every((l) => isPilot(l.communityPosition)) ? 'pilot credit' : 'credit';
   const text = (parts.join(' + ') || 'None included') + (credit > 0 ? ` − ${usd(credit)} ${label}` : '');
-  return { total: sum(sensors.map(lineTotal)), text };
+  return { total: sum([...sensors, ...sensorCredit].map(lineTotal)), text };
 }
 
 /** What's in scope, as pills: filled when included, dimmed when not. */
@@ -313,13 +316,15 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     { key: 'rest', from: 13, to: horizon, label: `Months 13–${horizon}`, note: 'At run rate, discounted' },
   ].filter((w) => w.to >= w.from);
 
+  // Annual cost of Teton: equipment purchase spread over its useful life, or the run-rate subscription (so gross − cost = the Stabilized Net Benefit).
+  const tetonAnnual = capexShown ? capex.ownershipTotal / (capex.ownershipMonths / 12) : sel.annualRoi - kp.runRateAnnualNetBenefit;
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
-    { key: 'roi.benefit.care', label: 'Recaptured care revenue', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
+    { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
     { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Faster fill of open apartments', sub: 'Monitoring as a reason families choose the community' },
     { key: 'roi.benefit.staffing', label: 'Night shift savings', value: sel.nightShiftSavings, means: 'Fewer routine night checks', sub: 'Staff go where they are needed' },
-    { key: 'roi.benefit.los', label: 'Longer length of stay', value: sel.revenueFromLosIncrease, means: 'Fewer move-outs after a fall', sub: 'Revenue kept from residents who stay longer' },
+    { key: 'roi.benefit.los', label: 'Increased Length of Stay', value: sel.revenueFromLosIncrease, means: 'Fewer move-outs after a fall', sub: 'Revenue kept from residents who stay longer' },
     { key: 'roi.benefit.tech', label: 'Tech replacement', value: sel.techReplacement, means: 'Systems Teton replaces', sub: 'Spend that no longer recurs' },
-    { key: 'roi.benefit.falls', label: 'Fall cost avoidance', value: sel.fallCostAvoidance, means: '{n} costly falls prevented', sub: 'Hospital transfers and their costs avoided', v: { n: count(sel.costlyFallsPrevented) } },
+    { key: 'roi.benefit.falls', label: 'Fall cost avoidance', value: sel.fallCostAvoidance, means: 'Costly Falls Prevented', sub: 'Hospital transfers and their costs avoided' },
   ]
     .filter((b) => b.value !== 0)
     .sort((a, b) => b.value - a.value);
@@ -540,10 +545,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         {capexShown ? (
           <>
             <h1 className="bc-h1">
-              <T k="bc.scope.title.capex" d="{equipment} of equipment, returned through operating income." v={{ ...vars, equipment: usd(capex.equipment) }} />
+              <T k="bc.scope.title.capex" d="Post-Pilot Overview" />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install, and the license is perpetual." v={vars} />
+              <T k="bc.scope.lede.capex" d="Cost breakdown of Teton post-pilot" />
             </p>
           </>
         ) : (
@@ -715,7 +720,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </p>
         <Blocks page="roi">
         <B id="table" label="Sources of value">
-        <div className="bc-card bc-tbl">
+        <div className="bc-card bc-tbl bc-roi-tbl">
           <table>
             <thead>
               <tr>
@@ -728,7 +733,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <tbody>
               {benefitRows.map((b) => (
                 <tr key={b.key}>
-                  <td className="bc-m"><T k={b.key} d={b.label} /></td>
+                  <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
                   <td>
                     <T k={`bc.${b.key}.means`} d={b.means} v={b.v} />
                     <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>
@@ -741,10 +746,28 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </tr>
               ))}
               <tr className="bc-tot">
-                <td className="bc-m"><T k="roi.total" d="Total annual benefit" /></td>
+                <td className="bc-m"><T k="bc.roi.gross" d="Gross Annual Benefit" /></td>
                 <td />
                 <td>100%</td>
                 <td className="bc-hl bc-big bc-r"><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></td>
+              </tr>
+              <tr>
+                <td className="bc-m"><T k="bc.roi.cost" d="Cost of Teton" /></td>
+                <td>
+                  <T
+                    k={capexShown ? 'bc.roi.costNote.capex' : 'bc.roi.costNote.opex'}
+                    d={capexShown ? '{years}-year cost of ownership ÷ {years} years' : 'Annual subscription once every community is live'}
+                    v={{ years: String(capex.ownershipMonths / 12) }}
+                  />
+                </td>
+                <td />
+                <td className="bc-hl bc-big bc-r"><V k="bc.roi.cost.value" label="Annual cost of Teton">−{usd(tetonAnnual)}</V></td>
+              </tr>
+              <tr className="bc-tot">
+                <td className="bc-m"><T k="bc.roi.net" d="Net Annual Benefit" /></td>
+                <td />
+                <td />
+                <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(sel.annualRoi - tetonAnnual)}</V></td>
               </tr>
             </tbody>
           </table>
@@ -977,25 +1000,50 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     );
   }
 
-  // ---------- Terms, notes and assumptions ----------
+  // ---------- Terms and next steps ----------
   {
     defs.terms = (no) => (
-      <Page key="terms" no={no} crumb={<T k="bc.terms.crumb" d="Terms and assumptions" />}>
-        <p className="bc-eyebrow"><T k="bc.terms.eyebrow" d="Terms and assumptions" /></p>
-        <h1 className="bc-h1"><T k="bc.terms.title" d="What the figures assume." /></h1>
+      <Page key="terms" no={no} crumb={<T k="bc.terms.crumb2" d="Terms" />}>
+        <p className="bc-eyebrow"><T k="bc.terms.eyebrow2" d="Terms" /></p>
+        <h1 className="bc-h1"><T k="bc.terms.title2" d="Key Terms and Next Steps" /></h1>
         <Blocks page="terms">
-        {shown('terms') && (
           <B id="terms" label="Terms and notes">
             <p className="bc-eyebrow bc-gray"><T k="bc.terms.terms" d="Terms and notes" /></p>
             <div className="bc-card bc-terms">
               <TermsList draft={draft} />
             </div>
           </B>
-        )}
-        {shown('assumptions') && (
+          <B id="nextSteps" label="Next steps">
+            <p className="bc-eyebrow bc-gray"><T k="bc.terms.next" d="Next steps" /></p>
+            <div className="bc-card bc-terms">
+              <TermsList draft={draft} kind="nextSteps" />
+            </div>
+          </B>
+          {capexShown && (
+            <B id="callout" label="Cost of ownership">
+              <div className="bc-callout">
+                <b><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal, { compact: capex.ownershipTotal >= 10_000_000 })}</V></b>
+                <div>
+                  <span className="bc-chip"><T k="bc.terms.chip" d="Four-year cost of ownership" /></span>
+                  <p><T k="bc.terms.callout" d="{equipment} of equipment paid once at install, plus {software} of software and services over four years, the useful life of the hardware. About {share} of it is equipment." v={{ equipment: usd(capex.equipment), software: usd(capex.software), share: `${Math.round(capex.equipmentShare * 100)}%` }} /></p>
+                </div>
+              </div>
+            </B>
+          )}
+        </Blocks>
+      </Page>
+    );
+  }
+
+  // ---------- Assumptions ----------
+  {
+    defs.assumptions = (no) => (
+      <Page key="assumptions" no={no} crumb={<T k="bc.assume.crumb" d="Assumptions" />}>
+        <p className="bc-eyebrow"><T k="bc.assume.eyebrow" d="Assumptions" /></p>
+        <h1 className="bc-h1"><T k="bc.assume.title" d="Key Assumptions" /></h1>
+        <Blocks page="assumptions">
           <B id="assumptions" label="Assumptions">
-            <p className="bc-eyebrow bc-gray"><T k="assume.title" d="Assumptions" /></p>
-            <div className="bc-card bc-assume">
+            <div className="bc-card bc-assume" style={{ marginTop: 24 }}>
               {d.assumptions.map(([key, label, value]) => (
                 <div key={key}>
                   <span><T k={key} d={label} /></span>
@@ -1003,22 +1051,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </div>
               ))}
             </div>
+          </B>
+          <B id="disclaimer" label="Disclaimer">
             <p className="bc-note">
               <T k="assume.disclaimer" d="Benefits are modeled estimates based on the assumptions above and the {case} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes. Final pricing is set by the order form." v={{ case: caseName }} />
             </p>
           </B>
-        )}
-        {capexShown && (
-          <B id="callout" label="Cost of ownership">
-          <div className="bc-callout">
-            <b><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal, { compact: capex.ownershipTotal >= 10_000_000 })}</V></b>
-            <div>
-              <span className="bc-chip"><T k="bc.terms.chip" d="Four-year cost of ownership" /></span>
-              <p><T k="bc.terms.callout" d="{equipment} of equipment paid once at install, plus {software} of software and services over four years, the useful life of the hardware. About {share} of it is equipment." v={{ equipment: usd(capex.equipment), software: usd(capex.software), share: `${Math.round(capex.equipmentShare * 100)}%` }} /></p>
-            </div>
-          </div>
-          </B>
-        )}
         </Blocks>
       </Page>
     );

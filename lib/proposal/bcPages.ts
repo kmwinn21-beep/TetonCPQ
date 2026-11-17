@@ -16,7 +16,8 @@ export const BC_PAGE_TITLES: Record<(typeof BC_PAGES)[number], string> = {
   cashflow: 'Cash flow summary',
   implementation: 'Implementation',
   resources: 'Your team',
-  terms: 'Terms and assumptions',
+  terms: 'Terms',
+  assumptions: 'Assumptions',
 };
 
 /** The standard page set for a layout, following the standard sections it keeps. */
@@ -25,7 +26,7 @@ export function defaultBcPages(l: Pick<ProposalLayout, 'hiddenSections'>): strin
   return BC_PAGES.filter((id) => {
     if (id === 'cover') return true;
     if (id === 'cashflow') return !hidden.has('summary');
-    if (id === 'terms') return !hidden.has('terms') || !hidden.has('assumptions');
+
     return !hidden.has(id);
   });
 }

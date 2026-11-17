@@ -63,6 +63,9 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
     }
     if (c.additionalSensors > 0) {
       lines.push({ ...base, sku: SKU.sensor, description: 'Additional sensors', qty: c.additionalSensors, unitList: book[SKU.sensor]?.list ?? 300, unitNet: k.sensorPrice, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: null });
+      if (s.inPilot && k.sensorCredit && k.installCreditPct > 0 && k.sensorPrice > 0) {
+        lines.push({ ...base, sku: SKU.sensor, description: `Sensor credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: c.additionalSensors, unitList: 0, unitNet: -k.sensorPrice * k.installCreditPct, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: k.installClawback ? 'SENSOR_CREDIT_CLAWBACK' : 'SENSOR_CREDIT' });
+      }
     }
   });
   return lines;

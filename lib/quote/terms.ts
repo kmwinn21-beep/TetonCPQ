@@ -16,6 +16,18 @@ import type { QuoteDraft } from './draft';
 export const STANDARD_TERM_IDS = ['pilot', 'service', 'credit', 'intro', 'billing'] as const;
 export type StandardTermId = (typeof STANDARD_TERM_IDS)[number];
 
+/**
+ * Two lists work the same way: the Terms / Notes, and the Next Steps (shown on
+ * the business case). Each has its standard items, stored edits on the draft
+ * (`terms` / `nextSteps`, null = standard) and the same reword / remove /
+ * reorder / add operations.
+ */
+export type ListKind = 'terms' | 'nextSteps';
+export const STANDARD_STEP_IDS = ['confirm', 'survey', 'finish', 'agreement'] as const;
+export type StandardStepId = (typeof STANDARD_STEP_IDS)[number];
+const FIELD: Record<ListKind, 'terms' | 'nextSteps'> = { terms: 'terms', nextSteps: 'nextSteps' };
+const STD_IDS: Record<ListKind, readonly string[]> = { terms: STANDARD_TERM_IDS, nextSteps: STANDARD_STEP_IDS };
+
 export interface TermsSetting {
   /** Display order (standard ids and "custom-…" ids). Standard terms missing from it go in their usual place. */
   order: string[];
@@ -44,22 +56,42 @@ export const TERM_LABEL: Record<StandardTermId, string> = {
   intro: 'Introductory rate',
   billing: 'Billing',
 };
+export const STEP_LABEL: Record<StandardStepId, string> = {
+  confirm: 'Room list',
+  survey: 'Site survey',
+  finish: 'Installation finish',
+  agreement: 'Agreement',
+};
+/** Label of a standard item in either list. */
+export const itemLabel = (kind: ListKind, id: string): string => (kind === 'terms' ? TERM_LABEL[id as StandardTermId] : STEP_LABEL[id as StandardStepId]) ?? id;
 
 const ID = /^[a-z][a-z0-9-]{0,40}$/;
 const MAX_TERMS = 30;
 const MAX_TEXT = 1000;
-const isStandardId = (id: string): id is StandardTermId => (STANDARD_TERM_IDS as readonly string[]).includes(id);
+const isStandardId = (id: string, kind: ListKind = 'terms'): boolean => STD_IDS[kind].includes(id);
 
 /** The deal has pilot sites (a pilot phase and at least one pilot community). */
 const hasPilot = (d: QuoteDraft) => !!d.schedule?.withPilot && (d.communities ?? []).some((c) => c?.pilot);
 
-/** Standard terms that apply to this deal, in their usual order, with wording and values. */
-export function standardTerms(d: QuoteDraft): Array<{ id: StandardTermId; template: string; vars: Record<string, string> }> {
+/** Standard next steps for this deal, in their usual order. */
+function standardSteps(d: QuoteDraft): Array<{ id: string; template: string; vars: Record<string, string> }> {
+  const concealed = !!d.commercial?.finish?.concealed;
+  return [
+    { id: 'confirm', template: 'You confirm the room list.', vars: {} },
+    { id: 'survey', template: `Site survey: confirms quantities${concealed ? ', the installation finish' : ''}, Wi-Fi and power in the rooms.`, vars: {} },
+    ...(concealed ? [{ id: 'finish', template: 'You choose the installation finish.', vars: {} }] : []),
+    { id: 'agreement', template: 'We send the agreement and a dated plan.', vars: {} },
+  ];
+}
+
+/** Standard items of a list that apply to this deal, in their usual order, with wording and values. */
+export function standardTerms(d: QuoteDraft, kind: ListKind = 'terms'): Array<{ id: string; template: string; vars: Record<string, string> }> {
+  if (kind === 'nextSteps') return standardSteps(d);
   const term = POLICY.serviceTermMonths;
   const pilot = hasPilot(d);
   const k = d.commercial;
   const ecallFree = k.ecall !== 'none' && k.ecallPilotRate === 0;
-  const out: Array<{ id: StandardTermId; template: string; vars: Record<string, string> }> = [];
+  const out: Array<{ id: string; template: string; vars: Record<string, string> }> = [];
   if (pilot)
     out.push({
       id: 'pilot',
@@ -74,7 +106,7 @@ export function standardTerms(d: QuoteDraft): Array<{ id: StandardTermId; templa
   if (pilot && k.installCreditPct > 0)
     out.push({
       id: 'credit',
-      template: `Installation credit of {credit} on pilot beds${k.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`,
+      template: `Installation credit of {credit} on pilot beds${k.sensorCredit && (d.communities ?? []).some((c) => c?.pilot && Number(c.additionalSensors) > 0) ? ' and their additional sensors' : ''}${k.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`,
       vars: { credit: `${Math.round(k.installCreditPct * 100)}%` },
     });
   if (k.specialRate != null && k.specialTermMonths > 0)
@@ -88,7 +120,7 @@ export function standardTerms(d: QuoteDraft): Array<{ id: StandardTermId; templa
 }
 
 /** Validate a stored or edited setting. Anything unusable becomes "standard terms" (null). */
-export function normalizeTerms(input: unknown): TermsSetting | null {
+export function normalizeTerms(input: unknown, kind: ListKind = 'terms'): TermsSetting | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   const raw = input as Record<string, unknown>;
   const order = Array.isArray(raw.order) ? Array.from(new Set((raw.order as unknown[]).filter((x): x is string => typeof x === 'string' && ID.test(x)))).slice(0, MAX_TERMS) : [];
@@ -99,18 +131,18 @@ export function normalizeTerms(input: unknown): TermsSetting | null {
       text[id] = v.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
     }
   }
-  const removed = Array.isArray(raw.removed) ? Array.from(new Set((raw.removed as unknown[]).filter((x): x is StandardTermId => typeof x === 'string' && isStandardId(x)))) : [];
+  const removed = Array.isArray(raw.removed) ? Array.from(new Set((raw.removed as unknown[]).filter((x): x is string => typeof x === 'string' && isStandardId(x, kind)))) : [];
   // Custom terms exist only while they're in the order.
-  for (const id of Object.keys(text)) if (!isStandardId(id) && !order.includes(id)) delete text[id];
-  return { order: order.filter((id) => isStandardId(id) || id in text), text, removed };
+  for (const id of Object.keys(text)) if (!isStandardId(id, kind) && !order.includes(id)) delete text[id];
+  return { order: order.filter((id) => isStandardId(id, kind) || id in text), text, removed };
 }
 
 /** The terms to show, in order: standard ones that apply (unless removed) and custom ones. */
-export function resolveTerms(d: QuoteDraft): ResolvedTerm[] {
-  const std = standardTerms(d);
-  const s = normalizeTerms(d.terms);
+export function resolveTerms(d: QuoteDraft, kind: ListKind = 'terms'): ResolvedTerm[] {
+  const std = standardTerms(d, kind);
+  const s = normalizeTerms(d[FIELD[kind]], kind);
   const visibleStd = std.filter((t) => !s?.removed.includes(t.id));
-  const ids: string[] = (s?.order ?? []).filter((id) => (isStandardId(id) ? visibleStd.some((t) => t.id === id) : true));
+  const ids: string[] = (s?.order ?? []).filter((id) => (isStandardId(id, kind) ? visibleStd.some((t) => t.id === id) : true));
   // Standard terms not placed yet (e.g. one that just started to apply) go after the standard term they normally follow.
   visibleStd.forEach((t, i) => {
     if (ids.includes(t.id)) return;
@@ -132,79 +164,80 @@ export function resolveTerms(d: QuoteDraft): ResolvedTerm[] {
 }
 
 /** Rendered plain text of each term, as shown on the proposal. */
-export const termTexts = (d: QuoteDraft) => resolveTerms(d).map((t) => renderText(t.template, t.vars));
+export const termTexts = (d: QuoteDraft, kind: ListKind = 'terms') => resolveTerms(d, kind).map((t) => renderText(t.template, t.vars));
 
 /* ------------------------------------------------------------------ */
 /* Changes                                                             */
 /* ------------------------------------------------------------------ */
 
 /** Snapshot the current order (so edits keep the order the rep sees). */
-function base(d: QuoteDraft): TermsSetting {
-  const s = normalizeTerms(d.terms) ?? { order: [], text: {}, removed: [] };
-  return { ...s, order: resolveTerms(d).map((t) => t.id) };
+function base(d: QuoteDraft, kind: ListKind): TermsSetting {
+  const s = normalizeTerms(d[FIELD[kind]], kind) ?? { order: [], text: {}, removed: [] };
+  return { ...s, order: resolveTerms(d, kind).map((t) => t.id) };
 }
 
 /** Reword a term. Standard wording again clears the edit. */
-export function editTerm(d: QuoteDraft, id: string, template: string): TermsSetting {
-  const s = base(d);
-  const st = standardTerms(d).find((t) => t.id === id);
+export function editTerm(d: QuoteDraft, id: string, template: string, kind: ListKind = 'terms'): TermsSetting {
+  const s = base(d, kind);
+  const st = standardTerms(d, kind).find((t) => t.id === id);
   const text = { ...s.text };
   const clean = template.replace(/\s+/g, ' ').trim();
   if (st && clean === st.template) delete text[id];
   else text[id] = clean;
-  return normalizeTerms({ ...s, text })!;
+  return normalizeTerms({ ...s, text }, kind)!;
 }
 
-export function removeTerm(d: QuoteDraft, id: string): TermsSetting {
-  const s = base(d);
+export function removeTerm(d: QuoteDraft, id: string, kind: ListKind = 'terms'): TermsSetting {
+  const s = base(d, kind);
   const text = { ...s.text };
   delete text[id];
-  return normalizeTerms({ order: s.order.filter((x) => x !== id), text, removed: isStandardId(id) ? [...s.removed, id] : s.removed })!;
+  return normalizeTerms({ order: s.order.filter((x) => x !== id), text, removed: isStandardId(id, kind) ? [...s.removed, id] : s.removed }, kind)!;
 }
 
 /** Add a custom note at the end. Returns the setting and the new id. */
-export function addTerm(d: QuoteDraft, text = ''): { terms: TermsSetting; id: string } {
-  const s = base(d);
+export function addTerm(d: QuoteDraft, text = '', kind: ListKind = 'terms'): { terms: TermsSetting; id: string } {
+  const s = base(d, kind);
   const id = `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
   // An empty note is kept as a single space until typed in, so it survives normalizing.
-  return { terms: normalizeTerms({ ...s, order: [...s.order, id], text: { ...s.text, [id]: text || ' ' } })!, id };
+  return { terms: normalizeTerms({ ...s, order: [...s.order, id], text: { ...s.text, [id]: text || ' ' } }, kind)!, id };
 }
 
-export function moveTerm(d: QuoteDraft, id: string, by: -1 | 1): TermsSetting {
-  const s = base(d);
+export function moveTerm(d: QuoteDraft, id: string, by: -1 | 1, kind: ListKind = 'terms'): TermsSetting {
+  const s = base(d, kind);
   const i = s.order.indexOf(id);
   const j = i + by;
   if (i < 0 || j < 0 || j >= s.order.length) return s;
   const order = [...s.order];
   [order[i], order[j]] = [order[j], order[i]];
-  return normalizeTerms({ ...s, order })!;
+  return normalizeTerms({ ...s, order }, kind)!;
 }
 
 /** Standard terms the rep removed that would apply to this deal (to add back). */
-export function removedTerms(d: QuoteDraft): StandardTermId[] {
-  const s = normalizeTerms(d.terms);
-  return standardTerms(d)
+export function removedTerms(d: QuoteDraft, kind: ListKind = 'terms'): string[] {
+  const s = normalizeTerms(d[FIELD[kind]], kind);
+  return standardTerms(d, kind)
     .map((t) => t.id)
     .filter((id) => s?.removed.includes(id));
 }
 
-export function restoreTerm(d: QuoteDraft, id: StandardTermId): TermsSetting {
-  const s = base(d);
-  return normalizeTerms({ ...s, removed: s.removed.filter((x) => x !== id) })!;
+export function restoreTerm(d: QuoteDraft, id: string, kind: ListKind = 'terms'): TermsSetting {
+  const s = base(d, kind);
+  return normalizeTerms({ ...s, removed: s.removed.filter((x) => x !== id) }, kind)!;
 }
 
 /** The terms are exactly the standard ones. */
-export function isStandardTerms(d: QuoteDraft): boolean {
-  const r = resolveTerms(d);
-  const std = standardTerms(d);
+export function isStandardTerms(d: QuoteDraft, kind: ListKind = 'terms'): boolean {
+  const r = resolveTerms(d, kind);
+  const std = standardTerms(d, kind);
   return r.length === std.length && r.every((t, i) => t.id === std[i].id && !t.edited);
 }
 
 /** Plain-language differences between two drafts' terms. */
-export function termsChanges(before: QuoteDraft, after: QuoteDraft): string[] {
-  const a = resolveTerms(before);
-  const b = resolveTerms(after);
-  const name = (t: ResolvedTerm) => (t.custom ? `“${renderText(t.template, t.vars).slice(0, 40)}${renderText(t.template, t.vars).length > 40 ? '…' : ''}”` : `${TERM_LABEL[t.id as StandardTermId]}${/term$/i.test(TERM_LABEL[t.id as StandardTermId]) ? '' : ' term'}`);
+export function termsChanges(before: QuoteDraft, after: QuoteDraft, kind: ListKind = 'terms'): string[] {
+  const a = resolveTerms(before, kind);
+  const b = resolveTerms(after, kind);
+  const noun = kind === 'terms' ? 'term' : 'step';
+  const name = (t: ResolvedTerm) => (t.custom ? `“${renderText(t.template, t.vars).slice(0, 40)}${renderText(t.template, t.vars).length > 40 ? '…' : ''}”` : `${itemLabel(kind, t.id)}${new RegExp(`${noun}$`, 'i').test(itemLabel(kind, t.id)) ? '' : ` ${noun}`}`);
   const out: string[] = [];
   for (const t of a) if (!b.some((x) => x.id === t.id)) out.push(`removed ${name(t)}`);
   for (const t of b) {
@@ -214,6 +247,6 @@ export function termsChanges(before: QuoteDraft, after: QuoteDraft): string[] {
     else if (was.template.trim() !== t.template.trim()) out.push(`reworded ${name(t)}`);
   }
   const keep = (xs: ResolvedTerm[], ys: ResolvedTerm[]) => xs.filter((x) => ys.some((y) => y.id === x.id)).map((x) => x.id).join();
-  if (keep(a, b) !== keep(b, a)) out.push('terms reordered');
+  if (keep(a, b) !== keep(b, a)) out.push(kind === 'terms' ? 'terms reordered' : 'next steps reordered');
   return out;
 }

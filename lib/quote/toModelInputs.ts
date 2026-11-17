@@ -79,7 +79,8 @@ export function toModelInputs(d: QuoteDraft): ModelInputs {
           postPilotInstallPerBed: r.postPilotInstallPerBed,
         };
       })(),
-      pilotSensorPrice: d.commercial.sensorPrice,
+      // With the sensor credit, pilot sites' additional sensors carry the install credit too (they keep it after converting).
+      pilotSensorPrice: d.commercial.sensorPrice * (d.commercial.sensorCredit ? 1 - d.commercial.installCreditPct : 1),
       postPilotSensorPrice: d.commercial.sensorPrice,
       specialTermMonths: d.commercial.specialRate != null ? d.commercial.specialTermMonths : 0,
     },

@@ -41,3 +41,23 @@ describe('Forest Hills Commons deck', () => {
     expect(normalizeDraft(old).commercial.finish).toEqual({ concealed: false, low: 700, high: 1_000, credit: 400 });
   });
 });
+
+describe('install credit on additional sensors', () => {
+  it('credits pilot sensors when switched on, in the price lines and the model', async () => {
+    const { buildPriceLines, lineTotal } = await import('./lines');
+    const { toModelInputs } = await import('@/lib/quote/toModelInputs');
+    const { runModel } = await import('@/lib/model');
+    const d = forestHills();
+    d.communities[0].pilot = true;
+    d.commercial.installCreditPct = 1;
+    d.commercial.sensorPrice = 300;
+    const sensorTotal = (x: QuoteDraft) => buildPriceLines(x, toModelInputs(x), priceBook()).filter((l) => l.sku === 'SENSOR-ADDITIONAL').reduce((s, l) => s + lineTotal(l), 0);
+    expect(sensorTotal(d)).toBe(82 * 300); // off by default
+    const before = runModel(toModelInputs(d)).cashFlow.install[0];
+    d.commercial.sensorCredit = true;
+    expect(sensorTotal(d)).toBe(0);
+    expect(runModel(toModelInputs(d)).cashFlow.install[0]).toBe(before - 82 * 300);
+    // Equipment purchase still charges the sensors once converted.
+    expect(computeCapex(d).sensorCost).toBe(36_900);
+  });
+});

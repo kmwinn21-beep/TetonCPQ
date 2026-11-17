@@ -107,6 +107,12 @@ export function PricingSection({ book }: SectionProps) {
             />
             <ToggleField name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
             <MoneyField name="commercial.sensorPrice" label="Additional sensor (each)" min={0} />
+            <ToggleField
+              name="commercial.sensorCredit"
+              label="Apply the install credit to additional sensors"
+              hint="Pilot sites only. Subscription: they never pay for those sensors. Equipment purchase: credited during the pilot, charged on conversion."
+              disabled={!k.installCreditPct}
+            />
           </Grid>
         </div>
 

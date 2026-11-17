@@ -55,6 +55,8 @@ export interface Commercial {
   installCreditPct: number;
   /** Credit is clawed back if the customer doesn't convert. */
   installClawback: boolean;
+  /** Apply the install credit to pilot sites' additional sensors too. */
+  sensorCredit: boolean;
   /** Optional introductory platform rate for the first months of the service term. */
   specialRate: number | null;
   specialTermMonths: number;
@@ -100,6 +102,8 @@ export interface QuoteDraft {
   implementationPlan: ImplementationPlan;
   /** Terms / Notes on the proposal. null = the standard terms for this deal. */
   terms: TermsSetting | null;
+  /** Next steps (business case): null = the standard steps. */
+  nextSteps: TermsSetting | null;
   /** The customer's estimated hours by role and implementation stage. */
   resources: Resources;
   commercial: Commercial;
@@ -153,6 +157,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
     implementation: { desiredGoLive: goLive, communicationWeeks: 3, installationWeeks: 1, baselineWeeks: 4, onboardingDays: 3 },
     implementationPlan: defaultPlan(),
     terms: null,
+    nextSteps: null,
     resources: [],
     commercial: {
       platformRate: book[SKU.platform]?.list ?? 99,
@@ -163,6 +168,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       installRate: book[SKU.install]?.list ?? 400,
       installCreditPct: 0,
       installClawback: false,
+      sensorCredit: false,
       specialRate: null,
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
@@ -185,6 +191,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     presentation: d.presentation ?? 'opex',
     implementationPlan: normalizePlan(d.implementationPlan),
     terms: normalizeTerms(d.terms),
+    nextSteps: normalizeTerms(d.nextSteps, 'nextSteps'),
     resources: normalizeResources(d.resources),
     commercial: normalizeCommercial(d.commercial),
     communities: (d.communities ?? []).map(normalizeCommunity),
@@ -194,7 +201,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
 /** Drafts from before equipment-purchase pricing had a capex discount rate instead: drop it, add the list prices. */
 function normalizeCommercial(c: Commercial): Commercial {
   const { capexDiscountRate: _old, ...rest } = c as Commercial & { capexDiscountRate?: number };
-  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) }, finish: normalizeFinish(rest.finish) };
+  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) }, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true };
 }
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */

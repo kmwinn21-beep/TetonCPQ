@@ -73,6 +73,7 @@ const FIELDS: Record<string, Field> = {
   'commercial.installRate': { label: 'Install / bed', fmt: 'usd' },
   'commercial.installCreditPct': { label: 'Install credit on pilot sites', fmt: 'pct' },
   'commercial.installClawback': { label: 'Install credit clawback', fmt: 'bool' },
+  'commercial.sensorCredit': { label: 'Install credit on additional sensors', fmt: 'bool' },
   'commercial.specialRate': { label: 'Intro rate / bed / mo', fmt: 'usd' },
   'commercial.specialTermMonths': { label: 'Intro term (months)', fmt: 'num' },
   'commercial.fullFacilityMultiplier': { label: 'Full-facility multiplier', fmt: 'mult' },
@@ -183,8 +184,8 @@ const METRIC_LABEL: Record<string, string> = {
 /** Changes from `before` to `after`. Communities are matched by their id, so a rename is a change, not a remove + add. */
 export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const changes: Change[] = [];
-  const { communities: ca, implementationPlan: pa, terms: _ta, resources: xa, ...ra } = before;
-  const { communities: cb, implementationPlan: pb, terms: _tb, resources: xb, ...rb } = after;
+  const { communities: ca, implementationPlan: pa, terms: _ta, nextSteps: _na, resources: xa, ...ra } = before;
+  const { communities: cb, implementationPlan: pb, terms: _tb, nextSteps: _nb, resources: xb, ...rb } = after;
 
   // Implementation stages are compared as a plan (stages can be added, removed and reordered).
 
@@ -229,6 +230,8 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   // Only edits to the terms themselves (a pricing change that adds a standard term isn't one).
   if (JSON.stringify(normalizeTerms(_ta)) !== JSON.stringify(normalizeTerms(_tb)))
     for (const c of termsChanges(before, after)) changes.push({ group: 'Terms / Notes', label: 'Terms / Notes', from: '', to: c });
+  if (JSON.stringify(normalizeTerms(_na, 'nextSteps')) !== JSON.stringify(normalizeTerms(_nb, 'nextSteps')))
+    for (const c of termsChanges(before, after, 'nextSteps')) changes.push({ group: 'Terms / Notes', label: 'Next steps', from: '', to: c });
   for (const c of resourcesChanges(xa, xb, pb)) changes.push({ group: 'Resource allocation', label: 'Estimated resource allocation', from: '', to: c });
   const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Resource allocation', 'Timeline', 'Terms / Notes', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
   return changes.sort((x, y) => order.indexOf(x.group) - order.indexOf(y.group));

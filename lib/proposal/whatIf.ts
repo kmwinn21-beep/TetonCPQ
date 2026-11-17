@@ -73,6 +73,7 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.installRate', 'Install / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.installCreditPct', 'Install credit on pilot sites', PRICING, PRICING_AT, 'pct', { max: 1 }),
   F('commercial.sensorPrice', 'Additional sensor price', PRICING, PRICING_AT, 'usd'),
+  F('commercial.sensorCredit', 'Install credit on additional sensors', PRICING, PRICING_AT, 'toggle'),
   F('commercial.fullFacilityMultiplier', 'Full-facility multiplier', PRICING, PRICING_AT, 'mult'),
   F('commercial.specialRate', 'Intro rate / bed / mo', PRICING, PRICING_AT, 'usd2', { nullable: true }),
   F('commercial.specialTermMonths', 'Intro term', PRICING, PRICING_AT, 'months'),
@@ -121,6 +122,7 @@ export const FIELDS: WhatIfField[] = [
 
   // The Terms / Notes bullet list (reworded, removed and added terms).
   F('terms', 'Terms / Notes', 'Terms / Notes', 'Terms / Notes', 'terms'),
+  F('nextSteps', 'Next steps', 'Terms / Notes', 'Terms / Notes', 'terms'),
 
   // The customer's roles, stages and hours (Estimated Resource Allocation).
   F('resources', 'Estimated resource allocation', 'Resource allocation', 'Estimated Resource Allocation', 'resources'),
@@ -257,9 +259,10 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.pilotMonthly') return { formula: 'Pilot beds × (pilot rate + E-Call during pilot)', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.install') return { formula: 'Beds × install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
-  if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price', fields: ['commercial.sensorPrice'] };
+  if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price, less the install credit on pilot sites when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
   if (k === 'bc.overview.perBed') return pricing('Total cost over the term ÷ (beds × months, counting each community’s pilot and service term)');
-  if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price', fields: ['commercial.sensorPrice'] };
+  if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price, less the install credit when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
+  if (k === 'bc.roi.cost' || k === 'bc.roi.net') return pricing('Gross annual benefit − annual cost of Teton (the equipment purchase spread over four years, or the run-rate subscription)', ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate']);
   if (k.startsWith('finish.')) return { formula: 'Rooms × (concealed price − standard installation credit), low to high, pending the site survey', fields: ['commercial.finish.concealed', 'commercial.finish.low', 'commercial.finish.high', 'commercial.finish.credit'] };
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
@@ -323,7 +326,7 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
     }
     if (f.kind === 'terms') {
       if (v !== null && (typeof v !== 'object' || Array.isArray(v))) throw new Error(`${f.label} must be a list of terms`);
-      out = setPath(out, path, normalizeTerms(v));
+      out = setPath(out, path, normalizeTerms(v, path === 'nextSteps' ? 'nextSteps' : 'terms'));
       continue;
     }
     if (f.kind === 'plan') {
@@ -370,7 +373,10 @@ export function changeDetails(draft: QuoteDraft, changes: Changes): ChangeDetail
     if (f.kind === 'plan') return [{ path: p, label: 'Implementation', lines: planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).map((text) => ({ text })) }];
     if (f.kind === 'resources')
       return [{ path: p, label: 'Resource allocation', lines: resourcesChanges(normalizeResources(getPath(draft, p)), normalizeResources(v), draft.implementationPlan).map((text) => ({ text })) }];
-    if (f.kind === 'terms') return [{ path: p, label: 'Terms / Notes', lines: termsChanges(draft, { ...draft, terms: normalizeTerms(v) }).map((text) => ({ text })) }];
+    if (f.kind === 'terms') {
+      const kind = p === 'nextSteps' ? 'nextSteps' : 'terms';
+      return [{ path: p, label: kind === 'terms' ? 'Terms / Notes' : 'Next steps', lines: termsChanges(draft, { ...draft, [kind]: normalizeTerms(v, kind) }, kind).map((text) => ({ text })) }];
+    }
     return [{ path: p, label: f.label, lines: [{ from: formatField(f, getPath(draft, p)), to: formatField(f, v) }] }];
   });
 }
@@ -383,7 +389,7 @@ export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
 export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
   if (f.kind === 'choice') return f.options?.find(([o]) => o === v)?.[1] ?? String(v);
-  if (f.kind === 'terms') return v == null ? 'standard terms' : 'customized terms';
+  if (f.kind === 'terms') return v == null ? (f.path === 'nextSteps' ? 'standard next steps' : 'standard terms') : f.path === 'nextSteps' ? 'customized next steps' : 'customized terms';
   if (f.kind === 'resources') {
     const rs = normalizeResources(v);
     return `${rs.length} ${rs.length === 1 ? 'role' : 'roles'}`;

@@ -6,15 +6,15 @@
  * change the deal's terms, so they're unsaved input changes until "Save all
  * changes". Elsewhere (e.g. the sent copy) it's a plain list.
  */
-import { addTerm, editTerm, removeTerm, resolveTerms } from '@/lib/quote/terms';
+import { addTerm, editTerm, removeTerm, resolveTerms, type ListKind } from '@/lib/quote/terms';
 import { renderText } from '@/lib/proposal/text';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { TemplateInput } from '@/components/form/TemplateInput';
 import { useWhatIf } from './WhatIf';
 
-export function TermsList({ draft }: { draft: QuoteDraft }) {
+export function TermsList({ draft, kind = 'terms' }: { draft: QuoteDraft; kind?: ListKind }) {
   const w = useWhatIf();
-  const terms = resolveTerms(draft);
+  const terms = resolveTerms(draft, kind);
   const editable = !!w?.enabled;
   const shown = editable ? terms : terms.filter((t) => renderText(t.template, t.vars).trim());
   return (
@@ -31,7 +31,7 @@ export function TermsList({ draft }: { draft: QuoteDraft }) {
                   ariaLabel={`Term ${i + 1}`}
                   placeholder="Type a note"
                   autoFocus={t.custom && !t.template.trim()}
-                  onCommit={(next) => w!.setChange('terms', editTerm(draft, t.id, next))}
+                  onCommit={(next) => w!.setChange(kind, editTerm(draft, t.id, next, kind))}
                 />
                 <button
                   type="button"
@@ -39,7 +39,7 @@ export function TermsList({ draft }: { draft: QuoteDraft }) {
                   className="no-print absolute right-0 top-0 hidden group-hover/term:flex w-4 h-4 items-center justify-center rounded-full bg-teton-near-black text-white text-[10px]"
                   title="Remove this term (an unsaved change until you save)"
                   aria-label={`Remove term ${i + 1}`}
-                  onClick={() => w!.setChange('terms', removeTerm(draft, t.id))}
+                  onClick={() => w!.setChange(kind, removeTerm(draft, t.id, kind))}
                 >
                   ✕
                 </button>
@@ -51,8 +51,8 @@ export function TermsList({ draft }: { draft: QuoteDraft }) {
         ))}
       </ul>
       {editable && (
-        <button type="button" data-edit-ui className="no-print mt-1.5 text-[12px] text-teton-dark-gray hover:text-teton-ink underline-offset-2 hover:underline" onClick={() => w!.setChange('terms', addTerm(draft).terms)}>
-          + Add a note
+        <button type="button" data-edit-ui className="no-print mt-1.5 text-[12px] text-teton-dark-gray hover:text-teton-ink underline-offset-2 hover:underline" onClick={() => w!.setChange(kind, addTerm(draft, '', kind).terms)}>
+          {kind === 'terms' ? '+ Add a note' : '+ Add a step'}
         </button>
       )}
     </div>
