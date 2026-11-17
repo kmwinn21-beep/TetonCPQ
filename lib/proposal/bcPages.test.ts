@@ -29,7 +29,7 @@ describe('business-case pages', () => {
     expect(sanitizeLayout({}, (h) => h).bcPages).toBeNull();
   });
 
-  it('keeps each page's section order', () => {
+  it('keeps the section order of each page', () => {
     const l = sanitizeLayout({ bcBlocks: { scope: ['communities', 'overview', 'costs'], roi: ['callout'] } }, (h) => h);
     expect(l.bcBlocks).toEqual({ scope: ['communities', 'overview', 'costs'], roi: ['callout'] });
     expect(sanitizeLayout({}, (h) => h).bcBlocks).toEqual({});
