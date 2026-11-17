@@ -28,4 +28,11 @@ describe('business-case pages', () => {
     expect(() => sanitizeLayout({ bcCustom: { 'custom-a': { title: 'x', html: '' } } }, (h) => h)).toThrow();
     expect(sanitizeLayout({}, (h) => h).bcPages).toBeNull();
   });
+
+  it('keeps each page's section order', () => {
+    const l = sanitizeLayout({ bcBlocks: { scope: ['communities', 'overview', 'costs'], roi: ['callout'] } }, (h) => h);
+    expect(l.bcBlocks).toEqual({ scope: ['communities', 'overview', 'costs'], roi: ['callout'] });
+    expect(sanitizeLayout({}, (h) => h).bcBlocks).toEqual({});
+    expect(() => sanitizeLayout({ bcBlocks: ['x'] }, (h) => h)).toThrow();
+  });
 });

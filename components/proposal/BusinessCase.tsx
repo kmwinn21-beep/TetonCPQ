@@ -11,6 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
+import { Children, isValidElement, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
 import { SKU } from '@/lib/pricing/catalog';
@@ -64,6 +65,61 @@ function Stat({ value, children }: { value: React.ReactNode; children: React.Rea
       <b>{value}</b>
       <span>{children}</span>
     </div>
+  );
+}
+
+/** A movable section of a business-case page (rendered by Blocks, in the page's saved order). */
+interface BProps {
+  id: string;
+  /** Names the section in its move controls. */
+  label: string;
+  children: React.ReactNode;
+}
+function B(_props: BProps): null {
+  return null;
+}
+
+/**
+ * The sections of one page, in the order the rep chose (new sections go after the saved ones, in their
+ * default order). Hover a section for ↑ / ↓ to move it within the page.
+ */
+function Blocks({ page, children }: { page: string; children: React.ReactNode }) {
+  const { editable, layout, setLayout } = useProposalText();
+  const items = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
+  const ids = items.map((c) => c.props.id);
+  const saved = (layout.bcBlocks?.[page] ?? []).filter((id) => ids.includes(id));
+  const order = [...saved, ...ids.filter((id) => !saved.includes(id))];
+  const byId = new Map(items.map((c) => [c.props.id, c]));
+  const move = (id: string, dir: -1 | 1) => {
+    const i = order.indexOf(id);
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    setLayout((l) => ({ ...l, bcBlocks: { ...(l.bcBlocks ?? {}), [page]: next } }));
+  };
+  const btn = 'w-6 h-6 flex items-center justify-center rounded-md text-[12px] hover:bg-white/15 disabled:opacity-30';
+  return (
+    <>
+      {order.map((id, i) => {
+        const c = byId.get(id)!;
+        return (
+          <div key={id} className="bc-block group/bcb" data-bc-block={id}>
+            {editable && order.length > 1 && (
+              <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
+                <button type="button" className={btn} disabled={i === 0} onClick={() => move(id, -1)} aria-label={`Move ${c.props.label} up`} title={`Move ${c.props.label} up`}>
+                  ↑
+                </button>
+                <button type="button" className={btn} disabled={i === order.length - 1} onClick={() => move(id, 1)} aria-label={`Move ${c.props.label} down`} title={`Move ${c.props.label} down`}>
+                  ↓
+                </button>
+              </div>
+            )}
+            {c.props.children}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -294,6 +350,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-lede">
           <T k="bc.pilot.lede" d="It runs for {months} months from go-live, then converts to the {term}-month service term." v={pvars} />
         </p>
+        <Blocks page="pilot">
+        <B id="costs" label="Pilot costs">
         <div className="bc-card bc-req">
           <ScopeRow ecall={pilotEcall} />
           <CostRow
@@ -331,7 +389,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="bc-req-pct">100%</div>
           </div>
         </div>
-
+        </B>
+        <B id="communities" label="Pilot communities">
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
           <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
@@ -377,6 +436,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </tbody>
             </table>
           </div>
+        </B>
+        </Blocks>
       </Page>
     );
   }
@@ -404,6 +465,20 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <p className="bc-lede">
               <T k="bc.scope.lede.capex" d="{customer} buys the hardware outright: title passes at install and the embedded license is perpetual, so nearly all of the cost is a capital purchase." v={vars} />
             </p>
+          </>
+        ) : (
+          <>
+            <h1 className="bc-h1">
+              <T k="bc.scope.title.opex" d="{total} over the {term}-month term, returned through {site}’s operating income." v={{ ...vars, total: usd(d.termTotal), term: String(term) }} />
+            </h1>
+            <p className="bc-lede">
+              <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription." v={vars} />
+            </p>
+          </>
+        )}
+        {capexShown ? (
+          <Blocks page="scope-capex">
+            <B id="costs" label="Equipment purchase">
             <div className="bc-card bc-req bc-req-tight">
               <ScopeRow ecall={anyEcall} />
               {basePackageRows(capex).map((r) => (
@@ -466,15 +541,41 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <T k="bc.scope.orSubscription" d="Or by subscription: {oneTime} one-time installation, then {monthly} a month, {total} over the {term}-month service term." v={{ oneTime: usd(d.oneTime), monthly: usd(d.serviceMonthly), total: usd(d.termTotal), term: String(term) }} />
               </p>
             )}
-          </>
+            </B>
+            {shown('roi') && (
+              <B id="numbers" label="The case in three numbers">
+            <p className="bc-eyebrow bc-gray"><T k="bc.scope.three" d="The case in three numbers" /></p>
+            <div className="bc-three">
+              <Stat value={<V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V>}>
+                <T k="bc.stat.benefit" d="projected annual benefit once {site} is live, {case} case" v={vars} />
+              </Stat>
+              <Stat value={<V k="roi.outcome.realigned.value" label="residents realigned figure">{count(sel.residentsRealigned)}</V>}>
+                <T k="bc.stat.realigned" d="residents a year realigned to the right level of care" />
+              </Stat>
+              <Stat value={<V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V>}>
+                <T k="bc.stat.valuation" d="asset value impact: one year of added net operating income at a {capRate} cap rate" v={vars} />
+              </Stat>
+            </div>
+              </B>
+            )}
+          </Blocks>
         ) : (
-          <>
-            <h1 className="bc-h1">
-              <T k="bc.scope.title.opex" d="{total} over the {term}-month term, returned through {site}’s operating income." v={{ ...vars, total: usd(d.termTotal), term: String(term) }} />
-            </h1>
-            <p className="bc-lede">
-              <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription." v={vars} />
-            </p>
+          <Blocks page="scope">
+            <B id="overview" label="Overview">
+            <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
+            <div className="bc-three bc-three-compact">
+              <Stat value={<V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V>}>
+                <T k="bc.overview.total" d="Total Cost Over {term}-month Term" v={{ term: String(term) }} />
+              </Stat>
+              <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>}>
+                <T k="bc.overview.perBed" d="Total Cost per Bed, Per Month" />
+              </Stat>
+              <Stat value={<>{term} months</>}>
+                <T k="bc.overview.term" d="Post-Pilot Term Length" />
+              </Stat>
+            </div>
+            </B>
+            <B id="costs" label="Costs">
             <div className="bc-card bc-req bc-req-tight">
               <ScopeRow ecall={anyEcall} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate) }} />
               <CostRow
@@ -507,23 +608,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 amount={<V k="card.investment.value" label="Total Investment — Year 1 figure">{usd(kp.totalInvestment12)}</V>}
               />
             </div>
-          </>
-        )}
-
-        {!capexShown && (
-          <>
-            <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
-            <div className="bc-three bc-three-compact">
-              <Stat value={<V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V>}>
-                <T k="bc.overview.total" d="Total Cost Over {term}-month Term" v={{ term: String(term) }} />
-              </Stat>
-              <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>}>
-                <T k="bc.overview.perBed" d="Total Cost per Bed, Per Month" />
-              </Stat>
-              <Stat value={<>{term} months</>}>
-                <T k="bc.overview.term" d="Post-Pilot Term Length" />
-              </Stat>
-            </div>
+            </B>
+            <B id="communities" label="Communities">
             <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
             <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
               <table>
@@ -571,23 +657,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </tbody>
               </table>
             </div>
-          </>
-        )}
-        {capexShown && shown('roi') && (
-          <>
-            <p className="bc-eyebrow bc-gray"><T k="bc.scope.three" d="The case in three numbers" /></p>
-            <div className="bc-three">
-              <Stat value={<V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V>}>
-                <T k="bc.stat.benefit" d="projected annual benefit once {site} is live, {case} case" v={vars} />
-              </Stat>
-              <Stat value={<V k="roi.outcome.realigned.value" label="residents realigned figure">{count(sel.residentsRealigned)}</V>}>
-                <T k="bc.stat.realigned" d="residents a year realigned to the right level of care" />
-              </Stat>
-              <Stat value={<V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V>}>
-                <T k="bc.stat.valuation" d="asset value impact: one year of added net operating income at a {capRate} cap rate" v={vars} />
-              </Stat>
-            </div>
-          </>
+            </B>
+          </Blocks>
         )}
       </Page>
     );
@@ -602,6 +673,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-lede">
           <T k="bc.roi.lede" d="The sources of value, modeled for {site}’s {beds} on the {case} case. Each is valued from {customer}’s own occupancy, rates and staffing assumptions." v={vars} />
         </p>
+        <Blocks page="roi">
+        <B id="table" label="Sources of value">
         <div className="bc-card bc-tbl">
           <table>
             <thead>
@@ -636,6 +709,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </tbody>
           </table>
         </div>
+        </B>
+        <B id="callout" label="Asset value">
         <div className="bc-callout">
           <b><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></b>
           <div>
@@ -643,6 +718,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
           </div>
         </div>
+        </B>
+        </Blocks>
       </Page>
     );
   }
@@ -657,6 +734,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-eyebrow"><T k="bc.y1.eyebrow" d="Year 1 financial summary" /></p>
         <h1 className="bc-h1"><T k="bc.y1.title" d="{net} better off in the first year, after paying for everything." v={{ net: usd(kp.netBenefit12) }} /></h1>
         <p className="bc-lede"><T k="bc.y1.lede" d="The first twelve months at {site}: what goes in, what comes back, and how quickly it pays for itself, discounted at {customer}’s {costOfMoney} cost of money." v={vars} /></p>
+        <Blocks page="summary">
+        <B id="stats" label="Key figures">
         <div className="bc-three">
           <Stat value={<V k="card.net.value" label="Net Benefit — Year 1 figure">{usd(kp.netBenefit12)}</V>}>
             <T k="bc.y1.net" d="net benefit in year one, after everything paid to Teton" />
@@ -668,6 +747,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <T k="bc.y1.payback" d="discounted payback: when the program has paid for itself and stays paid for" />
           </Stat>
         </div>
+        </B>
+        <B id="table" label="Year 1 table">
         <div className="bc-card bc-tbl" style={{ marginTop: 16 }}>
           <table>
             <thead>
@@ -704,6 +785,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </tbody>
           </table>
         </div>
+        </B>
+        <B id="callout" label="Run-rate callout">
         {kp.totalInvestment12 > 0 && (
           <div className="bc-callout">
             <b><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(kp.runRateAnnualNetBenefit)}</V></b>
@@ -713,7 +796,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           </div>
         )}
-        {basis}
+        </B>
+        {basis && <B id="note" label="Pricing note">{basis}</B>}
+        </Blocks>
       </Page>
     );
     defs.cashflow = (no) => (
@@ -727,9 +812,13 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           )}
         </h1>
         <p className="bc-lede"><T k="bc.cf.lede" d="Net benefit by quarter after Teton’s fees and installation, discounted at {customer}’s {costOfMoney} cost of money. Each bar starts where the last one ended." v={vars} /></p>
+        <Blocks page="cashflow">
+        <B id="chart" label="Chart">
         <div className="bc-card bc-chart">
           <QuarterlyWaterfall discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={kp.discountedPaybackMonth} pilotEndMonth={d.pilotEndMonth} />
         </div>
+        </B>
+        <B id="periods" label="By period">
         <div className="bc-three" style={{ marginTop: 16 }}>
           {windows.map((w) => {
             const v = sum(net.slice(w.from - 1, w.to));
@@ -742,7 +831,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             );
           })}
         </div>
-        {basis}
+        </B>
+        {basis && <B id="note" label="Pricing note">{basis}</B>}
+        </Blocks>
       </Page>
     );
   }
@@ -754,6 +845,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-eyebrow"><T k="bc.impl.eyebrow" d="Implementation" /></p>
         <h1 className="bc-h1"><T k="bc.impl.title" d="Live at {site} on {goLive}." v={{ ...vars, goLive: goLive ?? '' }} /></h1>
         <p className="bc-lede"><T k="bc.impl.lede" d="A preliminary path from a signed order form to go-live. Teton’s implementation and customer success team leads each stage." /></p>
+        <Blocks page="implementation">
+        <B id="stages" label="Stages">
         <div className="bc-grid2">
           {stages.map((st, i) => (
             <div key={st.id} className="bc-card bc-num">
@@ -770,6 +863,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           ))}
         </div>
+        </B>
+        <B id="band" label="Where the pilot sits">
         <p className="bc-eyebrow bc-gray"><T k="bc.impl.band" d="Where the pilot sits in the project" /></p>
         <div className="bc-phase">
           <div>
@@ -790,6 +885,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <p><T k="bc.impl.p3note" d="Results are measured against the baseline collected before go-live." /></p>
           </div>
         </div>
+        </B>
+        </Blocks>
       </Page>
     );
   }
@@ -850,16 +947,17 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       <Page key="terms" no={no} crumb={<T k="bc.terms.crumb" d="Terms and assumptions" />}>
         <p className="bc-eyebrow"><T k="bc.terms.eyebrow" d="Terms and assumptions" /></p>
         <h1 className="bc-h1"><T k="bc.terms.title" d="What the figures assume." /></h1>
+        <Blocks page="terms">
         {shown('terms') && (
-          <>
+          <B id="terms" label="Terms and notes">
             <p className="bc-eyebrow bc-gray"><T k="bc.terms.terms" d="Terms and notes" /></p>
             <div className="bc-card bc-terms">
               <TermsList draft={draft} />
             </div>
-          </>
+          </B>
         )}
         {shown('assumptions') && (
-          <>
+          <B id="assumptions" label="Assumptions">
             <p className="bc-eyebrow bc-gray"><T k="assume.title" d="Assumptions" /></p>
             <div className="bc-card bc-assume">
               {d.assumptions.map(([key, label, value]) => (
@@ -872,9 +970,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <p className="bc-note">
               <T k="assume.disclaimer" d="Benefits are modeled estimates based on the assumptions above and the {case} case, not guaranteed results. Prices are in US dollars and exclude applicable taxes. Final pricing is set by the order form." v={{ case: caseName }} />
             </p>
-          </>
+          </B>
         )}
         {capexShown && (
+          <B id="callout" label="Cost of ownership">
           <div className="bc-callout">
             <b><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal, { compact: capex.ownershipTotal >= 10_000_000 })}</V></b>
             <div>
@@ -882,7 +981,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <p><T k="bc.terms.callout" d="{equipment} of equipment paid once at install, plus {software} of software and services over four years, the useful life of the hardware. About {share} of it is equipment." v={{ equipment: usd(capex.equipment), software: usd(capex.software), share: `${Math.round(capex.equipmentShare * 100)}%` }} /></p>
             </div>
           </div>
+          </B>
         )}
+        </Blocks>
       </Page>
     );
   }

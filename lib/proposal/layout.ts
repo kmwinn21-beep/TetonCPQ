@@ -42,6 +42,8 @@ export interface ProposalLayout {
   bcPages?: string[] | null;
   /** Business-case format: pages the rep added (formatted text), by id ("bcpage-…"). */
   bcCustom?: Record<string, CustomSection>;
+  /** Business-case format: the order of the sections within each page, by page. */
+  bcBlocks?: Record<string, string[]>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -127,11 +129,22 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     format: raw.format === 'businessCase' ? 'businessCase' : 'standard',
     bcPages: raw.bcPages == null ? null : ids(raw.bcPages, 60).filter((id) => bcKnown.has(id)),
     bcCustom,
+    bcBlocks: (() => {
+      const v = raw.bcBlocks;
+      if (v == null) return {};
+      if (typeof v !== 'object' || Array.isArray(v)) throw new Error('Bad page sections');
+      const out: Record<string, string[]> = {};
+      for (const [page, list] of Object.entries(v as Record<string, unknown>).slice(0, 40)) {
+        if (!ID.test(page)) throw new Error('Bad page id');
+        out[page] = ids(list, 20);
+      }
+      return out;
+    })(),
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0);
 }
