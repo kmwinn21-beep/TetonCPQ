@@ -311,7 +311,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     { key: 'y1', from: pilotLen + 1, to: Math.min(12, horizon), label: `Months ${pilotLen + 1}–12`, note: 'Benefits ramp up after the pilot' },
     { key: 'rest', from: 13, to: horizon, label: `Months 13–${horizon}`, note: 'At run rate, discounted' },
   ].filter((w) => w.to >= w.from);
-  const total36 = sum(net);
 
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
     { key: 'roi.benefit.care', label: 'Recaptured care revenue', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
@@ -356,10 +355,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
         <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
         <h1 className="bc-h1">
-          <T k="bc.pilot.title" d="A {months}-month pilot at {pilot}, {total} all in." v={{ ...pvars, total: usd(pilotTotal) }} />
+          <T k="bc.pilot.title" d="{days}-Day Pilot Overview" v={{ ...pvars, days: String(months * 30) }} />
         </h1>
         <p className="bc-lede">
-          <T k="bc.pilot.lede" d="It runs for {months} months from go-live, then converts to the {term}-month service term." v={pvars} />
+          <T k="bc.pilot.lede" d="Teton will provide a low-risk, {months}-month pilot to prove value & outcomes." v={pvars} />
         </p>
         <Blocks page="pilot">
         <B id="costs" label="Pilot costs">
@@ -533,10 +532,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         ) : (
           <>
             <h1 className="bc-h1">
-              <T k="bc.scope.title.opex" d="{total} over the {term}-month term, returned through {site}’s operating income." v={{ ...vars, total: usd(d.termTotal), term: String(term) }} />
+              <T k="bc.scope.title.opex" d="Post-Pilot Overview" />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription." v={vars} />
+              <T k="bc.scope.lede.opex" d="Cost breakdown of Teton post-pilot" />
             </p>
           </>
         )}
@@ -691,9 +690,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     defs.roi = (no) => (
       <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
         <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
-        <h1 className="bc-h1"><T k="bc.roi.title" d="{benefit} a year, once every bed is live." v={{ benefit: usd(sel.annualRoi) }} /></h1>
+        <h1 className="bc-h1"><T k="bc.roi.title" d="Projected Return on Teton Investment" /></h1>
         <p className="bc-lede">
-          <T k="bc.roi.lede" d="The sources of value, modeled for {site}’s {beds} on the {case} case. Each is valued from {customer}’s own occupancy, rates and staffing assumptions." v={vars} />
+          <T k="bc.roi.lede" d="The sources of value, modeled for {customer}, based on real outcomes from existing Teton customers" v={vars} />
         </p>
         <Blocks page="roi">
         <B id="table" label="Sources of value">
@@ -754,7 +753,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     defs.summary = (no) => (
       <Page key="summary" no={no} crumb={<T k="bc.y1.crumb" d="Year 1 financial summary" />}>
         <p className="bc-eyebrow"><T k="bc.y1.eyebrow" d="Year 1 financial summary" /></p>
-        <h1 className="bc-h1"><T k="bc.y1.title" d="{net} better off in the first year, after paying for everything." v={{ net: usd(kp.netBenefit12) }} /></h1>
+        <h1 className="bc-h1"><T k="bc.y1.title" d="Teton - Year 1" /></h1>
         <p className="bc-lede"><T k="bc.y1.lede" d="The first twelve months at {site}: what goes in, what comes back, and how quickly it pays for itself, discounted at {customer}’s {costOfMoney} cost of money." v={vars} /></p>
         <Blocks page="summary">
         <B id="stats" label="Key figures">
@@ -787,19 +786,19 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-hl bc-big bc-r"><V k="card.investment.value" label="Total Investment — Year 1 figure">{usd(kp.totalInvestment12)}</V></td>
               </tr>
               <tr>
-                <td className="bc-m"><T k="bc.y1.netRow" d="Net benefit" /></td>
+                <td className="bc-m"><T k="bc.y1.netRow" d="Net Benefit (Year 1)" /></td>
                 <td><T k="card.net.note" d="How much better off your communities are in year one after paying for everything." /></td>
                 <td className="bc-hl bc-big bc-r"><V k="card.net.value" label="Net Benefit — Year 1 figure">{usd(kp.netBenefit12)}</V></td>
               </tr>
               <tr>
-                <td className="bc-m"><T k="bc.y1.runRate" d="Run-rate annual net benefit" /></td>
+                <td className="bc-m"><T k="bc.y1.runRate" d="Stabilized Net Benefit" /></td>
                 <td><T k="card.runRate.note" d="The yearly value once every community is live and fully ramped, after subscription fees." /></td>
                 <td className="bc-hl bc-big bc-r"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(kp.runRateAnnualNetBenefit)}</V></td>
               </tr>
               <tr>
-                <td className="bc-m"><T k="bc.y1.perUnit" d="Net benefit per unit" /></td>
+                <td className="bc-m"><T k="bc.y1.perUnit" d="REVPOR Impact" /></td>
                 <td>
-                  <T k="bc.y1.perUnitNote" d="Per occupied apartment per month at run rate" />
+                  <T k="bc.y1.perUnitNote" d="Impact on Revenue Per Occupied Room" />
                   <small>{usd(kp.netBenefitPerUnitMonth)} per unit across all {count(inputs.cfo.portfolioUnits)} units</small>
                 </td>
                 <td className="bc-hl bc-big bc-r"><V k="card.perUnit.value" label="Net Benefit per Unit per Month figure">{usd(kp.netBenefitPerOccupiedUnitMonth)}</V></td>
@@ -824,16 +823,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       </Page>
     );
     defs.cashflow = (no) => (
-      <Page key="cashflow" no={no} crumb={<T k="bc.cf.crumb" d="Cash flow over the term" />}>
-        <p className="bc-eyebrow"><T k="bc.cf.eyebrow" d="Cash flow over the term" /></p>
+      <Page key="cashflow" no={no} crumb={<T k="bc.cf.crumb" d="Cash flow summary" />}>
+        <p className="bc-eyebrow"><T k="bc.cf.eyebrow" d="Cash flow summary" /></p>
         <h1 className="bc-h1">
-          {kp.discountedPaybackMonth ? (
-            <T k="bc.cf.title" d="Paid back in month {payback}, {total} ahead by month {horizon}." v={{ payback: String(kp.discountedPaybackMonth), total: usd(total36, { compact: true }), horizon: String(horizon) }} />
-          ) : (
-            <T k="bc.cf.titleNoPayback" d="{total} by month {horizon}." v={{ total: usd(total36, { compact: true }), horizon: String(horizon) }} />
-          )}
+          <T k="bc.cf.title" d="Teton Cost / Benefit Summary" />
         </h1>
-        <p className="bc-lede"><T k="bc.cf.lede" d="Net benefit by quarter after Teton’s fees and installation, discounted at {customer}’s {costOfMoney} cost of money. Each bar starts where the last one ended." v={vars} /></p>
+        <p className="bc-lede"><T k="bc.cf.lede" d="Net discounted benefit after Teton fees." /></p>
         <Blocks page="cashflow">
         <B id="chart" label="Chart">
         <div className="bc-card bc-chart">
