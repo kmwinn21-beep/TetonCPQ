@@ -14,6 +14,7 @@
 import { Children, isValidElement, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
+import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
@@ -287,7 +288,7 @@ const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
   const { layout } = useProposalText();
   const d = buildProposalData(draft, outputs, lines);
-  const { kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
+  const { finish, kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
   // Until the rep arranges the pages, a removed standard section also drops its part of a page.
   const shown = (id: string) => !!layout.bcPages || !layout.hiddenSections.includes(id);
   const customer = draft.customerName || 'Customer';
@@ -464,6 +465,22 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const y1OneTime = sum(cf.install.slice(0, 12));
   const y1Monthly = kp.totalInvestment12 - y1OneTime;
 
+  // Concealed installation: an optional add-on range per room (after the standard credit), outside the totals above.
+  const finishRow = finish.concealed ? (
+    <CostRow
+      name={<T k="bc.finish" d="Concealed finish" />}
+      sub={<T k="bc.finish.sub" d="(optional)" />}
+      desc={
+        <T
+          k="bc.finish.math"
+          d="{rooms} rooms × {net} after the {credit} standard credit. Pending site survey."
+          v={{ rooms: count(finish.rooms), net: rangeText(finish.netLow, finish.netHigh, usd), price: rangeText(finish.low, finish.high, usd), credit: usd(finish.credit) }}
+        />
+      }
+      amount={<V k="finish.total.value" label="Concealed installation total"><span className="bc-range">{finish.totalLow === finish.totalHigh ? usd(finish.totalLow) : `${usd(finish.totalLow)}–${usd(finish.totalHigh)}`}</span></V>}
+    />
+  ) : null;
+
   /** Every community: beds by care type, and its total cost (a main figure with a smaller one under it). */
   const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }) => (
     <>
@@ -601,6 +618,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 desc={<T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life." />}
                 amount={<V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V>}
               />
+              {finishRow}
             </div>
             {ecall > 0 && capex.ownershipTotal > 0 && (
               <div className="bc-split">
@@ -671,6 +689,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 desc={<T k="bc.scope.year1Note" d="{oneTime} one-time + {monthly} in monthly fees over the first 12 months." v={{ oneTime: usd(y1OneTime), monthly: usd(y1Monthly) }} />}
                 amount={<V k="card.investment.value" label="Total Investment — Year 1 figure">{usd(kp.totalInvestment12)}</V>}
               />
+              {finishRow}
             </div>
             </B>
             <B id="communities" label="Communities">

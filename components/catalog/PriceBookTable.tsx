@@ -73,8 +73,8 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
               ri === 0 || productGroup(rows[ri - 1].sku) !== group ? (
                 <tr key={`${group}-h`} className="border-t border-teton-off-white bg-teton-almost-white/60">
                   <td colSpan={4} className="px-4 py-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-teton-dark-gray">{group === 'capex' ? 'Equipment purchase (CapEx)' : 'Recurring subscription'}</span>
-                    <span className="ml-2 text-xs text-teton-ui-gray">{group === 'capex' ? 'Title passes at install; perpetual embedded license; no separate installation charge or license fee.' : 'No title transfer.'}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-teton-dark-gray">{group === 'capex' ? 'Equipment purchase (CapEx)' : group === 'finish' ? 'Installation finish' : 'Recurring subscription'}</span>
+                    <span className="ml-2 text-xs text-teton-ui-gray">{group === 'capex' ? 'Title passes at install; perpetual embedded license; no separate installation charge or license fee.' : group === 'finish' ? 'Standard (raceway) installation is included. Concealed cabling is an add-on range per room, pending the site survey; the standard value is credited.' : 'No title transfer.'}</span>
                   </td>
                 </tr>
               ) : null;

@@ -76,6 +76,10 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.fullFacilityMultiplier', 'Full-facility multiplier', PRICING, PRICING_AT, 'mult'),
   F('commercial.specialRate', 'Intro rate / bed / mo', PRICING, PRICING_AT, 'usd2', { nullable: true }),
   F('commercial.specialTermMonths', 'Intro term', PRICING, PRICING_AT, 'months'),
+  F('commercial.finish.concealed', 'Offer the concealed finish', PRICING, PRICING_AT, 'toggle'),
+  F('commercial.finish.low', 'Concealed finish, low / room', PRICING, PRICING_AT, 'usd'),
+  F('commercial.finish.high', 'Concealed finish, high / room', PRICING, PRICING_AT, 'usd'),
+  F('commercial.finish.credit', 'Standard installation credit / room', PRICING, PRICING_AT, 'usd'),
   F('commercial.capex.basePrice', 'Equipment: base package / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.capex.bleBasePrice', 'Equipment: with E-Call / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.capex.inovonicsBasePrice', 'Equipment: with Inovonics E-Call / bed', PRICING, PRICING_AT, 'usd'),
@@ -256,6 +260,7 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price', fields: ['commercial.sensorPrice'] };
   if (k === 'bc.overview.perBed') return pricing('Total cost over the term ÷ (beds × months, counting each community’s pilot and service term)');
   if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price', fields: ['commercial.sensorPrice'] };
+  if (k.startsWith('finish.')) return { formula: 'Rooms × (concealed price − standard installation credit), low to high, pending the site survey', fields: ['commercial.finish.concealed', 'commercial.finish.low', 'commercial.finish.high', 'commercial.finish.credit'] };
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');

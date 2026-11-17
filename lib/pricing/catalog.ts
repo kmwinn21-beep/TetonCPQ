@@ -30,6 +30,10 @@ export const SKU = {
   capexSoftware: 'CAPEX-SOFTWARE',
   capexBleRenewal: 'CAPEX-ECALL-BLE-RENEWAL',
   capexInovonicsRenewal: 'CAPEX-ECALL-INOVONICS-RENEWAL',
+  // Installation finish: concealed cabling, quoted as a range per room pending the site survey.
+  finishConcealedLow: 'FINISH-CONCEALED-LOW',
+  finishConcealedHigh: 'FINISH-CONCEALED-HIGH',
+  finishStandardCredit: 'FINISH-STANDARD-CREDIT',
 } as const;
 
 export const SEED_PRODUCTS: Product[] = [
@@ -46,10 +50,13 @@ export const SEED_PRODUCTS: Product[] = [
   { sku: SKU.capexSoftware, name: 'Software and services', pricingModel: 'per_bed_month', list: 10, description: 'Per bed per month, billed monthly.' },
   { sku: SKU.capexBleRenewal, name: 'E-Call (Bluetooth/WiFi) renewal', pricingModel: 'per_bed_once', list: 480, description: 'Every 4 years, per bed.' },
   { sku: SKU.capexInovonicsRenewal, name: 'Inovonics E-Call renewal', pricingModel: 'per_bed_once', list: 400, description: 'Every 3 years after the first 3-year contract, per bed.' },
+  { sku: SKU.finishConcealedLow, name: 'Concealed installation, low estimate', pricingModel: 'per_bed_once', list: 700, description: 'Cables behind the wall and/or above the ceiling, no raceway showing. Per room, pending the site survey.' },
+  { sku: SKU.finishConcealedHigh, name: 'Concealed installation, high estimate', pricingModel: 'per_bed_once', list: 1000, description: 'Upper end of the concealed range, per room. Depends on building materials and access; painting not included.' },
+  { sku: SKU.finishStandardCredit, name: 'Standard installation credit', pricingModel: 'per_bed_once', list: 400, description: 'Value of the standard (raceway) installation, credited against the concealed price, per room.' },
 ];
 
 /** Which buying model a product belongs to, for the price book. */
-export const productGroup = (sku: string): 'subscription' | 'capex' => (sku.startsWith('CAPEX-') ? 'capex' : 'subscription');
+export const productGroup = (sku: string): 'subscription' | 'capex' | 'finish' => (sku.startsWith('CAPEX-') ? 'capex' : sku.startsWith('FINISH-') ? 'finish' : 'subscription');
 
 /** List prices keyed by SKU, as the app reads them. */
 export type PriceBook = Record<string, Product>;

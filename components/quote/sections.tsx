@@ -3,7 +3,7 @@
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { ROI_CASES, STANDARD_CASE_METRICS, uniformCaseMetrics, type CaseMetrics, type ModelInputs, type ModelResult, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { bedsOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityRates } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, pct, usd } from '@/lib/format';
 import { DerivedField, Grid, MoneyField, NumberField, PercentField, Section, SegmentedField, ToggleField } from '@/components/form/fields';
@@ -60,6 +60,7 @@ export function PricingSection({ book }: SectionProps) {
   const rooms = sample('rooms_only');
   const full = sample('full_facility');
   const usesFull = d.communities?.some((c) => c.coverage === 'full_facility');
+  const roomCount = (d.communities ?? []).reduce((n, c) => n + bedsOf(c), 0);
 
   return (
     <Section
@@ -72,6 +73,7 @@ export function PricingSection({ book }: SectionProps) {
         k.ecall === 'none' ? 'no E-Call' : `E-Call ${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'} ${money(k.ecallRate)}`,
         `install ${money(k.installRate)}${k.installCreditPct ? ` (${Math.round(k.installCreditPct * 100)}% credit)` : ''}`,
         d.presentation === 'capex' ? 'equipment purchase' : d.presentation === 'both' ? 'subscription + equipment purchase' : false,
+        k.finish?.concealed ? 'concealed finish offered' : false,
       )}
     >
       <div className="space-y-6">
@@ -167,6 +169,26 @@ export function PricingSection({ book }: SectionProps) {
                 <MoneyField name="commercial.capex.softwareRate" label="Software & services" hint="Per bed / month" min={0} />
                 <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" disabled={k.ecall !== 'ble'} min={0} />
                 <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" disabled={k.ecall !== 'inovonics'} min={0} />
+              </Grid>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold mb-1">Installation finish</h3>
+          <p className="hint mb-3">Standard (raceway) installation is included. Concealed cabling is an add-on, quoted as a range per room pending the site survey, after the standard installation value is credited.</p>
+          <ToggleField name="commercial.finish.concealed" label="Offer the concealed finish" hint="Cables behind the wall and/or above the ceiling, no raceway showing" />
+          {d.commercial?.finish?.concealed && (
+            <div className="mt-3">
+              <Grid cols={4}>
+                <MoneyField name="commercial.finish.low" label="Concealed, low / room" min={0} />
+                <MoneyField name="commercial.finish.high" label="Concealed, high / room" min={0} />
+                <MoneyField name="commercial.finish.credit" label="Standard credit / room" hint="Value of the standard installation" min={0} />
+                <DerivedField
+                  label="Add-on for the deal"
+                  value={`${money(roomCount * Math.max(0, (d.commercial.finish.low ?? 0) - (d.commercial.finish.credit ?? 0)))} to ${money(roomCount * Math.max(0, (d.commercial.finish.high ?? 0) - (d.commercial.finish.credit ?? 0)))}`}
+                  formula={`${roomCount} rooms × (concealed price − standard credit)`}
+                />
               </Grid>
             </div>
           )}

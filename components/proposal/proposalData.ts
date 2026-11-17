@@ -13,6 +13,7 @@ import { count, monthName, multiple, pct, usd } from '@/lib/format';
 import { longDate } from '@/components/implementation/ImplementationGantt';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { allocationTable } from '@/lib/quote/resources';
+import { computeFinish } from '@/lib/pricing/finish';
 
 export const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -187,7 +188,10 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   // "a Mar 1, 2027" / "an Apr 1, 2027" for one date; "Feb 1, 2027 and Mar 1, 2027" for several.
   const goLivePhrase = pilotDates.length === 1 ? `${/^(Apr|Aug|Oct)/.test(pilotDatesText) ? 'an' : 'a'} ${pilotDatesText}` : pilotDatesText;
 
-  return { inputs, start, kp, cf, rc, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, term, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, k, anyFull, money, rateSummary, capRate, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, ecallFreeInPilot, nCommunities, pilots, hasResources, pilotDates, pilotDatesText, goLivePhrase };
+  // Concealed installation finish: an optional add-on range, outside the equipment price and the ROI.
+  const finish = computeFinish(draft);
+
+  return { finish, inputs, start, kp, cf, rc, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, term, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, k, anyFull, money, rateSummary, capRate, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, ecallFreeInPilot, nCommunities, pilots, hasResources, pilotDates, pilotDatesText, goLivePhrase };
 }
 
 export type ProposalData = ReturnType<typeof buildProposalData>;

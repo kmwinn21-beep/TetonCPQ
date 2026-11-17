@@ -12,6 +12,7 @@
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
+import { rangeText } from '@/lib/pricing/finish';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, usd } from '@/lib/format';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
@@ -59,7 +60,7 @@ function PilotIcon() {
 }
 
 export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: ProposalProps) {
-  const { start, kp, cf, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, rateSummary, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, nCommunities, pilots, hasResources, goLivePhrase } = buildProposalData(draft, outputs, lines);
+  const { finish, start, kp, cf, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, rateSummary, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, nCommunities, pilots, hasResources, goLivePhrase } = buildProposalData(draft, outputs, lines);
   const implementationBody = pilots.length ? (
     <>
       <p className="mb-3 text-[14px] max-w-prose">
@@ -309,6 +310,33 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           <p className="text-[12px] text-teton-dark-gray mt-2">
             <T k="capex.share" d="About {share} of the total cost is equipment, treated as a capital purchase rather than an operating expense." v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />
           </p>
+        </div>
+      )}
+
+      {finish.concealed && (
+        <div className="rounded-lg border border-teton-pale-gray p-4 mt-4 avoid-break">
+          <p className="font-semibold">
+            <T k="finish.title" d="Optional: concealed installation" />
+          </p>
+          <p className="text-[12px] text-teton-dark-gray mt-1">
+            <T k="finish.note" d="Standard installation (cables in a slim white raceway) is included. For a concealed finish, cables run behind the wall and/or above the ceiling with no raceway showing. Priced per room, pending the site survey; not included in the figures above. Painting is not included." />
+          </p>
+          <table className="w-full mt-3 tabular-nums">
+            <tbody>
+              <tr className="border-b border-teton-off-white">
+                <td className="py-1"><T k="finish.price" d="Concealed installation, per room" /></td>
+                <td className="py-1 text-right"><V k="finish.price.value" label="Concealed installation per room">{rangeText(finish.low, finish.high, usd)}</V></td>
+              </tr>
+              <tr className="border-b border-teton-off-white">
+                <td className="py-1"><T k="finish.payable" d="Payable after the {credit} standard value is credited" v={{ credit: usd(finish.credit) }} /></td>
+                <td className="py-1 text-right"><V k="finish.net.value" label="Concealed installation payable per room">{rangeText(finish.netLow, finish.netHigh, usd)}</V></td>
+              </tr>
+              <tr className="font-semibold">
+                <td className="py-1.5"><T k="finish.total" d="For {rooms} rooms" v={{ rooms: count(finish.rooms) }} /></td>
+                <td className="py-1.5 text-right"><V k="finish.total.value" label="Concealed installation total">{rangeText(finish.totalLow, finish.totalHigh, usd)}</V></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 

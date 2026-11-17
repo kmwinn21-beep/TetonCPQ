@@ -4,6 +4,7 @@
  * turns into engine inputs. Rates are fractions; money is dollars.
  */
 import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
+import { finishFrom, normalizeFinish, type FinishSetting } from '@/lib/pricing/finish';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { defaultPlan, normalizePlan, type ImplementationPlan } from './implementationPlan';
@@ -61,6 +62,8 @@ export interface Commercial {
   sensorPrice: number;
   /** Equipment-purchase (CapEx) prices for this deal. */
   capex: CapexPricing;
+  /** Installation finish: standard (included) or concealed (an add-on range per room). */
+  finish: FinishSetting;
 }
 
 /** How the investment is presented to the customer. */
@@ -165,6 +168,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
       capex: capexPricingFrom((sku) => book[sku]?.list),
+      finish: finishFrom((sku) => book[sku]?.list),
     },
     presentation: 'opex',
     communities: [{ ...newCommunity(0), pilot: true }],
@@ -190,7 +194,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
 /** Drafts from before equipment-purchase pricing had a capex discount rate instead: drop it, add the list prices. */
 function normalizeCommercial(c: Commercial): Commercial {
   const { capexDiscountRate: _old, ...rest } = c as Commercial & { capexDiscountRate?: number };
-  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) } };
+  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) }, finish: normalizeFinish(rest.finish) };
 }
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */

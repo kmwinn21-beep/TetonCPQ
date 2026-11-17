@@ -9,6 +9,7 @@
  * changed since and the rebuilt numbers differ, a banner says so.
  */
 import { basePackageRows, computeCapex } from '@/lib/pricing/capex';
+import { computeFinish, rangeText } from '@/lib/pricing/finish';
 import { capexFor } from '@/lib/quote/outputs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -68,6 +69,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
   // What to display: the stored numbers for a saved version, live numbers for the draft.
   const out: Omit<ModelResult, 'traces'> = stored?.outputs ?? live;
   const capex = stored?.outputs ? capexFor(stored.outputs, draft) : capexLive;
+  const finish = computeFinish(draft);
   const guardrails = stored?.guardrails ?? evaluateGuardrails(draft, book[SKU.platform]?.list, { ble: book[SKU.ecallBle]?.list ?? 10, inovonics: book[SKU.ecallInovonics]?.list ?? 15 });
   const traces = live.traces;
   const drift =
@@ -294,6 +296,12 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
             </tbody>
           </table>
         </div>
+        {finish.concealed && (
+          <p className="text-sm mt-3 rounded-lg bg-teton-almost-white px-3 py-2">
+            <span className="font-medium">Concealed installation (optional):</span> {count(finish.rooms)} rooms × {rangeText(finish.netLow, finish.netHigh, usd)} after the {usd(finish.credit)} standard credit ={' '}
+            <span className="font-semibold tabular-nums">{rangeText(finish.totalLow, finish.totalHigh, usd)}</span>, pending the site survey. Not included in either total above.
+          </p>
+        )}
         <p className="text-xs text-teton-ui-gray mt-3">
           About {Math.round(capex.equipmentShare * 100)}% of the equipment-purchase cost is equipment (capital). Over {capex.ownershipMonths / 12} years, the equipment purchase costs {usd(Math.abs(opex4.total - capex.ownershipTotal))} {capex.ownershipTotal <= opex4.total ? 'less' : 'more'} than the subscription. The ROI figures use the subscription pricing.
         </p>
