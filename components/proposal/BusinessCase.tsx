@@ -11,7 +11,8 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
-import type { PriceLine } from '@/lib/pricing/lines';
+import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
+import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, multiple, usd } from '@/lib/format';
@@ -189,6 +190,117 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // Each page, by id; a page with nothing to show (no implementation plan, no roles) has no entry.
   const defs: Record<string, (no: number) => React.ReactNode> = {};
+
+  // ---------- The pilot ----------
+  // Pilot sites' costs from the price lines: pilot fees for the pilot months, and their installation net of credits.
+  const pilotSites = draft.communities
+    .map((dc, i) => ({ dc, i, row: d.perCommunity[i] }))
+    .filter((x) => x.row?.pilot);
+  if (pilotSites.length) {
+    const pos = new Set(pilotSites.map((x) => x.i));
+    const siteLines = lines.filter((l) => l.communityPosition != null && pos.has(l.communityPosition));
+    const pilotFeeLines = siteLines.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot'));
+    const pilotFees = sum(pilotFeeLines.map(lineTotal));
+    const pilotMonthlyTotal = sum(pilotFeeLines.map((l) => l.qty * l.unitNet));
+    const installGross = sum(siteLines.filter((l) => l.billing === 'one_time' && !l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
+    const installCredit = -sum(siteLines.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
+    const install = installGross - installCredit;
+    const hasSensors = siteLines.some((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0);
+    const pilotTotal = pilotFees + install;
+    const months = inputs.schedule.pilotLengthMonths;
+    const beds = (dc: (typeof draft.communities)[number]) => ({
+      il: Number(dc.ilBeds) || 0,
+      al: Number(dc.alBeds) || 0,
+      mc: Number(dc.mcBeds) || 0,
+      snf: Number(dc.snfBeds) || 0,
+    });
+    const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
+    const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
+    const ecallFree = d.ecallFreeInPilot;
+    defs.pilot = (no) => (
+      <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
+        <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
+        <h1 className="bc-h1">
+          <T k="bc.pilot.title" d="A {months}-month pilot at {pilot}, {total} all in." v={{ ...pvars, total: usd(pilotTotal) }} />
+        </h1>
+        <p className="bc-lede">
+          <T k="bc.pilot.lede" d="The pilot proves the program at {pilot} before the rest of the commitment. It runs for {months} months from go-live, then converts to the {term}-month service term." v={pvars} />
+        </p>
+        <div className="bc-card bc-req">
+          <div className="bc-req-row">
+            <div className="bc-req-name"><T k="bc.pilot.fees" d="Pilot fees" /></div>
+            <div className="bc-req-desc">
+              <T k="bc.pilot.feesNote" d="{monthly} a month for {months} months{ecall}." v={{ monthly: usd(pilotMonthlyTotal), months: String(months), ecall: ecallFree ? ', with E-Call included at no charge' : '' }} />
+            </div>
+            <div className="bc-req-amt"><V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V></div>
+            <div className="bc-req-pct">{pctOf(pilotFees, pilotTotal)}</div>
+          </div>
+          <div className="bc-req-row">
+            <div className="bc-req-name"><T k="bc.pilot.install" d={hasSensors ? 'Installation and sensors' : 'Installation'} /></div>
+            <div className="bc-req-desc">
+              <T k="bc.pilot.installNote" d={hasSensors ? 'Professional installation and additional sensors at the pilot {sites}, billed at go-live{credit}.' : 'Professional installation at the pilot {sites}, billed at go-live{credit}.'} v={{ sites: pilotSites.length === 1 ? 'community' : 'communities', credit: installCredit > 0 ? `; ${usd(installGross)} less a ${usd(installCredit)} pilot credit` : '' }} />
+            </div>
+            <div className="bc-req-amt"><V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install)}</V></div>
+            <div className="bc-req-pct">{pctOf(install, pilotTotal)}</div>
+          </div>
+          <div className="bc-req-row bc-req-total">
+            <div className="bc-req-name"><T k="bc.pilot.total" d="Total pilot cost" /></div>
+            <div className="bc-req-desc">
+              <T k="bc.pilot.totalNote" d={pilotSites.length === 1 ? 'Everything paid during the {months}-month pilot. After it, the community converts to the {term}-month service term.' : 'Everything paid during the {months}-month pilot. After it, the communities convert to the {term}-month service term.'} v={pvars} />
+            </div>
+            <div className="bc-req-amt"><V k="bc.pilot.total.value" label="Total pilot cost">{usd(pilotTotal)}</V></div>
+            <div className="bc-req-pct">100%</div>
+          </div>
+        </div>
+
+        <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
+        {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
+          <div className="bc-card bc-tbl bc-hrs">
+            <table>
+              <thead>
+                <tr>
+                  <th>Community</th>
+                  <th>AL beds</th>
+                  <th>MC beds</th>
+                  <th>SNF beds</th>
+                  <th>Pilot / month</th>
+                  <th className="bc-hl">Pilot cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pilotSites.map(({ dc, i }) => {
+                  const b = beds(dc);
+                  const ls = siteLines.filter((l) => l.communityPosition === i);
+                  const fees = ls.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot'));
+                  const cost = sum(fees.map(lineTotal)) + sum(ls.filter((l) => l.billing === 'one_time').map(lineTotal));
+                  return (
+                    <tr key={dc.id}>
+                      <td className="bc-m">
+                        {d.perCommunity[i].name}
+                        <small>{d.perCommunity[i].detail}</small>
+                      </td>
+                      <td>{count(b.al)}</td>
+                      <td>{count(b.mc)}</td>
+                      <td>{count(b.snf)}</td>
+                      <td>{usd(sum(fees.map((l) => l.qty * l.unitNet)))}</td>
+                      <td className="bc-hl bc-big">{usd(cost)}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bc-tot">
+                  <td className="bc-m">{pilotSites.length === 1 ? 'Total' : `${pilotSites.length} communities`}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).al)))}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).mc)))}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).snf)))}</td>
+                  <td>{usd(pilotMonthlyTotal)}</td>
+                  <td className="bc-hl bc-big">{usd(pilotTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+      </Page>
+    );
+  }
 
   // ---------- The investment ----------
   {

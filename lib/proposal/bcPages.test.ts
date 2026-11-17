@@ -4,8 +4,8 @@ import { DEFAULT_LAYOUT, sanitizeLayout } from './layout';
 
 describe('business-case pages', () => {
   it('follows the standard sections until changed', () => {
-    expect(defaultBcPages(DEFAULT_LAYOUT)).toEqual(['cover', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'terms']);
-    expect(defaultBcPages({ hiddenSections: ['implementation', 'summary'] })).toEqual(['cover', 'scope', 'roi', 'resources', 'terms']);
+    expect(defaultBcPages(DEFAULT_LAYOUT)).toEqual(['cover', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'terms']);
+    expect(defaultBcPages({ hiddenSections: ['implementation', 'summary'] })).toEqual(['cover', 'pilot', 'scope', 'roi', 'resources', 'terms']);
   });
 
   it('moves, removes and adds back in the standard position', () => {
@@ -15,7 +15,8 @@ describe('business-case pages', () => {
     // Pages that aren't shown (e.g. no resources yet) are skipped over when moving.
     expect(moveBcPage(['scope', 'resources', 'terms'], 'terms', -1, ['scope', 'terms'])).toEqual(['terms', 'resources', 'scope']);
     const r = removeBcPage(p, 'roi');
-    expect(removedBcPages(r)).toEqual(['roi', 'cashflow', 'implementation', 'resources']);
+    expect(removedBcPages(r)).toEqual(['pilot', 'roi', 'cashflow', 'implementation', 'resources']);
+    expect(addBackBcPage(p, 'pilot')).toEqual(['cover', 'pilot', 'scope', 'roi', 'summary', 'terms']);
     expect(addBackBcPage(r, 'roi')).toEqual(p);
     expect(addBackBcPage(['scope', 'terms'], 'cover')).toEqual(['cover', 'scope', 'terms']);
     expect(insertBcPage(p, 2, 'bcpage-x')).toEqual(['cover', 'scope', 'bcpage-x', 'roi', 'summary', 'terms']);

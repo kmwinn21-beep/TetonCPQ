@@ -242,6 +242,7 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.oneTime') return { formula: 'Installation for every bed, at the install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
   if (k === 'scope.pilotMonthly') return { formula: 'Pilot beds × (pilot rate + E-Call during pilot)', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
+  if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');
   if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice'] };
