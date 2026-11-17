@@ -3,6 +3,7 @@
  * holds, what a quote version stores (inputs_json), and what toModelInputs()
  * turns into engine inputs. Rates are fractions; money is dollars.
  */
+import { applyRoomTypes, type RoomType } from './roomTypes';
 import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
 import { finishFrom, normalizeFinish, type FinishSetting } from '@/lib/pricing/finish';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
@@ -39,6 +40,10 @@ export interface DraftCommunity {
   /** null = deal ROI start delay. */
   roiDelayMonths: number | null;
   additionalSensors: number;
+  /** Room types from the floor plans (optional). When present they set the beds and additional sensors. */
+  roomTypes?: RoomType[];
+  /** Allowance for site conditions on top of the plan's sensors (0.03 = 3%). */
+  sensorAllowancePct?: number;
 }
 
 export interface Commercial {
@@ -194,7 +199,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     nextSteps: normalizeTerms(d.nextSteps, 'nextSteps'),
     resources: normalizeResources(d.resources),
     commercial: normalizeCommercial(d.commercial),
-    communities: (d.communities ?? []).map(normalizeCommunity),
+    communities: (d.communities ?? []).map((c) => applyRoomTypes(normalizeCommunity(c))),
   };
 }
 

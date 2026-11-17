@@ -51,7 +51,7 @@ export interface ProposalLayout {
 export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', bcPages: null, bcCustom: {}, version: LAYOUT_VERSION };
 
 /** The business-case format's built-in pages, in their standard order. */
-export const BC_PAGES = ['cover', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'terms', 'assumptions'] as const;
+export const BC_PAGES = ['cover', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'terms', 'assumptions'] as const;
 export const isBcCustomId = (id: string) => id.startsWith('bcpage-');
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;

@@ -11,7 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
-import { Children, isValidElement, type ReactElement } from 'react';
+import { Children, Fragment, isValidElement, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
 import { rangeText } from '@/lib/pricing/finish';
@@ -22,6 +22,8 @@ import { count, dateLabel, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
+import { buildCashFlow } from '@/lib/model';
+import { CARE_SHORT, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, V } from './ProposalSections';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
@@ -307,7 +309,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const platform = platformEquipment + capex.software;
   const ecall = ecallEquipment + capex.renewals;
 
-  const net = cf.discountedNet;
+  // The cash-flow page covers 48 months (the pilot plus the hardware's four-year life), longer than the 36-month model window.
+  const CHART_MONTHS = 48;
+  const net = buildCashFlow(inputs, outputs.annual[outputs.roiCase], CHART_MONTHS).discountedNet;
   const horizon = net.length;
   const pilotLen = anyPilot ? inputs.schedule.pilotLengthMonths : 0;
   const windows = [
@@ -336,6 +340,107 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // Each page, by id; a page with nothing to show (no implementation plan, no roles) has no entry.
   const defs: Record<string, (no: number) => React.ReactNode> = {};
+
+  // ---------- Scope (from the floor plans) ----------
+  // Shown when at least one community has room types.
+  const scoped = draft.communities.map((c, i) => ({ c, i, types: normalizeRoomTypes(c.roomTypes) })).filter((x) => x.types.length);
+  if (scoped.length) {
+    const all = draft.communities;
+    const roomsTotal = sum(all.map((c) => bedsOf(c).il + bedsOf(c).al + bedsOf(c).mc + bedsOf(c).snf));
+    const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
+    const sensorsTotal = roomsTotal + extraTotal;
+    const perSite = scoped.map((x) => ({ ...x, s: roomScope(x.types, normalizeAllowance(x.c.sensorAllowancePct)) }));
+    const planTotal = sum(perSite.map((x) => x.s.planSensors));
+    const allowanceTotal = sum(perSite.map((x) => x.s.allowance));
+    const pctText = Array.from(new Set(perSite.map((x) => `${Math.round(normalizeAllowance(x.c.sensorAllowancePct) * 1000) / 10}%`))).join(' / ');
+    const careMix = (['al', 'mc', 'il', 'snf'] as const)
+      .map((k) => [k, sum(all.map((c) => bedsOf(c)[k]))] as const)
+      .filter(([, n]) => n > 0)
+      .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
+    const multi = all.length > 1;
+    defs.sitescope = (no) => (
+      <Page key="sitescope" no={no} crumb={<T k="bc.site.crumb" d="Scope" />}>
+        <p className="bc-eyebrow"><T k="bc.site.eyebrow" d="Scope" /></p>
+        <h1 className="bc-h1">
+          <T k="bc.site.title" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors." v={{ rooms: count(roomsTotal), sensors: count(sensorsTotal) }} />
+        </h1>
+        <p className="bc-lede">
+          <T k="bc.site.lede" d="One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed." />
+        </p>
+        <Blocks page="sitescope">
+          <B id="cards" label="Scope figures">
+            <div className="bc-four">
+              <Stat value={count(roomsTotal)}>
+                <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
+              </Stat>
+              <Stat value={count(roomsTotal)}>
+                <T k="bc.site.edge" d="Edge units, one in every resident room" />
+              </Stat>
+              <div className="bc-dark bc-dark-hot">
+                <b>{count(sensorsTotal)}</b>
+                <span><T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} /></span>
+              </div>
+              <Stat value={count(extraTotal)}>
+                <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
+              </Stat>
+            </div>
+          </B>
+          <B id="types" label="Rooms by type">
+            <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
+            <div className="bc-card bc-tbl bc-pilot-tbl bc-site-tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Room type</th>
+                    <th>Care</th>
+                    <th className="bc-r">Rooms</th>
+                    <th className="bc-r">Sensors per room</th>
+                    <th className="bc-hl bc-r">Sensors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perSite.map(({ c, i, types, s: st }) => (
+                    <Fragment key={c.id}>
+                      {multi && (
+                        <tr className="bc-site-group">
+                          <td colSpan={5}>{d.perCommunity[i]?.name || c.name}</td>
+                        </tr>
+                      )}
+                      {types.map((t) => (
+                        <tr key={t.id}>
+                          <td className="bc-m">{t.name || 'Room type'}</td>
+                          <td><span className={`bc-care bc-care-${t.care}`}>{CARE_SHORT[t.care]}</span></td>
+                          <td className="bc-r">{count(t.rooms)}</td>
+                          <td className="bc-r"><span className="bc-dots" aria-hidden="true">{'●'.repeat(Math.min(t.sensors, 6))}</span> {t.sensors}</td>
+                          <td className="bc-hl bc-big bc-r">{count(t.rooms * t.sensors)}</td>
+                        </tr>
+                      ))}
+                      {st.allowance > 0 && (
+                        <tr>
+                          <td className="bc-m bc-quiet">Site-conditions allowance</td>
+                          <td><small>{Math.round(normalizeAllowance(c.sensorAllowancePct) * 1000) / 10}% of {count(st.planSensors)}, rounded up</small></td>
+                          <td className="bc-r">–</td>
+                          <td className="bc-r">–</td>
+                          <td className="bc-hl bc-big bc-r">{count(st.allowance)}</td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                  <tr className="bc-tot">
+                    <td className="bc-m">Total</td>
+                    <td />
+                    <td className="bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
+                    <td />
+                    <td className="bc-hl bc-big bc-r">{count(sum(perSite.map((x) => x.s.totalSensors)))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </B>
+        </Blocks>
+      </Page>
+    );
+  }
 
   // ---------- The pilot ----------
   // Pilot sites' costs from the price lines: pilot fees for the pilot months, and their installation net of credits.

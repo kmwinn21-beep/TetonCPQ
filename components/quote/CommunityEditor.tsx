@@ -14,6 +14,7 @@ import type { ModelInputs, ModelResult } from '@/lib/model';
 type CommunityCashFlow = ModelResult['cashFlow']['communities'][number];
 import { count } from '@/lib/format';
 import { NumInput } from '@/components/form/NumInput';
+import { RoomTypesEditor } from './RoomTypesEditor';
 
 const BEDS = [
   ['ilBeds', 'IL'],
@@ -78,6 +79,8 @@ export function CommunityEditor({
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = !!useWatch({ control, name: 'schedule.withPilot' });
   if (!row) return null;
+  // Room types, when present, set the beds and extra sensors.
+  const fromRooms = Array.isArray(row.roomTypes) && row.roomTypes.length > 0;
 
   const id = (k: string) => `ce-${row.id}-${k}`;
   const problems = showErrors ? communityProblems(row) : [];
@@ -128,13 +131,14 @@ export function CommunityEditor({
                 control={control}
                 name={`communities.${i}.${k}`}
                 render={({ field }) => (
-                  <NumInput id={id(k)} value={field.value} onChange={field.onChange} onBlur={field.onBlur} min={0} invalid={bedsBad} aria-label={`Community ${position} ${label} beds`} />
+                  <NumInput id={id(k)} value={field.value} onChange={field.onChange} onBlur={field.onBlur} min={0} invalid={bedsBad} disabled={fromRooms} aria-label={`Community ${position} ${label} beds`} />
                 )}
               />
             </div>
           ))}
         </div>
         {problems.length > 0 && <p className="text-xs mt-1.5 rounded bg-teton-red/30 px-2 py-1">{problems.join(' · ')}</p>}
+        <RoomTypesEditor index={i} position={position} />
       </Group>
 
       <Group title="Timing">
@@ -229,7 +233,7 @@ export function CommunityEditor({
             <Controller
               control={control}
               name={`communities.${i}.additionalSensors`}
-              render={({ field }) => <NumInput id={id('sensors')} value={field.value} onChange={field.onChange} min={0} aria-label={`Community ${position} sensors`} />}
+              render={({ field }) => <NumInput id={id('sensors')} value={field.value} onChange={field.onChange} min={0} disabled={fromRooms} aria-label={`Community ${position} sensors`} />}
             />
           </div>
         </div>

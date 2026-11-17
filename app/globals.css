@@ -178,6 +178,19 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 4px; }
 .bc-dark { background: var(--bc-night); color: #fff; border-radius: 14px; padding: 22px 20px 24px; }
 .bc-dark > b { display: block; font-size: 38px; font-weight: 500; color: var(--bc-mint); letter-spacing: -1px; line-height: 1.15; }
+.bc-four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.bc-four .bc-dark { padding: 16px 16px 18px; }
+.bc-four .bc-dark > b { font-size: 36px; }
+.bc-four .bc-dark > span { font-size: 11.5px; }
+.bc-dark-hot > b { color: #F08D79 !important; }
+.bc-care { display: inline-block; border-radius: 99px; padding: 2px 9px; font-size: 10.5px; font-weight: 700; color: var(--bc-ink); background: var(--bc-lav); white-space: nowrap; }
+.bc-care-mc { background: #DDEFE4; }
+.bc-care-il { background: #F3EBD9; }
+.bc-care-snf { background: #F5E0DA; }
+.bc-dots { color: #58B985; letter-spacing: 1px; }
+.bc-quiet { font-weight: 500 !important; color: var(--bc-body) !important; }
+.bc-site-tbl td small { display: inline; margin: 0; }
+.bc-site-group td { background: var(--bc-cream); font-size: 10px !important; letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase; color: var(--bc-muted) !important; padding-top: 8px !important; padding-bottom: 6px !important; }
 .bc-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 4px; }
 .bc-three-compact .bc-dark { padding: 13px 18px 14px; }
 .bc-three-compact .bc-dark > span { margin-top: 6px; }
@@ -318,6 +331,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .bc-foot { left: 16px; right: 16px; bottom: 20px; }
   .bc-h1 { font-size: 26px; }
   .bc-three, .bc-two, .bc-grid2, .bc-phase, .bc-assume { grid-template-columns: minmax(0, 1fr); }
+  .bc-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bc-phase > div { border-left: 0; padding: 8px 18px; }
   .bc-req { padding: 4px 16px; }
   .bc-req-row { grid-template-columns: minmax(0, 1fr) auto; }

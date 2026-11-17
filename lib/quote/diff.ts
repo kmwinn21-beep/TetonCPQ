@@ -108,7 +108,7 @@ const GROUP: Record<string, string> = {
   customerName: 'Deal',
 };
 
-const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds'>, Field> = {
+const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
   market: { label: 'Market', fmt: 'text' },
   ilBeds: { label: 'IL beds', fmt: 'num' },
@@ -123,6 +123,7 @@ const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds'>, Field>
   goLiveMonth: { label: 'Go-live month', fmt: 'text' },
   roiDelayMonths: { label: 'ROI delay (months)', fmt: 'num' },
   additionalSensors: { label: 'Additional sensors', fmt: 'num' },
+  sensorAllowancePct: { label: 'Sensor allowance', fmt: 'pct' },
 };
 
 const TEXT: Record<string, string> = {
@@ -223,6 +224,10 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
     }
     for (const [k, f] of Object.entries(COMMUNITY_FIELDS) as Array<[keyof typeof COMMUNITY_FIELDS, Field]>) {
       if (!same(prev[k], c[k])) changes.push({ group: 'Communities', label: `${c.name || prev.name}: ${f.label}`, from: fmtValue(prev[k], f.fmt), to: fmtValue(c[k], f.fmt) });
+    }
+    if (JSON.stringify(prev.roomTypes ?? []) !== JSON.stringify(c.roomTypes ?? [])) {
+      const n = (x: typeof c) => (x.roomTypes ?? []).length;
+      changes.push({ group: 'Communities', label: `${c.name || prev.name}: Room types`, from: `${n(prev)} types`, to: `${n(c)} types` });
     }
   }
   // Stages and terms are lists: described item by item.

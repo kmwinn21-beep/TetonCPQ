@@ -47,6 +47,7 @@ export function runVendorView(inputs: ModelInputs, costs?: VendorCostAssumptions
   return vendorView(inputs, annualAllCases(inputs)[inputs.roiCase], costs);
 }
 
+export { buildCashFlow, type CashFlow } from './cashflow';
 export * from './types';
 export * from './defaults';
 export type { Trace } from './trace';
