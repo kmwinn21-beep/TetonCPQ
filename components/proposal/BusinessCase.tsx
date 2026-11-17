@@ -166,22 +166,28 @@ function sensorMath(ls: PriceLine[]): { total: number; text: string } {
 }
 
 /** What's in scope, as pills: filled when included, dimmed when not. */
-function ScopePills({ ecall }: { ecall: boolean }) {
+function ScopePills({ ecall, rates }: { ecall: boolean; rates?: { monitoring: string; ecall: string } }) {
   return (
     <div className="bc-pills">
-      <span className="bc-pill-on bc-pill-lav"><T k="bc.scope.pill.monitoring" d="AI Resident Monitoring & Fall Prevention/Detection" /></span>
-      <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
-        <T k="bc.scope.pill.ecall" d="Teton E-Call / Nurse Call" />
+      <span className="bc-pill-col">
+        <span className="bc-pill-on bc-pill-lav"><T k="bc.scope.pill.monitoring" d="AI Resident Monitoring & Fall Prevention/Detection" /></span>
+        {rates && <span className="bc-pill-rate"><T k="bc.scope.pill.monitoringRate" d="({rate} per bed, per month)" v={{ rate: rates.monitoring }} /></span>}
+      </span>
+      <span className="bc-pill-col">
+        <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
+          <T k="bc.scope.pill.ecall" d="Teton E-Call / Nurse Call" />
+        </span>
+        {rates && ecall && <span className="bc-pill-rate"><T k="bc.scope.pill.ecallRate" d="({rate} per bed, per month)" v={{ rate: rates.ecall }} /></span>}
       </span>
     </div>
   );
 }
 
-function ScopeRow({ ecall }: { ecall: boolean }) {
+function ScopeRow({ ecall, rates }: { ecall: boolean; rates?: { monitoring: string; ecall: string } }) {
   return (
     <div className="bc-req-row">
       <div className="bc-req-name"><T k="bc.scope.scope" d="Scope" /></div>
-      <div className="bc-req-span"><ScopePills ecall={ecall} /></div>
+      <div className="bc-req-span"><ScopePills ecall={ecall} rates={rates} /></div>
     </div>
   );
 }
@@ -200,6 +206,14 @@ function CostRow({ name, sub, desc, amount, pct, total }: { name: React.ReactNod
     </div>
   );
 }
+
+/** A community's beds by care type. */
+const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
+  il: Number(dc.ilBeds) || 0,
+  al: Number(dc.alBeds) || 0,
+  mc: Number(dc.mcBeds) || 0,
+  snf: Number(dc.snfBeds) || 0,
+});
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
 
@@ -268,12 +282,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const pilotTotal = pilotFees + install + pSen.total;
     const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => x.dc.ecall);
     const months = inputs.schedule.pilotLengthMonths;
-    const beds = (dc: (typeof draft.communities)[number]) => ({
-      il: Number(dc.ilBeds) || 0,
-      al: Number(dc.alBeds) || 0,
-      mc: Number(dc.mcBeds) || 0,
-      snf: Number(dc.snfBeds) || 0,
-    });
+    const beds = bedsOf;
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
     defs.pilot = (no) => (
@@ -379,8 +388,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => c.ecall);
   const perBed = units > 0 ? d.serviceMonthly / units : 0;
   const perBedMonthly = usd(perBed, { cents: !Number.isInteger(Math.round(perBed * 100) / 100) });
-  const bedMonths = sum(d.perCommunity.map((c) => c.units * (term + (c.pilot ? inputs.schedule.pilotLengthMonths : 0))));
-  const perBedAllIn = bedMonths > 0 ? d.termTotal / bedMonths : 0;
+  const money = (n: number) => usd(n, { cents: !Number.isInteger(Math.round(n * 100) / 100) });
+  // Year 1: one-time charges and monthly fees billed in the first 12 months (they add up to the Year 1 investment).
+  const y1OneTime = sum(cf.install.slice(0, 12));
+  const y1Monthly = kp.totalInvestment12 - y1OneTime;
   {
     defs.scope = (no) => (
       <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
@@ -462,10 +473,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <T k="bc.scope.title.opex" d="{total} over the {term}-month term, returned through {site}’s operating income." v={{ ...vars, total: usd(d.termTotal), term: String(term) }} />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription. This document sets out the investment, what it returns, and how quickly it pays for itself." v={vars} />
+              <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription." v={vars} />
             </p>
-            <div className="bc-card bc-req">
-              <ScopeRow ecall={anyEcall} />
+            <div className="bc-card bc-req bc-req-tight">
+              <ScopeRow ecall={anyEcall} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate) }} />
               <CostRow
                 name={<T k="bc.scope.install" d="Installation" />}
                 sub={<T k="bc.oneTime" d="(one-time)" />}
@@ -489,6 +500,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 }
                 amount={<V k="scope.serviceMonthly.value" label="Monthly once in service amount">{usd(d.serviceMonthly)} / mo</V>}
               />
+              <CostRow
+                total
+                name={<T k="bc.scope.year1" d="Total Year 1 Investment" />}
+                desc={<T k="bc.scope.year1Note" d="{oneTime} one-time + {monthly} in monthly fees over the first 12 months." v={{ oneTime: usd(y1OneTime), monthly: usd(y1Monthly) }} />}
+                amount={<V k="card.investment.value" label="Total Investment — Year 1 figure">{usd(kp.totalInvestment12)}</V>}
+              />
             </div>
           </>
         )}
@@ -496,16 +513,63 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         {!capexShown && (
           <>
             <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
-            <div className="bc-three">
+            <div className="bc-three bc-three-compact">
               <Stat value={<V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V>}>
                 <T k="bc.overview.total" d="Total Cost Over {term}-month Term" v={{ term: String(term) }} />
               </Stat>
-              <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{usd(perBedAllIn, { cents: true })}</V>}>
+              <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>}>
                 <T k="bc.overview.perBed" d="Total Cost per Bed, Per Month" />
               </Stat>
               <Stat value={<>{term} months</>}>
                 <T k="bc.overview.term" d="Post-Pilot Term Length" />
               </Stat>
+            </div>
+            <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
+            <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Community</th>
+                    <th>AL beds</th>
+                    <th>MC beds</th>
+                    <th>SNF beds</th>
+                    <th className="bc-hl">Total cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draft.communities.map((dc, i) => {
+                    const b = bedsOf(dc);
+                    const row = d.perCommunity[i];
+                    return (
+                      <tr key={dc.id}>
+                        <td className="bc-m">
+                          {row.name}
+                          <small>{row.detail}</small>
+                        </td>
+                        <td>{count(b.al)}</td>
+                        <td>{count(b.mc)}</td>
+                        <td>{count(b.snf)}</td>
+                        <td className="bc-hl bc-big">
+                          {usd(row.monthly)} / mo
+                          <small>({usd(row.oneTime)} one-time)</small>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {draft.communities.length > 1 && (
+                  <tr className="bc-tot">
+                    <td className="bc-m">{`${draft.communities.length} communities`}</td>
+                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
+                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
+                    <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
+                    <td className="bc-hl bc-big">
+                      {usd(d.serviceMonthly)} / mo
+                      <small>({usd(d.oneTime)} one-time)</small>
+                    </td>
+                  </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </>
         )}

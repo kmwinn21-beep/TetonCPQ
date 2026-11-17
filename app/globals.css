@@ -178,6 +178,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 4px; }
 .bc-dark { background: var(--bc-night); color: #fff; border-radius: 14px; padding: 22px 20px 24px; }
 .bc-dark > b { display: block; font-size: 38px; font-weight: 500; color: var(--bc-mint); letter-spacing: -1px; line-height: 1.15; }
+.bc-three-compact .bc-dark { padding: 16px 18px 18px; }
+.bc-three-compact .bc-dark > span { margin-top: 6px; }
 .bc-dark > span { display: block; font-size: 12px; line-height: 1.5; color: #D6DAE0; margin-top: 10px; }
 /* the request */
 .bc-req { margin-top: 24px; padding: 4px 24px; }
@@ -194,8 +196,14 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .bc-pills { flex-wrap: nowrap; }
 .bc-pills > span { border-radius: 99px; padding: 5px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-.bc-pilot-tbl td { padding-top: 9px; padding-bottom: 9px; }
+.bc-pilot-tbl td { padding-top: 8px; padding-bottom: 8px; }
+.bc-pilot-tbl td small { margin-top: 1px; line-height: 1.3; }
+.bc-pilot-tbl td.bc-big { font-size: 16px; line-height: 1.25; }
 .bc-pill-lav { background: var(--bc-lav); color: var(--bc-night); }
+.bc-pill-col { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.bc-pills > .bc-pill-col > span:first-child { border-radius: 99px; padding: 5px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.bc-pill-rate { font-size: 11px; color: var(--bc-muted); }
+.bc-tbl td.bc-big small { font-size: 11px; font-weight: 400; color: var(--bc-muted); white-space: nowrap; }
 .bc-pill-coral { background: #F08D79; color: #fff; }
 .bc-pill-off { background: #EFEDE9; color: #A9ADB3; border: 1px dashed #D6D3CD; }
 .bc-req-pct { font-size: 11.5px; color: var(--bc-muted); text-align: right; padding-top: 6px; }
@@ -278,9 +286,14 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @page bc { size: Letter; margin: 0; }
 @media print {
   .bc-slot { padding: 0; }
+  /* A page that runs onto a second sheet keeps its margins on both. */
+  .bc-pad { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   .bc-page { page: bc; margin: 0; box-shadow: none; break-after: page; width: 8.5in; max-width: none; min-height: 11in; }
   .bc-last .bc-page { break-after: auto; }
   .bc-card, .bc-dark, .bc-callout, .bc-phase, .bc-tbl tr { break-inside: avoid; }
+  /* Long tables split between rows (the header repeats) instead of jumping whole to the next sheet. */
+  .bc-card.bc-tbl { break-inside: auto; }
+  .bc-eyebrow { break-after: avoid; }
   .bc-h1 { break-after: avoid; }
 }
 @media screen and (max-width: 860px) {
