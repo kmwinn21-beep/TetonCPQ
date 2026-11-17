@@ -63,6 +63,7 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.ecallPilotRate', 'E-Call during pilot / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.installRate', 'Install / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.installCreditPct', 'Install credit on pilot sites', PRICING, PRICING_AT, 'pct', { max: 1 }),
+  F('commercial.sensorPrice', 'Additional sensor price', PRICING, PRICING_AT, 'usd'),
   F('commercial.fullFacilityMultiplier', 'Full-facility multiplier', PRICING, PRICING_AT, 'mult'),
   F('commercial.specialRate', 'Intro rate / bed / mo', PRICING, PRICING_AT, 'usd2', { nullable: true }),
   F('commercial.specialTermMonths', 'Intro term', PRICING, PRICING_AT, 'months'),
@@ -242,6 +243,10 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.oneTime') return { formula: 'Installation for every bed, at the install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
   if (k === 'scope.pilotMonthly') return { formula: 'Pilot beds × (pilot rate + E-Call during pilot)', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
+  if (k === 'scope.install') return { formula: 'Beds × install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
+  if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price', fields: ['commercial.sensorPrice'] };
+  if (k === 'bc.overview.perBed') return pricing('Total cost over the term ÷ (beds × months, counting each community’s pilot and service term)');
+  if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price', fields: ['commercial.sensorPrice'] };
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');

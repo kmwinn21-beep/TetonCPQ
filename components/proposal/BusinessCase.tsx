@@ -143,6 +143,65 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
   );
 }
 
+/** "119 beds × $400" (+ more groups when rates differ by community), from one-time install lines. */
+function installMath(ls: PriceLine[]): { gross: number; credit: number; text: string } {
+  const install = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !l.concessionCode?.startsWith('INSTALL_CREDIT'));
+  const credit = -sum(ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
+  const groups = new Map<number, number>();
+  install.forEach((l) => groups.set(l.unitNet, (groups.get(l.unitNet) ?? 0) + l.qty));
+  const parts = Array.from(groups.entries()).map(([unit, qty]) => `${count(qty)} beds × ${usd(unit, { cents: !Number.isInteger(unit) })}`);
+  const gross = sum(install.map(lineTotal));
+  const text = (parts.join(' + ') || 'No installation') + (credit > 0 ? ` − ${usd(credit)} pilot credit` : '');
+  return { gross, credit, text };
+}
+
+/** "50 sensors × $300", from one-time sensor lines. */
+function sensorMath(ls: PriceLine[]): { total: number; text: string } {
+  const sensors = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0);
+  const groups = new Map<number, number>();
+  sensors.forEach((l) => groups.set(l.unitNet, (groups.get(l.unitNet) ?? 0) + l.qty));
+  const parts = Array.from(groups.entries()).map(([unit, qty]) => `${count(qty)} ${qty === 1 ? 'sensor' : 'sensors'} × ${usd(unit)}`);
+  return { total: sum(sensors.map(lineTotal)), text: parts.join(' + ') || 'None included' };
+}
+
+/** What's in scope, as pills: filled when included, dimmed when not. */
+function ScopePills({ ecall }: { ecall: boolean }) {
+  return (
+    <div className="bc-pills">
+      <span className="bc-pill-on bc-pill-mint"><T k="bc.scope.pill.monitoring" d="Resident Monitoring & Fall Prevention/Detection" /></span>
+      <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
+        <T k="bc.scope.pill.ecall" d="Teton E-Call / Nurse Call" />
+      </span>
+    </div>
+  );
+}
+
+function ScopeRow({ ecall }: { ecall: boolean }) {
+  return (
+    <div className="bc-req-row">
+      <div className="bc-req-name"><T k="bc.scope.scope" d="Scope" /></div>
+      <div className="bc-req-span"><ScopePills ecall={ecall} /></div>
+    </div>
+  );
+}
+
+/** A cost line: a name with an optional "(one-time)" under it, the math, and the amount. */
+function CostRow({ name, sub, desc, amount, pct }: { name: React.ReactNode; sub?: React.ReactNode; desc: React.ReactNode; amount: React.ReactNode; pct?: string }) {
+  return (
+    <div className="bc-req-row">
+      <div className="bc-req-name">
+        {name}
+        {sub && <span className="bc-req-sub">{sub}</span>}
+      </div>
+      <div className="bc-req-desc">{desc}</div>
+      <div className="bc-req-amt">{amount}</div>
+      <div className="bc-req-pct">{pct ?? ''}</div>
+    </div>
+  );
+}
+
+const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
+
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
   const { layout } = useProposalText();
   const d = buildProposalData(draft, outputs, lines);
@@ -202,11 +261,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const pilotFeeLines = siteLines.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot'));
     const pilotFees = sum(pilotFeeLines.map(lineTotal));
     const pilotMonthlyTotal = sum(pilotFeeLines.map((l) => l.qty * l.unitNet));
-    const installGross = sum(siteLines.filter((l) => l.billing === 'one_time' && !l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
-    const installCredit = -sum(siteLines.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
-    const install = installGross - installCredit;
-    const hasSensors = siteLines.some((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0);
-    const pilotTotal = pilotFees + install;
+    const pIns = installMath(siteLines);
+    const pSen = sensorMath(siteLines);
+    const install = pIns.gross - pIns.credit;
+    const pilotTotal = pilotFees + install + pSen.total;
+    const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => x.dc.ecall);
     const months = inputs.schedule.pilotLengthMonths;
     const beds = (dc: (typeof draft.communities)[number]) => ({
       il: Number(dc.ilBeds) || 0,
@@ -216,7 +275,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     });
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
-    const ecallFree = d.ecallFreeInPilot;
     defs.pilot = (no) => (
       <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
         <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
@@ -224,25 +282,36 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <T k="bc.pilot.title" d="A {months}-month pilot at {pilot}, {total} all in." v={{ ...pvars, total: usd(pilotTotal) }} />
         </h1>
         <p className="bc-lede">
-          <T k="bc.pilot.lede" d="The pilot proves the program at {pilot} before the rest of the commitment. It runs for {months} months from go-live, then converts to the {term}-month service term." v={pvars} />
+          <T k="bc.pilot.lede" d="It runs for {months} months from go-live, then converts to the {term}-month service term." v={pvars} />
         </p>
         <div className="bc-card bc-req">
-          <div className="bc-req-row">
-            <div className="bc-req-name"><T k="bc.pilot.fees" d="Pilot fees" /></div>
-            <div className="bc-req-desc">
-              <T k="bc.pilot.feesNote" d="{monthly} a month for {months} months{ecall}." v={{ monthly: usd(pilotMonthlyTotal), months: String(months), ecall: ecallFree ? ', with E-Call included at no charge' : '' }} />
-            </div>
-            <div className="bc-req-amt"><V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V></div>
-            <div className="bc-req-pct">{pctOf(pilotFees, pilotTotal)}</div>
-          </div>
-          <div className="bc-req-row">
-            <div className="bc-req-name"><T k="bc.pilot.install" d={hasSensors ? 'Installation and sensors' : 'Installation'} /></div>
-            <div className="bc-req-desc">
-              <T k="bc.pilot.installNote" d={hasSensors ? 'Professional installation and additional sensors at the pilot {sites}, billed at go-live{credit}.' : 'Professional installation at the pilot {sites}, billed at go-live{credit}.'} v={{ sites: pilotSites.length === 1 ? 'community' : 'communities', credit: installCredit > 0 ? `; ${usd(installGross)} less a ${usd(installCredit)} pilot credit` : '' }} />
-            </div>
-            <div className="bc-req-amt"><V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install)}</V></div>
-            <div className="bc-req-pct">{pctOf(install, pilotTotal)}</div>
-          </div>
+          <ScopeRow ecall={pilotEcall} />
+          <CostRow
+            name={<T k="bc.pilot.install" d="Installation" />}
+            sub={<T k="bc.oneTime" d="(one-time)" />}
+            desc={<T k="bc.pilot.installMath" d="{math}" v={{ math: pIns.text }} />}
+            amount={<V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install)}</V>}
+            pct={pctOf(install, pilotTotal)}
+          />
+          <CostRow
+            name={<T k="bc.sensors" d="Additional Sensors" />}
+            sub={<T k="bc.oneTime" d="(one-time)" />}
+            desc={<T k="bc.pilot.sensorMath" d="{math}" v={{ math: pSen.text }} />}
+            amount={<V k="bc.pilot.sensors.value" label="Pilot additional sensors amount">{usd(pSen.total)}</V>}
+            pct={pctOf(pSen.total, pilotTotal)}
+          />
+          <CostRow
+            name={<T k="bc.pilot.fees" d="Monthly Fees" />}
+            desc={
+              <T
+                k="bc.pilot.feesNote"
+                d="{monthly} per month for {months} months. Includes Teton Resident Monitoring{ecall}."
+                v={{ monthly: usd(pilotMonthlyTotal), months: String(months), ecall: pilotEcall ? ` and E-Call (${ECALL_NAME[draft.commercial.ecall]})` : '' }}
+              />
+            }
+            amount={<V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V>}
+            pct={pctOf(pilotFees, pilotTotal)}
+          />
           <div className="bc-req-row bc-req-total">
             <div className="bc-req-name"><T k="bc.pilot.total" d="Total pilot cost" /></div>
             <div className="bc-req-desc">
@@ -255,7 +324,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
-          <div className="bc-card bc-tbl bc-hrs">
+          <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
             <table>
               <thead>
                 <tr>
@@ -303,6 +372,14 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   }
 
   // ---------- The investment ----------
+  // Investment page (subscription): the math behind each line, and all-in cost per bed per month over each community's pilot and term.
+  const allIns = installMath(lines);
+  const allSen = sensorMath(lines);
+  const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => c.ecall);
+  const perBed = units > 0 ? d.serviceMonthly / units : 0;
+  const perBedMonthly = usd(perBed, { cents: !Number.isInteger(Math.round(perBed * 100) / 100) });
+  const bedMonths = sum(d.perCommunity.map((c) => c.units * (term + (c.pilot ? inputs.schedule.pilotLengthMonths : 0))));
+  const perBedAllIn = bedMonths > 0 ? d.termTotal / bedMonths : 0;
   {
     defs.scope = (no) => (
       <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
@@ -386,31 +463,51 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <T k="bc.scope.lede.opex" d="Teton ambient monitoring for {sites} and {beds}, by subscription. This document sets out the investment, what it returns, and how quickly it pays for itself." v={vars} />
             </p>
             <div className="bc-card bc-req">
-              <div className="bc-req-row">
-                <div className="bc-req-name"><T k="bc.scope.install" d="Installation" /></div>
-                <div className="bc-req-desc"><T k="bc.scope.installNote" d="Professional installation in every bed, billed at each community’s go-live." /></div>
-                <div className="bc-req-amt"><V k="scope.oneTime.value" label="One-time amount">{usd(d.oneTime)}</V></div>
-                <div className="bc-req-pct">{pctOf(d.oneTime, d.termTotal)}</div>
-              </div>
-              <div className="bc-req-row">
-                <div className="bc-req-name"><T k="bc.scope.subscription" d="Subscription" /></div>
-                <div className="bc-req-desc">
-                  <T k="bc.scope.subscriptionNote" d="{monthly} a month once in service{pilot}. Platform, support and analytics; no title transfer." v={{ monthly: usd(d.serviceMonthly), pilot: anyPilot ? `, after a ${inputs.schedule.pilotLengthMonths}-month pilot at ${usd(d.pilotMonthly)} a month` : '' }} />
-                </div>
-                <div className="bc-req-amt">{usd(d.termTotal - d.oneTime)}</div>
-                <div className="bc-req-pct">{pctOf(d.termTotal - d.oneTime, d.termTotal)}</div>
-              </div>
-              <div className="bc-req-row bc-req-total">
-                <div className="bc-req-name"><T k="bc.scope.totalOpex" d="Total over the term" /></div>
-                <div className="bc-req-desc"><T k="bc.scope.totalOpexNote" d="Installation, pilot and {term} months of subscription." v={{ term: String(term) }} /></div>
-                <div className="bc-req-amt"><V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V></div>
-                <div className="bc-req-pct">100%</div>
-              </div>
+              <ScopeRow ecall={anyEcall} />
+              <CostRow
+                name={<T k="bc.scope.install" d="Installation" />}
+                sub={<T k="bc.oneTime" d="(one-time)" />}
+                desc={<T k="bc.scope.installMath" d="{math}" v={{ math: allIns.text }} />}
+                amount={<V k="scope.install.value" label="Installation amount">{usd(allIns.gross - allIns.credit)}</V>}
+              />
+              <CostRow
+                name={<T k="bc.sensors" d="Additional Sensors" />}
+                sub={<T k="bc.oneTime" d="(one-time)" />}
+                desc={<T k="bc.scope.sensorMath" d="{math}" v={{ math: allSen.text }} />}
+                amount={<V k="scope.sensors.value" label="Additional sensors amount">{usd(allSen.total)}</V>}
+              />
+              <CostRow
+                name={<T k="bc.scope.subscription" d="Monthly Cost" />}
+                desc={
+                  <T
+                    k="bc.scope.monthlyMath"
+                    d={anyPilot ? '{beds} × {perBed} after {pilot}-month pilot.' : '{beds} × {perBed} per bed per month.'}
+                    v={{ beds: `${count(units)} beds`, perBed: perBedMonthly, pilot: String(inputs.schedule.pilotLengthMonths) }}
+                  />
+                }
+                amount={<V k="scope.serviceMonthly.value" label="Monthly once in service amount">{usd(d.serviceMonthly)} / mo</V>}
+              />
             </div>
           </>
         )}
 
-        {shown('roi') && (
+        {!capexShown && (
+          <>
+            <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
+            <div className="bc-three">
+              <Stat value={<V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V>}>
+                <T k="bc.overview.total" d="Total Cost Over {term}-month Term" v={{ term: String(term) }} />
+              </Stat>
+              <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{usd(perBedAllIn, { cents: true })}</V>}>
+                <T k="bc.overview.perBed" d="Total Cost per Bed, Per Month" />
+              </Stat>
+              <Stat value={<>{term} months</>}>
+                <T k="bc.overview.term" d="Post-Pilot Term Length" />
+              </Stat>
+            </div>
+          </>
+        )}
+        {capexShown && shown('roi') && (
           <>
             <p className="bc-eyebrow bc-gray"><T k="bc.scope.three" d="The case in three numbers" /></p>
             <div className="bc-three">
