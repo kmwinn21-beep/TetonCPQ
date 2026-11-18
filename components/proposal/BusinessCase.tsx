@@ -374,7 +374,7 @@ function ContentsList() {
 }
 
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
-  const { layout, editable } = useProposalText();
+  const { layout, editable, setLayout } = useProposalText();
   const whatIf = useWhatIf();
   // "+" on the community tables: add a community in the drawer (a pilot site from the pilot table).
   const addCommunity = whatIf && editable ? (pilot: boolean) => () => whatIf.addCommunity(pilot) : null;
@@ -1102,8 +1102,38 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </B>
         <B id="table" label="Year 1 table">{y1Table(false)}</B>
         <B id="chart" label="Chart">
-        <div className="bc-card bc-chart">
-          <QuarterlyWaterfall cumulative discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={y1.payback} pilotEndMonth={d.pilotEndMonth} />
+        <div className="bc-card bc-chart relative group/chart">
+          {editable && (
+            // Screen only: pick the chart style; saved with the proposal.
+            <div data-edit-ui role="group" aria-label="Chart style" className="no-print absolute right-3 top-3 z-[5] flex rounded-lg bg-[rgba(15,23,32,.88)] p-0.5 text-[11px] text-white opacity-0 group-hover/chart:opacity-100 focus-within:opacity-100 transition-opacity" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+              {(
+                [
+                  ['bar', 'Standard Bar'],
+                  ['stacked', 'Stacked Bar'],
+                ] as const
+              ).map(([v, label]) => {
+                const on = (layout.bcChart ?? 'bar') === v;
+                return (
+                  <button key={v} type="button" aria-pressed={on} className={`px-2.5 py-1 rounded-md ${on ? 'bg-white text-teton-ink font-medium' : 'hover:bg-white/15'}`} onClick={() => setLayout((l) => ({ ...l, bcChart: v === 'stacked' ? 'stacked' : undefined }))}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <QuarterlyWaterfall
+            cumulative
+            stacked={layout.bcChart === 'stacked'}
+            discountedNet={net}
+            startDate={inputs.schedule.startDate}
+            paybackMonth={y1.payback}
+            pilotEndMonth={d.pilotEndMonth}
+            labels={
+              layout.bcChart === 'stacked'
+                ? { gain: <T k="bc.cf.leg.gainToDate.stacked" d="Net Gain to Date" />, gainQ: <T k="bc.cf.leg.gainQ" d="90-day Net Gain" />, cost: <T k="bc.cf.leg.costToDate.stacked" d="Net Cost to Date" />, costQ: <T k="bc.cf.leg.costQ" d="90-Day Net Cost" /> }
+                : { gain: <T k="bc.cf.leg.gainToDate" d="Net Gain to date" />, cost: <T k="bc.cf.leg.costToDate" d="Net Cost to date" /> }
+            }
+          />
         </div>
         </B>
         <B id="total" label="Total value callout">
@@ -1121,7 +1151,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           </div>
         </B>
-        {basis && <B id="note" label="Pricing note">{basis}</B>}
         </Blocks>
       </Page>
     );

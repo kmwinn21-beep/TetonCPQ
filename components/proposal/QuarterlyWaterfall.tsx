@@ -10,7 +10,9 @@
  *
  * `cumulative`: a plain bar graph instead. Each bar stands from $0 to where the
  * program is at the end of that quarter (red behind, green ahead), with no total
- * bar: the last bar is the total.
+ * bar: the last bar is the total. `stacked` splits each such bar: the pale part is
+ * where the program stood before the quarter, the solid part is the quarter's own
+ * (90-day) net.
  * Estimated payback is marked and labeled; the end of the pilot is a dashed
  * line (named in the legend). Plain SVG so it prints crisply and
  * renders on the server.
@@ -24,6 +26,9 @@ import { monthName } from '@/lib/format';
 const GREEN = '#66C995';
 const RED = '#FC6845';
 const TOTAL = '#303035';
+// Stacked bars: the part of the running total from before the quarter, in a pale tint of its sign's colour.
+const PALE_GREEN = '#BFE9D1';
+const PALE_RED = '#FDC9BC';
 const GRID = '#E7E8E9';
 const AXIS = '#656E77';
 const LABEL = '#394147';
@@ -48,6 +53,8 @@ export function QuarterlyWaterfall({
   paybackMonth,
   pilotEndMonth = null,
   cumulative = false,
+  stacked = false,
+  labels = {},
 }: {
   discountedNet: number[];
   startDate: string;
@@ -56,6 +63,10 @@ export function QuarterlyWaterfall({
   pilotEndMonth?: number | null;
   /** Bars of the running total from $0, and no total bar. */
   cumulative?: boolean;
+  /** With `cumulative`: split each bar into the total before the quarter and the quarter's own net. */
+  stacked?: boolean;
+  /** Legend wording (e.g. editable text on the business case). */
+  labels?: { gain?: React.ReactNode; cost?: React.ReactNode; gainQ?: React.ReactNode; costQ?: React.ReactNode };
 }) {
   const quarters: Array<{ label: string; delta: number; from: number; to: number }> = [];
   let cum = 0;
@@ -114,6 +125,34 @@ export function QuarterlyWaterfall({
           const fill = isTotal ? TOTAL : cumulative ? (b.to < 0 ? RED : GREEN) : under ? RED : b.delta >= 0 ? GREEN : RED;
           const text = isTotal ? money(b.delta) : under || cumulative ? money(b.to) : money(b.delta, true);
           const labelY = cumulative ? (b.to < 0 ? y1 + 13 : y0 - 6) : under || b.delta < 0 ? y1 + 13 : y0 - 6;
+          if (cumulative && stacked) {
+            const prev = b.from;
+            const to = b.to;
+            const segs: Array<[number, number, string]> =
+              prev >= 0 && to >= prev ? [[0, prev, PALE_GREEN], [prev, to, GREEN]]
+              : prev >= 0 ? (to >= 0 ? [[0, to, PALE_GREEN], [to, prev, RED]] : [[0, prev, RED], [0, to, RED]])
+              : to > 0 ? [[prev, to, GREEN]]
+              : b.delta >= 0 ? [[0, to, PALE_RED], [to, prev, GREEN]]
+              : [[0, prev, PALE_RED], [prev, to, RED]];
+            const lo1 = Math.min(0, prev, to);
+            const hi1 = Math.max(0, prev, to);
+            return (
+              <g key={b.label}>
+                <title>{`${b.label}: ${to < 0 ? 'net cost' : 'net gain'} to date ${money(to)}; this quarter ${money(b.delta, true)}`}</title>
+                {segs.map(([a, c, col], k) => {
+                  const ya = Math.min(y(a), y(c));
+                  const h = Math.abs(y(a) - y(c));
+                  return h < 0.5 ? null : <rect key={k} x={x} y={ya} width={bw} height={h} fill={col} />;
+                })}
+                <text x={cx} y={to < 0 ? y(lo1) + 13 : y(hi1) - 6} textAnchor="middle" fontSize={10.5} fontWeight={500} fill={INK}>
+                  {money(to)}
+                </text>
+                <text x={cx} y={axisY + 17} textAnchor="middle" fontSize={10.5} fill={LABEL}>
+                  {b.label}
+                </text>
+              </g>
+            );
+          }
           return (
             <g key={b.label}>
               <rect x={x} y={y0} width={bw} height={Math.max(y1 - y0, 1.5)} rx={3} fill={fill}>
@@ -144,8 +183,20 @@ export function QuarterlyWaterfall({
         )}
       </svg>
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-teton-dark-gray mt-1">
-        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: GREEN }} />{cumulative ? 'Ahead (net gain to date)' : 'Net Gain'}</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: RED }} />{cumulative ? 'Behind (net cost to date)' : 'Net Cost'}</span>
+        {(cumulative && stacked
+          ? ([
+              [PALE_GREEN, labels.gain ?? 'Net Gain to Date'],
+              [GREEN, labels.gainQ ?? '90-day Net Gain'],
+              [PALE_RED, labels.cost ?? 'Net Cost to Date'],
+              [RED, labels.costQ ?? '90-Day Net Cost'],
+            ] as const)
+          : ([
+              [GREEN, labels.gain ?? (cumulative ? 'Net Gain to date' : 'Net Gain')],
+              [RED, labels.cost ?? (cumulative ? 'Net Cost to date' : 'Net Cost')],
+            ] as const)
+        ).map(([color, text], i) => (
+          <span key={i} className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: color }} />{text}</span>
+        ))}
         {!cumulative && <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: TOTAL }} />Total at month {months}</span>}
         {pilotEndMonth ? (
           <span className="flex items-center gap-1.5">

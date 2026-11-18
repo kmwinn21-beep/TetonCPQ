@@ -46,6 +46,8 @@ export interface ProposalLayout {
   bcBlocks?: Record<string, string[]>;
   /** Business-case format: sections removed from each page (page → section id → its name, to list it for adding back). */
   bcHiddenBlocks?: Record<string, Record<string, string>>;
+  /** Business-case format: the cash flow chart's style (standard bars by default). */
+  bcChart?: 'bar' | 'stacked';
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -142,6 +144,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return out;
     })(),
+    bcChart: raw.bcChart === 'stacked' ? 'stacked' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};
