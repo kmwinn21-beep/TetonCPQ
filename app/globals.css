@@ -444,3 +444,6 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 [data-bc-page="cashflow"] .bc-three { margin-top: 10px !important; }
 [data-bc-page="cashflow"] [data-bc-block="payback"] { margin-top: 12px; }
 [data-bc-page="cashflow"] .bc-note { margin-top: 8px; line-height: 1.45; }
+/* Cash flow page: payback and return-on-cost side by side, one card height. */
+.bc-cf-cards .bc-dark { min-height: 64px; }
+.bc-cf-cards .bc-dark > span { font-size: 11.5px; line-height: 1.4; }

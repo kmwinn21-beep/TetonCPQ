@@ -416,6 +416,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // Stabilized net benefit: gross − the annual cost of Teton. Equals the model's run rate on a subscription; on an equipment purchase it
   // uses the cost of ownership, so the Year 1 page and the returns page show the same figure.
   const stabilizedNet = sel.annualRoi - tetonAnnual;
+  // Stabilized return on cost: yearly gross benefit ÷ the annual cost of Teton (the cost of ownership per year on an equipment purchase).
+  const stabilizedReturn = capexShown ? (tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0) : sel.returnOnCost;
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
     { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
     { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Faster fill of open apartments', sub: 'Monitoring as a reason families choose the community' },
@@ -1055,7 +1057,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <T k="bc.y1.net" d="net benefit in year one, after everything paid to Teton" />
           </Stat>
           <Stat value={<V k={y1.key('gross.value')} label="Gross Return per $1 Invested (Year 1) figure">{multiple(y1.gross)}</V>}>
-            <T k="bc.y1.gross" d="gross return per $1 invested in year one; {stabilized} once fully ramped" v={{ stabilized: multiple(capexShown ? (tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0) : sel.returnOnCost, 1) }} />
+            <T k="bc.y1.gross" d="gross return per $1 invested in year one; {stabilized} once fully ramped" v={{ stabilized: multiple(stabilizedReturn, 1) }} />
           </Stat>
           <Stat value={<V k={y1.key('payback.value')} label="Discounted Payback figure">{y1.payback ? `Month ${y1.payback}` : `> ${y1.horizon} mo`}</V>}>
             <T k="bc.y1.payback" d="discounted payback: when the program has paid for itself and stays paid for" />
@@ -1089,9 +1091,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-lede"><T k="bc.cf.lede" d="Net discounted benefit after Teton fees." /></p>
         <Blocks page="cashflow">
         <B id="payback" label="Discounted payback">
-          <div className="bc-stat-inline bc-three-compact">
+          <div className="bc-two bc-stat-inline bc-three-compact bc-cf-cards">
             <Stat value={<V k={y1.key('payback.value')} label="Discounted Payback figure">{y1.payback ? `Month ${y1.payback}` : `> ${y1.horizon} mo`}</V>}>
-              <T k="bc.y1.payback" d="discounted payback: when the program has paid for itself and stays paid for" />
+              <T k="bc.cf.payback" d="discounted payback: paid for itself and stays paid for" />
+            </Stat>
+            <Stat value={<V k={capexShown ? 'bc.capex.returnOnCost.value' : 'bc.cf.returnOnCost.value'} label="Stabilized return on cost figure">{multiple(stabilizedReturn, 1)}</V>}>
+              <T k="bc.cf.returnOnCost" d="stabilized return on cost: yearly gross benefit per $1 of {cost}" v={{ cost: capexShown ? 'annual cost of ownership' : 'subscription fees' }} />
             </Stat>
           </div>
         </B>
