@@ -50,6 +50,8 @@ export interface ProposalLayout {
   bcChart?: 'bar' | 'stacked';
   /** Business-case format: the implementation stages as cards (default) or a Gantt chart with a description list. */
   bcImpl?: 'cards' | 'gantt';
+  /** Business-case format: the callout under the returns table, asset value (default) or fall risk. */
+  bcRoiCallout?: 'asset' | 'fall';
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -148,6 +150,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     })(),
     bcChart: raw.bcChart === 'stacked' ? 'stacked' : undefined,
     bcImpl: raw.bcImpl === 'gantt' ? 'gantt' : undefined,
+    bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

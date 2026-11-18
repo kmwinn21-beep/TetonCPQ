@@ -981,13 +981,47 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </table>
         </div>
         </B>
-        <B id="callout" label="Asset value">
-        <div className="bc-callout">
-          <b><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></b>
-          <div>
-            <span className="bc-chip"><T k="bc.roi.chip" d="Asset value · {capRate} cap" v={vars} /></span>
-            <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
-          </div>
+        <B id="callout" label="Asset value / Fall risk">
+        <div className="relative group/view">
+          {editable && (
+            // Screen only: asset value (default) or fall risk; saved with the proposal.
+            <ViewSwitch
+              label="Callout"
+              options={[['asset', 'Asset Value'], ['fall', 'Fall Risk']] as const}
+              value={layout.bcRoiCallout ?? 'asset'}
+              onChange={(v) => setLayout((l) => ({ ...l, bcRoiCallout: v === 'fall' ? 'fall' : undefined }))}
+            />
+          )}
+          {layout.bcRoiCallout === 'fall' ? (
+            <div className="bc-fall">
+              <div className="bc-fall-head">
+                <span className="bc-chip"><T k="bc.roi.fall.chip" d="Decreased fall risk exposure" /></span>
+                <p><T k="bc.roi.fall.lead" d="Falls are 41.0% of closed professional liability claims in aging services, the largest single category. Sagora Senior Living has seen:" /></p>
+              </div>
+              <div className="bc-fall-three">
+                <div>
+                  <b><T k="bc.roi.fall.v1" d="72.5%" /></b>
+                  <span><T k="bc.roi.fall.l1" d="lower fall rate" /></span>
+                </div>
+                <div>
+                  <b><T k="bc.roi.fall.v2" d="94%" /></b>
+                  <span><T k="bc.roi.fall.l2" d="faster response to a fall" /></span>
+                </div>
+                <div>
+                  <b><T k="bc.roi.fall.v3" d="88%" /></b>
+                  <span><T k="bc.roi.fall.l3" d="less time on the floor" /></span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bc-callout">
+              <b><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></b>
+              <div>
+                <span className="bc-chip"><T k="bc.roi.chip" d="Asset value · {capRate} cap" v={vars} /></span>
+                <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
+              </div>
+            </div>
+          )}
         </div>
         </B>
         </Blocks>
