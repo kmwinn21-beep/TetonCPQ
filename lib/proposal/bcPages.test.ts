@@ -4,8 +4,8 @@ import { DEFAULT_LAYOUT, sanitizeLayout } from './layout';
 
 describe('business-case pages', () => {
   it('follows the standard sections until changed', () => {
-    expect(defaultBcPages(DEFAULT_LAYOUT)).toEqual(['cover', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'roledesc', 'terms', 'assumptions']);
-    expect(defaultBcPages({ hiddenSections: ['implementation', 'summary'] })).toEqual(['cover', 'sitescope', 'pilot', 'scope', 'roi', 'resources', 'roledesc', 'terms', 'assumptions']);
+    expect(defaultBcPages(DEFAULT_LAYOUT)).toEqual(['cover', 'contents', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'roledesc', 'terms', 'assumptions']);
+    expect(defaultBcPages({ hiddenSections: ['implementation', 'summary'] })).toEqual(['cover', 'contents', 'sitescope', 'pilot', 'scope', 'roi', 'resources', 'roledesc', 'terms', 'assumptions']);
   });
 
   it('moves, removes and adds back in the standard position', () => {
@@ -15,9 +15,10 @@ describe('business-case pages', () => {
     // Pages that aren't shown (e.g. no resources yet) are skipped over when moving.
     expect(moveBcPage(['scope', 'resources', 'terms'], 'terms', -1, ['scope', 'terms'])).toEqual(['terms', 'resources', 'scope']);
     const r = removeBcPage(p, 'roi');
-    expect(removedBcPages(r)).toEqual(['sitescope', 'pilot', 'roi', 'cashflow', 'implementation', 'resources', 'roledesc', 'assumptions']);
+    expect(removedBcPages(r)).toEqual(['contents', 'sitescope', 'pilot', 'roi', 'cashflow', 'implementation', 'resources', 'roledesc', 'assumptions']);
     expect(addBackBcPage(p, 'pilot')).toEqual(['cover', 'pilot', 'scope', 'roi', 'summary', 'terms']);
     expect(addBackBcPage(r, 'roi')).toEqual(p);
+    expect(addBackBcPage(p, 'contents')).toEqual(['cover', 'contents', 'scope', 'roi', 'summary', 'terms']);
     expect(addBackBcPage(['scope', 'terms'], 'cover')).toEqual(['cover', 'scope', 'terms']);
     expect(insertBcPage(p, 2, 'bcpage-x')).toEqual(['cover', 'scope', 'bcpage-x', 'roi', 'summary', 'terms']);
   });

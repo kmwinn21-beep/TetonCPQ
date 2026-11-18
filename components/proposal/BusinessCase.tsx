@@ -11,7 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
-import { Children, Fragment, isValidElement, type ReactElement } from 'react';
+import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
 import { rangeText } from '@/lib/pricing/finish';
@@ -296,6 +296,54 @@ const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
 });
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
+
+interface TocEntry { id: string; title: string; sub: string; pages: string }
+
+/**
+ * The contents list. It reads each page's eyebrow, heading and sheet numbers
+ * from the rendered document, so it follows removed, added, reordered and
+ * reworded pages without keeping its own copy.
+ */
+function ContentsList() {
+  const ref = useRef<HTMLOListElement>(null);
+  const [entries, setEntries] = useState<TocEntry[]>([]);
+  useEffect(() => {
+    const doc = ref.current?.closest('.bc-doc');
+    if (!doc) return;
+    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const read = () => {
+      const next: TocEntry[] = [];
+      doc.querySelectorAll<HTMLElement>('[data-bc-page]').forEach((slot) => {
+        const id = slot.dataset.bcPage!;
+        if (id === 'cover' || id === 'contents') return;
+        const eyebrow = text(slot.querySelector('.bc-eyebrow:not(.bc-gray)'));
+        const h1 = text(slot.querySelector('.bc-h1'));
+        const nos = Array.from(slot.querySelectorAll('.bc-foot span:last-child')).map((s) => text(s));
+        if (!nos.length) return;
+        next.push({ id, title: eyebrow || h1 || 'Untitled page', sub: eyebrow ? h1 : '', pages: nos.length > 1 ? `${nos[0]}–${nos[nos.length - 1]}` : nos[0] });
+      });
+      setEntries((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(doc, { subtree: true, childList: true, characterData: true });
+    return () => mo.disconnect();
+  }, []);
+  return (
+    <ol ref={ref} className={`bc-toc ${entries.length > 11 ? 'bc-toc-tight' : ''}`}>
+      {entries.map((e, i) => (
+        <li key={e.id}>
+          <span className="bc-toc-i">{String(i + 1).padStart(2, '0')}</span>
+          <span className="bc-toc-t">
+            {e.title}
+            {e.sub && <small>{e.sub}</small>}
+          </span>
+          <span className="bc-toc-p">{e.pages}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
   const { layout } = useProposalText();
@@ -1117,6 +1165,15 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     );
   }
 
+  // ---------- Contents: built from the pages shown, read back from the document ----------
+  defs.contents = (no) => (
+    <Page key="contents" no={no} crumb={<T k="bc.toc.crumb" d="Contents" />}>
+      <p className="bc-eyebrow"><T k="bc.toc.eyebrow" d="Contents" /></p>
+      <h1 className="bc-h1"><T k="bc.toc.title" d="Proposal Contents" /></h1>
+      <ContentsList />
+    </Page>
+  );
+
   // ---------- What each role does, by stage (may run over several sheets) ----------
   {
     const stageIds = new Map(team.stages.map((st) => [st.name, st.id]));
@@ -1279,6 +1336,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);
   return (
     <article id="proposal" className="bc-doc" data-format="businessCase">
+      {/* Each sheet is a full Letter page with its own margins. Setting the document's page (rather than a named page)
+          keeps the browser from starting a fresh, empty sheet before the cover. */}
+      <style>{'@page { size: Letter; margin: 0; }'}</style>
       {order.map((id, i) => {
         // Sheet number: one per page before this, more for pages that run over several sheets.
         const no = 1 + order.slice(0, i).reduce((n, p) => n + (spans[p] ?? 1), 0);
