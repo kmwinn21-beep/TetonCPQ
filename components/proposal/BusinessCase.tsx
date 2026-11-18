@@ -996,6 +996,53 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const basis = capexShown ? (
       <p className="bc-note"><T k="bc.y1.basis3" d="Year 1 figures and the cash flow use the equipment purchase: equipment paid at install, then software & services monthly after the pilot." /></p>
     ) : null;
+    // The Year 1 table; the cash flow page shows it without the Net Benefit row.
+    const y1Table = (withNet: boolean) => (
+        <div className={`bc-card bc-tbl ${withNet ? '' : 'bc-tbl-tight'}`} style={{ marginTop: withNet ? 16 : 12 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Measure</th>
+                <th>What it means</th>
+                <th className="bc-hl bc-r">{withNet ? <T k="bc.y1.col" d="Year 1" /> : <T k="bc.cf.col" d="Totals" />}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="bc-m"><T k="bc.y1.investment" d="Total investment" /></td>
+                <td>
+                  {capexCf ? (
+                    <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                  ) : (
+                    <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
+                  )}
+                </td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('investment.value')} label="Total Investment — Year 1 figure">{usd(y1.investment)}</V></td>
+              </tr>
+              {withNet && (
+              <tr>
+                <td className="bc-m"><T k="bc.y1.netRow" d="Net Benefit (Year 1)" /></td>
+                <td><T k="card.net.note" d="How much better off your communities are in year one after paying for everything." /></td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('net.value')} label="Net Benefit — Year 1 figure">{usd(y1.net)}</V></td>
+              </tr>
+              )}
+              <tr>
+                <td className="bc-m"><T k="bc.y1.runRate" d="Stabilized Net Benefit" /></td>
+                <td>{capexShown ? <T k="bc.y1.runRateNote.capex" d="The yearly value once every community is live and fully ramped, after the annual cost of Teton (four-year cost of ownership ÷ 4)." /> : <T k="card.runRate.note" d="The yearly value once every community is live and fully ramped, after subscription fees." />}</td>
+                <td className="bc-hl bc-big bc-r"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></td>
+              </tr>
+              <tr>
+                <td className="bc-m"><T k="bc.y1.perUnit" d="REVPOR Impact" /></td>
+                <td>
+                  <T k="bc.y1.perUnitNote" d="Impact on Revenue Per Occupied Room" />
+                  <small>{usd(d.perUnit.perUnitMonth)} per unit across all {count(inputs.cfo.portfolioUnits)} units</small>
+                </td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('perUnit.value')} label="Net Benefit per Unit per Month figure">{usd(d.perUnit.perOccupiedUnitMonth)}</V></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+    );
     defs.summary = (no) => (
       <Page key="summary" no={no} crumb={<T k="bc.y1.crumb" d="Year 1 financial summary" />}>
         <p className="bc-eyebrow"><T k="bc.y1.eyebrow" d="Year 1 financial summary" /></p>
@@ -1016,48 +1063,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </div>
         </B>
         <B id="table" label="Year 1 table">
-        <div className="bc-card bc-tbl" style={{ marginTop: 16 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Measure</th>
-                <th>What it means</th>
-                <th className="bc-hl bc-r">Year 1</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="bc-m"><T k="bc.y1.investment" d="Total investment" /></td>
-                <td>
-                  {capexCf ? (
-                    <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
-                  ) : (
-                    <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
-                  )}
-                </td>
-                <td className="bc-hl bc-big bc-r"><V k={y1.key('investment.value')} label="Total Investment — Year 1 figure">{usd(y1.investment)}</V></td>
-              </tr>
-              <tr>
-                <td className="bc-m"><T k="bc.y1.netRow" d="Net Benefit (Year 1)" /></td>
-                <td><T k="card.net.note" d="How much better off your communities are in year one after paying for everything." /></td>
-                <td className="bc-hl bc-big bc-r"><V k={y1.key('net.value')} label="Net Benefit — Year 1 figure">{usd(y1.net)}</V></td>
-              </tr>
-              <tr>
-                <td className="bc-m"><T k="bc.y1.runRate" d="Stabilized Net Benefit" /></td>
-                <td>{capexShown ? <T k="bc.y1.runRateNote.capex" d="The yearly value once every community is live and fully ramped, after the annual cost of Teton (four-year cost of ownership ÷ 4)." /> : <T k="card.runRate.note" d="The yearly value once every community is live and fully ramped, after subscription fees." />}</td>
-                <td className="bc-hl bc-big bc-r"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></td>
-              </tr>
-              <tr>
-                <td className="bc-m"><T k="bc.y1.perUnit" d="REVPOR Impact" /></td>
-                <td>
-                  <T k="bc.y1.perUnitNote" d="Impact on Revenue Per Occupied Room" />
-                  <small>{usd(d.perUnit.perUnitMonth)} per unit across all {count(inputs.cfo.portfolioUnits)} units</small>
-                </td>
-                <td className="bc-hl bc-big bc-r"><V k={y1.key('perUnit.value')} label="Net Benefit per Unit per Month figure">{usd(d.perUnit.perOccupiedUnitMonth)}</V></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        {y1Table(true)}
         </B>
         <B id="callout" label="Run-rate callout">
         {y1.investment > 0 && (
@@ -1082,6 +1088,14 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </h1>
         <p className="bc-lede"><T k="bc.cf.lede" d="Net discounted benefit after Teton fees." /></p>
         <Blocks page="cashflow">
+        <B id="payback" label="Discounted payback">
+          <div className="bc-stat-inline bc-three-compact">
+            <Stat value={<V k={y1.key('payback.value')} label="Discounted Payback figure">{y1.payback ? `Month ${y1.payback}` : `> ${y1.horizon} mo`}</V>}>
+              <T k="bc.y1.payback" d="discounted payback: when the program has paid for itself and stays paid for" />
+            </Stat>
+          </div>
+        </B>
+        <B id="table" label="Year 1 table">{y1Table(false)}</B>
         <B id="chart" label="Chart">
         <div className="bc-card bc-chart">
           <QuarterlyWaterfall discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={y1.payback} pilotEndMonth={d.pilotEndMonth} />
