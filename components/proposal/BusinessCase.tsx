@@ -31,6 +31,8 @@ import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
+import { resolveTerms } from '@/lib/quote/terms';
+import { renderText } from '@/lib/proposal/text';
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
 import { ViewSwitch } from './ViewSwitch';
@@ -81,6 +83,10 @@ interface BProps {
   id: string;
   /** Names the section in its move controls. */
   label: string;
+  /** Spans both columns (sections laid out in a two-column grid). */
+  wide?: boolean;
+  /** Adds a ⇔ to the controls that toggles `wide`. */
+  onWide?: () => void;
   /** Adds a "+" to the section's controls (e.g. add a community). */
   onAdd?: () => void;
   addLabel?: string;
@@ -100,7 +106,21 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
   const ids = items.map((c) => c.props.id);
   const hidden = layout.bcHiddenBlocks?.[page] ?? {};
   const saved = (layout.bcBlocks?.[page] ?? []).filter((id) => ids.includes(id));
-  const order = [...saved, ...ids.filter((id) => !saved.includes(id))].filter((id) => !(id in hidden));
+  // Sections not in the saved order (new ones, or ones added back) go to their usual place: after the nearest section before them.
+  const merged = [...saved];
+  ids.forEach((id, k) => {
+    if (merged.includes(id)) return;
+    let at = 0;
+    for (let j = k - 1; j >= 0; j--) {
+      const i = merged.indexOf(ids[j]);
+      if (i >= 0) {
+        at = i + 1;
+        break;
+      }
+    }
+    merged.splice(at, 0, id);
+  });
+  const order = merged.filter((id) => !(id in hidden));
   const byId = new Map(items.map((c) => [c.props.id, c]));
   const move = (id: string, dir: -1 | 1) => {
     const i = order.indexOf(id);
@@ -118,7 +138,7 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
       {order.map((id, i) => {
         const c = byId.get(id)!;
         return (
-          <div key={id} className="bc-block group/bcb" data-bc-block={id}>
+          <div key={id} className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''}`} data-bc-block={id}>
             {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
                 {c.props.onAdd && (
@@ -132,6 +152,11 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                 <button type="button" className={btn} disabled={i === order.length - 1} onClick={() => move(id, 1)} aria-label={`Move ${c.props.label} down`} title={`Move ${c.props.label} down`}>
                   ↓
                 </button>
+                {c.props.onWide && (
+                  <button type="button" className={`${btn} ${c.props.wide ? 'bg-white/20' : ''}`} onClick={c.props.onWide} aria-pressed={!!c.props.wide} aria-label={`${c.props.wide ? 'Narrow' : 'Widen'} ${c.props.label}`} title={c.props.wide ? 'One column' : 'Span both columns'}>
+                    ⇔
+                  </button>
+                )}
                 <button type="button" className={btn} onClick={() => remove(id, c.props.label)} aria-label={`Remove ${c.props.label}`} title={`Remove ${c.props.label} (you can add it back)`}>
                   ✕
                 </button>
@@ -326,6 +351,25 @@ const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
 };
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
+
+/** "p. 5": the sheet number of another business-case page, read from the document (blank when that page isn't in it). */
+function PageRef({ page }: { page: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [no, setNo] = useState('');
+  useEffect(() => {
+    const doc = ref.current?.closest('.bc-doc');
+    if (!doc) return;
+    const read = () => {
+      const t = doc.querySelector(`[data-bc-page="${page}"] .bc-foot span:last-child`)?.textContent?.trim() ?? '';
+      setNo((prev) => (prev === t ? prev : t));
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(doc, { subtree: true, childList: true, characterData: true });
+    return () => mo.disconnect();
+  }, [page]);
+  return <span ref={ref} className="bc-exec-ref">{no ? `p. ${Number(no)}` : ''}</span>;
+}
 
 interface TocEntry { id: string; title: string; sub: string; pages: string }
 
@@ -547,6 +591,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const pilotSites = draft.communities
     .map((dc, i) => ({ dc, i, row: d.perCommunity[i] }))
     .filter((x) => x.row?.pilot);
+  // The pilot in brief, for the Executive Summary.
+  let execPilot: { name: string; beds: number; total: number; months: number } | null = null;
   if (pilotSites.length) {
     const pos = new Set(pilotSites.map((x) => x.i));
     const siteLines = lines.filter((l) => l.communityPosition != null && pos.has(l.communityPosition));
@@ -561,6 +607,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const months = inputs.schedule.pilotLengthMonths;
     const beds = bedsOf;
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
+    execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months };
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
     defs.pilot = (no) => (
       <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
@@ -1535,6 +1582,173 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       <div className="bc-band"><T k="bc.cover.band" d="Prevention becomes measurable once the environment becomes observable." /></div>
     </section>
   );
+
+  // ---------- Executive summary: one page over the whole case; its cards move, widen and come off one by one ----------
+  {
+    const wide = new Set(layout.bcExecWide ?? []);
+    const toggleWide = (id: string) => () =>
+      setLayout((l) => {
+        const w = new Set(l.bcExecWide ?? []);
+        if (w.has(id)) w.delete(id);
+        else w.add(id);
+        return { ...l, bcExecWide: Array.from(w) };
+      });
+    const card = (id: string) => ({ wide: wide.has(id), onWide: editable ? toggleWide(id) : undefined });
+    const company = customer;
+    const structure = draft.presentation === 'both' ? 'OpEx or CapEx' : capexShown ? 'CapEx' : 'OpEx';
+    const totalValue = sum(net);
+    const allBeds = draft.communities.map(bedsOf);
+    const careSplit = (
+      [
+        ['il', 'independent living'],
+        ['al', 'assisted living'],
+        ['mc', 'memory care'],
+        ['snf', 'skilled nursing'],
+      ] as const
+    )
+      .map(([k, label]) => [sum(allBeds.map((b) => b[k])), label] as const)
+      .filter(([n]) => n > 0)
+      .map(([n, label]) => `${count(n)} ${label}`);
+    const careText = careSplit.length > 1 ? `${careSplit.slice(0, -1).join(', ')} and ${careSplit[careSplit.length - 1]}` : careSplit[0] ?? '';
+    const sensorsTotal = sum(draft.communities.map(sensorsOf));
+    const nComm = draft.communities.length;
+    const head = (k: string, d0: string, page: string) => (
+      <p className="bc-exec-lbl">
+        <T k={k} d={d0} />
+        <PageRef page={page} />
+      </p>
+    );
+    const row = (label: React.ReactNode, value: React.ReactNode, cls = '') => (
+      <tr className={cls}>
+        <td>{label}</td>
+        <td className="bc-r">{value}</td>
+      </tr>
+    );
+    const gross = sel.annualRoi;
+    // The terms in brief: the first sentence of each (the Terms page has them in full).
+    const firstSentence = (t: string) => (t.match(/^.*?[.;](?=\s|$)/)?.[0] ?? t).trim();
+    const termsText = resolveTerms(draft, 'terms').map((t) => firstSentence(renderText(t.template, t.vars))).filter(Boolean);
+    const nextText = resolveTerms(draft, 'nextSteps').map((t) => renderText(t.template, t.vars).trim()).filter(Boolean);
+    defs.execsum = (no) => (
+      <Page key="execsum" no={no} crumb={<T k="bc.exec.crumb" d="Executive summary" />}>
+        <p className="bc-eyebrow"><T k="bc.exec.eyebrow" d="Executive summary" /></p>
+        <h1 className="bc-h1 bc-exec-h1"><T k="bc.exec.title" d="Teton at {company} – Executive Summary" v={{ company }} /></h1>
+        <p className="bc-lede"><T k="bc.exec.lede" d="A summary of what Teton would look like at {company}." v={{ company }} /></p>
+        <div className="bc-exec-grid">
+          <Blocks page="execsum">
+            <B id="kpis" label="Key figures" wide>
+              <div className="bc-exec-kpis">
+                <Stat value={<T k="bc.exec.k1" d={structure} />}><T k="bc.exec.k1note" d="proposed pricing structure" /></Stat>
+                <Stat value={<V k={y1.key('payback.value')} label="Discounted Payback figure">{y1.payback ? `Month ${y1.payback}` : `> ${y1.horizon} mo`}</V>}><T k="bc.exec.k2note" d="discounted payback" /></Stat>
+                <Stat value={<V k={capexShown ? 'bc.capex.returnOnCost.value' : 'bc.cf.returnOnCost.value'} label="Stabilized return on cost figure">{multiple(stabilizedReturn, 1)}</V>}><T k="bc.exec.k3note" d="stabilized return on cost" /></Stat>
+                <Stat value={<V k="bc.cf.total.value" label="Total value added over the term">{usd(totalValue, { compact: true })}</V>}><T k="bc.exec.k4note" d="total value added over the term" /></Stat>
+              </div>
+            </B>
+            <B id="scope" label="Scope" {...card('scope')}>
+              <div className="bc-card bc-exec-card">
+                {head('bc.exec.scope', 'Scope', 'sitescope')}
+                <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(units), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
+                <p>{careText ? <T k="bc.exec.scope.p" d="{split}, from your floor plans." v={{ split: careText.charAt(0).toUpperCase() + careText.slice(1) }} /> : null}</p>
+                <div className="bc-exec-mini">
+                  <div><b>{count(units)}</b><span>Edge units</span></div>
+                  <div><b>{count(sensorsTotal)}</b><span>sensors</span></div>
+                  <div><b>{nComm}</b><span>{nComm === 1 ? 'community' : 'communities'}</span></div>
+                </div>
+              </div>
+            </B>
+            {execPilot && (
+              <B id="pilot" label="The pilot" {...card('pilot')}>
+                <div className="bc-card bc-exec-card">
+                  {head('bc.exec.pilot', 'The pilot', 'pilot')}
+                  <h4><T k="bc.exec.pilot.h" d="{days} days at {name}, at {cost}" v={{ days: String(execPilot.months * 30), name: execPilot.name, cost: usd(execPilot.total) }} /></h4>
+                  <p><T k="bc.exec.pilot.p" d="{beds} beds go live {goLive}. After the pilot, the service term is {term} months." v={{ beds: count(execPilot.beds), goLive: goLive ?? '', term: String(term) }} /></p>
+                  <div className="bc-exec-mini">
+                    <div><b>{usd(execPilot.total)}</b><span>pilot cost</span></div>
+                    {pilots[0] && <div><b>{longDate(pilots[0].goLive).replace(/, \d{4}$/, '')}</b><span>go-live</span></div>}
+                    <div><b>{execPilot.months} mo</b><span>pilot</span></div>
+                  </div>
+                </div>
+              </B>
+            )}
+            <B id="investment" label="The investment" {...card('investment')}>
+              <div className="bc-card bc-exec-card bc-exec-tbl">
+                {head('bc.exec.inv', 'The investment', 'scope')}
+                <table>
+                  <tbody>
+                    {capexShown ? (
+                      <>
+                        {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${usd(r.perBed)}`, usd(r.total)))}
+                        {capex.sensors > 0 && row(`Additional sensors · ${count(capex.sensors)} × ${usd(capex.pricing.sensorPrice)}`, usd(capex.sensorCost))}
+                        {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
+                        {row('Software & services', `${usd(capex.softwareMonthly)} / mo`)}
+                        {row(`${numberWord(capex.ownershipMonths / 12).replace(/^./, (c) => c.toUpperCase())}-year cost of ownership`, usd(capex.ownershipTotal))}
+                      </>
+                    ) : (
+                      <>
+                        {row('One-time installation and sensors', usd(d.oneTime))}
+                        {row('Monthly subscription, once in service', `${usd(d.serviceMonthly)} / mo`)}
+                        {row('Per bed, per month', perBedMonthly)}
+                        {row(`Total over the ${term}-month term`, usd(d.termTotal), 'bc-exec-tot')}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </B>
+            <B id="returns" label="What the program returns" {...card('returns')}>
+              <div className="bc-card bc-exec-card bc-exec-tbl">
+                {head('bc.exec.roi', 'What the program returns', 'roi')}
+                <div className="bc-exec-bars">
+                  {benefitRows.map((b) => (
+                    <div key={b.key}>
+                      <span>{b.label}</span>
+                      <i style={{ width: `${gross > 0 ? Math.max(2, (b.value / gross) * 100) : 0}%` }} />
+                      <em>{usd(b.value, { compact: true })}</em>
+                    </div>
+                  ))}
+                </div>
+                <table>
+                  <tbody>
+                    {row('Gross annual benefit', usd(gross), 'bc-exec-tot')}
+                    {row(capexShown ? 'Cost of Teton (ownership ÷ 4)' : 'Cost of Teton (subscription)', <span className="bc-cost">−{usd(tetonAnnual)}</span>)}
+                    {row('Net annual benefit', usd(stabilizedNet), 'bc-exec-tot')}
+                  </tbody>
+                </table>
+              </div>
+            </B>
+            <B id="cashflow" label="Cash flow summary" {...card('cashflow')}>
+              <div className="bc-card bc-exec-card bc-exec-tbl">
+                {head('bc.exec.cf', 'Cash flow summary', 'cashflow')}
+                <table>
+                  <tbody>
+                    {row(<><b>Total investment</b><small>{capexShown ? 'One-time equipment, paid at install' : 'Everything paid to Teton in the first 12 months'}</small></>, <span className="bc-cost">{y1.investment > 0 ? '−' : ''}{usd(y1.investment)}</span>)}
+                    {row(<><b>Stabilized Net Benefit</b><small>Each year, fully ramped, after the cost of Teton</small></>, usd(stabilizedNet))}
+                    {row(<><b>REVPOR Impact</b><small>Per occupied room, per month · {usd(d.perUnit.perUnitMonth)} across all {count(inputs.cfo.portfolioUnits)} units</small></>, usd(d.perUnit.perOccupiedUnitMonth))}
+                  </tbody>
+                </table>
+              </div>
+            </B>
+            <B id="terms" label="Key terms & next steps" {...card('terms')}>
+              <div className="bc-card bc-exec-card">
+                {head('bc.exec.terms', 'Key terms & next steps', 'terms')}
+                <ul className="bc-exec-ul">
+                  {termsText.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+                {nextText.length > 0 && (
+                  <>
+                    <p className="bc-exec-next"><T k="bc.exec.next" d="Next" /></p>
+                    <ol className="bc-exec-ul bc-exec-ol">
+                      {nextText.slice(0, 4).map((t, i) => <li key={i}>{t}</li>)}
+                    </ol>
+                  </>
+                )}
+              </div>
+            </B>
+          </Blocks>
+        </div>
+      </Page>
+    );
+  }
 
   const custom = layout.bcCustom ?? {};
   const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);

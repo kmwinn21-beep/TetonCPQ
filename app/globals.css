@@ -524,3 +524,46 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @media screen and (max-width: 860px) {
   .bc-callout-row { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
+
+/* Business case: Executive Summary. Its sections sit in a two-column grid; a section can span both. */
+.bc-exec-h1 { font-size: 32px; }
+.bc-exec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; grid-auto-flow: row dense; }
+.bc-exec-grid > .bc-block { min-width: 0; }
+.bc-exec-grid > .bc-block.bc-wide { grid-column: 1 / -1; }
+.bc-exec-grid > .bc-block > .bc-exec-card { height: 100%; }
+.bc-exec-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.bc-exec-kpis .bc-dark { padding: 11px 14px 12px; border-radius: 12px; }
+.bc-exec-kpis .bc-dark > b { font-size: 25px; letter-spacing: -.7px; line-height: 1.1; }
+.bc-exec-kpis .bc-dark > span { font-size: 10.5px; line-height: 1.35; margin-top: 3px; }
+.bc-exec-card { padding: 12px 14px; border-radius: 12px; }
+.bc-exec-lbl { display: flex; justify-content: space-between; font-size: 9.5px; letter-spacing: 2.2px; font-weight: 800; color: var(--bc-muted); text-transform: uppercase; margin-bottom: 6px; }
+.bc-exec-ref { color: var(--bc-coral); letter-spacing: 1.5px; font-weight: 700; }
+.bc-exec-card h4 { font-size: 13.5px; font-weight: 700; color: var(--bc-ink); margin: 0 0 3px; }
+.bc-exec-card p { font-size: 11px; line-height: 1.45; color: var(--bc-body); margin: 0; }
+.bc-exec-mini { display: flex; gap: 18px; margin-top: 8px; }
+.bc-exec-mini b { display: block; font-size: 17px; font-weight: 600; color: var(--bc-ink); letter-spacing: -.3px; }
+.bc-exec-mini span { font-size: 10px; color: var(--bc-muted); }
+.bc-exec-tbl table { width: 100%; border-collapse: collapse; }
+.bc-exec-tbl td { font-size: 11px; padding: 5px 0; border-top: 1px solid var(--bc-line); color: var(--bc-body); vertical-align: top; }
+.bc-exec-tbl tr:first-child td { border-top: 0; }
+.bc-exec-tbl td.bc-r { text-align: right; font-weight: 600; color: var(--bc-ink); white-space: nowrap; padding-left: 10px; }
+.bc-exec-tbl td b { color: var(--bc-ink); }
+.bc-exec-tbl td small { display: block; font-size: 10px; color: var(--bc-muted); }
+.bc-exec-tbl tr.bc-exec-tot td { border-top: 1.5px solid var(--bc-ink); font-weight: 700; color: var(--bc-ink); }
+.bc-exec-tbl td .bc-cost { color: #D9553F; }
+.bc-exec-bars { margin-bottom: 4px; }
+.bc-exec-bars > div { display: grid; grid-template-columns: 118px minmax(0, 1fr) 54px; align-items: center; gap: 8px; font-size: 10.5px; color: var(--bc-body); padding: 2px 0; }
+.bc-exec-bars i { display: block; height: 6px; border-radius: 9px; background: #58B985; }
+.bc-exec-bars em { font-style: normal; text-align: right; font-weight: 600; color: var(--bc-ink); }
+.bc-exec-ul { font-size: 10.5px; line-height: 1.45; color: var(--bc-body); padding-left: 14px; list-style: disc; margin: 0; }
+.bc-exec-ul li { margin: 2px 0; }
+.bc-exec-ol { list-style: decimal; }
+.bc-exec-next { font-size: 10.5px !important; font-weight: 700; color: var(--bc-ink) !important; margin-top: 6px !important; }
+@media screen and (max-width: 860px) {
+  .bc-exec-grid { grid-template-columns: minmax(0, 1fr); }
+  .bc-exec-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.bc-exec-tbl td { padding: 4px 0; }
+.bc-exec-bars > div { padding: 1px 0; }
+.bc-exec-grid { gap: 10px; margin-top: 14px; }
+.bc-exec-ul li { margin: 1px 0; }

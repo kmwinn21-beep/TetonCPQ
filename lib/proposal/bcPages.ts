@@ -9,6 +9,7 @@ export type BcPageId = (typeof BC_PAGES)[number] | `bcpage-${string}`;
 
 export const BC_PAGE_TITLES: Record<(typeof BC_PAGES)[number], string> = {
   cover: 'Cover',
+  execsum: 'Executive summary',
   contents: 'Contents',
   sitescope: 'Scope',
   pilot: 'The pilot',

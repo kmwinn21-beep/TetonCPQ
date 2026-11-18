@@ -54,6 +54,8 @@ export interface ProposalLayout {
   bcRoiCallout?: 'asset' | 'fall';
   /** Business-case format: a customer quote at the bottom of that callout. */
   bcRoiQuote?: boolean;
+  /** Business-case format: Executive Summary cards that span both columns. */
+  bcExecWide?: string[];
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -61,7 +63,7 @@ export interface ProposalLayout {
 export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', bcPages: null, bcCustom: {}, version: LAYOUT_VERSION };
 
 /** The business-case format's built-in pages, in their standard order. */
-export const BC_PAGES = ['cover', 'contents', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'roledesc', 'terms', 'assumptions'] as const;
+export const BC_PAGES = ['cover', 'execsum', 'contents', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'roledesc', 'terms', 'assumptions'] as const;
 export const isBcCustomId = (id: string) => id.startsWith('bcpage-');
 
 const ID = /^[a-z0-9][a-z0-9_.-]{0,79}$/i;
@@ -154,6 +156,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcImpl: raw.bcImpl === 'gantt' ? 'gantt' : undefined,
     bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
     bcRoiQuote: raw.bcRoiQuote === true ? true : undefined,
+    bcExecWide: raw.bcExecWide == null ? undefined : ids(raw.bcExecWide, 20),
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};
