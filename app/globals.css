@@ -210,6 +210,9 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-three-compact .bc-dark { padding: 13px 18px 14px; }
 .bc-three-compact .bc-dark > span { margin-top: 6px; }
 .bc-three-compact .bc-dark > b { font-size: 32px; }
+/* Value and its caption side by side. */
+.bc-stat-inline .bc-dark { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 14px; }
+.bc-stat-inline .bc-dark > span { margin-top: 0; }
 .bc-dark > span { display: block; font-size: 12px; line-height: 1.5; color: #D6DAE0; margin-top: 10px; }
 /* the request */
 .bc-req { margin-top: 24px; padding: 4px 24px; }
@@ -225,7 +228,13 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-req-total .bc-req-amt { font-weight: 700; font-size: 23px; }
 .bc-range { font-size: 15px; white-space: nowrap; letter-spacing: -.2px; }
 .bc-req-sub { display: block; font-size: 11.5px; font-weight: 500; color: var(--bc-muted); margin-top: 2px; }
-.bc-req-span { grid-column: 2 / -1; }
+.bc-req-span { grid-column: 2 / 4; }
+/* Scope pills run from the start of the description column to the right edge of the amounts. */
+.bc-req-span .bc-pills { justify-content: space-between; }
+.bc-pills > .bc-pill-col { padding: 0; border-radius: 0; }
+.bc-req-span .bc-pills > .bc-pill-col > span:first-child { font-size: 10.4px; padding: 5px 9px; }
+.bc-req-span .bc-pill-col:first-child { align-items: flex-start; }
+.bc-req-span .bc-pill-col:last-child { align-items: flex-end; }
 .bc-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .bc-pills { flex-wrap: nowrap; }
 .bc-pills > span { border-radius: 99px; padding: 5px 11px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -337,6 +346,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .bc-h1 { break-after: avoid; }
 }
 @media screen and (max-width: 860px) {
+  .bc-req-span { grid-column: 1 / -1; }
+  .bc-req-span .bc-pills { justify-content: flex-start; }
   .bc-page { width: auto; min-height: 0; margin: 0; box-shadow: none; }
   .bc-slot { padding: 6px 0; }
   .bc-controls { opacity: 1; top: 12px; right: 8px; }

@@ -293,6 +293,12 @@ const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
   snf: Number(dc.snfBeds) || 0,
 });
 
+/** A community's sensors: the one in each room plus its additional sensors. */
+const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
+  const b = bedsOf(dc);
+  return b.il + b.al + b.mc + b.snf + Math.max(0, Number(dc.additionalSensors) || 0);
+};
+
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
 
 interface TocEntry { id: string; title: string; sub: string; pages: string }
@@ -661,6 +667,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <th>AL beds</th>
               <th>MC beds</th>
               <th>SNF beds</th>
+              <th>Sensors</th>
               <th className="bc-hl">Total cost</th>
             </tr>
           </thead>
@@ -677,6 +684,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <td>{count(b.al)}</td>
                   <td>{count(b.mc)}</td>
                   <td>{count(b.snf)}</td>
+                  <td>{count(sensorsOf(dc))}</td>
                   <td className="bc-hl bc-big">
                     {c.main}
                     <small>{c.sub}</small>
@@ -690,6 +698,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
+                <td>{count(sum(draft.communities.map(sensorsOf)))}</td>
                 <td className="bc-hl bc-big">
                   {total.main}
                   <small>{total.sub}</small>
@@ -728,7 +737,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <Blocks page="scope-capex">
             <B id="overview" label="Overview">
               <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
-              <div className="bc-two bc-three-compact">
+              <div className="bc-two bc-three-compact bc-stat-inline">
                 <Stat value={<V k="capex.share.value" label="Share of the cost that is capitalized">{Math.round(capex.equipmentShare * 100)}%</V>}>
                   <T k="bc.overview.capitalized" d="of the total cost is capitalized & treated as a capital expenditure" />
                 </Stat>
