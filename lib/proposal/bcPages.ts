@@ -17,6 +17,7 @@ export const BC_PAGE_TITLES: Record<(typeof BC_PAGES)[number], string> = {
   cashflow: 'Cash flow summary',
   implementation: 'Implementation',
   resources: 'Your team',
+  roledesc: 'Role descriptions',
   terms: 'Terms',
   assumptions: 'Assumptions',
 };
@@ -28,6 +29,7 @@ export function defaultBcPages(l: Pick<ProposalLayout, 'hiddenSections'>): strin
     if (id === 'cover') return true;
     if (id === 'cashflow') return !hidden.has('summary');
 
+    if (id === 'roledesc') return !hidden.has('resources');
     return !hidden.has(id);
   });
 }

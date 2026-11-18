@@ -183,6 +183,9 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-four .bc-dark > b { font-size: 36px; }
 .bc-four .bc-dark > span { font-size: 11.5px; }
 .bc-dark-hot > b { color: #F08D79 !important; }
+.bc-roles-tbl td { vertical-align: top; }
+.bc-roles-stage { white-space: nowrap; }
+.bc-roles-stage small { margin-top: 2px; }
 .bc-care { display: inline-block; border-radius: 99px; padding: 2px 9px; font-size: 10.5px; font-weight: 700; color: var(--bc-ink); background: var(--bc-lav); white-space: nowrap; }
 .bc-care-mc { background: #DDEFE4; }
 .bc-care-il { background: #F3EBD9; }
@@ -316,7 +319,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   /* A page that runs onto a second sheet keeps its margins on both. */
   .bc-pad { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   .bc-page { page: bc; margin: 0; box-shadow: none; break-after: page; width: 8.5in; max-width: none; min-height: 11in; }
-  .bc-last .bc-page { break-after: auto; }
+  .bc-last .bc-page:last-child { break-after: auto; }
   .bc-card, .bc-dark, .bc-callout, .bc-phase, .bc-tbl tr { break-inside: avoid; }
   /* Long tables split between rows (the header repeats) instead of jumping whole to the next sheet. */
   .bc-card.bc-tbl { break-inside: auto; }

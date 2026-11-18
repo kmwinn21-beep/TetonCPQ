@@ -26,6 +26,7 @@ import { buildCashFlow } from '@/lib/model';
 import { CARE_SHORT, careLabel, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, V } from './ProposalSections';
+import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
@@ -349,6 +350,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // Each page, by id; a page with nothing to show (no implementation plan, no roles) has no entry.
   const defs: Record<string, (no: number) => React.ReactNode> = {};
+  // Pages that print on more than one sheet, and how many (for page numbers).
+  const spans: Record<string, number> = {};
 
   // ---------- Scope (from the floor plans) ----------
   // Shown when at least one community has room types.
@@ -1090,7 +1093,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <tr key={r.id}>
                   <td className="bc-m">
                     {r.role}
-                    {!layout.hiddenValues.includes('roleNotes') && r.notes.some((n) => n.note) && (
+                    {!layout.hiddenValues.includes('roleNotes') && !bcPagesOf(layout).includes('roledesc') && r.notes.some((n) => n.note) && (
                       <small className="bc-clamp">{r.notes.filter((n) => n.note).map((n) => `${n.stage}: ${n.note}`).join(' · ')}</small>
                     )}
                   </td>
@@ -1112,6 +1115,69 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </div>
       </Page>
     );
+  }
+
+  // ---------- What each role does, by stage (may run over several sheets) ----------
+  {
+    const stageIds = new Map(team.stages.map((st) => [st.name, st.id]));
+    const items = team.stages.flatMap((st) =>
+      team.rows.flatMap((r) => r.notes.filter((n) => n.stage === st.name).map((n) => ({ stageId: stageIds.get(n.stage) ?? st.id, stage: n.stage, role: r.role, hours: n.hours, note: n.note }))),
+    );
+    if (items.some((x) => x.note.trim())) {
+      // Height budgets per sheet: the first holds the page heading; later sheets only the eyebrow.
+      const hrs = (h: number) => `${count(h)} ${h === 1 ? 'hr' : 'hrs'}`;
+      const chunks = paginate(items, (x) => textRowHeight(x.note, 42, 19, 28, 2), 640, 800);
+      spans.roledesc = chunks.length;
+      const order = draft.implementationPlan.order;
+      defs.roledesc = (no) => (
+        <>
+          {chunks.map((chunk, ci) => (
+            <Page key={`roledesc-${ci}`} no={no + ci} crumb={<T k="bc.roles.crumb" d="Your team · by stage" />}>
+              <p className="bc-eyebrow"><T k="bc.roles.eyebrow" d="Estimated resource allocation – Descriptions" /></p>
+              {ci === 0 && (
+                <>
+                  <h1 className="bc-h1"><T k="bc.roles.title" d="What your team does in each stage." /></h1>
+                  <p className="bc-lede"><T k="bc.roles.lede" d="The hours from {customer}’s team, with what each role does in each stage. Teton’s implementation and customer success team leads every stage." v={vars} /></p>
+                </>
+              )}
+              <div className="bc-card bc-tbl bc-roles-tbl" style={ci === 0 ? undefined : { marginTop: 8 }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Stage</th>
+                      <th>Role</th>
+                      <th>What they do</th>
+                      <th className="bc-hl bc-r">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chunk.map((x, k) => {
+                      const firstOfStage = k === 0 || chunk[k - 1].stageId !== x.stageId;
+                      const span = chunk.slice(k).findIndex((y) => y.stageId !== x.stageId);
+                      const continued = k === 0 && ci > 0 && chunks[ci - 1][chunks[ci - 1].length - 1].stageId === x.stageId;
+                      return (
+                        <tr key={`${x.stageId}-${x.role}`}>
+                          {firstOfStage && (
+                            <td className="bc-m bc-roles-stage" rowSpan={span < 0 ? chunk.length - k : span}>
+                              <span className="bc-dot" style={{ background: stageColor(x.stageId, order) }} />
+                              {x.stage}
+                              <small>{continued ? 'continued' : hrs(team.stageTotals[x.stageId] ?? 0)}</small>
+                            </td>
+                          )}
+                          <td className="bc-m">{x.role}</td>
+                          <td>{x.note || <span className="bc-quiet">–</span>}</td>
+                          <td className="bc-hl bc-r" style={{ whiteSpace: 'nowrap' }}>{hrs(x.hours)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Page>
+          ))}
+        </>
+      );
+    }
   }
 
   // ---------- Terms and next steps ----------
@@ -1213,20 +1279,24 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);
   return (
     <article id="proposal" className="bc-doc" data-format="businessCase">
-      {order.map((id, i) => (
+      {order.map((id, i) => {
+        // Sheet number: one per page before this, more for pages that run over several sheets.
+        const no = 1 + order.slice(0, i).reduce((n, p) => n + (spans[p] ?? 1), 0);
+        return (
         <PageSlot key={id} id={id} index={i} order={order}>
           {custom[id] ? (
-            <Page no={i + 1} crumb={custom[id].title || 'Added page'}>
+            <Page no={no} crumb={custom[id].title || 'Added page'}>
               <h1 className="bc-h1 bc-custom-title">
                 <CustomTitle id={id} title={custom[id].title} store="bcCustom" />
               </h1>
               <RichBody id={id} html={custom[id].html} store="bcCustom" className="proposal-rich bc-rich" />
             </Page>
           ) : (
-            defs[id](i + 1)
+            defs[id](no)
           )}
         </PageSlot>
-      ))}
+        );
+      })}
       <AddPageZone at={null} />
     </article>
   );
