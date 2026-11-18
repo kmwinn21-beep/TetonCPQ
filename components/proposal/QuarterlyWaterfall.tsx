@@ -3,6 +3,10 @@
  * (benefit after Teton fees and install, discounted at the customer's rate),
  * floating from where the previous quarter ended; the last bar is the running
  * total. Each bar is labeled with the months it covers (1–3, 4–6, …).
+ * While the running total is still below $0, a quarter's bar instead hangs
+ * from $0 down to that total, in red, labeled with the net cost so far
+ * (−$622K, then −$541K, …); once the total is above $0 the bars show each
+ * quarter's gain again.
  * Estimated payback is marked and labeled; the end of the pilot is a dashed
  * line (named in the legend). Plain SVG so it prints crisply and
  * renders on the server.
@@ -95,20 +99,24 @@ export function QuarterlyWaterfall({
           const isTotal = i === bars.length - 1;
           const cx = left + slot * (i + 0.5);
           const x = cx - bw / 2;
-          const y0 = Math.min(y(b.from), y(b.to));
-          const y1 = Math.max(y(b.from), y(b.to));
-          const fill = isTotal ? TOTAL : b.delta >= 0 ? GREEN : RED;
-          const labelY = b.delta >= 0 ? y0 - 6 : y1 + 13;
+          // Still under water: show the net cost so far, from $0 down to the running total.
+          const under = !isTotal && b.to < 0;
+          const start = under ? 0 : b.from;
+          const y0 = Math.min(y(start), y(b.to));
+          const y1 = Math.max(y(start), y(b.to));
+          const fill = isTotal ? TOTAL : under ? RED : b.delta >= 0 ? GREEN : RED;
+          const text = isTotal ? money(b.delta) : under ? money(b.to) : money(b.delta, true);
+          const labelY = under || b.delta < 0 ? y1 + 13 : y0 - 6;
           return (
             <g key={b.label}>
               <rect x={x} y={y0} width={bw} height={Math.max(y1 - y0, 1.5)} rx={3} fill={fill}>
-                <title>{`${b.label}: ${isTotal ? money(b.delta) : money(b.delta, true)}`}</title>
+                <title>{under ? `${b.label}: net cost so far ${money(b.to)} (this quarter ${money(b.delta, true)})` : `${b.label}: ${text}`}</title>
               </rect>
               {!isTotal && (
                 <line x1={x + bw} x2={left + slot * (i + 1.5) - bw / 2} y1={y(b.to)} y2={y(b.to)} stroke={AXIS} strokeWidth={1} opacity={0.45} />
               )}
               <text x={cx} y={labelY} textAnchor="middle" fontSize={10.5} fontWeight={isTotal ? 600 : 500} fill={INK}>
-                {isTotal ? money(b.delta) : money(b.delta, true)}
+                {text}
               </text>
               <text x={cx} y={axisY + 17} textAnchor="middle" fontSize={10.5} fontWeight={isTotal ? 600 : 400} fill={LABEL}>
                 {b.label}
