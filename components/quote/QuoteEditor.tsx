@@ -151,6 +151,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
   // ---- save version ----
   const [versions, setVersions] = useState<VersionSummary[]>(initial.versions);
+  const latestSaved = versions.filter((v) => v.status !== 'draft').sort((a, b) => b.versionNo - a.versionNo)[0];
   const [draftNo, setDraftNo] = useState(initial.draftVersionNo);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
@@ -232,6 +233,16 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </div>
           <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
+            {/* Proposals are made from saved versions: the latest one. */}
+            {latestSaved ? (
+              <Link href={`/proposal/${latestSaved.id}`} className="btn-secondary whitespace-nowrap" title={`The proposal for v${latestSaved.versionNo}, the latest saved version`}>
+                View proposal
+              </Link>
+            ) : (
+              <button type="button" className="btn-secondary whitespace-nowrap" disabled title="Save a version first: proposals are made from saved versions">
+                View proposal
+              </button>
+            )}
             {noteOpen ? (
               <div className="flex flex-1 sm:flex-none flex-wrap items-start gap-2">
                 <input autoFocus className="input-field w-full sm:w-72" placeholder="What changed? (e.g. Sent to CFO, 50% install credit)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Version note" />

@@ -101,8 +101,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   return (
     <div ref={rootRef} className="no-print sticky top-0 z-30">
     <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
-      <div className="max-w-[8.5in] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="text-sm text-sidebar-font/80 hover:text-sidebar-font">← Results</Link>
+      <div className="max-w-[8.5in] xl:max-w-[1120px] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="text-sm text-sidebar-font/70">
           Proposal v{versionNo}
           {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
@@ -118,6 +117,9 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             </>
           ) : (
             <>
+              {/* Back to the deal: its inputs, or the results of this version. */}
+              <Link href={`/quotes/${quoteId}`} className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10">Inputs</Link>
+              <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10">Results</Link>
               {text.editable && (
                 <div role="group" aria-label="Proposal format" className="flex flex-1 sm:flex-none rounded-lg border border-white/30 p-0.5 text-sm">
                   {(
