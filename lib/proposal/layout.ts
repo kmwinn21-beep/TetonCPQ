@@ -52,6 +52,8 @@ export interface ProposalLayout {
   bcImpl?: 'cards' | 'gantt';
   /** Business-case format: the callout under the returns table, asset value (default) or fall risk. */
   bcRoiCallout?: 'asset' | 'fall';
+  /** Business-case format: a customer quote at the bottom of that callout. */
+  bcRoiQuote?: boolean;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -151,6 +153,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcChart: raw.bcChart === 'stacked' ? 'stacked' : undefined,
     bcImpl: raw.bcImpl === 'gantt' ? 'gantt' : undefined,
     bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
+    bcRoiQuote: raw.bcRoiQuote === true ? true : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

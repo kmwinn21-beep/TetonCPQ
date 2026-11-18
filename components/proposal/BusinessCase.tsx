@@ -985,12 +985,22 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <div className="relative group/view">
           {editable && (
             // Screen only: asset value (default) or fall risk; saved with the proposal.
-            <ViewSwitch
-              label="Callout"
-              options={[['asset', 'Asset Value'], ['fall', 'Fall Risk']] as const}
-              value={layout.bcRoiCallout ?? 'asset'}
-              onChange={(v) => setLayout((l) => ({ ...l, bcRoiCallout: v === 'fall' ? 'fall' : undefined }))}
-            />
+            <div className="no-print absolute right-3 top-3 z-[5] flex gap-1.5">
+              <ViewSwitch
+                position="relative"
+                label="Callout"
+                options={[['asset', 'Asset Value'], ['fall', 'Fall Risk']] as const}
+                value={layout.bcRoiCallout ?? 'asset'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcRoiCallout: v === 'fall' ? 'fall' : undefined }))}
+              />
+              <ViewSwitch
+                position="relative"
+                label="Quote"
+                options={[['off', 'No quote'], ['on', 'Quote']] as const}
+                value={layout.bcRoiQuote ? 'on' : 'off'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcRoiQuote: v === 'on' ? true : undefined }))}
+              />
+            </div>
           )}
           {layout.bcRoiCallout === 'fall' ? (
             <div className="bc-fall">
@@ -1012,14 +1022,46 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <span><T k="bc.roi.fall.l3" d="less time on the floor" /></span>
                 </div>
               </div>
+              {layout.bcRoiQuote && (
+                <div className="bc-quote">
+                  <span className="bc-quote-mark" aria-hidden="true">“</span>
+                  <div>
+                    <p><T k="bc.roi.quote.text" d="We’re seeing real quality-of-life changes. It’s not just fall prevention. These tools give us the ability to help residents live longer and stay in the community longer, and they actually make our jobs easier once you start using them." /></p>
+                    <div className="bc-quote-who">
+                      <span className="bc-quote-av"><T k="bc.roi.quote.initials" d="MC" /></span>
+                      <span>
+                        <b><T k="bc.roi.quote.name" d="Michelle Cortez" /></b>
+                        <small><T k="bc.roi.quote.title" d="Resident Services Director, Bristol Park at Cleburne" /></small>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="bc-callout">
+            <div className={`bc-callout ${layout.bcRoiQuote ? 'bc-callout-q' : ''}`}>
+              <div className="bc-callout-row">
               <b><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></b>
-              <div>
-                <span className="bc-chip"><T k="bc.roi.chip" d="Asset value · {capRate} cap" v={vars} /></span>
-                <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
+                <div>
+                  <span className="bc-chip"><T k="bc.roi.chip" d="Asset value · {capRate} cap" v={vars} /></span>
+                  <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
+                </div>
               </div>
+              {layout.bcRoiQuote && (
+                <div className="bc-quote">
+                  <span className="bc-quote-mark" aria-hidden="true">“</span>
+                  <div>
+                    <p><T k="bc.roi.quote.text" d="We’re seeing real quality-of-life changes. It’s not just fall prevention. These tools give us the ability to help residents live longer and stay in the community longer, and they actually make our jobs easier once you start using them." /></p>
+                    <div className="bc-quote-who">
+                      <span className="bc-quote-av"><T k="bc.roi.quote.initials" d="MC" /></span>
+                      <span>
+                        <b><T k="bc.roi.quote.name" d="Michelle Cortez" /></b>
+                        <small><T k="bc.roi.quote.title" d="Resident Services Director, Bristol Park at Cleburne" /></small>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
