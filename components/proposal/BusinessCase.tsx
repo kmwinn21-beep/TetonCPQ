@@ -14,6 +14,7 @@
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
+import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
@@ -394,11 +395,18 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // The cash-flow page covers 48 months (the pilot plus the hardware's four-year life), longer than the 36-month model window.
   const CHART_MONTHS = 48;
-  const net = buildCashFlow(inputs, outputs.annual[outputs.roiCase], CHART_MONTHS).discountedNet;
+  const cfAll = buildCashFlow(inputs, outputs.annual[outputs.roiCase], CHART_MONTHS);
+  // An equipment purchase has its own cash flow: equipment paid at install (so it starts below zero), then software monthly.
+  const capexCf = capexShown ? capexCashFlow(cfAll, capex) : null;
+  const net = capexCf ? capexCf.discountedNet : cfAll.discountedNet;
   const horizon = net.length;
+  // Year 1 figures on the business case, from whichever pricing it shows. Figure keys differ so their inputs drawers stay right.
+  const y1 = capexCf
+    ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, horizon, key: (k: string) => `bc.capex.${k}` }
+    : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, horizon: kp.horizonMonths, key: (k: string) => `card.${k}` };
   const pilotLen = anyPilot ? inputs.schedule.pilotLengthMonths : 0;
   const windows = [
-    { key: 'pilot', from: 1, to: pilotLen, label: `Months 1–${pilotLen}`, note: 'The pilot, before benefits begin' },
+    { key: capexShown ? 'pilotCapex' : 'pilot', from: 1, to: pilotLen, label: `Months 1–${pilotLen}`, note: capexShown ? 'Equipment paid at install; the pilot, before benefits begin' : 'The pilot, before benefits begin' },
     { key: 'y1', from: pilotLen + 1, to: Math.min(12, horizon), label: `Months ${pilotLen + 1}–12`, note: 'Benefits ramp up after the pilot' },
     { key: 'rest', from: 13, to: horizon, label: `Months 13–${horizon}`, note: 'At run rate, discounted' },
   ].filter((w) => w.to >= w.from);
@@ -986,7 +994,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // ---------- Year 1 and cash flow ----------
   {
     const basis = capexShown ? (
-      <p className="bc-note"><T k="bc.y1.basis2" d="Year 1 figures and the cash flow use the subscription pricing; the stabilized net benefit uses the equipment purchase." /></p>
+      <p className="bc-note"><T k="bc.y1.basis3" d="Year 1 figures and the cash flow use the equipment purchase: equipment paid at install, then software & services monthly after the pilot." /></p>
     ) : null;
     defs.summary = (no) => (
       <Page key="summary" no={no} crumb={<T k="bc.y1.crumb" d="Year 1 financial summary" />}>
@@ -996,13 +1004,13 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="summary">
         <B id="stats" label="Key figures">
         <div className="bc-three">
-          <Stat value={<V k="card.net.value" label="Net Benefit — Year 1 figure">{usd(kp.netBenefit12)}</V>}>
+          <Stat value={<V k={y1.key('net.value')} label="Net Benefit — Year 1 figure">{usd(y1.net)}</V>}>
             <T k="bc.y1.net" d="net benefit in year one, after everything paid to Teton" />
           </Stat>
-          <Stat value={<V k="card.gross.value" label="Gross Return per $1 Invested (Year 1) figure">{multiple(kp.grossReturnPerDollar12)}</V>}>
-            <T k="bc.y1.gross" d="gross return per $1 invested in year one; {stabilized} once fully ramped" v={{ stabilized: multiple(sel.returnOnCost, 1) }} />
+          <Stat value={<V k={y1.key('gross.value')} label="Gross Return per $1 Invested (Year 1) figure">{multiple(y1.gross)}</V>}>
+            <T k="bc.y1.gross" d="gross return per $1 invested in year one; {stabilized} once fully ramped" v={{ stabilized: multiple(capexShown ? (tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0) : sel.returnOnCost, 1) }} />
           </Stat>
-          <Stat value={<V k="card.payback.value" label="Discounted Payback figure">{kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `> ${kp.horizonMonths} mo`}</V>}>
+          <Stat value={<V k={y1.key('payback.value')} label="Discounted Payback figure">{y1.payback ? `Month ${y1.payback}` : `> ${y1.horizon} mo`}</V>}>
             <T k="bc.y1.payback" d="discounted payback: when the program has paid for itself and stays paid for" />
           </Stat>
         </div>
@@ -1020,13 +1028,19 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <tbody>
               <tr>
                 <td className="bc-m"><T k="bc.y1.investment" d="Total investment" /></td>
-                <td><T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." /></td>
-                <td className="bc-hl bc-big bc-r"><V k="card.investment.value" label="Total Investment — Year 1 figure">{usd(kp.totalInvestment12)}</V></td>
+                <td>
+                  {capexCf ? (
+                    <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                  ) : (
+                    <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
+                  )}
+                </td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('investment.value')} label="Total Investment — Year 1 figure">{usd(y1.investment)}</V></td>
               </tr>
               <tr>
                 <td className="bc-m"><T k="bc.y1.netRow" d="Net Benefit (Year 1)" /></td>
                 <td><T k="card.net.note" d="How much better off your communities are in year one after paying for everything." /></td>
-                <td className="bc-hl bc-big bc-r"><V k="card.net.value" label="Net Benefit — Year 1 figure">{usd(kp.netBenefit12)}</V></td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('net.value')} label="Net Benefit — Year 1 figure">{usd(y1.net)}</V></td>
               </tr>
               <tr>
                 <td className="bc-m"><T k="bc.y1.runRate" d="Stabilized Net Benefit" /></td>
@@ -1046,12 +1060,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </div>
         </B>
         <B id="callout" label="Run-rate callout">
-        {kp.totalInvestment12 > 0 && (
+        {y1.investment > 0 && (
           <div className="bc-callout">
             <b><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></b>
             <div>
               <span className="bc-chip"><T k="bc.y1.chip" d="Every year at run rate" /></span>
-              <p><T k="bc.y1.callout" d="Once {site} is fully ramped, the program returns this much a year after Teton’s fees: about {ratio} times the first year’s total investment." v={{ ...vars, ratio: (stabilizedNet / kp.totalInvestment12).toFixed(1) }} /></p>
+              <p><T k="bc.y1.callout" d="Once {site} is fully ramped, the program returns this much a year after Teton’s fees: about {ratio} times the first year’s total investment." v={{ ...vars, ratio: (stabilizedNet / y1.investment).toFixed(1) }} /></p>
             </div>
           </div>
         )}
@@ -1070,7 +1084,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="cashflow">
         <B id="chart" label="Chart">
         <div className="bc-card bc-chart">
-          <QuarterlyWaterfall discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={kp.discountedPaybackMonth} pilotEndMonth={d.pilotEndMonth} />
+          <QuarterlyWaterfall discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={y1.payback} pilotEndMonth={d.pilotEndMonth} />
         </div>
         </B>
         <B id="periods" label="By period">
