@@ -19,7 +19,7 @@ import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
-import { count, dateLabel, multiple, usd } from '@/lib/format';
+import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
@@ -36,6 +36,7 @@ import { renderText } from '@/lib/proposal/text';
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
 import { ViewSwitch } from './ViewSwitch';
+import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
 
 const Logo = () => (
@@ -1582,6 +1583,235 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       <div className="bc-band"><T k="bc.cover.band" d="Prevention becomes measurable once the environment becomes observable." /></div>
     </section>
   );
+
+  // ---------- Both pricing options: the investment, returns and cash flow pages compare OpEx and CapEx side by side ----------
+  if (draft.presentation === 'both') {
+    const annualCase = outputs.annual[outputs.roiCase];
+    const opCf = buildCashFlow(inputs, annualCase, pilotMonths + term);
+    const opNet = opCf.discountedNet;
+    const cxNet = net; // capex: pilot + useful life
+    const op = {
+      upfront: d.oneTime,
+      monthly: d.serviceMonthly,
+      y1: kp.totalInvestment12,
+      annualCost: sel.annualRoi - kp.runRateAnnualNetBenefit,
+      netAnnual: kp.runRateAnnualNetBenefit,
+      ret: sel.returnOnCost,
+      payback: kp.discountedPaybackMonth,
+      revpor: kp.netBenefitPerOccupiedUnitMonth,
+      total: sum(opNet),
+      months: opNet.length,
+    };
+    const cx = {
+      upfront: capex.equipment,
+      monthly: capex.softwareMonthly,
+      y1: capexCf?.equipment12 ?? capex.equipment,
+      annualCost: tetonAnnual,
+      netAnnual: stabilizedNet,
+      ret: stabilizedReturn,
+      payback: y1.payback,
+      revpor: d.perUnit.perOccupiedUnitMonth,
+      total: sum(cxNet),
+      months: cxNet.length,
+    };
+    // Four years from go-live, both ways: subscription fees and installation over the pilot + 48 months, against the cost of ownership.
+    const years = capex.ownershipMonths / 12;
+    const op4 = buildCashFlow(inputs, annualCase, pilotMonths + capex.ownershipMonths);
+    const opFour = sum(op4.recurringFees) + sum(op4.install);
+    const cxFour = capex.ownershipTotal;
+    const perBed = (v: number) => (units > 0 ? v / units / capex.ownershipMonths : 0);
+    const headRow = (first: string) => (
+      <tr>
+        <th>{first}</th>
+        <th />
+        <th className="bc-cmp-c">
+          <div className="bc-cmp-pillrow"><span className="bc-cmp-pill bc-cmp-op">OpEx</span></div>
+          <T k="bc.cmp.op" d="Subscription" />
+        </th>
+        <th className="bc-cmp-c">
+          <div className="bc-cmp-pillrow"><span className="bc-cmp-pill bc-cmp-cx">CapEx</span></div>
+          <T k="bc.cmp.cx" d="Purchase" />
+        </th>
+      </tr>
+    );
+    const head = headRow('Measure');
+    const row = (k: string, name: string, means: string, a: React.ReactNode, b: React.ReactNode, cls = '', extra?: React.ReactNode) => (
+      <tr className={cls}>
+        <td className="bc-m">
+          <T k={`bc.cmp.${k}`} d={name} />
+          {extra}
+        </td>
+        <td>{means && <T k={`bc.cmp.${k}.note`} d={means} />}</td>
+        <td className="bc-cmp-v bc-cmp-vop">{a}</td>
+        <td className="bc-cmp-v bc-cmp-vcx">{b}</td>
+      </tr>
+    );
+    const sec = (k: string, title: string) => (
+      <tr className="bc-cmp-sec">
+        <td colSpan={4}><T k={`bc.cmp.sec.${k}`} d={title} /></td>
+      </tr>
+    );
+    const mo = <span className="bc-cmp-unit"> / mo</span>;
+    const neg = (v: number) => <span className="bc-cost">−{usd(v)}</span>;
+
+    defs.scope = (no) => (
+      <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
+        <p className="bc-eyebrow"><T k="bc.scope.eyebrow" d="The investment" /></p>
+        <h1 className="bc-h1"><T k="bc.cmp.inv.title" d="Two ways to pay for Teton" /></h1>
+        <p className="bc-lede"><T k="bc.cmp.inv.lede" d="The same program priced as a subscription (OpEx) or as an equipment purchase (CapEx), side by side." /></p>
+        <Blocks page="scope-both">
+          <B id="compare" label="Comparison">
+            <div className="bc-card bc-tbl bc-cmp">
+              <table>
+                <thead>{head}</thead>
+                <tbody>
+                  {sec('pay', 'What you pay')}
+                  {row('upfront', 'Upfront', 'Installation and sensors (OpEx), or the equipment itself (CapEx), net of pilot credits', usd(op.upfront), usd(cx.upfront))}
+                  {row('monthly', 'Monthly', `Subscription (OpEx) or software & services (CapEx), all ${count(units)} beds`, <>{usd(op.monthly)}{mo}</>, <>{usd(cx.monthly)}{mo}</>)}
+                  {row('perBed', 'Per bed, per month', `Everything over ${numberWord(years)} years ÷ beds ÷ ${capex.ownershipMonths} months`, usd(Math.round(perBed(opFour))), usd(Math.round(perBed(cxFour))))}
+                  {sec('time', 'Over time')}
+                  {row('y1', 'Year 1 investment', 'Everything paid in the first 12 months', usd(op.y1), usd(cx.y1))}
+                  {layout.bcFourYears &&
+                    row(
+                      'four',
+                      'Four years from go-live',
+                      `The pilot, then ${capex.ownershipMonths - pilotMonths} months of fees (OpEx, renewing at the same rate); equipment plus ${capex.ownershipMonths} months of software (CapEx)`,
+                      usd(opFour),
+                      usd(cxFour),
+                      'bc-tot',
+                      editable ? (
+                        <button type="button" data-edit-ui className="no-print bc-cmp-x" onClick={() => setLayout((l) => ({ ...l, bcFourYears: undefined }))} aria-label="Remove Four years from go-live" title="Remove this row (you can add it back)">
+                          ✕
+                        </button>
+                      ) : null,
+                    )}
+                  {sec('means', 'What it means')}
+                  {row('own', 'Ownership', '', <T k="bc.cmp.own.op" d="Teton owns it" />, <T k="bc.cmp.own.cx" d="You own it" />, 'bc-cmp-text')}
+                  {row('books', 'On the books', '', <T k="bc.cmp.books.op" d="Operating expense" />, <T k="bc.cmp.books.cx" d="{share} capitalized" v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />, 'bc-cmp-text')}
+                </tbody>
+              </table>
+            </div>
+          </B>
+        </Blocks>
+      </Page>
+    );
+
+    defs.roi = (no) => (
+      <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
+        <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
+        <h1 className="bc-h1"><T k="bc.roi.title" d="Projected Return on Teton Investment" /></h1>
+        <p className="bc-lede"><T k="bc.cmp.roi.lede" d="The sources of value, modeled for {site}. The benefit is the same under both pricing options; only the cost of Teton differs." v={vars} /></p>
+        <Blocks page="roi-both">
+          <B id="table" label="Returns">
+            <div className="bc-card bc-tbl bc-cmp bc-roi-tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Source of value</th>
+                    <th>What it means each year</th>
+                    <th className="bc-r" colSpan={2}>Annual benefit · same under both</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {benefitRows.map((b) => (
+                    <tr key={b.key}>
+                      <td className="bc-m"><T k={`${b.key}.label`} d={b.label} /></td>
+                      <td>
+                        <T k={`${b.key}.means`} d={b.means} v={b.v} />
+                        <div className="bc-bar"><i style={{ width: `${sel.annualRoi > 0 ? Math.max(1.5, (b.value / sel.annualRoi) * 100) : 0}%` }} /></div>
+                      </td>
+                      <td className="bc-cmp-v" colSpan={2}>{usd(b.value)}</td>
+                    </tr>
+                  ))}
+                  <tr className="bc-tot">
+                    <td className="bc-m"><T k="bc.roi.gross" d="Gross Annual Benefit" /></td>
+                    <td><T k="bc.cmp.gross.note" d="The benefit doesn’t depend on how Teton is paid for" /></td>
+                    <td className="bc-cmp-v" colSpan={2}>{usd(sel.annualRoi)}</td>
+                  </tr>
+                  {headRow('')}
+                  {row('cost', 'Cost of Teton', `OpEx: annual subscription once every community is live · CapEx: ${numberWord(years)}-year cost of ownership ÷ ${years}`, neg(op.annualCost), neg(cx.annualCost))}
+                  {row('net', 'Net Annual Benefit', '', usd(op.netAnnual), usd(cx.netAnnual), 'bc-tot')}
+                </tbody>
+              </table>
+            </div>
+          </B>
+        </Blocks>
+      </Page>
+    );
+
+    defs.cashflow = (no) => (
+      <Page key="cashflow" no={no} crumb={<T k="bc.cf.crumb" d="Cash flow summary" />}>
+        <p className="bc-eyebrow"><T k="bc.cf.eyebrow" d="Cash flow summary" /></p>
+        <h1 className="bc-h1"><T k="bc.cf.title" d="Teton Cost / Benefit Summary" /></h1>
+        <p className="bc-lede"><T k="bc.cmp.cf.lede" d="Net discounted benefit after Teton fees, for each pricing option." /></p>
+        <Blocks page="cashflow-both">
+          <B id="cards" label="Payback and return">
+            <div className="bc-cmp-cards">
+              {(
+                [
+                  ['op', 'OpEx · Subscription', op],
+                  ['cx', 'CapEx · Purchase', cx],
+                ] as const
+              ).map(([k, label, o]) => (
+                <div key={k} className={`bc-cmp-side bc-cmp-side-${k}`}>
+                  <span className={`bc-cmp-pill bc-cmp-${k}`}><T k={`bc.cmp.card.${k}`} d={label} /></span>
+                  <div className="bc-cmp-side-row">
+                    <div><b>{o.payback ? `Month ${o.payback}` : `> ${o.months} mo`}</b><span><T k="bc.cmp.card.payback" d="discounted payback" /></span></div>
+                    <div><b>{multiple(o.ret, 1)}</b><span><T k="bc.cmp.card.ret" d="stabilized return on cost" /></span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </B>
+          <B id="table" label="Totals">
+            <div className="bc-card bc-tbl bc-cmp" style={{ marginTop: 12 }}>
+              <table>
+                <thead>{head}</thead>
+                <tbody>
+                  {row('cf.inv', 'Total investment', 'Year 1: OpEx installation plus fees; CapEx the equipment, paid at install', neg(op.y1), neg(cx.y1))}
+                  {row('cf.net', 'Stabilized Net Benefit', 'Each year, fully ramped, after the cost of Teton', usd(op.netAnnual), usd(cx.netAnnual))}
+                  {row('cf.revpor', 'REVPOR Impact', 'Per occupied room, per month', usd(op.revpor), usd(cx.revpor))}
+                  {row(
+                    'cf.total',
+                    'Total value added',
+                    `Discounted cumulative net benefit over the pilot and the term (OpEx: ${term}-month term · CapEx: ${numberWord(years)}-year useful life)`,
+                    <>{usd(op.total, { compact: true })}<small>{op.months} months</small></>,
+                    <>{usd(cx.total, { compact: true })}<small>{cx.months} months</small></>,
+                    'bc-tot',
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </B>
+          <B id="chart" label="Chart">
+            <div className="bc-card bc-chart relative group/view">
+              {editable && (
+                <ViewSwitch
+                  label="Chart style"
+                  options={[['line', 'Line'], ['bar', 'Bar']] as const}
+                  value={layout.bcCompareChart ?? 'bar'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcCompareChart: v === 'line' ? 'line' : undefined }))}
+                />
+              )}
+              <CompareChart
+                opex={opNet}
+                capex={cxNet}
+                opexPayback={op.payback}
+                capexPayback={cx.payback}
+                kind={layout.bcCompareChart ?? 'bar'}
+                startLabel={monthName(inputs.schedule.startDate, 1)}
+                labels={{
+                  opex: <T k="bc.cmp.leg.op" d="OpEx: where you stand each quarter" />,
+                  capex: <T k="bc.cmp.leg.cx" d="CapEx: where you stand each quarter" />,
+                  note: <T k="bc.cmp.leg.note" d="Discounted at {rate} · OpEx ends with its term" v={{ rate: costOfMoney }} />,
+                }}
+              />
+            </div>
+          </B>
+        </Blocks>
+      </Page>
+    );
+  }
 
   // ---------- Executive summary: one page over the whole case; its cards move, widen and come off one by one ----------
   {

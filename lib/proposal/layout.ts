@@ -56,6 +56,10 @@ export interface ProposalLayout {
   bcRoiQuote?: boolean;
   /** Business-case format: Executive Summary cards that span both columns. */
   bcExecWide?: string[];
+  /** Business case, both pricing options: show the 'Four years from go-live' row (off by default). */
+  bcFourYears?: boolean;
+  /** Business case, both pricing options: the cash flow comparison as bars (default) or lines. */
+  bcCompareChart?: 'bar' | 'line';
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -157,6 +161,8 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
     bcRoiQuote: raw.bcRoiQuote === true ? true : undefined,
     bcExecWide: raw.bcExecWide == null ? undefined : ids(raw.bcExecWide, 20),
+    bcFourYears: raw.bcFourYears === true ? true : undefined,
+    bcCompareChart: raw.bcCompareChart === 'line' ? 'line' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

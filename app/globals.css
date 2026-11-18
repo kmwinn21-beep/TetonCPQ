@@ -567,3 +567,36 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-exec-bars > div { padding: 1px 0; }
 .bc-exec-grid { gap: 10px; margin-top: 14px; }
 .bc-exec-ul li { margin: 1px 0; }
+
+/* Business case, both pricing options: OpEx (brand green) and CapEx (brand red) side by side. */
+.bc-cmp th.bc-cmp-c { text-align: right; width: 150px; vertical-align: bottom; }
+.bc-cmp-pill { display: inline-block; border-radius: 99px; padding: 3px 10px; font-size: 9.5px; font-weight: 800; letter-spacing: 1.5px; color: #fff; text-transform: uppercase; }
+.bc-cmp th .bc-cmp-pill { display: table; margin: 0 0 4px auto; }
+.bc-cmp-op { background: #66C995; }
+.bc-cmp-cx { background: #FC6845; }
+.bc-cmp td.bc-cmp-v { text-align: right; font-size: 17px; color: var(--bc-ink); font-weight: 500; white-space: nowrap; }
+.bc-cmp td.bc-cmp-v small { display: block; font-size: 10px; color: var(--bc-muted); margin-top: 1px; }
+.bc-cmp td.bc-cmp-vop { background: rgba(102, 201, 149, .12); }
+.bc-cmp td.bc-cmp-vcx { background: rgba(252, 104, 69, .08); }
+.bc-cmp tr.bc-cmp-text td.bc-cmp-v { font-size: 12.5px; }
+.bc-cmp-unit { font-size: 11px; color: var(--bc-muted); }
+.bc-cmp tr.bc-cmp-sec td { background: var(--bc-cream); font-size: 9.5px; letter-spacing: 2px; font-weight: 800; color: var(--bc-muted); padding-top: 6px; padding-bottom: 6px; text-transform: uppercase; }
+.bc-cmp tr.bc-tot td.bc-cmp-v { font-weight: 700; }
+.bc-cmp td.bc-m { position: relative; }
+.bc-cmp-x { margin-left: 6px; width: 18px; height: 18px; border-radius: 99px; background: rgba(15, 23, 32, .88); color: #fff; font-size: 10px; line-height: 18px; text-align: center; opacity: 0; transition: opacity .15s; vertical-align: 1px; }
+.bc-cmp tr:hover .bc-cmp-x, .bc-cmp-x:focus { opacity: 1; }
+.bc-cmp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.bc-cmp-side { background: var(--bc-night); border-radius: 14px; padding: 12px 16px 13px; color: #fff; }
+.bc-cmp-side-op { border-top: 5px solid #66C995; }
+.bc-cmp-side-cx { border-top: 5px solid #FC6845; }
+.bc-cmp-side .bc-cmp-pill { margin-bottom: 8px; }
+.bc-cmp-side-row { display: flex; gap: 22px; }
+.bc-cmp-side-row b { display: block; font-size: 28px; font-weight: 500; color: var(--bc-mint); letter-spacing: -.8px; line-height: 1.1; }
+.bc-cmp-side-row span { display: block; font-size: 11px; color: #D6DAE0; margin-top: 2px; }
+@media screen and (max-width: 860px) {
+  .bc-cmp-cards { grid-template-columns: minmax(0, 1fr); }
+  .bc-cmp th.bc-cmp-c { width: auto; }
+}
+.bc-cmp th .bc-cmp-pill { padding: 3px 10px !important; letter-spacing: 1.5px; line-height: 1.4; font-size: 9.5px; }
+.bc-cmp-pillrow { margin-bottom: 4px; }
+.bc-cmp th .bc-cmp-pillrow .bc-cmp-pill { display: inline-block; margin: 0; }

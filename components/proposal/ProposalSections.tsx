@@ -515,7 +515,8 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* Removed sections and figures, with Add back.                        */
 /* ------------------------------------------------------------------ */
 
-export function RemovedPanel() {
+/** `bothPricing`: the proposal shows both pricing options, so the comparison's optional rows can be added from here. */
+export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   if (!editable) return null;
@@ -525,13 +526,15 @@ export function RemovedPanel() {
   const pages = businessCase ? removedBcPages(bcPagesOf(layout)) : [];
   const values = layout.hiddenValues;
   // Business case: sections removed from inside its pages, with their page's name.
-  const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope' };
+  const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
   const blocks = businessCase
     ? Object.entries(layout.bcHiddenBlocks ?? {}).flatMap(([page, m]) =>
         Object.entries(m).map(([id, label]) => ({ page, id, label, where: (BC_PAGE_TITLES as Record<string, string>)[PAGE_OF[page] ?? page] ?? page })),
       )
     : [];
-  if (!sections.length && !values.length && !pages.length && !blocks.length) return null;
+  // Optional rows that start out removed (shown in the Removed list until added).
+  const optional = businessCase && bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment' }] : [];
+  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -580,6 +583,12 @@ export function RemovedPanel() {
               ),
             )}
           </ul>
+        </>
+      )}
+      {optional.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Optional rows</p>
+          <ul>{optional.map((o) => item(o.key, o.label, () => setLayout((l) => ({ ...l, bcFourYears: true }))))}</ul>
         </>
       )}
       {values.length > 0 && (
