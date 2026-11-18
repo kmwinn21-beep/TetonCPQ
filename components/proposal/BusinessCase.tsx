@@ -42,6 +42,8 @@ const Logo = () => (
   </span>
 );
 
+/** "four" for 4 (small whole numbers in words, as written in a sentence). */
+const numberWord = (n: number) => ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n);
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 const pctOf = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '–');
 
@@ -393,8 +395,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const platform = platformEquipment + capex.software;
   const ecall = ecallEquipment + capex.renewals;
 
-  // The cash-flow page covers 48 months (the pilot plus the hardware's four-year life), longer than the 36-month model window.
-  const CHART_MONTHS = 48;
+  // The cash flow page covers the pilot plus the hardware's useful life (equipment purchase) or the service term
+  // (subscription), so its last bar is the total value over the term.
+  const pilotMonths = anyPilot ? inputs.schedule.pilotLengthMonths : 0;
+  const termMonths = capexShown ? capex.ownershipMonths : term;
+  const CHART_MONTHS = pilotMonths + termMonths;
   const cfAll = buildCashFlow(inputs, outputs.annual[outputs.roiCase], CHART_MONTHS);
   // An equipment purchase has its own cash flow: equipment paid at install (so it starts below zero), then software monthly.
   const capexCf = capexShown ? capexCashFlow(cfAll, capex) : null;
@@ -405,11 +410,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, horizon, key: (k: string) => `bc.capex.${k}` }
     : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, horizon: kp.horizonMonths, key: (k: string) => `card.${k}` };
   const pilotLen = anyPilot ? inputs.schedule.pilotLengthMonths : 0;
-  const windows = [
-    { key: capexShown ? 'pilotCapex' : 'pilot', from: 1, to: pilotLen, label: `Months 1–${pilotLen}`, note: capexShown ? 'Equipment paid at install; the pilot, before benefits begin' : 'The pilot, before benefits begin' },
-    { key: 'y1', from: pilotLen + 1, to: Math.min(12, horizon), label: `Months ${pilotLen + 1}–12`, note: 'Benefits ramp up after the pilot' },
-    { key: 'rest', from: 13, to: horizon, label: `Months 13–${horizon}`, note: 'At run rate, discounted' },
-  ].filter((w) => w.to >= w.from);
 
   // Annual cost of Teton: equipment purchase spread over its useful life, or the run-rate subscription (so gross − cost = the Stabilized Net Benefit).
   const tetonAnnual = capexShown ? capex.ownershipTotal / (capex.ownershipMonths / 12) : sel.annualRoi - kp.runRateAnnualNetBenefit;
@@ -1103,22 +1103,23 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <B id="table" label="Year 1 table">{y1Table(false)}</B>
         <B id="chart" label="Chart">
         <div className="bc-card bc-chart">
-          <QuarterlyWaterfall discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={y1.payback} pilotEndMonth={d.pilotEndMonth} />
+          <QuarterlyWaterfall cumulative discountedNet={net} startDate={inputs.schedule.startDate} paybackMonth={y1.payback} pilotEndMonth={d.pilotEndMonth} />
         </div>
         </B>
-        <B id="periods" label="By period">
-        <div className="bc-three" style={{ marginTop: 16 }}>
-          {windows.map((w) => {
-            const v = sum(net.slice(w.from - 1, w.to));
-            return (
-              <div key={w.key} className="bc-card bc-mini">
-                <span className="bc-crumb">{w.label}</span>
-                <b>{v >= 0 ? '+' : '−'}{usd(Math.abs(v), { compact: true })}</b>
-                <span><T k={`bc.cf.${w.key}`} d={w.note} /></span>
-              </div>
-            );
-          })}
-        </div>
+        <B id="total" label="Total value callout">
+          <div className="bc-callout bc-cf-total">
+            <b><V k="bc.cf.total.value" label="Total value added over the term">{usd(sum(net), { compact: true })}</V></b>
+            <div>
+              <span className="bc-chip"><T k="bc.cf.total.chip" d="Total Value Added Over Term" /></span>
+              <p>
+                <T
+                  k={capexShown ? 'bc.cf.total.text.capex' : 'bc.cf.total.text.opex'}
+                  d={capexShown ? 'Discounted Cumulative Net Benefit over the pilot and the {years} year useful life' : 'Discounted Cumulative Net Benefit over the pilot and the {months} month term'}
+                  v={{ years: numberWord(capex.ownershipMonths / 12), months: String(term) }}
+                />
+              </p>
+            </div>
+          </div>
         </B>
         {basis && <B id="note" label="Pricing note">{basis}</B>}
         </Blocks>

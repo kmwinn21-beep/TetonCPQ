@@ -7,6 +7,10 @@
  * from $0 down to that total, in red, labeled with the net cost so far
  * (−$622K, then −$541K, …); once the total is above $0 the bars show each
  * quarter's gain again.
+ *
+ * `cumulative`: a plain bar graph instead. Each bar stands from $0 to where the
+ * program is at the end of that quarter (red behind, green ahead), with no total
+ * bar: the last bar is the total.
  * Estimated payback is marked and labeled; the end of the pilot is a dashed
  * line (named in the legend). Plain SVG so it prints crisply and
  * renders on the server.
@@ -43,12 +47,15 @@ export function QuarterlyWaterfall({
   startDate,
   paybackMonth,
   pilotEndMonth = null,
+  cumulative = false,
 }: {
   discountedNet: number[];
   startDate: string;
   paybackMonth: number | null;
   /** Last month of the pilot (model month), if the deal has one. */
   pilotEndMonth?: number | null;
+  /** Bars of the running total from $0, and no total bar. */
+  cumulative?: boolean;
 }) {
   const quarters: Array<{ label: string; delta: number; from: number; to: number }> = [];
   let cum = 0;
@@ -61,7 +68,7 @@ export function QuarterlyWaterfall({
     cum += delta;
   }
   const months = discountedNet.length;
-  const bars = [...quarters, { label: `${months} mo`, delta: cum, from: 0, to: cum }];
+  const bars = cumulative ? quarters : [...quarters, { label: `${months} mo`, delta: cum, from: 0, to: cum }];
 
   const W = 680;
   const H = 270;
@@ -96,23 +103,23 @@ export function QuarterlyWaterfall({
           </g>
         ))}
         {bars.map((b, i) => {
-          const isTotal = i === bars.length - 1;
+          const isTotal = !cumulative && i === bars.length - 1;
           const cx = left + slot * (i + 0.5);
           const x = cx - bw / 2;
           // Still under water: show the net cost so far, from $0 down to the running total.
           const under = !isTotal && b.to < 0;
-          const start = under ? 0 : b.from;
+          const start = under || cumulative ? 0 : b.from;
           const y0 = Math.min(y(start), y(b.to));
           const y1 = Math.max(y(start), y(b.to));
-          const fill = isTotal ? TOTAL : under ? RED : b.delta >= 0 ? GREEN : RED;
-          const text = isTotal ? money(b.delta) : under ? money(b.to) : money(b.delta, true);
-          const labelY = under || b.delta < 0 ? y1 + 13 : y0 - 6;
+          const fill = isTotal ? TOTAL : cumulative ? (b.to < 0 ? RED : GREEN) : under ? RED : b.delta >= 0 ? GREEN : RED;
+          const text = isTotal ? money(b.delta) : under || cumulative ? money(b.to) : money(b.delta, true);
+          const labelY = cumulative ? (b.to < 0 ? y1 + 13 : y0 - 6) : under || b.delta < 0 ? y1 + 13 : y0 - 6;
           return (
             <g key={b.label}>
               <rect x={x} y={y0} width={bw} height={Math.max(y1 - y0, 1.5)} rx={3} fill={fill}>
                 <title>{under ? `${b.label}: net cost so far ${money(b.to)} (this quarter ${money(b.delta, true)})` : `${b.label}: ${text}`}</title>
               </rect>
-              {!isTotal && (
+              {!isTotal && !cumulative && (
                 <line x1={x + bw} x2={left + slot * (i + 1.5) - bw / 2} y1={y(b.to)} y2={y(b.to)} stroke={AXIS} strokeWidth={1} opacity={0.45} />
               )}
               <text x={cx} y={labelY} textAnchor="middle" fontSize={10.5} fontWeight={isTotal ? 600 : 500} fill={INK}>
@@ -137,9 +144,9 @@ export function QuarterlyWaterfall({
         )}
       </svg>
       <figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-teton-dark-gray mt-1">
-        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: GREEN }} />Net Gain</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: RED }} />Net Cost</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: TOTAL }} />Total at month {months}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: GREEN }} />{cumulative ? 'Ahead (net gain to date)' : 'Net Gain'}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: RED }} />{cumulative ? 'Behind (net cost to date)' : 'Net Cost'}</span>
+        {!cumulative && <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: TOTAL }} />Total at month {months}</span>}
         {pilotEndMonth ? (
           <span className="flex items-center gap-1.5">
             <svg width="10" height="12" aria-hidden="true"><line x1="5" x2="5" y1="0" y2="12" stroke={AXIS} strokeDasharray="3 2" /></svg>
