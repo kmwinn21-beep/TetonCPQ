@@ -1051,9 +1051,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-m"><T k="bc.y1.perUnit" d="REVPOR Impact" /></td>
                 <td>
                   <T k="bc.y1.perUnitNote" d="Impact on Revenue Per Occupied Room" />
-                  <small>{usd(kp.netBenefitPerUnitMonth)} per unit across all {count(inputs.cfo.portfolioUnits)} units</small>
+                  <small>{usd(d.perUnit.perUnitMonth)} per unit across all {count(inputs.cfo.portfolioUnits)} units</small>
                 </td>
-                <td className="bc-hl bc-big bc-r"><V k="card.perUnit.value" label="Net Benefit per Unit per Month figure">{usd(kp.netBenefitPerOccupiedUnitMonth)}</V></td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('perUnit.value')} label="Net Benefit per Unit per Month figure">{usd(d.perUnit.perOccupiedUnitMonth)}</V></td>
               </tr>
             </tbody>
           </table>

@@ -323,7 +323,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? 'card p-4' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4'}>
-              <KpiPreview result={computed.result} error={computed.error} />
+              <KpiPreview result={computed.result} error={computed.error} draft={deferred} />
               <GuardrailPanel g={computed.guardrails} />
               <VersionsPanel versions={versions} quoteId={initial.quoteId} />
             </div>

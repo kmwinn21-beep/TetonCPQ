@@ -8,6 +8,7 @@ import { capexFor } from '@/lib/quote/outputs';
 import type { StoredOutputs, VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { diffDrafts } from '@/lib/quote/diff';
+import { year1Figures } from '@/lib/quote/year1';
 import { dateLabel, multiple, usd } from '@/lib/format';
 
 export interface CompareTarget {
@@ -36,16 +37,17 @@ export function VersionCompare({ currentLabel, current, compare, options, onPick
     );
   }
   const changes = compare ? diffDrafts(compare.inputs, current.inputs) : [];
-  const a = compare?.outputs.kpis;
-  const b = current.outputs.kpis;
+  // Each version's Year 1 figures follow what its own proposal shows (equipment purchase or subscription).
+  const a = compare ? year1Figures(compare.inputs, compare.outputs) : null;
+  const b = year1Figures(current.inputs, current.outputs);
   const payback = (m: number | null | undefined, h: number) => (m ? `Month ${m}` : `> ${h} mo`);
   const rows: Array<[string, string, string, number | null]> = a
     ? [
-        ['Total Investment — Year 1', usd(a.totalInvestment12), usd(b.totalInvestment12), b.totalInvestment12 - a.totalInvestment12],
-        ['Net Benefit — Year 1', usd(a.netBenefit12), usd(b.netBenefit12), b.netBenefit12 - a.netBenefit12],
-        ['Gross Return per $1 Invested (Year 1)', multiple(a.grossReturnPerDollar12), multiple(b.grossReturnPerDollar12), null],
-        ['Discounted Payback', payback(a.discountedPaybackMonth, a.horizonMonths), payback(b.discountedPaybackMonth, b.horizonMonths), null],
-        ['Run-Rate Annual Net Benefit', usd(a.runRateAnnualNetBenefit), usd(b.runRateAnnualNetBenefit), b.runRateAnnualNetBenefit - a.runRateAnnualNetBenefit],
+        ['Total Investment — Year 1', usd(a.investment), usd(b.investment), b.investment - a.investment],
+        ['Net Benefit — Year 1', usd(a.net), usd(b.net), b.net - a.net],
+        ['Gross Return per $1 Invested (Year 1)', multiple(a.gross), multiple(b.gross), null],
+        ['Discounted Payback', payback(a.payback, a.horizon), payback(b.payback, b.horizon), null],
+        ['Run-Rate Annual Net Benefit', usd(a.runRate), usd(b.runRate), b.runRate - a.runRate],
         ...(compare
           ? (() => {
               const ca = capexFor(compare.outputs, compare.inputs).equipment;

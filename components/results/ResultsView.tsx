@@ -11,6 +11,9 @@
 import { basePackageRows, computeCapex } from '@/lib/pricing/capex';
 import { computeFinish, rangeText } from '@/lib/pricing/finish';
 import { capexFor } from '@/lib/quote/outputs';
+import { capexCashFlow, capexYear1Traces } from '@/lib/pricing/capexCashFlow';
+import { derived, input } from '@/lib/model/trace';
+import { year1Figures } from '@/lib/quote/year1';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -84,7 +87,23 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
   const caseName = CASE_LABEL[out.roiCase];
   const w = k.kpiWindowMonths;
   const start = inputs.schedule.startDate;
-  const show = (id: string) => traces[id] && setOpen(traces[id]);
+  // When the proposal shows the equipment purchase, Year 1, payback and the cash flow follow it (as the proposal does).
+  const ccf = draft.presentation !== 'opex' ? capexCashFlow(cf, capex) : null;
+  const y1 = year1Figures(draft, { ...out, capex });
+  const capexAnnualCost = capex.ownershipMonths > 0 ? capex.ownershipTotal / (capex.ownershipMonths / 12) : 0;
+  const capexTraces: Record<string, Trace> = ccf
+    ? {
+        ...capexYear1Traces(ccf, `Gross benefit, months 1–12 (${caseName} case)`),
+        'capex.kpi.runRate': derived('capex.kpi.runRate', 'Run-Rate Annual Net Benefit', sel.totals.annualRoi - capexAnnualCost, 'usd', 'Annual gross benefit − annual cost of Teton', [
+          input('capex.rr.gross', `Annual gross benefit (${caseName} case)`, sel.totals.annualRoi, 'usd'),
+          derived('capex.rr.cost', 'Annual cost of Teton', capexAnnualCost, 'usd', `${capex.ownershipMonths / 12}-year cost of ownership ÷ ${capex.ownershipMonths / 12}`, [input('capex.rr.own', 'Cost of ownership (equipment + software + renewals)', capex.ownershipTotal, 'usd')]),
+        ]),
+      }
+    : {};
+  const show = (id: string) => {
+    const t = traces[id] ?? capexTraces[id];
+    if (t) setOpen(t);
+  };
   // Implementation plan for pilot sites, from the version's own inputs and go-live months.
   const pilots = pilotPlan(draft, start, cf.communities.map((c) => c.goLiveMonth));
   const [today] = useState(() => new Date().toLocaleDateString('en-CA'));
@@ -93,20 +112,30 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
     month: m,
     label: monthLabel(start, m),
     gross: cf.grossBenefit[i],
-    cost: cf.totalCost[i],
-    cumulativeDiscounted: cf.cumulativeDiscountedNet[i],
+    cost: ccf ? ccf.totalCost[i] : cf.totalCost[i],
+    cumulativeDiscounted: ccf ? ccf.cumulativeDiscountedNet[i] : cf.cumulativeDiscountedNet[i],
   }));
 
   const vendor = useMemo(() => runVendorView(inputs), [inputs]);
 
+  const capexCards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = ccf
+    ? [
+        { id: 'capex.kpi.investment', label: 'Total Investment — Year 1', value: usd(ccf.equipment12), caption: `One-time equipment, paid at install · software & services ${usd(ccf.running12)} in year 1 counted in the net benefit` },
+        { id: 'capex.kpi.net', label: 'Net Benefit — Year 1', value: usd(ccf.net12), caption: `${caseName} case · net of equipment and software & services`, negative: ccf.net12 < 0 },
+        { id: 'capex.kpi.gross', label: 'Gross Return per $1 Invested (Year 1)', value: multiple(ccf.grossReturn12), caption: `Stabilized return per $1 invested: ${multiple(capexAnnualCost > 0 ? sel.totals.annualRoi / capexAnnualCost : 0, 1)} (gross ÷ cost of ownership per year)` },
+        { id: 'capex.kpi.payback', label: 'Discounted Payback', value: ccf.discountedPaybackMonth ? `Month ${ccf.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: 'Equipment paid at install, then software & services monthly' },
+        { id: 'capex.kpi.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(sel.totals.annualRoi - capexAnnualCost), caption: `Gross − annual cost of Teton (${capex.ownershipMonths / 12}-year cost of ownership ÷ ${capex.ownershipMonths / 12})`, negative: sel.totals.annualRoi - capexAnnualCost < 0 },
+      ]
+    : [];
   const cards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = [
     { id: 'kpi.totalInvestment12', label: 'Total Investment — Year 1', value: usd(k.totalInvestment12), caption: `Install ${usd(sum(cf.install.slice(0, w)))} · Fees ${usd(sum(cf.recurringFees.slice(0, w)))}${inputs.schedule.includeReimbursement ? ` · Reimb. ${usd(sum(cf.reimbursement.slice(0, w)))}` : ''}` },
     { id: 'kpi.netBenefit12', label: 'Net Benefit — Year 1', value: usd(k.netBenefit12), caption: `${caseName} case · net of all Teton costs`, negative: k.netBenefit12 < 0 },
     { id: 'kpi.grossReturnPerDollar12', label: 'Gross Return per $1 Invested (Year 1)', value: multiple(k.grossReturnPerDollar12), caption: `Stabilized return per $1 invested: ${multiple(sel.totals.returnOnCost, 1)} (${caseName} case return on cost)` },
     { id: 'kpi.discountedPaybackMonth', label: 'Discounted Payback', value: k.discountedPaybackMonth ? `Month ${k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: `Undiscounted: ${k.undiscountedPaybackMonth ? `month ${k.undiscountedPaybackMonth}` : 'not within horizon'} · first billing month ${k.firstBillingMonth ?? '—'}` },
     { id: 'kpi.runRateAnnualNetBenefit', label: 'Run-Rate Annual Net Benefit', value: usd(k.runRateAnnualNetBenefit), caption: `Month ${k.horizonMonths} net × 12 — every community live and ramped`, negative: k.runRateAnnualNetBenefit < 0 },
-    { id: 'kpi.netBenefitPerOccupiedUnitMonth', label: 'Net Benefit per Unit per Month', value: `${usd(k.netBenefitPerOccupiedUnitMonth)} / occupied unit`, caption: `${usd(k.netBenefitPerUnitMonth)} per unit across ${count(inputs.cfo.portfolioUnits)} total units` },
+    { id: ccf ? 'capex.kpi.perUnit' : 'kpi.netBenefitPerOccupiedUnitMonth', label: 'Net Benefit per Unit per Month', value: `${usd(y1.perOccupiedUnitMonth)} / occupied unit`, caption: `${usd(y1.perUnitMonth)} per unit across ${count(inputs.cfo.portfolioUnits)} total units` },
   ];
+  if (ccf) cards.splice(0, 5, ...capexCards);
 
   const breakdown: Array<[string, string, string]> = [
     ['annual.residentsRealigned', 'Residents realigned', count(sel.totals.residentsRealigned)],
@@ -181,7 +210,10 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
       )}
 
       <section aria-labelledby="kpis">
-        <h2 id="kpis" className="text-base font-semibold mb-3">Year 1 Financial Summary</h2>
+        <h2 id="kpis" className="text-base font-semibold mb-3">
+          Year 1 Financial Summary
+          {ccf && <span className="ml-2 badge-gray align-middle font-normal">Equipment purchase (capex)</span>}
+        </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (
             <button key={c.id} type="button" onClick={() => show(c.id)} className="card text-left hover:border-teton-pale-gray hover:shadow-md transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent">
@@ -210,7 +242,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
         </div>
         <div className="card">
           <h2 className="text-base font-semibold mb-1">Cumulative discounted net benefit</h2>
-          <CumulativeChart data={points} paybackMonth={k.discountedPaybackMonth} />
+          <CumulativeChart data={points} paybackMonth={ccf ? ccf.discountedPaybackMonth : k.discountedPaybackMonth} />
         </div>
       </section>
 
@@ -379,16 +411,27 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
             </thead>
             <tbody>
               {(
-                [
-                  ['Subscription fees', cf.recurringFees],
-                  ['One-time install', cf.install],
-                  ...(inputs.schedule.includeReimbursement ? [['Reimbursement', cf.reimbursement] as const] : []),
-                  ['Total Teton cost', cf.totalCost],
-                  [`Gross benefit (${caseName})`, cf.grossBenefit],
-                  ['Net benefit', cf.netBenefit],
-                  ['Cumulative net', cf.cumulativeNet],
-                  ['Cumulative discounted net', cf.cumulativeDiscountedNet],
-                ] as Array<readonly [string, number[]]>
+                (ccf
+                  ? [
+                      ['Equipment (at install)', ccf.equipment],
+                      ['Software & services', ccf.software],
+                      ...(ccf.renewals.some((v) => v) ? [['E-Call renewals', ccf.renewals] as const] : []),
+                      ['Total Teton cost', ccf.totalCost],
+                      [`Gross benefit (${caseName})`, cf.grossBenefit],
+                      ['Net benefit', ccf.netBenefit],
+                      ['Cumulative net', ccf.cumulativeNet],
+                      ['Cumulative discounted net', ccf.cumulativeDiscountedNet],
+                    ]
+                  : [
+                      ['Subscription fees', cf.recurringFees],
+                      ['One-time install', cf.install],
+                      ...(inputs.schedule.includeReimbursement ? [['Reimbursement', cf.reimbursement] as const] : []),
+                      ['Total Teton cost', cf.totalCost],
+                      [`Gross benefit (${caseName})`, cf.grossBenefit],
+                      ['Net benefit', cf.netBenefit],
+                      ['Cumulative net', cf.cumulativeNet],
+                      ['Cumulative discounted net', cf.cumulativeDiscountedNet],
+                    ]) as Array<readonly [string, number[]]>
               ).map(([label, row]) => (
                 <tr key={label} className={label.startsWith('Total') || label === 'Net benefit' ? 'font-semibold' : ''}>
                   <th scope="row" className={`sticky left-0 bg-white text-left py-1.5 pr-4 border-t border-teton-off-white ${label.startsWith('Total') || label === 'Net benefit' ? 'font-semibold' : 'font-normal'}`}>{label}</th>

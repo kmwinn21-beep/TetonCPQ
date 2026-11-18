@@ -14,6 +14,8 @@ import { longDate } from '@/components/implementation/ImplementationGantt';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
 import { allocationTable } from '@/lib/quote/resources';
 import { computeFinish } from '@/lib/pricing/finish';
+import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
+import { year1Figures } from '@/lib/quote/year1';
 
 export const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -28,6 +30,14 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   const capex = capexFor(outputs, draft);
   const showOpex = draft.presentation !== 'capex';
   const showCapex = draft.presentation === 'capex' || draft.presentation === 'both';
+  // Year 1 figures, payback and the waterfall follow the equipment purchase whenever the proposal shows it
+  // (the same rule as the business case): equipment paid at install, then software & services monthly.
+  const capexCf = draft.presentation !== 'opex' ? capexCashFlow(cf, capex) : null;
+  const perUnit = year1Figures(draft, outputs);
+  const capexAnnualCost = capex.ownershipMonths > 0 ? capex.ownershipTotal / (capex.ownershipMonths / 12) : 0;
+  const year1 = capexCf
+    ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, runRate: sel.annualRoi - capexAnnualCost, stabilizedReturn: capexAnnualCost > 0 ? sel.annualRoi / capexAnnualCost : 0, discountedNet: capexCf.discountedNet }
+    : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, runRate: kp.runRateAnnualNetBenefit, stabilizedReturn: sel.returnOnCost, discountedNet: cf.discountedNet };
   const units = inputs.communities.reduce((s, c) => s + c.units, 0);
   const anyPilot = cf.communities.some((c) => c.inPilot);
   // The pilot phase ends when the last pilot site converts to the service term.
@@ -122,30 +132,39 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
     { key: 'roi.outcome.valuation', value: usd(sel.valuationImpact, { compact: true }), label: 'Asset Value Impact (one year @ {capRate} Cap)', v: { capRate } },
   ];
 
-  const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string> }> = [
-    { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(kp.totalInvestment12), note: 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.' },
-    { key: 'card.net', label: 'Net Benefit — Year 1', value: usd(kp.netBenefit12), note: 'How much better off your communities are in year one after paying for everything.' },
+  // `fig` / `noteKey`: on an equipment purchase the figures (and their notes) are different numbers, so they get their own keys.
+  const cx = !!capexCf;
+  const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string>; fig?: string; noteKey?: string }> = [
+    cx
+      ? { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit.', v: { software: usd(capex.softwareMonthly) }, fig: 'bc.capex.investment.value', noteKey: 'card.investment.note.capex' }
+      : { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.' },
+    { key: 'card.net', label: 'Net Benefit — Year 1', value: usd(year1.net), note: 'How much better off your communities are in year one after paying for everything.', fig: cx ? 'bc.capex.net.value' : undefined },
     {
       key: 'card.gross',
       label: 'Gross Return per $1 Invested (Year 1)',
-      value: multiple(kp.grossReturnPerDollar12),
+      value: multiple(year1.gross),
       note: 'Stabilized return per $1 invested: {stabilized}, once every community is live and fully ramped.',
-      v: { stabilized: multiple(sel.returnOnCost, 1) },
+      v: { stabilized: multiple(year1.stabilizedReturn, 1) },
+      fig: cx ? 'bc.capex.gross.value' : undefined,
     },
     {
       key: 'card.payback',
       label: 'Discounted Payback',
-      value: kp.discountedPaybackMonth ? `Month ${kp.discountedPaybackMonth}` : `Beyond month ${kp.horizonMonths}`,
+      value: year1.payback ? `Month ${year1.payback}` : `Beyond month ${kp.horizonMonths}`,
       note: 'When the program has paid for itself and stays paid for, using your {costOfMoney} cost of money.',
       v: { costOfMoney },
+      fig: cx ? 'bc.capex.payback.value' : undefined,
     },
-    { key: 'card.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(kp.runRateAnnualNetBenefit), note: 'The yearly value once every community is live and fully ramped, after subscription fees.' },
+    cx
+      ? { key: 'card.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(year1.runRate), note: 'The yearly value once every community is live and fully ramped, after the annual cost of Teton (four-year cost of ownership ÷ 4).', fig: 'bc.capex.runRate.value', noteKey: 'card.runRate.note.capex' }
+      : { key: 'card.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(year1.runRate), note: 'The yearly value once every community is live and fully ramped, after subscription fees.' },
     {
       key: 'card.perUnit',
       label: 'Net Benefit per Unit per Month',
-      value: usd(kp.netBenefitPerOccupiedUnitMonth),
+      value: usd(perUnit.perOccupiedUnitMonth),
       note: 'Per occupied apartment at run rate ({perUnit} per unit across all {units}).',
-      v: { perUnit: usd(kp.netBenefitPerUnitMonth), units: `${count(inputs.cfo.portfolioUnits)} units` },
+      v: { perUnit: usd(perUnit.perUnitMonth), units: `${count(inputs.cfo.portfolioUnits)} units` },
+      fig: cx ? 'bc.capex.perUnit.value' : undefined,
     },
   ];
 
@@ -191,7 +210,7 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   // Concealed installation finish: an optional add-on range, outside the equipment price and the ROI.
   const finish = computeFinish(draft);
 
-  return { finish, inputs, start, kp, cf, rc, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, term, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, k, anyFull, money, rateSummary, capRate, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, ecallFreeInPilot, nCommunities, pilots, hasResources, pilotDates, pilotDatesText, goLivePhrase };
+  return { year1, perUnit, capexCf, finish, inputs, start, kp, cf, rc, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, term, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, k, anyFull, money, rateSummary, capRate, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, ecallFreeInPilot, nCommunities, pilots, hasResources, pilotDates, pilotDatesText, goLivePhrase };
 }
 
 export type ProposalData = ReturnType<typeof buildProposalData>;

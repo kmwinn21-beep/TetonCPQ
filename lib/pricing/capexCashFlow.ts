@@ -11,6 +11,7 @@
  * ownership ÷ its years, as on the returns page).
  */
 import { running, stayPaidMonth, type CashFlow } from '@/lib/model/cashflow';
+import { derived, input, type Trace } from '@/lib/model/trace';
 import { POLICY } from './catalog';
 import type { CapexResult } from './capex';
 
@@ -21,6 +22,7 @@ export interface CapexCashFlow {
   totalCost: number[];
   grossBenefit: number[];
   netBenefit: number[];
+  cumulativeNet: number[];
   discountedNet: number[];
   cumulativeDiscountedNet: number[];
   /** Equipment paid in months 1–12 (the Year 1 investment). */
@@ -67,6 +69,7 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
     totalCost,
     grossBenefit: cf.grossBenefit,
     netBenefit,
+    cumulativeNet: running(netBenefit),
     discountedNet,
     cumulativeDiscountedNet,
     equipment12,
@@ -75,5 +78,19 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
     net12: gross12 - paid12,
     grossReturn12: paid12 > 0 ? gross12 / paid12 : 0,
     discountedPaybackMonth: stayPaidMonth(cumulativeDiscountedNet),
+  };
+}
+
+/** "How is this calculated?" for the Year 1 figures of an equipment purchase. */
+export function capexYear1Traces(c: CapexCashFlow, gross12Label: string): Record<string, Trace> {
+  const equipment = input('capex.y1.equipment', 'One-time equipment paid in months 1–12 (at each go-live)', c.equipment12, 'usd');
+  const running12 = input('capex.y1.running', 'Software & services and E-Call renewals in months 1–12', c.running12, 'usd');
+  const gross = input('capex.y1.gross12', gross12Label, c.gross12, 'usd');
+  const paid = derived('capex.y1.paid', 'Everything paid to Teton in months 1–12', c.equipment12 + c.running12, 'usd', 'Equipment + software & services + renewals', [equipment, running12]);
+  return {
+    'capex.kpi.investment': derived('capex.kpi.investment', 'Total Investment — Year 1', c.equipment12, 'usd', 'One-time equipment cost, paid in each community’s go-live month', [equipment]),
+    'capex.kpi.net': derived('capex.kpi.net', 'Net Benefit — Year 1', c.net12, 'usd', 'Gross benefit − everything paid to Teton in months 1–12', [gross, paid]),
+    'capex.kpi.gross': derived('capex.kpi.gross', 'Gross Return per $1 Invested (Year 1)', c.grossReturn12, 'multiple', 'Gross benefit ÷ everything paid to Teton in months 1–12', [gross, paid]),
+    'capex.kpi.payback': derived('capex.kpi.payback', 'Discounted Payback', c.discountedPaybackMonth, 'months', 'First month the running total of discounted net benefit (gross − equipment − software & services − renewals) stays above zero', [paid]),
   };
 }

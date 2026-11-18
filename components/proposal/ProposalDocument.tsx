@@ -58,7 +58,7 @@ function PilotIcon() {
 }
 
 export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: ProposalProps) {
-  const { finish, start, kp, cf, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, rateSummary, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, nCommunities, pilots, hasResources, goLivePhrase } = buildProposalData(draft, outputs, lines);
+  const { year1, capexCf, finish, start, kp, cf, sel, capex, showOpex, showCapex, units, anyPilot, pilotEndMonth, credit, oneTime, pilotMonthly, serviceMonthly, termTotal, perCommunity, rateSummary, costOfMoney, caseName, pilotLength, termLength, outcomes, cards, benefits, assumptions, nCommunities, pilots, hasResources, goLivePhrase } = buildProposalData(draft, outputs, lines);
   const implementationBody = pilots.length ? (
     <>
       <p className="mb-3 text-[14px] max-w-prose">
@@ -115,10 +115,10 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
               <T k={`${card.key}.label`} d={card.label} />
             </p>
             <p className="text-xl font-semibold tabular-nums mt-0.5">
-              <V k={`${card.key}.value`} label={`${card.label} figure`}>{card.value}</V>
+              <V k={card.fig ?? `${card.key}.value`} label={`${card.label} figure`}>{card.value}</V>
             </p>
             <p className="text-[11px] text-teton-dark-gray mt-1 leading-snug">
-              <T k={`${card.key}.note`} d={card.note} v={card.v} />
+              <T k={card.noteKey ?? `${card.key}.note`} d={card.note} v={card.v} />
             </p>
           </div>
         ))}
@@ -384,12 +384,12 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
       <div className="mt-6 avoid-break">
         <p className="text-[12px] text-teton-dark-gray mb-2">
           <T
-            k="roi.waterfallNote"
-            d={`Net benefit by quarter after Teton fees and installation, discounted at your {costOfMoney} cost of money. Each bar starts where the last one ended${kp.discountedPaybackMonth ? '; the program pays for itself in {payback} and stays paid for.' : '.'}`}
-            v={{ costOfMoney, payback: `month ${kp.discountedPaybackMonth ?? ''}` }}
+            k={capexCf ? 'roi.waterfallNote.capex' : 'roi.waterfallNote'}
+            d={`Net benefit by quarter after ${capexCf ? 'the equipment purchase (paid at install) and software & services' : 'Teton fees and installation'}, discounted at your {costOfMoney} cost of money. Each bar starts where the last one ended${year1.payback ? '; the program pays for itself in {payback} and stays paid for.' : '.'}`}
+            v={{ costOfMoney, payback: `month ${year1.payback ?? ''}` }}
           />
         </p>
-        <QuarterlyWaterfall discountedNet={cf.discountedNet} startDate={start} paybackMonth={kp.discountedPaybackMonth} pilotEndMonth={pilotEndMonth} />
+        <QuarterlyWaterfall discountedNet={year1.discountedNet} startDate={start} paybackMonth={year1.payback} pilotEndMonth={pilotEndMonth} />
       </div>
     </>
   );

@@ -4,35 +4,44 @@ import Link from 'next/link';
 import type { ModelResult } from '@/lib/model';
 import { LADDER, type GuardrailResult, type Severity } from '@/lib/pricing/guardrails';
 import type { VersionSummary } from '@/lib/data/quotes';
+import type { QuoteDraft } from '@/lib/quote/draft';
+import { year1Figures } from '@/lib/quote/year1';
 import { dateLabel, multiple, usd } from '@/lib/format';
 
 const APPROVER: Record<string, string> = { deal_desk: 'Deal Desk', vp_sales_or_ceo: 'VP Sales or CEO (written)' };
 const SEVERITY_CLASS: Record<Severity, string> = { info: 'badge-purple', warning: 'badge-yellow', approval: 'badge-red' };
 const SEVERITY_LABEL: Record<Severity, string> = { info: 'Note', warning: 'Warning', approval: 'Needs approval' };
 
-export function KpiPreview({ result, error }: { result: ModelResult | null; error: string | null }) {
+export function KpiPreview({ result, error, draft }: { result: ModelResult | null; error: string | null; draft?: QuoteDraft }) {
   if (error) return <div className="card text-sm"><p className="font-medium">Can’t calculate yet</p><p className="text-teton-ui-gray mt-1">{error}</p></div>;
   if (!result) return null;
   const k = result.kpis;
+  // Follows the proposal's pricing: the equipment purchase when it's shown.
+  let y: ReturnType<typeof year1Figures> | null = null;
+  try {
+    y = draft ? year1Figures(draft, result) : null;
+  } catch {
+    y = null; // a half-entered draft: fall back to the subscription figures
+  }
   const items: Array<[string, string, string?]> = [
-    ['Total Investment — Year 1', usd(k.totalInvestment12)],
-    ['Net Benefit — Year 1', usd(k.netBenefit12)],
-    ['Gross Return per $1 Invested (Year 1)', multiple(k.grossReturnPerDollar12)],
-    ['Discounted Payback', k.discountedPaybackMonth ? `Month ${k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`],
-    ['Run-Rate Annual Net Benefit', usd(k.runRateAnnualNetBenefit, { compact: true })],
-    ['Net Benefit / Unit / Month', `${usd(k.netBenefitPerOccupiedUnitMonth)} occ. · ${usd(k.netBenefitPerUnitMonth)} all`],
+    ['Total Investment — Year 1', usd(y ? y.investment : k.totalInvestment12)],
+    ['Net Benefit — Year 1', usd(y ? y.net : k.netBenefit12)],
+    ['Gross Return per $1 Invested (Year 1)', multiple(y ? y.gross : k.grossReturnPerDollar12)],
+    ['Discounted Payback', (y ? y.payback : k.discountedPaybackMonth) ? `Month ${y ? y.payback : k.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`],
+    ['Run-Rate Annual Net Benefit', usd(y ? y.runRate : k.runRateAnnualNetBenefit, { compact: true })],
+    ['Net Benefit / Unit / Month', `${usd(y ? y.perOccupiedUnitMonth : k.netBenefitPerOccupiedUnitMonth)} occ. · ${usd(y ? y.perUnitMonth : k.netBenefitPerUnitMonth)} all`],
   ];
   return (
     <div className="card">
       <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-semibold">Live preview</h2>
+        <h2 className="text-sm font-semibold">Live preview{y?.capex && <span className="ml-1.5 font-normal text-xs text-teton-ui-gray">· equipment purchase</span>}</h2>
         <span className="text-xs text-teton-ui-gray">{result.roiCase.charAt(0).toUpperCase() + result.roiCase.slice(1)} case</span>
       </div>
       <dl className="space-y-2.5">
         {items.map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
             <dt className="text-xs text-teton-dark-gray">{label}</dt>
-            <dd className={`text-sm font-semibold tabular-nums text-right ${label.startsWith('Net Benefit — ') && k.netBenefit12 < 0 ? 'bg-teton-red/30 rounded px-1' : ''}`}>{value}</dd>
+            <dd className={`text-sm font-semibold tabular-nums text-right ${label.startsWith('Net Benefit — ') && (y ? y.net : k.netBenefit12) < 0 ? 'bg-teton-red/30 rounded px-1' : ''}`}>{value}</dd>
           </div>
         ))}
       </dl>
