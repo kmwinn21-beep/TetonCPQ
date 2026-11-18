@@ -1019,7 +1019,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
                   )}
                 </td>
-                <td className="bc-hl bc-big bc-r"><V k={y1.key('investment.value')} label="Total Investment — Year 1 figure">{usd(y1.investment)}</V></td>
+                <td className="bc-hl bc-big bc-r"><V k={y1.key('investment.value')} label="Total Investment — Year 1 figure">{withNet ? usd(y1.investment) : <span className="bc-cost">{y1.investment > 0 ? '−' : ''}{usd(y1.investment)}</span>}</V></td>
               </tr>
               {withNet && (
               <tr>
