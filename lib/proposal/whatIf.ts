@@ -90,6 +90,7 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.capex.softwareRate', 'Equipment: software & services / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.capex.bleRenewal', 'Equipment: E-Call renewal / bed (4 yr)', PRICING, PRICING_AT, 'usd'),
   F('commercial.capex.inovonicsRenewal', 'Equipment: Inovonics renewal / bed (3 yr)', PRICING, PRICING_AT, 'usd'),
+  F('commercial.capex.conversionCredit', 'Equipment: conversion credit (pilot, per bed and sensor)', PRICING, PRICING_AT, 'usd', { nullable: true }),
 
   F('client.occupancy', 'Occupancy', CLIENT, CLIENT_AT, 'pct', { max: 1 }),
   F('client.avgRent', 'Average rent / resident / mo', CLIENT, CLIENT_AT, 'usd'),
@@ -272,8 +273,8 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
   if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');
-  if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice'] };
-  if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase)', fields: ['presentation', 'commercial.capex.sensorPrice'] };
+  if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.conversionCredit'] };
+  if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase), less the conversion credit at pilot communities', fields: ['presentation', 'commercial.capex.sensorPrice', 'commercial.capex.conversionCredit'] };
   if (k.startsWith('capex.software')) return { formula: 'Beds × software & services rate, per month', fields: ['presentation', 'commercial.capex.softwareRate'] };
   if (k.startsWith('capex.renewals')) return { formula: 'E-Call renewals that fall within the four years: Bluetooth every 4 years, Inovonics every 3', fields: ['presentation', 'commercial.capex.bleRenewal', 'commercial.capex.inovonicsRenewal'] };
   if (k.startsWith('capex.')) return { formula: 'One-time equipment + software & services over four years + E-Call renewals within them', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate'] };

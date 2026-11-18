@@ -653,3 +653,10 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-wk-card ~ .bc-wave-grid { gap: 7px; }
 .bc-wk-card ~ .bc-wave-grid .bc-wave-card { padding: 7px 13px; }
 .bc-wk-card ~ .bc-eyebrow.bc-gray { margin: 10px 0 6px; }
+.bc-conv-note { margin-top: 8px; font-size: 11.5px; }
+.bc-exec-foot { font-size: 9.5px !important; color: var(--bc-muted) !important; margin-top: 4px !important; }
+/* Investment page with a conversion credit: an extra base package row and the footnote, so a little tighter. */
+[data-bc-page="scope"]:has(.bc-conv-note) .bc-req-tight .bc-req-row { padding-top: 4px; padding-bottom: 4px; }
+[data-bc-page="scope"]:has(.bc-conv-note) .bc-three-compact .bc-dark { padding-top: 10px; padding-bottom: 10px; }
+[data-bc-page="scope"]:has(.bc-conv-note) .bc-pilot-tbl td { padding-top: 6px; padding-bottom: 6px; }
+.bc-conv-note { margin-top: 6px !important; }

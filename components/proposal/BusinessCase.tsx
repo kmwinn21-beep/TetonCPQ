@@ -13,7 +13,7 @@
  */
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
-import { basePackageRows } from '@/lib/pricing/capex';
+import { basePackageRows, conversionCreditOf, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
@@ -836,25 +836,28 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <ScopeRow ecall={anyEcall} />
               {basePackageRows(capex).map((r) => (
                 <CostRow
-                  key={r.ecall}
+                  key={r.key}
                   name={<T k={`bc.capex.base.${r.ecall}`} d="Base packages" />}
                   sub={<T k="bc.oneTime" d="(one-time)" />}
                   desc={
                     <T
                       k={`bc.capex.base.${r.ecall}.math`}
                       d={r.ecall === 'none' ? '{math}. Edge unit + sensor, installed.' : r.ecall === 'ble' ? '{math}. Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant.' : '{math}. Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord.'}
-                      v={{ math: `${count(r.beds)} beds × ${usd(r.perBed)}` }}
+                      v={{ math: `${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}` }}
                     />
                   }
-                  amount={<V k={`capex.base.${r.ecall}.value`} label={`${r.label} amount`}>{usd(r.total)}</V>}
+                  amount={<V k={`capex.base.${r.key}.value`} label={`${r.label} amount`}>{usd(r.total)}</V>}
                 />
               ))}
-              <CostRow
-                name={<T k="bc.sensors" d="Additional Sensors" />}
-                sub={<T k="bc.oneTime" d="(one-time)" />}
-                desc={<T k="bc.capex.sensorMath" d="{math}" v={{ math: capex.sensors ? `${count(capex.sensors)} ${capex.sensors === 1 ? 'sensor' : 'sensors'} × ${usd(capex.pricing.sensorPrice)}` : 'None included' }} />}
-                amount={<V k="capex.sensors.value" label="Additional sensors amount">{usd(capex.sensorCost)}</V>}
-              />
+              {(sensorRows(capex).length ? sensorRows(capex) : [null]).map((r) => (
+                <CostRow
+                  key={r?.key ?? 'none'}
+                  name={<T k="bc.sensors" d="Additional Sensors" />}
+                  sub={<T k="bc.oneTime" d="(one-time)" />}
+                  desc={<T k="bc.capex.sensorMath" d="{math}" v={{ math: r ? `${count(r.units)} ${r.units === 1 ? 'sensor' : 'sensors'} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}` : 'None included' }} />}
+                  amount={<V k={r?.credit ? 'capex.sensors.credited.value' : 'capex.sensors.value'} label="Additional sensors amount">{usd(r ? r.total : 0)}</V>}
+                />
+              ))}
               <CostRow
                 total
                 name={<T k="capex.price" d="One-time equipment cost" />}
@@ -882,6 +885,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               />
               {finishRow}
             </div>
+            {conversionCreditOf(capex) > 0 && (
+              <p className="bc-note bc-conv-note">
+                <T k="bc.capex.conversionNote" d="*A {credit} conversion credit has been applied to the per bed Base Package and per additional sensor." v={{ credit: usd(conversionCreditOf(capex)) }} />
+              </p>
+            )}
             {ecall > 0 && capex.ownershipTotal > 0 && (
               <div className="bc-split">
                 <div style={{ flex: platform, background: 'var(--bc-lav)' }}>
@@ -2058,8 +2066,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <tbody>
                     {capexShown ? (
                       <>
-                        {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${usd(r.perBed)}`, usd(r.total)))}
-                        {capex.sensors > 0 && row(`Additional sensors · ${count(capex.sensors)} × ${usd(capex.pricing.sensorPrice)}`, usd(capex.sensorCost))}
+                        {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
+                        {sensorRows(capex).map((r) => row(`Additional sensors · ${count(r.units)} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
                         {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
                         {row('Software & services', `${usd(capex.softwareMonthly)} / mo`)}
                         {row(`${numberWord(capex.ownershipMonths / 12).replace(/^./, (c) => c.toUpperCase())}-year cost of ownership`, usd(capex.ownershipTotal))}
@@ -2074,6 +2082,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     )}
                   </tbody>
                 </table>
+                {capexShown && conversionCreditOf(capex) > 0 && (
+                  <p className="bc-exec-foot"><T k="bc.exec.conversionNote" d="*Includes a {credit} conversion credit per pilot bed and sensor." v={{ credit: usd(conversionCreditOf(capex)) }} /></p>
+                )}
               </div>
             </B>
             <B id="returns" label="What the program returns" {...card('returns')}>

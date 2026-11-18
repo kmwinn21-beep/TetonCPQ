@@ -89,6 +89,7 @@ const FIELDS: Record<string, Field> = {
   'commercial.capex.softwareRate': { label: 'Equipment: software & services / bed / mo', fmt: 'usd' },
   'commercial.capex.bleRenewal': { label: 'Equipment: E-Call renewal / bed', fmt: 'usd' },
   'commercial.capex.inovonicsRenewal': { label: 'Equipment: Inovonics renewal / bed', fmt: 'usd' },
+  'commercial.capex.conversionCredit': { label: 'Equipment: conversion credit', fmt: 'usd' },
 };
 
 const GROUP: Record<string, string> = {

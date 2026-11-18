@@ -12,7 +12,7 @@
 import { TetonMark } from '@/components/AppShell';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { PriceLine } from '@/lib/pricing/lines';
-import { basePackageRows } from '@/lib/pricing/capex';
+import { basePackageRows, conversionCreditOf, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { rangeText } from '@/lib/pricing/finish';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, usd } from '@/lib/format';
@@ -254,27 +254,27 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           <table className="w-full mt-3 tabular-nums">
             <tbody>
               {basePackageRows(capex).map((r) => (
-                <tr key={r.ecall} className="border-b border-teton-off-white">
+                <tr key={r.key} className="border-b border-teton-off-white">
                   <td className="py-1">
                     <T k={`capex.base.${r.ecall}`} d={r.ecall === 'none' ? 'Base packages (Edge unit + sensor, installed)' : r.ecall === 'ble' ? 'Base packages with E-Call (pendant and wall-mount pendant)' : 'Base packages with Inovonics E-Call (pendant and wall-mount pull cord)'} />
                     <span className="block text-[11px] text-teton-dark-gray">
-                      {count(r.beds)} beds × {usd(r.perBed)}
+                      {count(r.beds)} beds × {unitPriceText(r, (n) => usd(n))}{r.credit ? '*' : ''}
                     </span>
                   </td>
-                  <td className="py-1 text-right"><V k={`capex.base.${r.ecall}.value`} label={`${r.label} amount`}>{usd(r.total)}</V></td>
+                  <td className="py-1 text-right"><V k={`capex.base.${r.key}.value`} label={`${r.label} amount`}>{usd(r.total)}</V></td>
                 </tr>
               ))}
-              {capex.sensors > 0 && (
-                <tr className="border-b border-teton-off-white">
+              {sensorRows(capex).map((r) => (
+                <tr key={r.key} className="border-b border-teton-off-white">
                   <td className="py-1">
                     <T k="capex.sensors" d="Additional sensors" />
                     <span className="block text-[11px] text-teton-dark-gray">
-                      {count(capex.sensors)} × {usd(capex.pricing.sensorPrice)}
+                      {count(r.units)} × {unitPriceText(r, (n) => usd(n))}{r.credit ? '*' : ''}
                     </span>
                   </td>
-                  <td className="py-1 text-right"><V k="capex.sensors.value" label="Additional sensors amount">{usd(capex.sensorCost)}</V></td>
+                  <td className="py-1 text-right"><V k={r.credit ? 'capex.sensors.credited.value' : 'capex.sensors.value'} label="Additional sensors amount">{usd(r.total)}</V></td>
                 </tr>
-              )}
+              ))}
               <tr className="font-semibold border-b border-teton-off-white">
                 <td className="py-1.5"><T k="capex.price" d="One-time equipment cost, paid at install" /></td>
                 <td className="py-1.5 text-right"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
@@ -305,6 +305,11 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
               </tr>
             </tbody>
           </table>
+          {conversionCreditOf(capex) > 0 && (
+            <p className="text-[11px] text-teton-dark-gray mt-1">
+              <T k="capex.conversionNote" d="*A {credit} conversion credit has been applied to the per bed Base Package and per additional sensor." v={{ credit: usd(conversionCreditOf(capex)) }} />
+            </p>
+          )}
           <p className="text-[12px] text-teton-dark-gray mt-2">
             <T k="capex.share" d="About {share} of the total cost is equipment, treated as a capital purchase rather than an operating expense." v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />
           </p>

@@ -175,6 +175,7 @@ export function PricingSection({ book }: SectionProps) {
                 <MoneyField name="commercial.capex.softwareRate" label="Software & services" hint="Per bed / month" min={0} />
                 <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" disabled={k.ecall !== 'ble'} min={0} />
                 <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" disabled={k.ecall !== 'inovonics'} min={0} />
+                <MoneyField name="commercial.capex.conversionCredit" label="Conversion credit" hint="Off each base package and additional sensor at pilot communities" min={0} nullable placeholder="0" />
               </Grid>
             </div>
           )}

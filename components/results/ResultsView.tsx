@@ -8,7 +8,7 @@
  * The drill-down is rebuilt from the version's stored inputs; if the engine has
  * changed since and the rebuilt numbers differ, a banner says so.
  */
-import { basePackageRows, computeCapex } from '@/lib/pricing/capex';
+import { basePackageRows, computeCapex, conversionCreditOf, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { computeFinish, rangeText } from '@/lib/pricing/finish';
 import { capexFor } from '@/lib/quote/outputs';
 import { capexCashFlow, capexYear1Traces } from '@/lib/pricing/capexCashFlow';
@@ -312,12 +312,14 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
             <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Equipment purchase (capex) · title passes at install</caption>
             <tbody className="tabular-nums">
               {basePackageRows(capex).map((r) => (
-                <tr key={r.ecall} className="border-t border-teton-off-white">
-                  <td className="py-2">{r.label}s <span className="text-teton-ui-gray">· {count(r.beds)} beds × {usd(r.perBed)}</span></td>
+                <tr key={r.key} className="border-t border-teton-off-white">
+                  <td className="py-2">{r.label}s <span className="text-teton-ui-gray">· {count(r.beds)} beds × {unitPriceText(r, (n) => usd(n))}{r.credit ? '*' : ''}</span></td>
                   <td className="py-2 text-right">{usd(r.total)}</td>
                 </tr>
               ))}
-              <tr className="border-t border-teton-off-white"><td className="py-2">Additional sensors <span className="text-teton-ui-gray">· {count(capex.sensors)} × {usd(capex.pricing.sensorPrice)}</span></td><td className="py-2 text-right">{usd(capex.sensorCost)}</td></tr>
+              {(sensorRows(capex).length ? sensorRows(capex) : [{ key: 'none', list: capex.pricing.sensorPrice, credit: 0, perUnit: capex.pricing.sensorPrice, units: 0, total: 0 }]).map((r) => (
+                <tr key={r.key} className="border-t border-teton-off-white"><td className="py-2">Additional sensors <span className="text-teton-ui-gray">· {count(r.units)} × {unitPriceText(r, (n) => usd(n))}{r.credit ? '*' : ''}</span></td><td className="py-2 text-right">{usd(r.total)}</td></tr>
+              ))}
               <tr className="border-t border-teton-off-white font-semibold">
                 <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>One-time equipment cost</button></td>
                 <td className="py-2 text-right">{usd(capex.equipment)}</td>
@@ -327,6 +329,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
               <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">{capex.ownershipMonths / 12}-year cost of ownership</td><td className="py-2 text-right">{usd(capex.ownershipTotal)}</td></tr>
             </tbody>
           </table>
+          {conversionCreditOf(capex) > 0 && <p className="text-xs text-teton-ui-gray mt-1">*A {usd(conversionCreditOf(capex))} conversion credit has been applied to the per bed Base Package and per additional sensor (pilot communities).</p>}
         </div>
         {finish.concealed && (
           <p className="text-sm mt-3 rounded-lg bg-teton-almost-white px-3 py-2">
