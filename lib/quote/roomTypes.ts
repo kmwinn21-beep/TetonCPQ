@@ -11,9 +11,11 @@
  */
 import type { DraftCommunity } from './draft';
 
-export type CareType = 'il' | 'al' | 'mc' | 'snf';
-export const CARE_LABEL: Record<CareType, string> = { il: 'Independent living', al: 'Personal care / AL', mc: 'Memory care', snf: 'Skilled nursing' };
-export const CARE_SHORT: Record<CareType, string> = { il: 'Independent living', al: 'Personal care', mc: 'Memory care', snf: 'Skilled nursing' };
+export type CareType = 'il' | 'al' | 'mc' | 'snf' | 'custom';
+export const CARE_LABEL: Record<CareType, string> = { il: 'Independent living', al: 'Assisted living', mc: 'Memory care', snf: 'Skilled nursing', custom: 'Custom…' };
+export const CARE_SHORT: Record<CareType, string> = { il: 'Independent living', al: 'Assisted living', mc: 'Memory care', snf: 'Skilled nursing', custom: 'Custom' };
+/** A room type's care label: the rep's own for a custom care type. */
+export const careLabel = (t: Pick<RoomType, 'care' | 'customCare'>) => (t.care === 'custom' ? t.customCare?.trim() || 'Custom' : CARE_SHORT[t.care]);
 
 export interface RoomType {
   id: string;
@@ -22,10 +24,12 @@ export interface RoomType {
   rooms: number;
   /** Sensors in each room of this type (one per room or living area a resident uses). */
   sensors: number;
+  /** The care type's name when care is 'custom' (its rooms count as assisted living beds). */
+  customCare?: string;
 }
 
 export const DEFAULT_ALLOWANCE = 0.03;
-const CARES: CareType[] = ['il', 'al', 'mc', 'snf'];
+const CARES: CareType[] = ['il', 'al', 'mc', 'snf', 'custom'];
 const int = (v: unknown, max: number) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
 
 export function normalizeRoomTypes(v: unknown): RoomType[] {
@@ -39,6 +43,7 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       care: CARES.includes(r.care as CareType) ? (r.care as CareType) : 'al',
       rooms: int(r.rooms, 5000),
       sensors: Math.max(1, int(r.sensors ?? 1, 20)),
+      ...(r.care === 'custom' ? { customCare: String(r.customCare ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) } : {}),
     }];
   });
 }
@@ -51,7 +56,7 @@ export interface RoomScope {
   allowance: number;
   totalSensors: number;
   additionalSensors: number;
-  beds: Record<CareType, number>;
+  beds: Record<'il' | 'al' | 'mc' | 'snf', number>;
 }
 
 export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
@@ -60,8 +65,9 @@ export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   // Rounded to 4 places first, so 3% of 200 stays 6 rather than tipping to 7 on floating-point noise.
   const allowance = Math.ceil(Math.round(planSensors * allowancePct * 1e4) / 1e4);
   const totalSensors = planSensors + allowance;
-  const beds = { il: 0, al: 0, mc: 0, snf: 0 } as Record<CareType, number>;
-  types.forEach((t) => (beds[t.care] += t.rooms));
+  const beds = { il: 0, al: 0, mc: 0, snf: 0 } as Record<'il' | 'al' | 'mc' | 'snf', number>;
+  // Custom care types count as assisted living beds (every bed is priced the same).
+  types.forEach((t) => (beds[t.care === 'custom' ? 'al' : t.care] += t.rooms));
   return { rooms, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
 }
 

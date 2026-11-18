@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRoomTypes, normalizeRoomTypes, roomScope, type RoomType } from './roomTypes';
+import { applyRoomTypes, careLabel, normalizeRoomTypes, roomScope, type RoomType } from './roomTypes';
 import { newCommunity, normalizeDraft, defaultDraft } from './draft';
 import { priceBook } from '@/lib/pricing/catalog';
 import { computeCapex } from '@/lib/pricing/capex';
@@ -34,5 +34,13 @@ describe('room types', () => {
     expect(applyRoomTypes(c)).toBe(c);
     expect(normalizeRoomTypes([{ name: '  Studio ', care: 'zz', rooms: -3, sensors: 0 }, 'junk'])).toEqual([{ id: 'rt-0', name: 'Studio', care: 'al', rooms: 0, sensors: 1 }]);
     expect(roomScope([{ id: 'x', name: '', care: 'al', rooms: 100, sensors: 2 }], 0.03).allowance).toBe(6); // exactly 6, not 7
+  });
+
+  it('takes custom care types, counted as assisted living beds', () => {
+    const t = normalizeRoomTypes([{ id: 'x', name: 'Respite suite', care: 'custom', customCare: '  Respite ', rooms: 4, sensors: 2 }]);
+    expect(t[0]).toMatchObject({ care: 'custom', customCare: 'Respite' });
+    expect(careLabel(t[0])).toBe('Respite');
+    expect(careLabel({ care: 'al' })).toBe('Assisted living');
+    expect(roomScope(t, 0).beds).toEqual({ il: 0, al: 4, mc: 0, snf: 0 });
   });
 });

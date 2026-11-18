@@ -23,7 +23,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { CARE_SHORT, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
+import { CARE_SHORT, careLabel, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, V } from './ProposalSections';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
@@ -409,7 +409,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       {types.map((t) => (
                         <tr key={t.id}>
                           <td className="bc-m">{t.name || 'Room type'}</td>
-                          <td><span className={`bc-care bc-care-${t.care}`}>{CARE_SHORT[t.care]}</span></td>
+                          <td><span className={`bc-care bc-care-${t.care}`}>{careLabel(t)}</span></td>
                           <td className="bc-r">{count(t.rooms)}</td>
                           <td className="bc-r"><span className="bc-dots" aria-hidden="true">{'●'.repeat(Math.min(t.sensors, 6))}</span> {t.sensors}</td>
                           <td className="bc-hl bc-big bc-r">{count(t.rooms * t.sensors)}</td>

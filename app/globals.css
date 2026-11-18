@@ -187,6 +187,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-care-mc { background: #DDEFE4; }
 .bc-care-il { background: #F3EBD9; }
 .bc-care-snf { background: #F5E0DA; }
+.bc-care-custom { background: #ECEDEE; }
 .bc-dots { color: #58B985; letter-spacing: 1px; }
 .bc-quiet { font-weight: 500 !important; color: var(--bc-body) !important; }
 .bc-site-tbl td small { display: inline; margin: 0; }

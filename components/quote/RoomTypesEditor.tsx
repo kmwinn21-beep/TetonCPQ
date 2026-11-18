@@ -57,6 +57,21 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
           {types.map((t, k) => (
             <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem_1.75rem] gap-x-1.5 gap-y-1 items-end rounded-lg border border-teton-off-white p-2">
               <input className="input-field px-2 py-1.5 col-span-4" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+              {t.care === 'custom' ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    className="input-field px-1.5 py-1.5 text-xs min-w-0"
+                    value={t.customCare ?? ''}
+                    placeholder="Care type"
+                    autoFocus={!t.customCare}
+                    aria-label={`Community ${position} room type ${k + 1} custom care type`}
+                    onChange={(e) => patch(t.id, { customCare: e.target.value })}
+                  />
+                  <button type="button" className="text-[11px] text-teton-ui-gray underline flex-shrink-0" title="Choose from the list" onClick={() => patch(t.id, { care: 'al', customCare: undefined })}>
+                    List
+                  </button>
+                </span>
+              ) : (
               <select className="input-field px-1.5 py-1.5 text-xs self-end" value={t.care} aria-label={`Community ${position} room type ${k + 1} care`} onChange={(e) => patch(t.id, { care: e.target.value as CareType })}>
                 {(Object.keys(CARE_LABEL) as CareType[]).map((c) => (
                   <option key={c} value={c}>
@@ -64,6 +79,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   </option>
                 ))}
               </select>
+              )}
               <NumInput value={t.rooms} onChange={(v) => patch(t.id, { rooms: v ?? 0 })} min={0} aria-label={`Community ${position} room type ${k + 1} rooms`} />
               <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
               <button type="button" className={iconBtn} onClick={() => write(types.filter((x) => x.id !== t.id))} aria-label={`Remove room type ${k + 1}`} title="Remove">
@@ -100,6 +116,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
       </div>
       {scope && (
         <p className="text-xs text-teton-dark-gray mt-2 rounded-lg bg-teton-almost-white px-3 py-2">
+          {types.some((t) => t.care === 'custom') && <span className="block mb-1">Custom care types count as assisted living beds.</span>}
           {count(scope.rooms)} rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} allowance = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
         </p>
