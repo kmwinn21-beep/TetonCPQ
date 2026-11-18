@@ -262,11 +262,11 @@ export function earliestGoLive(today: string, plan: ImplementationPlan): string 
   return toIso(t + ((8 - dow) % 7) * DAY);
 }
 
-/** "Weeks 2–4", "Week 9", or "Before kick-off" for stages before week 1. */
+/** "Weeks 2–4", "Week 9", or "Pre-Kick Off" for stages before week 1. */
 export function weekLabel(s: ScheduledStage, short = false): string {
   if (s.weeks <= 0) return 'none';
   // Stages before week 1 (e.g. Evaluation & Contracting, Implementation Queue): their length is shown alongside.
-  if (s.toWeek <= 0) return short ? 'before kick-off' : 'Before kick-off';
+  if (s.toWeek <= 0) return 'Pre-Kick Off';
   const from = Math.max(s.fromWeek, 1);
   return from === s.toWeek ? `Week ${from}` : `Weeks ${from}–${s.toWeek}`;
 }

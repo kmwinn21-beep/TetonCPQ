@@ -50,6 +50,8 @@ export interface ProposalLayout {
   bcChart?: 'bar' | 'stacked';
   /** Business-case format: the implementation stages as cards (default) or a Gantt chart with a description list. */
   bcImpl?: 'cards' | 'gantt';
+  /** Business case, several pilot go-lives, cards view: dates in each card (default) or one schedule table above them. */
+  bcImplWaves?: 'dates' | 'schedule';
   /** Business-case format: the callout under the returns table, asset value (default) or fall risk. */
   bcRoiCallout?: 'asset' | 'fall';
   /** Business-case format: a customer quote at the bottom of that callout. */
@@ -158,6 +160,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     })(),
     bcChart: raw.bcChart === 'stacked' ? 'stacked' : undefined,
     bcImpl: raw.bcImpl === 'gantt' ? 'gantt' : undefined,
+    bcImplWaves: raw.bcImplWaves === 'schedule' ? 'schedule' : undefined,
     bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
     bcRoiQuote: raw.bcRoiQuote === true ? true : undefined,
     bcExecWide: raw.bcExecWide == null ? undefined : ids(raw.bcExecWide, 20),

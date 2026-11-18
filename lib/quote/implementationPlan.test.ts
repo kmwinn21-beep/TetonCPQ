@@ -23,8 +23,8 @@ const rows = (goLive: string, p = defaultPlan()) => scheduleFor(goLive, p).stage
 describe('implementation plan', () => {
   it('matches the Path to Go Live slide with the standard stages', () => {
     expect(rows('2027-02-01')).toEqual([
-      ['evaluation', '2026-09-28', '2026-11-22', 'Before kick-off'],
-      ['queue', '2026-11-23', '2026-12-06', 'Before kick-off'],
+      ['evaluation', '2026-09-28', '2026-11-22', 'Pre-Kick Off'],
+      ['queue', '2026-11-23', '2026-12-06', 'Pre-Kick Off'],
       ['kickoff', '2026-12-07', '2026-12-20', 'Weeks 1–2'],
       ['implementation', '2026-12-14', '2027-01-03', 'Weeks 2–4'],
       ['baseline', '2026-12-28', '2027-01-31', 'Weeks 4–8'],

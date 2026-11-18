@@ -3,7 +3,7 @@
  * go-live date, one row per stage, go-live marked with a diamond. Plain HTML
  * positioned in percentages, so it renders on the server and prints cleanly.
  * Stages are ordered, so they share one green family that deepens toward
- * go-live (Evaluation & Contracting, before kick-off, is neutral); every bar
+ * go-live (Evaluation & Contracting, Pre-Kick Off, is neutral); every bar
  * also carries its stage name and dates, so color is never the only cue.
  */
 import type { PilotGroup, ScheduledStage, StageKey } from '@/lib/quote/implementationPlan';

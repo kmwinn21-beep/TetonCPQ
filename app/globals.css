@@ -600,3 +600,56 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-cmp th .bc-cmp-pill { padding: 3px 10px !important; letter-spacing: 1.5px; line-height: 1.4; font-size: 9.5px; }
 .bc-cmp-pillrow { margin-bottom: 4px; }
 .bc-cmp th .bc-cmp-pillrow .bc-cmp-pill { display: inline-block; margin: 0; }
+
+/* Business case, several pilot go-lives ("waves"). */
+.bc-wave-no { display: inline-flex; width: 15px; height: 15px; border-radius: 50%; background: var(--bc-ink); color: #fff; font-size: 8.5px; font-weight: 800; align-items: center; justify-content: center; margin-right: 5px; vertical-align: -2px; flex: none; }
+.bc-wave-grid { gap: 8px; margin-top: 4px; }
+.bc-wave-grid-top { margin-top: 18px; }
+.bc-wave-card { padding: 10px 14px; }
+.bc-wave-card p { font-size: 10.5px; line-height: 1.38; }
+.bc-wave-tbl { width: 100%; border-collapse: collapse; margin-top: 5px; }
+.bc-wave-tbl td { font-size: 10px; padding: 2px 0; border-top: 1px solid var(--bc-line); color: var(--bc-body); }
+.bc-wave-tbl td:last-child { text-align: right; font-weight: 600; color: var(--bc-ink); white-space: nowrap; padding-left: 8px; }
+.bc-wave-key { font-size: 10.5px; line-height: 1.7; color: var(--bc-body); margin-top: 8px; }
+.bc-wave-sched { margin-top: 18px; }
+.bc-wave-sched td { font-size: 11.5px; }
+.bc-wave-sched td.bc-wave-go { color: #D9553F; font-weight: 700; }
+/* The generic weeks timeline. */
+.bc-wk-card { padding: 10px 16px 6px; margin-top: 16px; }
+.bc-wk-row { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: center; min-height: 26px; }
+.bc-wk-body .bc-wk-row:nth-child(odd):not(.bc-wk-overlay) { background: var(--bc-cream); border-radius: 5px; }
+.bc-wk-head { min-height: 38px; }
+.bc-wk-track { position: relative; height: 100%; min-height: inherit; }
+.bc-wk-band { position: absolute; top: 2px; height: 14px; border-radius: 3px; font-size: 8px; letter-spacing: 1.4px; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.bc-wk-pre { background: #EFEDE9; color: var(--bc-muted); }
+.bc-wk-post { background: var(--bc-lav); color: #6A5BC7; }
+.bc-wk-num { position: absolute; bottom: 2px; text-align: center; font-size: 9px; font-weight: 600; color: var(--bc-body); }
+.bc-wk-num-pre { color: #9AA0A6; }
+.bc-wk-name { display: grid; grid-template-columns: 24px 1fr; align-items: baseline; }
+.bc-wk-name b { font-size: 11.5px; font-weight: 700; color: var(--bc-ink); }
+.bc-wk-grid { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--bc-line); }
+.bc-wk-grid-kick { border-left-color: #C9C3BA; }
+.bc-wk-bar { position: absolute; top: 50%; height: 13px; margin-top: -6.5px; border-radius: 4px; }
+.bc-wk-len { position: absolute; top: 50%; transform: translateY(-50%); font-size: 9px; color: var(--bc-body); white-space: nowrap; }
+.bc-wk-body { position: relative; padding-bottom: 18px; }
+.bc-wk-overlay { position: absolute; left: 190px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.bc-wk-mark { position: absolute; top: 0; bottom: 14px; border-left: 1.5px solid; }
+.bc-wk-mark > span { position: absolute; top: 100%; margin-top: 2px; transform: translateX(-50%); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.bc-wk-kick { color: #6A5BC7; border-left-color: transparent; }
+.bc-wk-go { color: #D9553F; }
+@media screen and (max-width: 860px) {
+  .bc-wk-row { grid-template-columns: 120px minmax(0, 1fr); }
+  .bc-wk-overlay { left: 120px; }
+}
+.bc-wave-chips { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-top: 5px !important; padding-top: 5px; border-top: 1px solid var(--bc-line); font-size: 10px !important; font-weight: 600; color: var(--bc-ink) !important; }
+.bc-wave-chips > span { white-space: nowrap; }
+.bc-wk-card ~ .bc-eyebrow.bc-gray { margin: 12px 0 7px; }
+.bc-wk-card ~ .bc-wave-grid .bc-wave-card { padding: 8px 13px; }
+.bc-wk-card ~ .bc-wave-grid .bc-wave-card p { font-size: 10.2px; line-height: 1.34; }
+.bc-wk-row { min-height: 24px; }
+.bc-wave-key { margin-top: 6px; }
+.bc-wk-row.bc-wk-head { min-height: 38px; }
+.bc-wk-card { margin-top: 12px; }
+.bc-wk-card ~ .bc-wave-grid { gap: 7px; }
+.bc-wk-card ~ .bc-wave-grid .bc-wave-card { padding: 7px 13px; }
+.bc-wk-card ~ .bc-eyebrow.bc-gray { margin: 10px 0 6px; }

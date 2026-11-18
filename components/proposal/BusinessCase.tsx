@@ -38,6 +38,7 @@ import { useWhatIf } from './WhatIf';
 import { ViewSwitch } from './ViewSwitch';
 import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
+import { ImplementationWeeks } from './ImplementationWeeks';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -1274,25 +1275,173 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   }
 
   // ---------- Implementation ----------
+  // Several pilot go-lives ("waves"): the same plan at each, shifted to its go-live. One pilot keeps the single-plan views.
+  const waves = pilots.length > 1 ? pilots : [];
+  const shortDate = (iso: string) => longDate(iso).replace(/, \d{4}$/, '');
+  const waveName = (w: (typeof pilots)[number]) => w.names.join(' · ');
+  const WaveNo = ({ n }: { n: number }) => <span className="bc-wave-no">{n}</span>;
+  const stageIn = (w: (typeof pilots)[number], id: string) => w.schedule.stages.find((x) => x.id === id && x.weeks > 0);
+  const timingText = (st: (typeof stages)[number]) => `${st.weeks} ${st.weeks === 1 ? 'week' : 'weeks'} · ${weekLabel(st, true)}`;
+  /** A stage card for several waves; with `dates`, a line per wave (Evaluation & Contracting: one line, a single agreement). */
+  const waveCard = (st: (typeof stages)[number], i: number, dates: boolean | 'chips') => (
+    <div key={st.id} className="bc-card bc-num bc-wave-card">
+      <span className="bc-n">{String(i + 1).padStart(2, '0')}</span>
+      <div>
+        <h3>{st.name}</h3>
+        <p className="bc-when">
+          <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>{timingText(st)}</V>
+        </p>
+        {st.description && <p><T k={`impl.${st.id}.note`} d={st.description} /></p>}
+        {dates === 'chips' && (
+          // Gantt view: the key under the chart names the waves, so each wave's dates are a numbered chip.
+          <p className="bc-wave-chips">
+            {st.standard === 'evaluation' ? (
+              <span><T k="bc.impl.waves.allShort" d="All communities" />: {shortDate(st.start)} – {shortDate(st.end)}</span>
+            ) : (
+              waves.map((w, k) => {
+                const ws = stageIn(w, st.id);
+                return ws ? (
+                  <span key={w.goLive}>
+                    <WaveNo n={k + 1} />
+                    {shortDate(ws.start)} – {shortDate(ws.end)}
+                  </span>
+                ) : null;
+              })
+            )}
+          </p>
+        )}
+        {dates === true && (
+          <table className="bc-wave-tbl">
+            <tbody>
+              {st.standard === 'evaluation' ? (
+                <tr>
+                  <td><T k="bc.impl.waves.allComm" d="All communities (one agreement)" /></td>
+                  <td>{shortDate(st.start)} – {shortDate(st.end)}</td>
+                </tr>
+              ) : (
+                waves.map((w, k) => {
+                  const ws = stageIn(w, st.id);
+                  return ws ? (
+                    <tr key={w.goLive}>
+                      <td><WaveNo n={k + 1} />{waveName(w)}</td>
+                      <td>{shortDate(ws.start)} – {shortDate(ws.end)}</td>
+                    </tr>
+                  ) : null;
+                })
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+  const kickoffOf = (w: (typeof pilots)[number]) => w.schedule.stages.find((x) => x.weeks > 0 && x.fromWeek <= 1 && x.toWeek >= 1) ?? null;
+  const baselineOf = (w: (typeof pilots)[number]) => w.schedule.stages.find((x) => x.standard === 'baseline' && x.weeks > 0) ?? null;
+  const waveSchedule = (
+    <div className="bc-card bc-tbl bc-wave-sched">
+      <table>
+        <thead>
+          <tr>
+            <th><T k="bc.impl.waves.colWave" d="Wave" /></th>
+            <th><T k="bc.impl.waves.colComm" d="Communities" /></th>
+            <th><T k="bc.impl.waves.colKick" d="Kick-off" /></th>
+            {waves.some(baselineOf) && <th><T k="bc.impl.waves.colBase" d="Baseline starts" /></th>}
+            <th><T k="bc.impl.waves.colGo" d="Go-live" /></th>
+          </tr>
+        </thead>
+        <tbody>
+          {waves.map((w, k) => {
+            const ko = kickoffOf(w);
+            const bl = baselineOf(w);
+            return (
+              <tr key={w.goLive}>
+                <td className="bc-m"><WaveNo n={k + 1} />{waveName(w)}</td>
+                <td>{w.names.length === 1 ? '1 community' : `${w.names.length} communities`}</td>
+                <td>{ko ? shortDate(ko.start) : '–'}</td>
+                {waves.some(baselineOf) && <td>{bl ? shortDate(bl.start) : '–'}</td>}
+                <td className="bc-wave-go">{longDate(w.goLive)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+  const waveKey = (
+    <p className="bc-wave-key">
+      {waves.map((w, k) => (
+        <span key={w.goLive}>
+          <WaveNo n={k + 1} />
+          {waveName(w)} goes live {shortDate(w.goLive)}
+          {k < waves.length - 1 ? ' · ' : '. '}
+        </span>
+      ))}
+      <T k="bc.impl.waves.key" d="Every community follows this plan, counted back from its own go-live." />
+    </p>
+  );
   if (stages.length) {
     defs.implementation = (no) => (
       <Page key="implementation" no={no} crumb={<T k="bc.impl.crumb" d="Implementation · {site}" v={vars} />}>
         <p className="bc-eyebrow"><T k="bc.impl.eyebrow" d="Implementation" /></p>
-        <h1 className="bc-h1"><T k="bc.impl.title" d="Live at {site} on {goLive}." v={{ ...vars, goLive: goLive ?? '' }} /></h1>
-        <p className="bc-lede"><T k="bc.impl.lede" d="A preliminary path from a signed order form to go-live. Teton’s implementation and customer success team leads each stage." /></p>
+        {waves.length ? (
+          <>
+            <h1 className="bc-h1"><T k="bc.impl.title.waves" d="Live in {n} waves, {first} to {last}." v={{ n: numberWord(waves.length), first: shortDate(waves[0].goLive), last: longDate(waves[waves.length - 1].goLive) }} /></h1>
+            <p className="bc-lede"><T k="bc.impl.lede.waves" d="The same path at every pilot community, counted back from each one’s go-live. Teton’s implementation and customer success team leads each stage." /></p>
+          </>
+        ) : (
+          <>
+            <h1 className="bc-h1"><T k="bc.impl.title" d="Live at {site} on {goLive}." v={{ ...vars, goLive: goLive ?? '' }} /></h1>
+            <p className="bc-lede"><T k="bc.impl.lede" d="A preliminary path from a signed order form to go-live. Teton’s implementation and customer success team leads each stage." /></p>
+          </>
+        )}
         <Blocks page="implementation">
         <B id="stages" label="Stages">
         <div className="relative group/view">
           {editable && (
-            // Screen only: cards (default) or a Gantt chart with a description list; saved with the proposal.
-            <ViewSwitch
-              label="Stages view"
-              options={[['cards', 'Cards'], ['gantt', 'Gantt']] as const}
-              value={layout.bcImpl ?? 'cards'}
-              onChange={(v) => setLayout((l) => ({ ...l, bcImpl: v === 'gantt' ? 'gantt' : undefined }))}
-            />
+            // Screen only: cards (default) or a Gantt chart; with several waves, the cards can also put the dates in one table.
+            <div className="no-print absolute right-3 top-3 z-[5] flex gap-1.5">
+              {waves.length > 0 && layout.bcImpl !== 'gantt' && (
+                <ViewSwitch
+                  position="relative"
+                  label="Wave dates"
+                  options={[['dates', 'Dates in cards'], ['schedule', 'Schedule table']] as const}
+                  value={layout.bcImplWaves ?? 'dates'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcImplWaves: v === 'schedule' ? 'schedule' : undefined }))}
+                />
+              )}
+              <ViewSwitch
+                position="relative"
+                label="Stages view"
+                options={[['cards', 'Cards'], ['gantt', 'Gantt']] as const}
+                value={layout.bcImpl ?? 'cards'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcImpl: v === 'gantt' ? 'gantt' : undefined }))}
+              />
+            </div>
           )}
-          {layout.bcImpl === 'gantt' ? (
+          {waves.length > 0 ? (
+            layout.bcImpl === 'gantt' ? (
+              <>
+                <div className="bc-card bc-gantt-card bc-wk-card">
+                  <ImplementationWeeks
+                    stages={stages}
+                    order={draft.implementationPlan.order}
+                    timing={(st) => <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>{timingText(st)}</V>}
+                  />
+                </div>
+                {waveKey}
+                <p className="bc-eyebrow bc-gray"><T k="bc.impl.waves.cardsHead" d="The stages, with each wave’s dates" /></p>
+                <div className="bc-grid2 bc-wave-grid">{stages.map((st, i) => waveCard(st, i, 'chips'))}</div>
+              </>
+            ) : layout.bcImplWaves === 'schedule' ? (
+              <>
+                {waveSchedule}
+                <p className="bc-eyebrow bc-gray"><T k="bc.impl.waves.sameHead" d="The stages, the same at every community" /></p>
+                <div className="bc-grid2 bc-wave-grid">{stages.map((st, i) => waveCard(st, i, false))}</div>
+              </>
+            ) : (
+              <div className="bc-grid2 bc-wave-grid bc-wave-grid-top">{stages.map((st, i) => waveCard(st, i, true))}</div>
+            )
+          ) : layout.bcImpl === 'gantt' ? (
             <>
               <div className="bc-card bc-gantt-card">
                 <ImplementationTimeline
@@ -1340,11 +1489,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           )}
         </div>
         </B>
+        {waves.length === 0 && (
         <B id="band" label="Where the pilot sits">
         <p className="bc-eyebrow bc-gray"><T k="bc.impl.band" d="Where the pilot sits in the project" /></p>
         <div className="bc-phase">
           <div>
-            <span className="bc-k"><T k="bc.impl.p1k" d="Before kick-off" /></span>
+            <span className="bc-k"><T k="bc.impl.p1k" d="Pre-Kick Off" /></span>
             <h4><T k="bc.impl.p1" d="Order form signed" /></h4>
             <p><T k="bc.impl.p1note" d="Dates assume the order form is signed by {date}." v={{ date: contractEnd ? longDate(contractEnd.end) : 'the end of contracting' }} /></p>
           </div>
@@ -1362,6 +1512,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </div>
         </div>
         </B>
+        )}
         </Blocks>
       </Page>
     );
