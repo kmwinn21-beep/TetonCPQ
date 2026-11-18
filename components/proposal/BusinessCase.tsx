@@ -90,8 +90,9 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
   const { editable, layout, setLayout } = useProposalText();
   const items = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
   const ids = items.map((c) => c.props.id);
+  const hidden = layout.bcHiddenBlocks?.[page] ?? {};
   const saved = (layout.bcBlocks?.[page] ?? []).filter((id) => ids.includes(id));
-  const order = [...saved, ...ids.filter((id) => !saved.includes(id))];
+  const order = [...saved, ...ids.filter((id) => !saved.includes(id))].filter((id) => !(id in hidden));
   const byId = new Map(items.map((c) => [c.props.id, c]));
   const move = (id: string, dir: -1 | 1) => {
     const i = order.indexOf(id);
@@ -101,6 +102,8 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
     [next[i], next[j]] = [next[j], next[i]];
     setLayout((l) => ({ ...l, bcBlocks: { ...(l.bcBlocks ?? {}), [page]: next } }));
   };
+  const remove = (id: string, label: string) =>
+    setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), [page]: { ...(l.bcHiddenBlocks?.[page] ?? {}), [id]: label } } }));
   const btn = 'w-6 h-6 flex items-center justify-center rounded-md text-[12px] hover:bg-white/15 disabled:opacity-30';
   return (
     <>
@@ -108,13 +111,16 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
         const c = byId.get(id)!;
         return (
           <div key={id} className="bc-block group/bcb" data-bc-block={id}>
-            {editable && order.length > 1 && (
+            {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
                 <button type="button" className={btn} disabled={i === 0} onClick={() => move(id, -1)} aria-label={`Move ${c.props.label} up`} title={`Move ${c.props.label} up`}>
                   ↑
                 </button>
                 <button type="button" className={btn} disabled={i === order.length - 1} onClick={() => move(id, 1)} aria-label={`Move ${c.props.label} down`} title={`Move ${c.props.label} down`}>
                   ↓
+                </button>
+                <button type="button" className={btn} onClick={() => remove(id, c.props.label)} aria-label={`Remove ${c.props.label}`} title={`Remove ${c.props.label} (you can add it back)`}>
+                  ✕
                 </button>
               </div>
             )}
@@ -322,6 +328,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // Annual cost of Teton: equipment purchase spread over its useful life, or the run-rate subscription (so gross − cost = the Stabilized Net Benefit).
   const tetonAnnual = capexShown ? capex.ownershipTotal / (capex.ownershipMonths / 12) : sel.annualRoi - kp.runRateAnnualNetBenefit;
+  // Stabilized net benefit: gross − the annual cost of Teton. Equals the model's run rate on a subscription; on an equipment purchase it
+  // uses the cost of ownership, so the Year 1 page and the returns page show the same figure.
+  const stabilizedNet = sel.annualRoi - tetonAnnual;
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
     { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
     { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Faster fill of open apartments', sub: 'Monitoring as a reason families choose the community' },
@@ -872,7 +881,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-m"><T k="bc.roi.net" d="Net Annual Benefit" /></td>
                 <td />
                 <td />
-                <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(sel.annualRoi - tetonAnnual)}</V></td>
+                <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(stabilizedNet)}</V></td>
               </tr>
             </tbody>
           </table>
@@ -895,7 +904,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // ---------- Year 1 and cash flow ----------
   {
     const basis = capexShown ? (
-      <p className="bc-note"><T k="bc.y1.basis" d="Year 1 figures and the cash flow use the subscription pricing." /></p>
+      <p className="bc-note"><T k="bc.y1.basis2" d="Year 1 figures and the cash flow use the subscription pricing; the stabilized net benefit uses the equipment purchase." /></p>
     ) : null;
     defs.summary = (no) => (
       <Page key="summary" no={no} crumb={<T k="bc.y1.crumb" d="Year 1 financial summary" />}>
@@ -939,8 +948,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </tr>
               <tr>
                 <td className="bc-m"><T k="bc.y1.runRate" d="Stabilized Net Benefit" /></td>
-                <td><T k="card.runRate.note" d="The yearly value once every community is live and fully ramped, after subscription fees." /></td>
-                <td className="bc-hl bc-big bc-r"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(kp.runRateAnnualNetBenefit)}</V></td>
+                <td>{capexShown ? <T k="bc.y1.runRateNote.capex" d="The yearly value once every community is live and fully ramped, after the annual cost of Teton (four-year cost of ownership ÷ 4)." /> : <T k="card.runRate.note" d="The yearly value once every community is live and fully ramped, after subscription fees." />}</td>
+                <td className="bc-hl bc-big bc-r"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></td>
               </tr>
               <tr>
                 <td className="bc-m"><T k="bc.y1.perUnit" d="REVPOR Impact" /></td>
@@ -957,10 +966,10 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <B id="callout" label="Run-rate callout">
         {kp.totalInvestment12 > 0 && (
           <div className="bc-callout">
-            <b><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(kp.runRateAnnualNetBenefit)}</V></b>
+            <b><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></b>
             <div>
               <span className="bc-chip"><T k="bc.y1.chip" d="Every year at run rate" /></span>
-              <p><T k="bc.y1.callout" d="Once {site} is fully ramped, the program returns this much a year after Teton’s fees: about {ratio} times the first year’s total investment." v={{ ...vars, ratio: (kp.runRateAnnualNetBenefit / kp.totalInvestment12).toFixed(1) }} /></p>
+              <p><T k="bc.y1.callout" d="Once {site} is fully ramped, the program returns this much a year after Teton’s fees: about {ratio} times the first year’s total investment." v={{ ...vars, ratio: (stabilizedNet / kp.totalInvestment12).toFixed(1) }} /></p>
             </div>
           </div>
         )}

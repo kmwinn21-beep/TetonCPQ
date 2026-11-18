@@ -35,4 +35,10 @@ describe('business-case pages', () => {
     expect(sanitizeLayout({}, (h) => h).bcBlocks).toEqual({});
     expect(() => sanitizeLayout({ bcBlocks: ['x'] }, (h) => h)).toThrow();
   });
+
+  it('keeps the sections removed from each page, with their names', () => {
+    const l = sanitizeLayout({ bcHiddenBlocks: { roi: { callout: 'Asset value' }, terms: {} } }, (h) => h);
+    expect(l.bcHiddenBlocks).toEqual({ roi: { callout: 'Asset value' } });
+    expect(() => sanitizeLayout({ bcHiddenBlocks: { roi: ['callout'] } }, (h) => h)).toThrow();
+  });
 });

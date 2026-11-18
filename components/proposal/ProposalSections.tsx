@@ -524,7 +524,14 @@ export function RemovedPanel() {
   const sections = businessCase ? [] : layout.hiddenSections.filter((id): id is StandardSection => id in SECTION_TITLES);
   const pages = businessCase ? removedBcPages(bcPagesOf(layout)) : [];
   const values = layout.hiddenValues;
-  if (!sections.length && !values.length && !pages.length) return null;
+  // Business case: sections removed from inside its pages, with their page's name.
+  const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope' };
+  const blocks = businessCase
+    ? Object.entries(layout.bcHiddenBlocks ?? {}).flatMap(([page, m]) =>
+        Object.entries(m).map(([id, label]) => ({ page, id, label, where: (BC_PAGE_TITLES as Record<string, string>)[PAGE_OF[page] ?? page] ?? page })),
+      )
+    : [];
+  if (!sections.length && !values.length && !pages.length && !blocks.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -553,6 +560,25 @@ export function RemovedPanel() {
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Pages</p>
           <ul>
             {pages.map((id) => item(`page-${id}`, BC_PAGE_TITLES[id], () => setLayout((l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }))))}
+          </ul>
+        </>
+      )}
+      {blocks.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Page sections</p>
+          <ul>
+            {blocks.map((b) =>
+              item(`block-${b.page}-${b.id}`, `${b.label} · ${b.where}`, () =>
+                setLayout((l) => {
+                  const all = { ...(l.bcHiddenBlocks ?? {}) };
+                  const m = { ...(all[b.page] ?? {}) };
+                  delete m[b.id];
+                  if (Object.keys(m).length) all[b.page] = m;
+                  else delete all[b.page];
+                  return { ...l, bcHiddenBlocks: all };
+                }),
+              ),
+            )}
           </ul>
         </>
       )}

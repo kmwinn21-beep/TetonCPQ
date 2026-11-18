@@ -44,6 +44,8 @@ export interface ProposalLayout {
   bcCustom?: Record<string, CustomSection>;
   /** Business-case format: the order of the sections within each page, by page. */
   bcBlocks?: Record<string, string[]>;
+  /** Business-case format: sections removed from each page (page → section id → its name, to list it for adding back). */
+  bcHiddenBlocks?: Record<string, Record<string, string>>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -140,11 +142,27 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return out;
     })(),
+    bcHiddenBlocks: (() => {
+      const v = raw.bcHiddenBlocks;
+      if (v == null) return {};
+      if (typeof v !== 'object' || Array.isArray(v)) throw new Error('Bad removed sections');
+      const out: Record<string, Record<string, string>> = {};
+      for (const [page, m] of Object.entries(v as Record<string, unknown>).slice(0, 40)) {
+        if (!ID.test(page) || !m || typeof m !== 'object' || Array.isArray(m)) throw new Error('Bad removed sections');
+        const inner: Record<string, string> = {};
+        for (const [id, label] of Object.entries(m as Record<string, unknown>).slice(0, 20)) {
+          if (!ID.test(id) || typeof label !== 'string') throw new Error('Bad removed section');
+          inner[id] = label.slice(0, 80);
+        }
+        if (Object.keys(inner).length) out[page] = inner;
+      }
+      return out;
+    })(),
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0);
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0);
 }
