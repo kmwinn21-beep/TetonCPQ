@@ -22,6 +22,9 @@ import type { Resources } from '@/lib/quote/resources';
 import { normalizePlan, planChanges, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { Switch } from '@/components/quote/CommunityEditor';
 import { NumInput } from '@/components/form/NumInput';
+import { FormProvider, useForm } from 'react-hook-form';
+import { CommunityEditor } from '@/components/quote/CommunityEditor';
+import { bedsOf, newCommunity, type DraftCommunity } from '@/lib/quote/draft';
 
 /* ------------------------------------------------------------------ */
 /* Context                                                             */
@@ -39,6 +42,10 @@ interface WhatIfCtx {
   close: () => void;
   /** Text each figure showed in the saved version, by figure key. */
   baseline: React.MutableRefObject<Record<string, string>>;
+  /** Open the community drawer on a community (its index in the previewed list). */
+  editCommunity: (index: number) => void;
+  /** Add a community (a pilot site when `pilot`) and open it in the drawer. */
+  addCommunity: (pilot?: boolean) => void;
 }
 
 const Ctx = createContext<WhatIfCtx | null>(null);
@@ -130,6 +137,7 @@ export function WhatIfWorkspace({
 }) {
   const [raw, setRaw] = useState<Changes>({});
   const [selected, setSelected] = useState<{ key: string; label: string } | null>(null);
+  const [community, setCommunity] = useState<{ index: number; isNew: boolean; session: number } | null>(null);
   const [restore, setRestore] = useState<Changes | null>(null);
   const [leaving, setLeaving] = useState<null | { href: string } | { back: true }>(null);
   const [saving, setSaving] = useState(false);
@@ -175,7 +183,7 @@ export function WhatIfWorkspace({
     (path: string, v: ChangeValue | undefined) =>
       setRaw((r) => {
         const next = { ...r };
-        if (v === undefined || sameValue(getPath(draft, path), v)) delete next[path];
+        if (v === undefined || sameValue(getPath(draft, path), v, path)) delete next[path];
         else next[path] = v;
         return next;
       }),
@@ -255,6 +263,7 @@ export function WhatIfWorkspace({
     }
   }
 
+  const previewCommunities = preview.draft.communities;
   const ctx = useMemo<WhatIfCtx>(
     () => ({
       enabled: true,
@@ -263,11 +272,25 @@ export function WhatIfWorkspace({
       setChange,
       discard,
       selected,
-      select: (key, label) => setSelected({ key, label }),
+      select: (key, label) => {
+        setCommunity(null);
+        setSelected({ key, label });
+      },
       close: () => setSelected(null),
       baseline,
+      editCommunity: (index) => {
+        setSelected(null);
+        setCommunity({ index, isNew: false, session: Date.now() });
+      },
+      addCommunity: (pilot = false) => {
+        const list = previewCommunities;
+        const c: DraftCommunity = { ...newCommunity(list.length), pilot: pilot && !!preview.draft.schedule.withPilot };
+        setChange('communities', [...list, c]);
+        setSelected(null);
+        setCommunity({ index: list.length, isNew: true, session: Date.now() });
+      },
     }),
-    [changes, dirty, setChange, discard, selected],
+    [changes, dirty, setChange, discard, selected, previewCommunities, preview.draft.schedule.withPilot],
   );
 
   const count = Object.keys(changes).length;
@@ -315,7 +338,7 @@ export function WhatIfWorkspace({
 
   return (
     <Ctx.Provider value={ctx}>
-      <div className={selected ? 'whatif-open lg:pr-[380px] transition-[padding] duration-200' : 'transition-[padding] duration-200'}>
+      <div className={selected || community ? 'whatif-open lg:pr-[380px] transition-[padding] duration-200' : 'transition-[padding] duration-200'}>
         {children(preview, banner)}
       </div>
 
@@ -329,6 +352,19 @@ export function WhatIfWorkspace({
           changesCount={count}
           onChange={setChange}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {community && previewCommunities[community.index] && (
+        <CommunityPanel
+          key={community.session}
+          draft={preview.draft}
+          index={community.index}
+          isNew={community.isNew}
+          changesCount={count}
+          onChange={(list) => setChange('communities', list)}
+          onSelect={(index) => setCommunity((c) => (c ? { ...c, index, isNew: false } : c))}
+          onClose={() => setCommunity(null)}
         />
       )}
 
@@ -592,7 +628,7 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
   }
   const value = changed ? raw[f.path] : saved;
   const scale = f.kind === 'pct' ? 100 : 1;
-  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, choice: undefined, plan: undefined, terms: undefined, resources: undefined }[f.kind];
+  const suffix = { pct: '%', months: 'mo', weeks: 'wk', mult: '×', usd: undefined, usd2: undefined, num: undefined, toggle: undefined, choice: undefined, plan: undefined, terms: undefined, resources: undefined, communities: undefined }[f.kind];
   const prefix = f.kind === 'usd' || f.kind === 'usd2' ? '$' : undefined;
   const id = `wi-${f.path.replace(/\W/g, '-')}`;
   return (
@@ -658,7 +694,7 @@ function FigurePanel({
     return all.filter((f) => paths.has(f.path));
   }, [draft, trace, spec]);
   // Terms are edited right on the proposal (Terms / Notes section), not in this panel.
-  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f) && f.kind !== 'terms' && f.kind !== 'resources'), [draft, fields]);
+  const others = useMemo(() => allFields(draft).filter((f) => !fields.includes(f) && f.kind !== 'terms' && f.kind !== 'resources' && f.kind !== 'communities'), [draft, fields]);
 
   // Current text of the figure on the page, and what it was in the saved version.
   const [now, setNow] = useState('');
@@ -733,6 +769,97 @@ function FigurePanel({
           ))}
       </div>
 
+      <p className={`mt-4 text-xs ${changesCount ? 'text-[#8A5A00]' : 'text-teton-ui-gray'}`}>
+        {changesCount
+          ? `${changesCount} ${changesCount === 1 ? 'change' : 'changes'} on this proposal, not saved. Use “Save all changes” in the amber bar.`
+          : 'Changes update the proposal as you type. Nothing is saved until “Save all changes”.'}
+      </p>
+    </aside>
+  );
+}
+
+/**
+ * The community drawer: every input from the deal page's community editor, for
+ * one community. Edits go into the proposal's unsaved changes as the whole
+ * community list, so the proposal recalculates as you type.
+ */
+function CommunityPanel({
+  draft,
+  index,
+  isNew,
+  changesCount,
+  onChange,
+  onSelect,
+  onClose,
+}: {
+  draft: QuoteDraft;
+  index: number;
+  isNew: boolean;
+  changesCount: number;
+  onChange: (list: DraftCommunity[]) => void;
+  onSelect: (index: number) => void;
+  onClose: () => void;
+}) {
+  // The form starts from the previewed deal and is the source of truth while the drawer is open.
+  const form = useForm<QuoteDraft>({ defaultValues: draft });
+  const [total, setTotal] = useState(draft.communities.length);
+  useEffect(() => {
+    const sub = form.watch((values, { name }) => {
+      if (!name?.startsWith('communities')) return;
+      const list = (values.communities ?? []) as DraftCommunity[];
+      setTotal(list.length);
+      onChange(structuredClone(list));
+    });
+    return () => sub.unsubscribe();
+  }, [form, onChange]);
+  const inputs = useMemo(() => {
+    try {
+      return toModelInputs(draft);
+    } catch {
+      return null;
+    }
+  }, [draft]);
+
+  const close = () => {
+    // A new community left without a name or beds isn't kept.
+    const list = form.getValues('communities');
+    const c = list[index];
+    if (isNew && c && !c.name.trim() && bedsOf(c) === 0) onChange(list.filter((_, i) => i !== index));
+    onClose();
+  };
+  const remove = () => {
+    const list = form.getValues('communities');
+    if (list.length <= 1) return window.alert('A deal needs at least one community.');
+    if (!window.confirm(`Remove ${list[index]?.name || 'this community'} from the deal?`)) return;
+    onChange(list.filter((_, i) => i !== index));
+    onClose();
+  };
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && !(e.target as HTMLElement).closest('input, textarea, select') && close();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  });
+
+  return (
+    <aside
+      className="no-print fixed right-0 bottom-0 z-20 w-full sm:w-[380px] overflow-y-auto border-l border-teton-off-white bg-white px-4 pb-6 pt-4 shadow-xl sm:rounded-tl-2xl sm:border-t top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
+      aria-label={isNew ? 'Add a community' : 'Edit community'}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1">{isNew ? 'Add a community' : 'Community inputs'}</p>
+      <FormProvider {...form}>
+        <CommunityEditor
+          index={index}
+          position={index + 1}
+          total={total}
+          inputs={inputs}
+          showErrors={false}
+          onPrev={index > 0 ? () => onSelect(index - 1) : undefined}
+          onNext={index < total - 1 ? () => onSelect(index + 1) : undefined}
+          onRemove={remove}
+          onClose={close}
+        />
+      </FormProvider>
       <p className={`mt-4 text-xs ${changesCount ? 'text-[#8A5A00]' : 'text-teton-ui-gray'}`}>
         {changesCount
           ? `${changesCount} ${changesCount === 1 ? 'change' : 'changes'} on this proposal, not saved. Use “Save all changes” in the amber bar.`

@@ -12,8 +12,10 @@ import type { QuoteDraft } from '@/lib/quote/draft';
 import { normalizePlan, planChanges, weeksToGoLive, type ImplementationPlan } from '@/lib/quote/implementationPlan';
 import { normalizeTerms, termsChanges, type TermsSetting } from '@/lib/quote/terms';
 import { normalizeResources, resourcesChanges, type Resources } from '@/lib/quote/resources';
+import { communitiesChanges, normalizeCommunities } from '@/lib/quote/communityChanges';
+import type { DraftCommunity } from '@/lib/quote/draft';
 
-export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'choice' | 'plan' | 'terms' | 'resources';
+export type FieldKind = 'usd' | 'usd2' | 'pct' | 'num' | 'months' | 'weeks' | 'mult' | 'toggle' | 'choice' | 'plan' | 'terms' | 'resources' | 'communities';
 
 export interface WhatIfField {
   /** Dotted path into the QuoteDraft. */
@@ -126,6 +128,9 @@ export const FIELDS: WhatIfField[] = [
 
   // The customer's roles, stages and hours (Estimated Resource Allocation).
   F('resources', 'Estimated resource allocation', 'Resource allocation', 'Estimated Resource Allocation', 'resources'),
+
+  // The community list (added, removed and edited communities), from the community tables.
+  F('communities', 'Communities', 'Communities', 'Communities', 'communities'),
 
 ];
 
@@ -309,7 +314,7 @@ export function setPath<T>(obj: T, path: string, value: unknown): T {
   return { ...src, [head]: rest.length ? setPath(src[head], rest.join('.'), value) : value } as T;
 }
 
-export type ChangeValue = number | boolean | string | null | ImplementationPlan | TermsSetting | Resources;
+export type ChangeValue = number | boolean | string | null | ImplementationPlan | TermsSetting | Resources | DraftCommunity[];
 export type Changes = Record<string, ChangeValue>;
 
 /** Apply changes (only to known fields) to a draft. */
@@ -319,6 +324,13 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
   for (const [path, v] of Object.entries(changes)) {
     if (!known.has(path)) throw new Error(`Can't change ${path} from the proposal`);
     const f = fieldByPath(draft, path)!;
+    if (f.kind === 'communities') {
+      const list = normalizeCommunities(v);
+      if (!Array.isArray(v) || list.length !== v.length) throw new Error('Communities must be a list of communities');
+      if (!list.length) throw new Error('A deal needs at least one community');
+      out = setPath(out, path, list);
+      continue;
+    }
     if (f.kind === 'resources') {
       if (!Array.isArray(v)) throw new Error(`${f.label} must be a list of roles`);
       out = setPath(out, path, normalizeResources(v));
@@ -349,7 +361,8 @@ export function applyChanges(draft: QuoteDraft, changes: Changes): QuoteDraft {
 
 /** Changes that actually differ from the draft they're based on. */
 /** Whether a change equals the saved value (plans compared by content). */
-export function sameValue(saved: unknown, v: unknown): boolean {
+export function sameValue(saved: unknown, v: unknown, path?: string): boolean {
+  if (path === 'communities') return JSON.stringify(normalizeCommunities(saved)) === JSON.stringify(normalizeCommunities(v));
   if (v && typeof v === 'object') {
     // Implementation plans have stages; anything else object-valued is a terms setting.
     if (Array.isArray(v)) return JSON.stringify(normalizeResources(saved)) === JSON.stringify(normalizeResources(v));
@@ -371,6 +384,7 @@ export function changeDetails(draft: QuoteDraft, changes: Changes): ChangeDetail
     const f = fieldByPath(draft, p);
     if (!f) return [];
     if (f.kind === 'plan') return [{ path: p, label: 'Implementation', lines: planChanges(normalizePlan(getPath(draft, p)), normalizePlan(v)).map((text) => ({ text })) }];
+    if (f.kind === 'communities') return [{ path: p, label: 'Communities', lines: communitiesChanges(normalizeCommunities(getPath(draft, p)), normalizeCommunities(v)).map((text) => ({ text })) }];
     if (f.kind === 'resources')
       return [{ path: p, label: 'Resource allocation', lines: resourcesChanges(normalizeResources(getPath(draft, p)), normalizeResources(v), draft.implementationPlan).map((text) => ({ text })) }];
     if (f.kind === 'terms') {
@@ -382,7 +396,7 @@ export function changeDetails(draft: QuoteDraft, changes: Changes): ChangeDetail
 }
 
 export function effectiveChanges(draft: QuoteDraft, changes: Changes): Changes {
-  return Object.fromEntries(Object.entries(changes).filter(([p, v]) => !sameValue(getPath(draft, p), v)));
+  return Object.fromEntries(Object.entries(changes).filter(([p, v]) => !sameValue(getPath(draft, p), v, p)));
 }
 
 /** Display a field value: "$99", "90%", "3 mo", "1.3×". */
@@ -390,6 +404,10 @@ export function formatField(f: WhatIfField, v: unknown): string {
   if (f.kind === 'toggle') return v ? 'On' : 'Off';
   if (f.kind === 'choice') return f.options?.find(([o]) => o === v)?.[1] ?? String(v);
   if (f.kind === 'terms') return v == null ? (f.path === 'nextSteps' ? 'standard next steps' : 'standard terms') : f.path === 'nextSteps' ? 'customized next steps' : 'customized terms';
+  if (f.kind === 'communities') {
+    const n = Array.isArray(v) ? v.length : 0;
+    return `${n} ${n === 1 ? 'community' : 'communities'}`;
+  }
   if (f.kind === 'resources') {
     const rs = normalizeResources(v);
     return `${rs.length} ${rs.length === 1 ? 'role' : 'roles'}`;

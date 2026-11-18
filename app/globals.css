@@ -373,3 +373,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .bc-stat { width: 200px; height: 200px; }
   .bc-band { padding: 12px 16px; height: auto; }
 }
+/* A community name that opens the community drawer. */
+.bc-cname { font: inherit; color: inherit; text-align: left; padding: 0; background: none; border: 0; cursor: pointer; text-decoration: underline dotted rgba(22,24,29,.35); text-underline-offset: 3px; }
+.bc-cname:hover { text-decoration-color: currentColor; }
+@media print { .bc-cname { text-decoration: none; } }

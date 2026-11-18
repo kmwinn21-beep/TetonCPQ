@@ -31,6 +31,7 @@ import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } fro
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { buildProposalData } from './proposalData';
+import { useWhatIf } from './WhatIf';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -75,6 +76,9 @@ interface BProps {
   id: string;
   /** Names the section in its move controls. */
   label: string;
+  /** Adds a "+" to the section's controls (e.g. add a community). */
+  onAdd?: () => void;
+  addLabel?: string;
   children: React.ReactNode;
 }
 function B(_props: BProps): null {
@@ -112,6 +116,11 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
           <div key={id} className="bc-block group/bcb" data-bc-block={id}>
             {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
+                {c.props.onAdd && (
+                  <button type="button" className={`${btn} text-[15px]`} onClick={c.props.onAdd} aria-label={c.props.addLabel ?? 'Add'} title={c.props.addLabel ?? 'Add'}>
+                    +
+                  </button>
+                )}
                 <button type="button" className={btn} disabled={i === 0} onClick={() => move(id, -1)} aria-label={`Move ${c.props.label} up`} title={`Move ${c.props.label} up`}>
                   ↑
                 </button>
@@ -285,6 +294,18 @@ function CostRow({ name, sub, desc, amount, pct, total }: { name: React.ReactNod
   );
 }
 
+/** A community's name in a table: opens the community drawer when the proposal can be edited. */
+function CommunityName({ index, children }: { index: number; children: React.ReactNode }) {
+  const w = useWhatIf();
+  const { editable } = useProposalText();
+  if (!w || !editable) return <>{children}</>;
+  return (
+    <button type="button" className="bc-cname" onClick={() => w.editCommunity(index)} title="Edit this community">
+      {children}
+    </button>
+  );
+}
+
 /** A community's beds by care type. */
 const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
   il: Number(dc.ilBeds) || 0,
@@ -350,7 +371,10 @@ function ContentsList() {
 }
 
 export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
-  const { layout } = useProposalText();
+  const { layout, editable } = useProposalText();
+  const whatIf = useWhatIf();
+  // "+" on the community tables: add a community in the drawer (a pilot site from the pilot table).
+  const addCommunity = whatIf && editable ? (pilot: boolean) => () => whatIf.addCommunity(pilot) : null;
   const d = buildProposalData(draft, outputs, lines);
   const { finish, kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
   // Until the rep arranges the pages, a removed standard section also drops its part of a page.
@@ -575,7 +599,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </div>
         </div>
         </B>
-        <B id="communities" label="Pilot communities">
+        <B id="communities" label="Pilot communities" onAdd={addCommunity?.(true)} addLabel="Add a pilot community">
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
           <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
@@ -599,7 +623,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   return (
                     <tr key={dc.id}>
                       <td className="bc-m">
-                        {d.perCommunity[i].name}
+                        <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
                         <small>{d.perCommunity[i].detail}</small>
                       </td>
                       <td>{count(b.al)}</td>
@@ -678,7 +702,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               return (
                 <tr key={dc.id}>
                   <td className="bc-m">
-                    {d.perCommunity[i].name}
+                    <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
                     <small>{d.perCommunity[i].detail}</small>
                   </td>
                   <td>{count(b.al)}</td>
@@ -811,7 +835,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </p>
             )}
             </B>
-            <B id="communities" label="Communities">
+            <B id="communities" label="Communities" onAdd={addCommunity?.(false)} addLabel="Add a community">
               {communityTable(
                 (i) => ({ main: usd(capex.communities[i]?.equipment ?? 0), sub: `(${usd(capex.communities[i]?.softwareMonthly ?? 0)} / mo)` }),
                 { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` },
@@ -869,7 +893,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               {finishRow}
             </div>
             </B>
-            <B id="communities" label="Communities">
+            <B id="communities" label="Communities" onAdd={addCommunity?.(false)} addLabel="Add a community">
               {communityTable(
                 (i) => ({ main: `${usd(d.perCommunity[i].monthly)} / mo`, sub: `(${usd(d.perCommunity[i].oneTime)} one-time)` }),
                 { main: `${usd(d.serviceMonthly)} / mo`, sub: `(${usd(d.oneTime)} one-time)` },
