@@ -20,7 +20,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
       </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-brand-primary text-sidebar-font">
-          <TetonMark />
+          <TetonMark light />
           <span className="font-semibold">Proposal Generator</span>
           <a href="/account" className="ml-auto text-sm text-sidebar-font/80">{user.name}</a>
         </header>
@@ -30,12 +30,8 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
   );
 }
 
-export function TetonMark({ className = 'w-6 h-6' }: { className?: string }) {
-  // Simple person-and-dot glyph after the Teton wordmark; replace with the official SVG when available.
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="12" cy="4.5" r="2.5" />
-      <path d="M5 9.5h14v2.2c0 3.9-3.1 7.1-7 7.1s-7-3.2-7-7.1V9.5z" />
-    </svg>
-  );
+/** The Teton logo symbol (public/teton-logo.png). `light` turns it white for dark backgrounds. */
+export function TetonMark({ className = 'w-6 h-6', light = false }: { className?: string; light?: boolean }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/teton-logo.png" alt="" aria-hidden="true" className={`${className} object-contain ${light ? 'brightness-0 invert' : ''}`} />;
 }

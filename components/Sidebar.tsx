@@ -39,7 +39,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
   return (
     <aside className="w-60 bg-brand-primary flex flex-col flex-shrink-0 h-full">
       <div className="p-5 border-b border-white/15 min-h-[76px] flex items-center gap-3 text-sidebar-font">
-        <TetonMark />
+        <TetonMark light />
         <div>
           <p className="font-semibold leading-tight">Teton</p>
           <p className="text-sidebar-font/60 text-xs">Proposal Generator</p>

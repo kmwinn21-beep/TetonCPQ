@@ -165,7 +165,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-page { position: relative; width: 100%; max-width: 8.5in; min-height: 11in; margin: 0 auto; background: var(--bc-cream); box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; }
 .bc-pad { padding: 40px 64px 64px; }
 .bc-logo { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 25px; letter-spacing: -.5px; line-height: 1; }
-.bc-logo svg { width: 26px; height: 26px; }
+.bc-logo img { width: 26px; height: 26px; object-fit: contain; }
+.bc-cover .bc-logo img { filter: brightness(0) invert(1); }
 .bc-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--bc-line); }
 .bc-toc { margin-top: 26px; list-style: none; padding: 0; }
 .bc-toc li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 0 12px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--bc-line); }

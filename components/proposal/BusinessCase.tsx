@@ -34,10 +34,8 @@ import { buildProposalData } from './proposalData';
 
 const Logo = () => (
   <span className="bc-logo">
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="12" cy="4.5" r="2.5" />
-      <path d="M5 9.5h14v2.2c0 3.9-3.1 7.1-7 7.1s-7-3.2-7-7.1V9.5z" />
-    </svg>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src="/teton-logo.png" alt="" aria-hidden="true" />
     Teton
   </span>
 );

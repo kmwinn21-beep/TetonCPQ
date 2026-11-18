@@ -9,6 +9,7 @@
  * Content: summary KPI cards, scope & investment in one table (subscription and/or upfront),
  * return on investment, and the assumptions behind it.
  */
+import { TetonMark } from '@/components/AppShell';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows } from '@/lib/pricing/capex';
@@ -38,10 +39,7 @@ export interface ProposalProps {
 function TetonWordmark() {
   return (
     <div className="flex items-center gap-2 text-teton-ink">
-      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <circle cx="12" cy="4.5" r="2.5" />
-        <path d="M5 9.5h14v2.2c0 3.9-3.1 7.1-7 7.1s-7-3.2-7-7.1V9.5z" />
-      </svg>
+      <TetonMark className="w-7 h-7" />
       <span className="text-xl font-semibold tracking-tight">Teton</span>
     </div>
   );
