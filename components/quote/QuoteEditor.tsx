@@ -212,8 +212,8 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   return (
     <FormProvider {...methods}>
       <form onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto" noValidate>
-        <header className="flex flex-wrap items-end justify-between gap-4 mb-6">
-          <div className="min-w-0 flex-1">
+        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 mb-6">
+          <div className="min-w-0 basis-full sm:basis-0 flex-1">
             <Link href="/deals" className="text-xs text-teton-ui-gray hover:underline">← Deals</Link>
             <input
               className="block w-full max-w-xl mt-1 text-2xl font-semibold bg-transparent border-b border-transparent hover:border-teton-pale-gray focus:border-brand-accent focus:outline-none"
@@ -230,11 +230,11 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               </div>
             )}
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
             {noteOpen ? (
-              <div className="flex flex-wrap items-start gap-2">
-                <input autoFocus className="input-field w-72" placeholder="What changed? (e.g. Sent to CFO, 50% install credit)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Version note" />
+              <div className="flex flex-1 sm:flex-none flex-wrap items-start gap-2">
+                <input autoFocus className="input-field w-full sm:w-72" placeholder="What changed? (e.g. Sent to CFO, 50% install credit)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Version note" />
                 <button type="button" className="btn-primary" onClick={saveVersion} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
                 <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
               </div>

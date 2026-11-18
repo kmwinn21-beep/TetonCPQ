@@ -48,11 +48,13 @@ export function BottomSheet({ open, onClose, label, title, children }: { open: b
   if (!mounted || typeof document === 'undefined') return null;
   return createPortal(
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={label}>
-      <div className={`absolute inset-0 bg-teton-ink/40 transition-opacity duration-300 motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true" />
+      <div onClick={onClose} className={`absolute inset-0 bg-teton-ink/40 transition-opacity duration-300 motion-reduce:transition-none ${shown ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true" />
       <div
-        className={`absolute inset-x-0 bottom-0 h-[100dvh] flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0' : 'translate-y-full'}`}
+        // From just under the app header to the bottom edge, so the header stays in view and the sheet reads as over the page.
+        className={`absolute inset-x-0 bottom-0 top-[var(--mobile-header-h,56px)] flex flex-col rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none ${shown ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="flex-none flex items-center gap-3 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-teton-off-white">
+        <div className="sheet-handle flex-none" aria-hidden="true" />
+        <div className="flex-none flex items-center gap-3 px-4 pb-2 pt-1 border-b border-teton-off-white">
           <div className="flex-1 min-w-0 text-sm font-semibold truncate">{title}</div>
           <button type="button" className="btn-primary py-1.5" onClick={onClose}>Done</button>
         </div>

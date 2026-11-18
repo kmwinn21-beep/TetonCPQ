@@ -25,7 +25,25 @@ export default async function DealsPage() {
           <p className="text-sm text-teton-ui-gray mt-1">Start one to build the ROI case and proposal.</p>
         </div>
       ) : (
-        <div className="card p-0 overflow-x-auto">
+        <>
+        {/* Phones: one card per deal, the whole card a link. */}
+        <ul className="sm:hidden space-y-2">
+          {deals.map((d) => (
+            <li key={d.dealId}>
+              <Link href={`/quotes/${d.quoteId}`} className="block rounded-xl border border-teton-off-white bg-white px-4 py-3 shadow-sm active:bg-teton-almost-white">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="font-semibold text-base leading-snug">{d.customerName}</span>
+                  <span className="text-xs text-teton-ui-gray whitespace-nowrap">{dateLabel(d.updatedAt)}</span>
+                </span>
+                <span className="block text-sm text-teton-dark-gray mt-0.5">
+                  {count(d.communities)} {d.communities === 1 ? 'community' : 'communities'} · {count(d.beds)} beds · {d.savedVersions} {d.savedVersions === 1 ? 'version' : 'versions'}
+                </span>
+                {d.ownerName && <span className="block text-xs text-teton-ui-gray mt-0.5">{d.ownerName}</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden sm:block card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
               <tr>
@@ -55,6 +73,7 @@ export default async function DealsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

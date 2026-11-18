@@ -10,11 +10,11 @@ export interface ShellUser {
   role: string;
 }
 
-const NAV = [
+export const NAV = [
   { href: '/deals', label: 'Deals', icon: 'M3 7h18M3 12h18M3 17h12' },
   { href: '/catalog', label: 'Price book', icon: 'M7 7h.01M7 3h5l9 9-7 7-9-9V3z' },
 ];
-const ADMIN_NAV = [{ href: '/admin/users', label: 'Users', icon: 'M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 2a3 3 0 11-6 0 3 3 0 016 0z' }];
+export const ADMIN_NAV = [{ href: '/admin/users', label: 'Users', icon: 'M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 2a3 3 0 11-6 0 3 3 0 016 0z' }];
 
 export function Sidebar({ user }: { user: ShellUser }) {
   const pathname = usePathname();

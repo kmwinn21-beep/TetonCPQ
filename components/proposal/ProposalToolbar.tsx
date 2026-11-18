@@ -101,16 +101,16 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   return (
     <div ref={rootRef} className="no-print sticky top-0 z-30">
     <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
-      <div className="max-w-[8.5in] mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+      <div className="max-w-[8.5in] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2">
         <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="text-sm text-sidebar-font/80 hover:text-sidebar-font">← Results</Link>
         <span className="text-sm text-sidebar-font/70">
           Proposal v{versionNo}
           {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
         </span>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
           {open ? (
             <>
-              <input autoFocus className="input-field w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />
+              <input autoFocus className="input-field flex-1 min-w-0 sm:flex-none sm:w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />
               <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-50" disabled={busy || !to.trim()} onClick={record}>
                 {busy ? 'Saving…' : 'Record'}
               </button>
@@ -119,7 +119,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           ) : (
             <>
               {text.editable && (
-                <div role="group" aria-label="Proposal format" className="flex rounded-lg border border-white/30 p-0.5 text-sm">
+                <div role="group" aria-label="Proposal format" className="flex flex-1 sm:flex-none rounded-lg border border-white/30 p-0.5 text-sm">
                   {(
                     [
                       ['standard', 'Standard'],
@@ -132,7 +132,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                         key={f}
                         type="button"
                         aria-pressed={on}
-                        className={`px-2.5 py-1.5 rounded-md font-medium ${on ? 'bg-white text-teton-ink' : 'text-sidebar-font/80 hover:text-sidebar-font'}`}
+                        className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-md font-medium whitespace-nowrap ${on ? 'bg-white text-teton-ink' : 'text-sidebar-font/80 hover:text-sidebar-font'}`}
                         onClick={() => {
                           if (f === 'businessCase') setPagesOpen(false);
                           text.setLayout((l) => ({ ...l, format: f }));
@@ -156,13 +156,15 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                   ▤ Pages{text.layout.pageStarts ? ' · custom' : ''}
                 </button>
               )}
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}>Record as sent</button>
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()}>Print / Save as PDF</button>
+              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>
+              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF"><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Print / Save as PDF</span></button>
             </>
           )}
         </div>
         <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{text.layout.format === 'businessCase' ? 'Click text to reword it · click a figure to see and change its inputs · hover a page to move or remove it · hover between pages to add one.' : 'Click text to reword it · click a figure to see and change its inputs · hover a section to remove or drag it · hover between sections to add one.'}</span>
+          {/* Touch screens have no hover: a shorter hint, and the move / remove controls are always shown there. */}
+          <span className="sm:hidden">Tap text to reword it, or a figure to change its inputs.</span>
+          <span className="hidden sm:inline">{text.layout.format === 'businessCase' ? 'Click text to reword it · click a figure to see and change its inputs · hover a page to move or remove it · hover between pages to add one.' : 'Click text to reword it · click a figure to see and change its inputs · hover a section to remove or drag it · hover between sections to add one.'}</span>
           {editCount > 0 && (
             <span>
               {editCount} {editCount === 1 ? 'change' : 'changes'} to this proposal ·{' '}

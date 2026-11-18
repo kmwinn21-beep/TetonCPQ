@@ -56,7 +56,7 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
 
   return (
     <div className="card p-0 overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="pb-table w-full text-sm">
         <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
           <tr>
             <th className="px-4 py-2.5 font-medium">Product</th>
@@ -72,7 +72,7 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
             const header =
               ri === 0 || productGroup(rows[ri - 1].sku) !== group ? (
                 <tr key={`${group}-h`} className="border-t border-teton-off-white bg-teton-almost-white/60">
-                  <td colSpan={4} className="px-4 py-2">
+                  <td colSpan={4} className="pb-group px-4 py-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-teton-dark-gray">{group === 'capex' ? 'Equipment purchase (CapEx)' : group === 'finish' ? 'Installation finish' : 'Recurring subscription'}</span>
                     <span className="ml-2 text-xs text-teton-ui-gray">{group === 'capex' ? 'Title passes at install; perpetual embedded license; no separate installation charge or license fee.' : group === 'finish' ? 'Standard (raceway) installation is included. Concealed cabling is an add-on range per room, pending the site survey; the standard value is credited.' : 'No title transfer.'}</span>
                   </td>
@@ -83,8 +83,8 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
             return [
               header,
               <tr key={r.sku} className="border-t border-teton-off-white align-top">
-                <td className="px-4 py-3 font-medium">{r.name}</td>
-                <td className="px-4 py-3 text-right tabular-nums">
+                <td className="pb-name px-4 py-3 font-medium">{r.name}</td>
+                <td className="pb-price px-4 py-3 text-right tabular-nums">
                   {canEdit ? (
                     <div className="ml-auto w-32">
                       <NumInput
@@ -120,8 +120,8 @@ export function PriceBookTable({ rows: initial, canEdit }: { rows: PriceBookRow[
                     </p>
                   )}
                 </td>
-                <td className="px-4 py-3 text-teton-ui-gray">{MODEL_LABEL[r.pricingModel]}</td>
-                <td className="px-4 py-3 text-teton-dark-gray">
+                <td className="pb-unit px-4 py-3 text-teton-ui-gray">{MODEL_LABEL[r.pricingModel]}</td>
+                <td className="pb-notes px-4 py-3 text-teton-dark-gray">
                   {r.description}
                   {changed && r.updatedByName && (
                     <span className="block text-xs text-teton-ui-gray mt-1">

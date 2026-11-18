@@ -377,3 +377,58 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-cname { font: inherit; color: inherit; text-align: left; padding: 0; background: none; border: 0; cursor: pointer; text-decoration: underline dotted rgba(22,24,29,.35); text-underline-offset: 3px; }
 .bc-cname:hover { text-decoration-color: currentColor; }
 @media print { .bc-cname { text-decoration: none; } }
+
+/* ------------------------------------------------------------------ */
+/* Phones                                                              */
+/* ------------------------------------------------------------------ */
+
+/* iOS Safari zooms into any field under 16px when it's tapped; phones and tablets get 16px fields. */
+/* Fields with no size of their own, the shared .input-field, and fields set to a small text size go to 16px;
+   a field deliberately set larger (the deal name) keeps its size. */
+@media (max-width: 1023px) {
+  :where(input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea, select) { font-size: 16px; }
+  input.input-field, select.input-field, textarea.input-field,
+  input.text-xs, input.text-sm, select.text-xs, select.text-sm, textarea.text-xs, textarea.text-sm { font-size: 16px; }
+}
+
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes panelIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes fadeScale { from { transform: scale(.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* A panel that rises from the bottom on a phone and slides in from the right from sm. */
+.sheet-or-panel { animation: sheetUp .25s ease-out; }
+@media (min-width: 640px) { .sheet-or-panel { animation: panelIn .22s ease-out; } }
+/* A dialog that rises from the bottom on a phone and fades in centred from sm. */
+.sheet-or-dialog { animation: sheetUp .25s ease-out; }
+@media (min-width: 640px) { .sheet-or-dialog { animation: fadeScale .18s ease-out; } }
+@media (prefers-reduced-motion: reduce) { .sheet-or-panel, .sheet-or-dialog { animation: none; } }
+
+/* The grab handle at the top of a bottom sheet (phones only). */
+.sheet-handle { display: flex; justify-content: center; padding: 8px 0 2px; }
+.sheet-handle::before { content: ''; width: 40px; height: 4px; border-radius: 99px; background: rgb(var(--teton-pale-gray-rgb)); }
+@media (min-width: 640px) { .sheet-handle { display: none; } }
+
+/* Bottom padding that clears the home indicator. */
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 12px); }
+:root { --mobile-header-h: calc(56px + env(safe-area-inset-top)); }
+
+/* Price book on a phone: each product as a stacked card (name; price and unit; notes). */
+@media (max-width: 639px) {
+  .pb-table thead { display: none; }
+  .pb-table, .pb-table tbody { display: block; }
+  .pb-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 14px 16px; align-items: center; }
+  .pb-table td { display: block; padding: 0 !important; }
+  .pb-table td.pb-group, .pb-table td.pb-name, .pb-table td.pb-notes { grid-column: 1 / -1; }
+  .pb-table td.pb-price { text-align: left; }
+  .pb-table td.pb-price > div:first-child { margin-left: 0; width: 100%; max-width: 12rem; }
+  .pb-table td.pb-notes { font-size: 13px; line-height: 1.45; }
+}
+
+/* A table whose rows stack as cards on a phone: first cell is the heading, the rest flow in pairs, the last spans. */
+@media (max-width: 639px) {
+  .m-stack thead { display: none; }
+  .m-stack, .m-stack tbody { display: block; }
+  .m-stack tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 14px 16px; align-items: center; }
+  .m-stack td { display: block; padding: 0 !important; text-align: left !important; }
+  .m-stack td:first-child, .m-stack td:last-child { grid-column: 1 / -1; }
+}

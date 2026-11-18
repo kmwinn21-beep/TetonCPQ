@@ -50,9 +50,10 @@ export function StaggerDialog({ open, onClose, communities, defaultFirstMonth, h
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="stagger-title">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="stagger-title">
       <button type="button" className="absolute inset-0 bg-teton-ink/40" aria-label="Close" tabIndex={-1} onClick={onClose} />
-      <div className="relative bg-white w-full max-w-2xl max-h-[100dvh] sm:max-h-[90dvh] flex flex-col sm:rounded-xl shadow-xl">
+      <div className="sheet-or-dialog relative bg-white w-full max-w-2xl max-h-[calc(100dvh-var(--mobile-header-h,56px))] sm:max-h-[90dvh] flex flex-col rounded-t-2xl sm:rounded-xl shadow-xl">
+        <div className="sheet-handle flex-none" aria-hidden="true" />
         <div className="px-5 py-4 border-b border-teton-off-white flex items-start justify-between gap-4">
           <div>
             <h2 id="stagger-title" className="text-lg font-semibold">Stagger go-live dates</h2>

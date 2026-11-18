@@ -6,6 +6,7 @@
  */
 import { usePathname } from 'next/navigation';
 import { Sidebar, type ShellUser } from './Sidebar';
+import { MobileMenu } from './MobileMenu';
 
 const BARE = ['/proposal', '/login', '/setup'];
 
@@ -19,10 +20,13 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
         <Sidebar user={user} />
       </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-brand-primary text-sidebar-font">
-          <TetonMark light />
-          <span className="font-semibold">Proposal Generator</span>
-          <a href="/account" className="ml-auto text-sm text-sidebar-font/80">{user.name}</a>
+        {/* Phones: the brand bar, padded under the status bar, with the menu. Its height is what sheets stop under. */}
+        <header className="lg:hidden flex-none bg-brand-primary text-sidebar-font pt-[env(safe-area-inset-top)] [--mobile-header-h:calc(56px+env(safe-area-inset-top))]">
+          <div className="flex items-center gap-3 px-4 h-14">
+            <TetonMark light />
+            <span className="font-semibold flex-1 truncate">Proposal Generator</span>
+            <MobileMenu user={user} />
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>

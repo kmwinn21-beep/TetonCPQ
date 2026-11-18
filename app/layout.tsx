@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppShell } from '@/components/AppShell';
 import { getSessionUser } from '@/lib/auth/server';
@@ -6,6 +6,14 @@ import { getSessionUser } from '@/lib/auth/server';
 export const metadata: Metadata = {
   title: 'Teton Proposal Generator',
   description: 'Deal assumptions, ROI model, pricing guardrails and proposals for Teton sales.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Content may run under the notch and home indicator; the phone header and sheets pad themselves with the safe-area insets.
+  viewportFit: 'cover',
+  themeColor: '#1E1E1E',
 };
 
 export const dynamic = 'force-dynamic';

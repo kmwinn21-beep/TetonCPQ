@@ -76,9 +76,10 @@ export function TraceDrawer({ trace, onClose }: { trace: Trace | null; onClose: 
   }, [trace, onClose]);
   if (!trace) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={`How ${trace.label} is calculated`}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end" role="dialog" aria-modal="true" aria-label={`How ${trace.label} is calculated`}>
       <button type="button" className="absolute inset-0 bg-teton-ink/30" aria-label="Close" onClick={onClose} tabIndex={-1} />
-      <div className="relative w-full max-w-xl h-full bg-white shadow-xl flex flex-col">
+      <div className="sheet-or-panel relative w-full sm:max-w-xl max-h-[calc(100dvh-var(--mobile-header-h,56px))] sm:max-h-none sm:h-full bg-white shadow-xl flex flex-col rounded-t-2xl sm:rounded-none">
+        <div className="sheet-handle flex-none" aria-hidden="true" />
         <div className="p-5 border-b border-teton-off-white flex items-start justify-between gap-3">
           <div>
             <p className="text-xs text-teton-ui-gray">Where this number comes from</p>

@@ -68,7 +68,7 @@ export function UsersAdmin({ initial, meId }: { initial: User[]; meId: number })
       </form>
 
       <div className="card p-0 overflow-x-auto">
-        <table className="w-full text-sm min-w-[640px]">
+        <table className="m-stack w-full text-sm sm:min-w-[640px]">
           <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
             <tr>
               <th className="px-4 py-2.5 font-medium">Name</th>

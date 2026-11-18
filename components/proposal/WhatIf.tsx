@@ -516,9 +516,10 @@ function LeaveDialog({
     return () => window.removeEventListener('keydown', esc);
   }, [onStay]);
   return (
-    <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+    <div className="no-print fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="leave-title">
       <button type="button" className="absolute inset-0 bg-teton-ink/45" aria-label="Keep editing" tabIndex={-1} onClick={onStay} />
-      <div className="relative w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl">
+      <div className="sheet-or-dialog relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-t-2xl sm:rounded-xl bg-white px-5 pt-1 sm:pt-5 pb-safe sm:pb-5 shadow-2xl">
+        <div className="sheet-handle" aria-hidden="true" />
         <h2 id="leave-title" className="text-lg font-semibold">Save your changes before leaving?</h2>
         <p className="text-sm text-teton-dark-gray mt-1">
           You changed {n} {n === 1 ? 'input' : 'inputs'} on this proposal. Saving creates <b>v{nextVersionNo}</b> with the new figures; your wording and layout carry over to it.
@@ -721,9 +722,11 @@ function FigurePanel({
   return (
     <aside
       // Wide screens: starts right under the black bar (the unsaved-changes bar sits beside it). Narrow: under the whole toolbar.
-      className="no-print fixed right-0 bottom-0 z-20 w-full sm:w-[380px] overflow-y-auto border-l border-teton-off-white bg-white px-4 pb-6 pt-4 shadow-xl sm:rounded-tl-2xl sm:border-t top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
+      className="no-print sheet-or-panel fixed inset-x-0 bottom-0 z-40 max-h-[72dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-teton-off-white bg-white px-4 pt-0 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.15)] sm:left-auto sm:right-0 sm:w-[380px] sm:max-h-none sm:rounded-none sm:rounded-tl-2xl sm:border-l sm:pt-4 sm:pb-6 sm:shadow-xl sm:top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
       aria-label={`Inputs behind ${figure.label}`}
     >
+      {/* Phones: a sheet over the bottom of the page, so the figure stays in view above it. */}
+      <div className="sheet-handle sticky top-0 -mx-4 bg-white" aria-hidden="true" />
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray">What drives this figure</p>
@@ -843,9 +846,10 @@ function CommunityPanel({
 
   return (
     <aside
-      className="no-print fixed right-0 bottom-0 z-20 w-full sm:w-[380px] overflow-y-auto border-l border-teton-off-white bg-white px-4 pb-6 pt-4 shadow-xl sm:rounded-tl-2xl sm:border-t top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
+      className="no-print sheet-or-panel fixed inset-x-0 bottom-0 z-40 max-h-[72dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-teton-off-white bg-white px-4 pt-0 pb-safe shadow-[0_-8px_30px_rgba(0,0,0,0.15)] sm:left-auto sm:right-0 sm:w-[380px] sm:max-h-none sm:rounded-none sm:rounded-tl-2xl sm:border-l sm:pt-4 sm:pb-6 sm:shadow-xl sm:top-[var(--proposal-chrome-h,64px)] lg:top-[var(--proposal-header-h,64px)]"
       aria-label={isNew ? 'Add a community' : 'Edit community'}
     >
+      <div className="sheet-handle sticky top-0 z-10 -mx-4 bg-white" aria-hidden="true" />
       <p className="text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1">{isNew ? 'Add a community' : 'Community inputs'}</p>
       <FormProvider {...form}>
         <CommunityEditor
