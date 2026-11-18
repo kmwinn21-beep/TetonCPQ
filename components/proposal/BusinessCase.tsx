@@ -33,6 +33,8 @@ import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
+import { ViewSwitch } from './ViewSwitch';
+import { ImplementationTimeline } from './ImplementationTimeline';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -1102,24 +1104,15 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </B>
         <B id="table" label="Year 1 table">{y1Table(false)}</B>
         <B id="chart" label="Chart">
-        <div className="bc-card bc-chart relative group/chart">
+        <div className="bc-card bc-chart relative group/view">
           {editable && (
             // Screen only: pick the chart style; saved with the proposal.
-            <div data-edit-ui role="group" aria-label="Chart style" className="no-print absolute right-3 top-3 z-[5] flex rounded-lg bg-[rgba(15,23,32,.88)] p-0.5 text-[11px] text-white opacity-0 group-hover/chart:opacity-100 focus-within:opacity-100 transition-opacity" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-              {(
-                [
-                  ['bar', 'Standard Bar'],
-                  ['stacked', 'Stacked Bar'],
-                ] as const
-              ).map(([v, label]) => {
-                const on = (layout.bcChart ?? 'bar') === v;
-                return (
-                  <button key={v} type="button" aria-pressed={on} className={`px-2.5 py-1 rounded-md ${on ? 'bg-white text-teton-ink font-medium' : 'hover:bg-white/15'}`} onClick={() => setLayout((l) => ({ ...l, bcChart: v === 'stacked' ? 'stacked' : undefined }))}>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+            <ViewSwitch
+              label="Chart style"
+              options={[['bar', 'Standard Bar'], ['stacked', 'Stacked Bar']] as const}
+              value={layout.bcChart ?? 'bar'}
+              onChange={(v) => setLayout((l) => ({ ...l, bcChart: v === 'stacked' ? 'stacked' : undefined }))}
+            />
           )}
           <QuarterlyWaterfall
             cumulative
@@ -1165,21 +1158,62 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-lede"><T k="bc.impl.lede" d="A preliminary path from a signed order form to go-live. Teton’s implementation and customer success team leads each stage." /></p>
         <Blocks page="implementation">
         <B id="stages" label="Stages">
-        <div className="bc-grid2">
-          {stages.map((st, i) => (
-            <div key={st.id} className="bc-card bc-num">
-              <span className="bc-n">{String(i + 1).padStart(2, '0')}</span>
-              <div>
-                <h3>{st.name}</h3>
-                <p className="bc-when">
-                  <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>
-                    {st.weeks} {st.weeks === 1 ? 'week' : 'weeks'} · {weekLabel(st, true)} · {longDate(st.start).replace(/, \d{4}$/, '')} – {longDate(st.end).replace(/, \d{4}$/, '')}
-                  </V>
-                </p>
-                {st.description && <p><T k={`impl.${st.id}.note`} d={st.description} /></p>}
+        <div className="relative group/view">
+          {editable && (
+            // Screen only: cards (default) or a Gantt chart with a description list; saved with the proposal.
+            <ViewSwitch
+              label="Stages view"
+              options={[['cards', 'Cards'], ['gantt', 'Gantt']] as const}
+              value={layout.bcImpl ?? 'cards'}
+              onChange={(v) => setLayout((l) => ({ ...l, bcImpl: v === 'gantt' ? 'gantt' : undefined }))}
+            />
+          )}
+          {layout.bcImpl === 'gantt' ? (
+            <>
+              <div className="bc-card bc-gantt-card">
+                <ImplementationTimeline
+                  stages={stages}
+                  order={draft.implementationPlan.order}
+                  goLive={pilots[0]?.goLive ?? null}
+                  timing={(st) => (
+                    <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>
+                      {st.weeks} {st.weeks === 1 ? 'week' : 'weeks'} · {weekLabel(st, true)}
+                    </V>
+                  )}
+                />
               </div>
-            </div>
-          ))}
+              <p className="bc-eyebrow bc-gray"><T k="bc.impl.descHead" d="What happens in each stage" /></p>
+              <div className="bc-desc">
+                {stages.map((st, i) =>
+                  st.description ? (
+                    <div key={st.id}>
+                      <span className="bc-n">{String(i + 1).padStart(2, '0')}</span>
+                      <span>
+                        <b>{st.name}.</b> <T k={`impl.${st.id}.note`} d={st.description} />
+                      </span>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+            </>
+          ) : (
+        <div className="bc-grid2">
+            {stages.map((st, i) => (
+              <div key={st.id} className="bc-card bc-num">
+                <span className="bc-n">{String(i + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{st.name}</h3>
+                  <p className="bc-when">
+                    <V k={`impl.${st.id}.weeks`} label={`${st.name} timing`}>
+                      {st.weeks} {st.weeks === 1 ? 'week' : 'weeks'} · {weekLabel(st, true)} · {longDate(st.start).replace(/, \d{4}$/, '')} – {longDate(st.end).replace(/, \d{4}$/, '')}
+                    </V>
+                  </p>
+                  {st.description && <p><T k={`impl.${st.id}.note`} d={st.description} /></p>}
+                </div>
+              </div>
+            ))}
+          </div>
+          )}
         </div>
         </B>
         <B id="band" label="Where the pilot sits">

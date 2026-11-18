@@ -449,3 +449,41 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-cf-cards .bc-dark > span { font-size: 11.5px; line-height: 1.4; }
 /* A cost shown as money going out: the waterfall's net-cost red. */
 .bc-cost { color: #FC6845; }
+
+/* Business case: implementation stages as a Gantt chart. */
+.bc-gantt { position: relative; }
+.bc-gantt-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: center; min-height: 40px; }
+.bc-gantt-body .bc-gantt-row:nth-child(odd):not(.bc-gantt-markers) { background: var(--bc-cream); border-radius: 6px; }
+.bc-gantt-head { min-height: 22px; }
+.bc-gantt-track { position: relative; height: 100%; min-height: inherit; }
+.bc-gantt-month { position: absolute; top: 4px; text-align: center; font-size: 9.5px; letter-spacing: 1.5px; font-weight: 700; color: var(--bc-muted); white-space: nowrap; }
+.bc-gantt-grid { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--bc-line); }
+.bc-gantt-name { display: grid; grid-template-columns: 24px 1fr; align-items: baseline; padding: 6px 0; }
+.bc-gantt-n { font-size: 12px; color: var(--bc-coral); font-weight: 500; }
+.bc-gantt-name b { display: block; font-size: 12.5px; font-weight: 700; color: var(--bc-ink); line-height: 1.25; }
+.bc-gantt-name small { display: block; font-size: 9.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--bc-muted); margin-top: 2px; }
+.bc-gantt-bar { position: absolute; top: 50%; height: 18px; margin-top: -9px; border-radius: 5px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.bc-gantt-bar em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--bc-ink); white-space: nowrap; }
+.bc-gantt-date { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--bc-body); white-space: nowrap; }
+.bc-gantt-body { position: relative; padding-bottom: 24px; }
+.bc-gantt-overlay { position: absolute; left: 200px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.bc-gantt-mark { position: absolute; top: 0; bottom: 18px; border-left: 1.5px solid; }
+.bc-gantt-mark > span { position: absolute; top: 100%; margin-top: 4px; transform: translateX(-50%); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.bc-gantt-kickoff { color: #6A5BC7; }
+.bc-gantt-kickoff { border-left-style: dashed !important; border-left-width: 1px !important; }
+.bc-gantt-golive { color: #D9553F; }
+.bc-gantt-golive > span { transform: translateX(-85%); }
+/* The descriptions that go with the Gantt chart. */
+.bc-desc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-top: 4px; }
+.bc-desc > div { display: grid; grid-template-columns: 22px 1fr; font-size: 11.5px; line-height: 1.45; color: var(--bc-body); }
+.bc-desc .bc-n { font-size: 11.5px; color: var(--bc-coral); font-weight: 600; }
+.bc-desc b { color: var(--bc-ink); font-weight: 700; }
+.bc-gantt-card { margin-top: 22px; padding: 14px 18px 8px; }
+/* Gantt page: tighter rows and description list so it stays on one sheet. */
+.bc-gantt-row { min-height: 35px; }
+.bc-gantt-name { padding: 3px 0; }
+.bc-gantt-body { padding-bottom: 20px; }
+.bc-gantt-mark { bottom: 15px; }
+.bc-gantt-card { margin-top: 18px; }
+.bc-desc { gap: 5px 22px; }
+.bc-desc > div { font-size: 11px; line-height: 1.38; }

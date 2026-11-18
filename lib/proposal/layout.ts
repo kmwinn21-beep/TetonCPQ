@@ -48,6 +48,8 @@ export interface ProposalLayout {
   bcHiddenBlocks?: Record<string, Record<string, string>>;
   /** Business-case format: the cash flow chart's style (standard bars by default). */
   bcChart?: 'bar' | 'stacked';
+  /** Business-case format: the implementation stages as cards (default) or a Gantt chart with a description list. */
+  bcImpl?: 'cards' | 'gantt';
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -145,6 +147,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       return out;
     })(),
     bcChart: raw.bcChart === 'stacked' ? 'stacked' : undefined,
+    bcImpl: raw.bcImpl === 'gantt' ? 'gantt' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};
