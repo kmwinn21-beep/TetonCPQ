@@ -196,17 +196,17 @@ export async function scopePdf(a: Args): Promise<Blob> {
     p.drawRectangle({ x: 0, y: s.h, width: s.w, height: band, color: rgb(1, 1, 1) });
     p.drawLine({ start: { x: 0, y: s.h }, end: { x: s.w, y: s.h }, thickness: 0.6, color: LINE });
     for (const { b, marks } of here) for (const m of marks) badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
-    // Notes shown on the plan: the triangle on its spot, the box where it was placed.
-    const notesHere = (a.notes ?? []).filter((x) => x.onPlan && x.page === n);
+    // Every note's triangle on its spot; the box (where it was placed) only for notes shown on the plan.
+    const notesHere = (a.notes ?? []).filter((x) => x.page === n);
     for (const note of notesHere) {
       triangle(p, bold, note.x * s.w, (1 - note.y) * s.h, r * 2.2, note.color, note.number);
-      drawNote(p, bold, reg, note, s.w, s.h, note.roomTypeId ? a.types.find((t) => t.id === note.roomTypeId)?.name || 'Room type' : null);
+      if (note.onPlan) drawNote(p, bold, reg, note, s.w, s.h, note.roomTypeId ? a.types.find((t) => t.id === note.roomTypeId)?.name || 'Room type' : null);
     }
     let y = s.h + band - pad - fs * 0.4;
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
     const totS = used.reduce((t, u) => t + u.marks.length * Math.max(1, Number(u.t.sensors) || 1), 0);
-    const nn = (a.notes ?? []).filter((x) => x.onPlan && x.page === n).length;
+    const nn = (a.notes ?? []).filter((x) => x.page === n).length;
     const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
     y -= line;
@@ -352,7 +352,8 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     const ini = safe(bold, n.author.initials);
     p.drawRectangle({ x: NC.author, y: y - 3, width: bold.widthOfTextAtSize(ini, 8) + 9, height: 12.5, color: rgb(0.9, 0.93, 0.99) });
     text(n.author.initials, NC.author + 4.5, 8, bold, rgb(0.17, 0.36, 0.71));
-    text(n.onPlan ? String(n.page) : 'Not on plan', NC.page, 9, reg, n.onPlan ? INK : MUTED, 'r');
+    // Notes hidden on the plan still have their triangle there.
+    text(n.onPlan ? String(n.page) : `${n.page} (tag only)`, NC.page, 9, reg, n.onPlan ? INK : MUTED, 'r');
     y -= rowH - 12.5 + 8;
     p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
     y -= 16;

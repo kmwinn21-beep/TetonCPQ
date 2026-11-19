@@ -308,7 +308,7 @@ export function NoteEditor({
             </span>
             Show on floor plan
           </span>
-          <span className="text-[10.5px] text-teton-ui-gray">{draft.onPlan ? '' : 'Notes panel only'}</span>
+          <span className="text-[10.5px] text-teton-ui-gray">{draft.onPlan ? '' : 'Tag only; note in the panel'}</span>
         </label>
         <span className="block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2.5 mb-1">Color</span>
         <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Note color">
@@ -486,11 +486,8 @@ export function NotesDrawer({
                   <div className="px-3 pb-3 border-t border-teton-off-white/80">
                     <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] text-teton-ui-gray">
                       <span className="rounded-full bg-teton-almost-white px-2 py-px font-medium text-teton-dark-gray">{rt ?? 'General note'}</span>
-                      {n.onPlan ? (
-                        <button type="button" className="rounded-full bg-teton-almost-white px-2 py-px font-medium text-teton-dark-gray hover:underline" onClick={() => onGoTo(n)}>{pages > 1 ? `Page ${n.page}` : 'On the plan'} ›</button>
-                      ) : (
-                        <span className="rounded-full bg-[#FFF4D6] px-2 py-px font-medium text-[#8A5A00]">Not on the floor plan</span>
-                      )}
+                      <button type="button" className="rounded-full bg-teton-almost-white px-2 py-px font-medium text-teton-dark-gray hover:underline" onClick={() => onGoTo(n)}>{pages > 1 ? `Page ${n.page}` : 'On the plan'} ›</button>
+                      {!n.onPlan && <span className="rounded-full bg-[#FFF4D6] px-2 py-px font-medium text-[#8A5A00]">Tag only: note hidden on the plan</span>}
                       <span>· {n.author.name} · {when(n.createdAt)}</span>
                     </div>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-teton-ink whitespace-pre-wrap break-words">{n.body}</p>

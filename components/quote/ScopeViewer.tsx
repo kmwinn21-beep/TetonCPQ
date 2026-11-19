@@ -139,10 +139,11 @@ export function ScopeViewer({
     const n = notesApi.notes.find((x) => x.id === focusNote.noteId);
     if (!n) return;
     focused.current = true;
-    if (n.onPlan) setPage(n.page);
+    setPage(n.page);
     setDrawerFocus({ noteId: n.id, commentId: focusNote.commentId, key: Date.now() });
   }, [focusNote, notesApi.notes]);
-  const notesHere = notesApi.notes.filter((n) => n.onPlan && n.page === page && n.id !== noteDraft?.id);
+  // Every note's triangle shows on its page; only notes set to show on the plan show their box.
+  const notesHere = notesApi.notes.filter((n) => n.page === page && n.id !== noteDraft?.id);
   const startNote = (x: number, y: number) => {
     const w = 0.26;
     const h = 0.09;
@@ -264,7 +265,7 @@ export function ScopeViewer({
     setPending((p) => p.filter((x) => x.plan !== plan.id));
     await onRemovePlan(plan.id);
   };
-  const download = async () => {
+  const download = async (withNotes: boolean) => {
     setMenu(false);
     setExporting('Preparing…');
     try {
@@ -276,12 +277,12 @@ export function ScopeViewer({
         planName: plan.name,
         communityName: community?.name || 'Community',
         types: current(),
-        notes: notesApi.notes,
+        notes: withNotes ? notesApi.notes : [],
         allowancePct: normalizeAllowance(getValues(`communities.${index}.sensorAllowancePct`)),
       });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${plan.name.replace(/\.[a-z0-9]+$/i, '')} - scope.pdf`;
+      a.download = `${plan.name.replace(/\.[a-z0-9]+$/i, '')} - scope${withNotes ? ' with notes' : ''}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -341,8 +342,11 @@ export function ScopeViewer({
                 <a role="menuitem" className="block rounded-md px-2.5 py-2 hover:bg-teton-almost-white" href={`${url}?download=1`} onClick={() => setMenu(false)}>
                   Download plan<span className="block text-[11px] text-teton-ui-gray">The original file</span>
                 </a>
-                <button type="button" role="menuitem" className="block w-full text-left rounded-md px-2.5 py-2 hover:bg-teton-almost-white" onClick={download}>
-                  Download with scope badges<span className="block text-[11px] text-teton-ui-gray">PDF · badges and a legend on each page, and a summary page</span>
+                <button type="button" role="menuitem" className="block w-full text-left rounded-md px-2.5 py-2 hover:bg-teton-almost-white" onClick={() => void download(true)}>
+                  Download with scope badges and notes<span className="block text-[11px] text-teton-ui-gray">PDF · badges, note tags and notes on each page; a summary page with the notes table</span>
+                </button>
+                <button type="button" role="menuitem" className="block w-full text-left rounded-md px-2.5 py-2 hover:bg-teton-almost-white" onClick={() => void download(false)}>
+                  Download with scope badges, no notes<span className="block text-[11px] text-teton-ui-gray">PDF · badges and a legend on each page, and a summary page; no notes anywhere</span>
                 </button>
               </div>
             )}
@@ -426,7 +430,7 @@ export function ScopeViewer({
           {notesHere.map((n) => (
             <NoteMarker key={`m${n.id}`} color={n.color} n={n.number} x={n.x} y={n.y} size={size} onClick={() => openNote(n)} />
           ))}
-          {notesHere.map((n) => (
+          {notesHere.filter((n) => n.onPlan).map((n) => (
             <NoteOnPlan
               key={`n${n.id}`}
               note={n}
