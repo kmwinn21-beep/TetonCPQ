@@ -200,4 +200,32 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE quotes ADD COLUMN active_version_id INTEGER REFERENCES quote_versions(id)`,
     ],
   },
+  {
+    id: 8,
+    name: 'deleting versions, and floor plans per community',
+    sql: [
+      // Saved versions stay unchangeable, but a rep can now delete one outright (the app removes its rows too).
+      `DROP TRIGGER IF EXISTS quote_versions_frozen_delete`,
+      // Floor plans uploaded for a deal's community (by the community's id in the draft), stored in chunks.
+      `CREATE TABLE floor_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_id INTEGER NOT NULL REFERENCES quotes(id),
+        community_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        chunks INTEGER NOT NULL DEFAULT 0,
+        complete INTEGER NOT NULL DEFAULT 0,
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_floor_plans_quote ON floor_plans(quote_id, community_id)`,
+      `CREATE TABLE floor_plan_chunks (
+        floor_plan_id INTEGER NOT NULL REFERENCES floor_plans(id),
+        idx INTEGER NOT NULL,
+        data BLOB NOT NULL,
+        PRIMARY KEY (floor_plan_id, idx)
+      )`,
+    ],
+  },
 ];

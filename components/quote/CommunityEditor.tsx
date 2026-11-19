@@ -6,6 +6,7 @@
  * Shown in the panel beside the list, or under its row where there isn't room.
  */
 import { SegGroup } from '@/components/form/SegGroup';
+import { FloorPlans } from './FloorPlans';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { bedsOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityProblems, ymLabel } from '@/lib/quote/communityRow';
@@ -105,6 +106,25 @@ export function CommunityEditor({
         <button type="button" className="btn-ghost px-1.5 py-0.5 text-xs disabled:opacity-40" onClick={onNext} disabled={!onNext} aria-label="Next community">Next ›</button>
       </div>
 
+      {/* Site switches and its floor plans, above the name. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span title={withPilot ? undefined : 'The deal has no pilot (Pricing & products)'}>
+          <Controller
+            control={control}
+            name={`communities.${i}.pilot`}
+            render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot} onChange={field.onChange} />}
+          />
+        </span>
+        <span title={ecallOn ? undefined : 'The deal has no E-Call add-on (Pricing & products)'}>
+          <Controller
+            control={control}
+            name={`communities.${i}.ecall`}
+            render={({ field }) => <Switch id={id('ecall')} label="E-Call" checked={!!field.value && ecallOn} disabled={!ecallOn} onChange={field.onChange} />}
+          />
+        </span>
+        <FloorPlans communityId={row.id} communityName={row.name} />
+      </div>
+
       <div className="mt-3">
         <div>
           <label className="eyebrow" htmlFor={id('name')}>Community</label>
@@ -174,7 +194,7 @@ export function CommunityEditor({
         {!row.goLiveMonth && <p className="hint">Blank = month 1, or right after the pilot for non-pilot sites.</p>}
       </Group>
 
-      <Group title="Coverage & add-ons">
+      <Group title="Coverage">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <SegGroup label={`Community ${position} coverage`} thumbClass="bg-teton-near-black" className="inline-flex rounded-lg border border-teton-pale-gray p-0.5">
             {(
@@ -191,37 +211,21 @@ export function CommunityEditor({
               </label>
             ))}
           </SegGroup>
-          <Controller
-            control={control}
-            name={`communities.${i}.ecall`}
-            render={({ field }) => <Switch id={id('ecall')} label="E-Call" checked={!!field.value && ecallOn} disabled={!ecallOn} onChange={field.onChange} />}
-          />
         </div>
-        {!ecallOn && <p className="hint">The deal has no E-Call add-on (Commercial terms).</p>}
       </Group>
 
-      <Group title="Pilot">
-        <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
-          <div className="pb-2">
+      {isPilot && (
+        <Group title="Pilot">
+          <div className="w-28">
+            <label className="eyebrow" htmlFor={id('pilotbeds')}>Pilot beds</label>
             <Controller
               control={control}
-              name={`communities.${i}.pilot`}
-              render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot} onChange={field.onChange} />}
+              name={`communities.${i}.pilotUnits`}
+              render={({ field }) => <NumInput id={id('pilotbeds')} value={field.value} onChange={field.onChange} nullable placeholder="All" min={1} aria-label={`Community ${position} pilot units`} />}
             />
           </div>
-          {isPilot && (
-            <div className="w-28">
-              <label className="eyebrow" htmlFor={id('pilotbeds')}>Pilot beds</label>
-              <Controller
-                control={control}
-                name={`communities.${i}.pilotUnits`}
-                render={({ field }) => <NumInput id={id('pilotbeds')} value={field.value} onChange={field.onChange} nullable placeholder="All" min={1} aria-label={`Community ${position} pilot units`} />}
-              />
-            </div>
-          )}
-        </div>
-        {!withPilot && <p className="hint">The deal has no pilot phase (Timeline).</p>}
-      </Group>
+        </Group>
+      )}
 
       <Group title="Advanced" note="blank uses the deal values">
         <div className="grid grid-cols-2 gap-2">

@@ -16,6 +16,7 @@ import { count, pct } from '@/lib/format';
 import { Section } from '@/components/form/fields';
 import type { SectionProps } from './sections';
 import { PasteDialog } from './PasteDialog';
+import { FloorPlanPill } from './FloorPlans';
 import { StaggerDialog } from './StaggerDialog';
 import { CommunityEditor } from './CommunityEditor';
 import { BulkBar, type BulkPatch } from './BulkBar';
@@ -436,6 +437,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                           {ecallOn && r.ecall ? ' · E-Call' : ''}
                         </span>
                       </span>
+                      {r?.id && <span className="flex-shrink-0"><FloorPlanPill communityId={r.id} /></span>}
                       <span className="hidden sm:flex flex-wrap justify-end gap-1 max-w-[45%]">
                         {chips.map((c) => (
                           <span key={c.label} className={`${CHIP_CLASS[c.tone]} whitespace-nowrap`}>

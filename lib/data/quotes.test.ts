@@ -5,7 +5,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { newCommunity } from '@/lib/quote/draft';
-import { createDeal, DraftConflictError, getExportHtml, getQuoteEditor, getVersion, getVersionLines, listDeals, listExports, markSent, saveDraft, saveVersion } from './quotes';
+import { createDeal, deleteVersion, DraftConflictError, getExportHtml, getQuoteEditor, getVersion, getVersionLines, listDeals, listExports, markSent, saveDraft, saveVersion } from './quotes';
 
 let db: Client;
 let dir: string;
@@ -59,12 +59,20 @@ describe('deals, drafts and versions', () => {
     expect(Number(rows.rows[0].n)).toBe(1);
   });
 
-  it('refuses to change or delete a saved version', async () => {
+  it('refuses to change a saved version, but can delete one with its rows', async () => {
     const { quoteId } = await createDeal(db, 'Frozen Co');
     const { versionId } = await saveVersion(db, quoteId, null);
     await expect(db.execute({ sql: "UPDATE quote_versions SET inputs_json = '{}' WHERE id = ?", args: [versionId] })).rejects.toThrow(/frozen/);
     await expect(db.execute({ sql: "UPDATE quote_versions SET status = 'draft' WHERE id = ?", args: [versionId] })).rejects.toThrow(/frozen/);
-    await expect(db.execute({ sql: 'DELETE FROM quote_versions WHERE id = ?', args: [versionId] })).rejects.toThrow(/frozen/);
+    const second = await saveVersion(db, quoteId, 'Second');
+    expect((await getQuoteEditor(db, quoteId))!.activeVersionId).toBe(second.versionId);
+    await deleteVersion(db, quoteId, second.versionId);
+    const ed = (await getQuoteEditor(db, quoteId))!;
+    expect(ed.versions.map((v) => v.id)).toEqual([versionId]);
+    expect(ed.activeVersionId).toBe(versionId);
+    const left = await db.execute({ sql: 'SELECT COUNT(*) AS n FROM quote_version_lines WHERE quote_version_id = ?', args: [second.versionId] });
+    expect(Number(left.rows[0].n)).toBe(0);
+    await expect(deleteVersion(db, quoteId, ed.draftVersionId)).rejects.toThrow(/not found/);
     // Marking it sent is allowed.
     await db.execute({ sql: "UPDATE quote_versions SET status = 'sent', sent_at = datetime('now') WHERE id = ?", args: [versionId] });
   });

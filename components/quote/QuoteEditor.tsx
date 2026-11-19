@@ -22,6 +22,7 @@ import { ImplementationSection } from './ImplementationSection';
 import { TermsSection } from './TermsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
+import { FloorPlansProvider } from './FloorPlans';
 import { KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
@@ -65,6 +66,19 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
 function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const sections = useSections();
   const assumptionsOpen = sections.isOpen('assumptions');
+  // The sticky header's height, as --hdr-h on the form (it grows with the unsaved-changes bar).
+  const headerRef = useRef<HTMLElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const h = headerRef.current;
+    const f = formRef.current;
+    if (!h || !f) return;
+    const set = () => f.style.setProperty('--hdr-h', `${h.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(h);
+    return () => ro.disconnect();
+  }, []);
   // The section menu beside the form: collapsed by default, remembered per browser.
   const [navOpen, setNavOpen] = usePersistedOpen('teton.sectionNav.open');
   // The rail column can host the Communities editor panel (wide screens only; below xl the rail sits under the form).
@@ -185,6 +199,21 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     },
     [reset],
   );
+  async function removeVersion(v: VersionSummary) {
+    setActivating(true);
+    setVersionError(null);
+    try {
+      const res = await fetch(`/api/quotes/${initial.quoteId}/versions/${v.id}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      // The draft is untouched; only the list and the active version change.
+      adopt(body.editor, false);
+    } catch (e) {
+      setVersionError(e instanceof Error ? e.message : 'Could not delete that version');
+    } finally {
+      setActivating(false);
+    }
+  }
   async function makeActive(v: VersionSummary) {
     if (pending.length && !window.confirm(`Make ${v.changeNote || `v${v.versionNo}`} active? Your ${pending.length} unsaved ${pending.length === 1 ? 'change' : 'changes'} will be discarded.`)) return;
     setActivating(true);
@@ -260,8 +289,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto" noValidate>
-        <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 mb-6">
+      <FloorPlansProvider quoteId={initial.quoteId}>
+      <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto [&_section[id]]:scroll-mt-[calc(var(--hdr-h,0px)+16px)]" noValidate>
+        {/* Always in view: the page scrolls behind it. Its height feeds --hdr-h, so the menus and panel stick below it. */}
+        <header
+          ref={headerRef}
+          className="sticky -top-4 lg:-top-6 z-30 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 mb-4 -mx-4 px-4 -mt-4 pt-4 lg:-mx-6 lg:px-6 lg:-mt-6 lg:pt-6 pb-3 bg-teton-almost-white/95 backdrop-blur border-b border-teton-off-white"
+        >
           <div className="min-w-0 basis-full sm:basis-0 flex-1">
             <Link href="/deals" className="text-xs text-teton-ui-gray hover:underline">← Deals</Link>
             <input
@@ -335,7 +369,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           }`}
         >
           <nav className="hidden xl:block min-w-0" aria-label="Form sections">
-            <div className="sticky top-0 text-sm">
+            <div className="sticky top-[calc(var(--hdr-h,0px)+8px)] text-sm">
               <button
                 type="button"
                 onClick={() => setNavOpen(!navOpen)}
@@ -424,7 +458,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </SectionGroup>
           </div>
 
-          <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto">
+          <aside className="space-y-4 xl:sticky xl:top-[calc(var(--hdr-h,0px)+8px)] xl:self-start xl:max-h-[calc(100dvh-var(--hdr-h,0px)-4rem)] xl:overflow-y-auto">
             {/* Same height as the "Expand all" row over the form, so the panel's top lines up with the first section. */}
             <div className="hidden xl:flex justify-end -mb-1 invisible" aria-hidden="true">
               <span className="btn-ghost">Expand all</span>
@@ -433,11 +467,12 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
-              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} />
+              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} onDelete={removeVersion} />
             </div>
           </aside>
         </div>
       </form>
+      </FloorPlansProvider>
     </FormProvider>
   );
 }

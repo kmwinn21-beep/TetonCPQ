@@ -12,7 +12,8 @@ import { CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, normalizeAllowance, normali
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
 
-const iconBtn = 'w-7 h-7 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink';
+const iconBtn = 'w-7 h-9 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink';
+const eyebrow = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1 truncate';
 
 export function RoomTypesEditor({ index: i, position }: { index: number; position: number }) {
   const { control, setValue, getValues } = useFormContext<QuoteDraft>();
@@ -48,19 +49,18 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
       </div>
       {types.length > 0 && (
         <div className="mt-1 space-y-1.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem_1.75rem] gap-x-1.5 text-[10.5px] text-teton-ui-gray px-2">
-            <span>Care</span>
-            <span>Rooms</span>
-            <span>Sensors per Room</span>
-            <span />
-          </div>
           {types.map((t, k) => (
-            <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem_1.75rem] gap-x-1.5 gap-y-1 items-end rounded-lg border border-teton-off-white p-2">
-              <input className="input-field px-2 py-1.5 col-span-4" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+            <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_5.5rem_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
+              <div className="col-span-4">
+                <span className={eyebrow}>Room Type/Name</span>
+                <input className="input-field px-2 py-1.5" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+              </div>
+              <div className="min-w-0">
+              <span className={eyebrow}>Care Setting</span>
               {t.care === 'custom' ? (
                 <span className="flex items-center gap-1">
                   <input
-                    className="input-field px-1.5 py-1.5 text-xs min-w-0"
+                    className="input-field px-1.5 text-xs min-w-0"
                     value={t.customCare ?? ''}
                     placeholder="Care type"
                     autoFocus={!t.customCare}
@@ -72,16 +72,29 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   </button>
                 </span>
               ) : (
-              <select className="input-field px-1.5 py-1.5 text-xs self-end" value={t.care} aria-label={`Community ${position} room type ${k + 1} care`} onChange={(e) => patch(t.id, { care: e.target.value as CareType })}>
-                {(Object.keys(CARE_LABEL) as CareType[]).map((c) => (
-                  <option key={c} value={c}>
-                    {CARE_LABEL[c]}
-                  </option>
-                ))}
-              </select>
+              // Same height as the number boxes, with room before its own chevron.
+              <span className="relative block">
+                <select className="input-field appearance-none pl-2 pr-8 text-xs truncate" value={t.care} aria-label={`Community ${position} room type ${k + 1} care`} onChange={(e) => patch(t.id, { care: e.target.value as CareType })}>
+                  {(Object.keys(CARE_LABEL) as CareType[]).map((c) => (
+                    <option key={c} value={c}>
+                      {CARE_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+                <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-teton-ui-gray" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </span>
               )}
-              <NumInput value={t.rooms} onChange={(v) => patch(t.id, { rooms: v ?? 0 })} min={0} aria-label={`Community ${position} room type ${k + 1} rooms`} />
-              <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
+              </div>
+              <div>
+                <span className={eyebrow}>Rooms</span>
+                <NumInput value={t.rooms} onChange={(v) => patch(t.id, { rooms: v ?? 0 })} min={0} aria-label={`Community ${position} room type ${k + 1} rooms`} />
+              </div>
+              <div>
+                <span className={eyebrow}>Sensors / rm</span>
+                <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
+              </div>
               <button type="button" className={iconBtn} onClick={() => write(types.filter((x) => x.id !== t.id))} aria-label={`Remove room type ${k + 1}`} title="Remove">
                 ✕
               </button>
@@ -95,7 +108,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
         </button>
         {types.length > 0 && (
           <label className="flex items-center gap-1.5 text-xs text-teton-dark-gray">
-            Allowance
+            Contingency
             <span className="w-20">
               <NumInput
                 value={allowance ?? DEFAULT_ALLOWANCE}
@@ -108,7 +121,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   setValue(`communities.${i}.sensorAllowancePct`, pct, { shouldDirty: true });
                   write(types, pct);
                 }}
-                aria-label={`Community ${position} sensor allowance`}
+                aria-label={`Community ${position} sensor contingency`}
               />
             </span>
           </label>
@@ -117,7 +130,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
       {scope && (
         <p className="text-xs text-teton-dark-gray mt-2 rounded-lg bg-teton-almost-white px-3 py-2">
           {types.some((t) => t.care === 'custom') && <span className="block mb-1">Custom care types count as assisted living beds.</span>}
-          {count(scope.rooms)} rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} allowance = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
+          {count(scope.rooms)} rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
         </p>
       )}

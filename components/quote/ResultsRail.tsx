@@ -106,8 +106,9 @@ const Chevron = ({ open }: { open: boolean }) => (
 );
 
 /** One saved version: its name, when and by whom, and (opened) what changed from the version before it. */
-function VersionCard({ v, quoteId, active, busy, onMakeActive }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void }) {
+function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const name = v.changeNote || `v${v.versionNo}`;
   return (
     <li className={`rounded-lg border ${active ? 'border-teton-green/60 bg-teton-pale-green/30' : 'border-teton-off-white'} text-sm`}>
@@ -142,12 +143,32 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive }: { v: VersionSum
       <div className="flex items-center gap-3 px-3 pb-2 pl-9 text-xs">
         <Link className="underline" href={`/quotes/${quoteId}/results?v=${v.id}`}>Results</Link>
         <Link className="underline" href={`/proposal/${v.id}`}>Proposal</Link>
-        {!active && (
-          <button type="button" className="ml-auto btn-secondary py-0.5 px-2 text-xs" disabled={busy} onClick={onMakeActive}>
-            Make Active
+        <span className="ml-auto flex items-center gap-1.5">
+          {!active && (
+            <button type="button" className="btn-secondary py-0.5 px-2 text-xs" disabled={busy} onClick={onMakeActive}>
+              Make Active
+            </button>
+          )}
+          <button type="button" className="py-0.5 px-2 text-xs rounded-md text-teton-dark-gray hover:bg-teton-red/20 hover:text-teton-ink" disabled={busy} onClick={() => setConfirming(true)} aria-label={`Delete ${name}`}>
+            Delete
           </button>
-        )}
+        </span>
       </div>
+      <Collapse open={confirming}>
+        <div className="mx-3 mb-2.5 rounded-md bg-teton-red/20 px-2.5 py-2 text-xs" role="alertdialog" aria-label={`Delete ${name}?`}>
+          <p>
+            Delete <b>{name}</b>{v.changeNote ? ` (v${v.versionNo})` : ''} for good? Its inputs, results and proposal are removed and can’t be recovered.
+          </p>
+          <div className="flex gap-2 mt-1.5">
+            <button type="button" className="py-1 px-2.5 rounded-md bg-[#C2412D] text-white font-medium disabled:opacity-50" disabled={busy} onClick={() => { setConfirming(false); onDelete(); }}>
+              Delete version
+            </button>
+            <button type="button" className="py-1 px-2.5 rounded-md hover:bg-white/60" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Collapse>
     </li>
   );
 }
@@ -156,7 +177,7 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive }: { v: VersionSum
  * Version History: every saved version, the active one first. Collapsed to its
  * header (with the count and the active version) until opened.
  */
-export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void }) {
+export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void }) {
   const [open, setOpen] = useState(false);
   const active = versions.find((v) => v.id === activeId) ?? null;
   const ordered = active ? [active, ...versions.filter((v) => v !== active)] : versions;
@@ -177,7 +198,7 @@ export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMak
           ) : (
             <ul className="space-y-2">
               {ordered.map((v) => (
-                <VersionCard key={v.id} v={v} quoteId={quoteId} active={v.id === activeId} busy={busy} onMakeActive={() => onMakeActive?.(v)} />
+                <VersionCard key={v.id} v={v} quoteId={quoteId} active={v.id === activeId} busy={busy} onMakeActive={() => onMakeActive?.(v)} onDelete={() => onDelete?.(v)} />
               ))}
             </ul>
           )}

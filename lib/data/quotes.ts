@@ -318,6 +318,34 @@ export async function activateVersion(db: Client, quoteId: number, versionId: nu
   }
 }
 
+/**
+ * Delete a saved version outright, with everything stored for it (its lines,
+ * communities, approvals, proposal wording and exports). Versions saved from
+ * it keep working; if it was the active one, the latest remaining version
+ * becomes active.
+ */
+export async function deleteVersion(db: Client, quoteId: number, versionId: number): Promise<void> {
+  const v = await db.execute({ sql: "SELECT id FROM quote_versions WHERE id = ? AND quote_id = ? AND status <> 'draft'", args: [versionId, quoteId] });
+  if (!v.rows.length) throw Object.assign(new Error('Version not found'), { status: 404 });
+  const tx = await db.transaction('write');
+  try {
+    for (const t of ['quote_version_lines', 'communities', 'approval_events', 'proposal_text', 'proposal_exports']) {
+      await tx.execute({ sql: `DELETE FROM ${t} WHERE quote_version_id = ?`, args: [versionId] });
+    }
+    await tx.execute({ sql: 'UPDATE quote_versions SET parent_version_id = NULL WHERE parent_version_id = ?', args: [versionId] });
+    await tx.execute({
+      sql: `UPDATE quotes SET active_version_id = (SELECT id FROM quote_versions WHERE quote_id = ? AND status <> 'draft' AND id <> ? ORDER BY version_no DESC LIMIT 1)
+            WHERE id = ? AND active_version_id = ?`,
+      args: [quoteId, versionId, quoteId, versionId],
+    });
+    await tx.execute({ sql: 'DELETE FROM quote_versions WHERE id = ?', args: [versionId] });
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback();
+    throw e;
+  }
+}
+
 /** A frozen version's stored inputs and outputs — exactly what was saved. */
 export async function getVersion(db: Client, versionId: number) {
   const rs = await db.execute({
