@@ -671,3 +671,9 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-inv td.bc-m { white-space: normal; width: 46%; }
 .bc-inv td.bc-big { font-size: 16px; }
 .bc-inv tr.bc-tot td.bc-big { font-weight: 700; }
+/* Rooms by type: Edge units (one per room), shaded lavender beside the green sensor total. */
+.bc-tbl .bc-hl2 { background: #F3F0FD; }
+.bc-site-tbl th { letter-spacing: 0.9px; white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+.bc-site-tbl td { padding-left: 10px; padding-right: 10px; }
+.bc-site-tbl th:first-child, .bc-site-tbl td:first-child { padding-left: 16px; }
+.bc-site-tbl td:nth-child(2) small { white-space: nowrap; }

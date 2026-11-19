@@ -542,6 +542,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <th className="bc-r">Rooms</th>
                     <th className="bc-r">Sensors per room</th>
                     <th className="bc-hl bc-r">Sensors</th>
+                    <th className="bc-hl2 bc-r">Edge units</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -549,7 +550,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <Fragment key={c.id}>
                       {multi && (
                         <tr className="bc-site-group">
-                          <td colSpan={5}>{d.perCommunity[i]?.name || c.name}</td>
+                          <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
                         </tr>
                       )}
                       {types.map((t) => (
@@ -559,6 +560,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                           <td className="bc-r">{count(t.rooms)}</td>
                           <td className="bc-r"><span className="bc-dots" aria-hidden="true">{'●'.repeat(Math.min(t.sensors, 6))}</span> {t.sensors}</td>
                           <td className="bc-hl bc-big bc-r">{count(t.rooms * t.sensors)}</td>
+                          <td className="bc-hl2 bc-big bc-r">{count(t.rooms)}</td>
                         </tr>
                       ))}
                       {st.allowance > 0 && (
@@ -568,6 +570,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                           <td className="bc-r">–</td>
                           <td className="bc-r">–</td>
                           <td className="bc-hl bc-big bc-r">{count(st.allowance)}</td>
+                          <td className="bc-hl2 bc-r">–</td>
                         </tr>
                       )}
                     </Fragment>
@@ -578,6 +581,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <td className="bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
                     <td />
                     <td className="bc-hl bc-big bc-r">{count(sum(perSite.map((x) => x.s.totalSensors)))}</td>
+                    <td className="bc-hl2 bc-big bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
                   </tr>
                 </tbody>
               </table>
