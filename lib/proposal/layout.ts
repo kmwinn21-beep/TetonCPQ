@@ -66,6 +66,8 @@ export interface ProposalLayout {
   bcInvCards?: 'units';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
+  /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
+  bcSiteRows?: 'full';
   /** Table rows the rep removed (row key → its name, to list it for adding back). Both formats. */
   hiddenRows?: Record<string, string>;
   /** Table columns the rep removed (table.column key → its name). Both formats. */
@@ -178,6 +180,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcCompareChart: raw.bcCompareChart === 'line' ? 'line' : undefined,
     bcInvCards: raw.bcInvCards === 'units' ? 'units' : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
+    bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

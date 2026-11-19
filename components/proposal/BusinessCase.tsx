@@ -491,6 +491,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       .filter(([, n]) => n > 0)
       .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
     const multi = all.length > 1;
+    // The scope figure cards removed from the scope page (frees room for full-height table rows).
+    const siteCardsHidden = !!layout.bcHiddenBlocks?.sitescope?.cards;
     defs.sitescope = (no) => (
       <Page key="sitescope" no={no} crumb={<T k="bc.site.crumb" d="Scope" />}>
         <p className="bc-eyebrow"><T k="bc.site.eyebrow" d="Scope" /></p>
@@ -519,8 +521,19 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           </B>
           <B id="types" label="Rooms by type">
+            <div className="relative group/view">
+            {/* With the scope cards removed there's room for full-height rows: a hover switch picks them. */}
+            {editable && siteCardsHidden && (
+              <ViewSwitch
+                position="absolute right-0 -top-1"
+                label="Table rows"
+                options={[['compact', 'Compact rows'], ['full', 'Full rows']] as const}
+                value={layout.bcSiteRows ?? 'compact'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcSiteRows: v === 'full' ? 'full' : undefined }))}
+              />
+            )}
             <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
-            <div className="bc-card bc-tbl bc-pilot-tbl bc-site-tbl">
+            <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
               <RTable>
                 <thead>
                   <tr>
@@ -572,6 +585,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   </tr>
                 </RTbody>
               </RTable>
+            </div>
             </div>
           </B>
           <B id="hardware" label="What gets installed">
