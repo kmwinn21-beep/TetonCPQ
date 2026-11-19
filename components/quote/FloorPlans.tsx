@@ -7,6 +7,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ScopeViewer } from './ScopeViewer';
+import type { UnreadItem } from '@/lib/data/planNotes';
 
 export interface FloorPlanItem {
   id: number;
@@ -32,11 +33,21 @@ interface Ctx {
   dismiss: (key: string) => void;
   /** Open a community's floor plans (optionally a plan, in Scope Mode, or with a room type picked out). */
   openViewer: (communityId: string, opts?: ViewerOpts) => void;
+  /** Notes and comments on this deal's plans the user hasn't read. */
+  unread: UnreadItem[];
+  refreshUnread: () => void;
+  markRead: (items: Array<{ kind: 'note' | 'comment'; id: number }> | 'all') => Promise<void>;
+  /** A short message at the bottom of the screen. */
+  toast: (message: string) => void;
 }
 export interface ViewerOpts {
   planId?: number;
   scope?: boolean;
   typeId?: string;
+  /** Open the Notes drawer at this note (null: the general comments), and this comment in it. */
+  noteId?: number | null;
+  commentId?: number;
+  notes?: boolean;
 }
 
 const CHUNK = 3 * 1024 * 1024;
@@ -104,11 +115,51 @@ export function FloorPlansProvider({ quoteId, children }: { quoteId: number; chi
   );
   const dismiss = (key: string) => setUploading((u) => u.filter((x) => x.key !== key));
   const [viewer, setViewer] = useState<(ViewerOpts & { communityId: string; key: number }) | null>(null);
+
+  // Unread notes and comments: fetched on load, every 45 s, when the tab comes back, and after changes.
+  const [unread, setUnread] = useState<UnreadItem[]>([]);
+  const refreshUnread = useCallback(() => {
+    fetch(`/api/quotes/${quoteId}/plan-notes/unread`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b && setUnread(b.items ?? []))
+      .catch(() => {});
+  }, [quoteId]);
+  useEffect(() => {
+    refreshUnread();
+    const t = setInterval(refreshUnread, 45000);
+    const vis = () => document.visibilityState === 'visible' && refreshUnread();
+    document.addEventListener('visibilitychange', vis);
+    window.addEventListener('focus', vis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', vis);
+      window.removeEventListener('focus', vis);
+    };
+  }, [refreshUnread]);
+  const markRead = useCallback(
+    async (items: Array<{ kind: 'note' | 'comment'; id: number }> | 'all') => {
+      setUnread((u) => (items === 'all' ? [] : u.filter((x) => !items.some((i) => i.kind === x.kind && i.id === x.id))));
+      await fetch(`/api/quotes/${quoteId}/plan-notes/read`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(items === 'all' ? { all: true } : { items }) }).catch(() => {});
+    },
+    [quoteId],
+  );
+  const [toastMsg, setToastMsg] = useState<{ text: string; key: number } | null>(null);
+  const toast = useCallback((text: string) => setToastMsg({ text, key: Date.now() }), []);
+  useEffect(() => {
+    if (!toastMsg) return;
+    const t = setTimeout(() => setToastMsg(null), 3200);
+    return () => clearTimeout(t);
+  }, [toastMsg]);
   const openViewer = useCallback((communityId: string, opts: ViewerOpts = {}) => setViewer({ communityId, ...opts, key: Date.now() }), []);
   const viewerPlans = viewer ? plans.filter((p) => p.communityId === viewer.communityId) : [];
   return (
-    <FloorPlansCtx.Provider value={{ quoteId, plans, uploading, upload, remove, dismiss, openViewer }}>
+    <FloorPlansCtx.Provider value={{ quoteId, plans, uploading, upload, remove, dismiss, openViewer, unread, refreshUnread, markRead, toast }}>
       {children}
+      {toastMsg && (
+        <div key={toastMsg.key} role="status" aria-live="polite" className="fixed left-1/2 -translate-x-1/2 bottom-5 z-[80] rounded-xl bg-teton-near-black text-white text-sm px-4 py-2.5 shadow-xl drawer-in max-w-[calc(100vw-2rem)]">
+          {toastMsg.text}
+        </div>
+      )}
       {viewer && viewerPlans.length > 0 && (
         <ScopeViewer
           key={viewer.key}
@@ -118,6 +169,8 @@ export function FloorPlansProvider({ quoteId, children }: { quoteId: number; chi
           initialPlanId={viewer.planId}
           initialScope={viewer.scope}
           highlightType={viewer.typeId}
+          initialNotes={viewer.notes}
+          focusNote={viewer.noteId !== undefined ? { noteId: viewer.noteId, commentId: viewer.commentId } : undefined}
           onClose={() => setViewer(null)}
           onRemovePlan={async (id) => {
             await remove(id);

@@ -17,6 +17,9 @@ import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
 import { useRoomTypes } from './useRoomTypes';
 import type { FloorPlanItem } from './FloorPlans';
+import { useFloorPlans } from './FloorPlans';
+import { NoteEditor, NoteMarker, NoteOnPlan, NotesDrawer, nextNoteColor, usePlanNotes, type NoteDraft } from './PlanNotes';
+import type { PlanNote } from '@/lib/data/planNotes';
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
 const CARES = (Object.keys(CARE_LABEL) as CareType[]).filter((c) => c !== 'custom');
@@ -68,6 +71,8 @@ export function ScopeViewer({
   initialPlanId,
   initialScope = false,
   highlightType,
+  initialNotes = false,
+  focusNote,
   onClose,
   onRemovePlan,
 }: {
@@ -79,6 +84,10 @@ export function ScopeViewer({
   initialScope?: boolean;
   /** Open with this room type picked out (others faded). */
   highlightType?: string;
+  /** Open with the Notes drawer showing. */
+  initialNotes?: boolean;
+  /** Open the drawer at this note (null: general comments) and comment. */
+  focusNote?: { noteId: number | null; commentId?: number };
   onClose: () => void;
   onRemovePlan: (id: number) => Promise<void>;
 }) {
@@ -109,11 +118,68 @@ export function ScopeViewer({
   const size = Math.round(Math.min(24, 14 + zoom * 4));
   const url = plan ? `/api/quotes/${quoteId}/floorplans/${plan.id}` : '';
 
+  // ---- notes ----
+  const fp = useFloorPlans();
+  const notesApi = usePlanNotes(quoteId, plan?.id);
+  const [notesOpen, setNotesOpen] = useState(initialNotes || !!focusNote);
+  const [noteMode, setNoteMode] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [drawerFocus, setDrawerFocus] = useState<{ noteId: number | null; commentId?: number; key: number } | null>(null);
+  const [flash, setFlash] = useState<number | null>(null);
+  // Arriving from a notification: go to the note's page and open it in the drawer.
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focusNote || focused.current) return;
+    if (focusNote.noteId == null) {
+      focused.current = true;
+      setDrawerFocus({ noteId: null, commentId: focusNote.commentId, key: Date.now() });
+      return;
+    }
+    const n = notesApi.notes.find((x) => x.id === focusNote.noteId);
+    if (!n) return;
+    focused.current = true;
+    if (n.onPlan) setPage(n.page);
+    setDrawerFocus({ noteId: n.id, commentId: focusNote.commentId, key: Date.now() });
+  }, [focusNote, notesApi.notes]);
+  const notesHere = notesApi.notes.filter((n) => n.onPlan && n.page === page && n.id !== noteDraft?.id);
+  const startNote = (x: number, y: number) => {
+    const w = 0.26;
+    const h = 0.09;
+    setNoteDraft({ page, x, y, box: { x: Math.min(1 - w, Math.max(0, x + 0.025)), y: Math.min(1 - h, Math.max(0, y - 0.02)), w, h }, body: '', roomTypeId: null, color: nextNoteColor(notesApi.notes), onPlan: true });
+    setNoteMode(false);
+  };
+  const editNote = (n: PlanNote) => {
+    setPage(n.page);
+    setNoteDraft({ id: n.id, page: n.page, x: n.x, y: n.y, box: n.box, body: n.body, roomTypeId: n.roomTypeId, color: n.color, onPlan: n.onPlan });
+    setNotesOpen(false);
+  };
+  const openNote = (n: PlanNote) => {
+    setNotesOpen(true);
+    setDrawerFocus({ noteId: n.id, key: Date.now() });
+  };
+  const saveNote = async () => {
+    if (!noteDraft) return;
+    setNoteSaving(true);
+    try {
+      if (noteDraft.id) await notesApi.update(noteDraft.id, noteDraft);
+      else await notesApi.create(noteDraft);
+      setNoteDraft(null);
+    } catch {
+      /* the error shows in the drawer */
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (confirmRemove) setConfirmRemove(false);
-      else if (pop || editType || saving || menu) {
+      else if (noteDraft || noteMode) {
+        setNoteDraft(null);
+        setNoteMode(false);
+      } else if (pop || editType || saving || menu) {
         setPop(null);
         setEditType(null);
         setSaving(false);
@@ -122,11 +188,12 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode]);
   useEffect(() => {
     setPage(1);
     setConfirmRemove(false);
     setPop(null);
+    setNoteDraft(null);
   }, [planId]);
 
   // Badges on this page.
@@ -209,6 +276,7 @@ export function ScopeViewer({
         planName: plan.name,
         communityName: community?.name || 'Community',
         types: current(),
+        notes: notesApi.notes,
         allowancePct: normalizeAllowance(getValues(`communities.${index}.sensorAllowancePct`)),
       });
       const a = document.createElement('a');
@@ -249,13 +317,27 @@ export function ScopeViewer({
             {community?.name || 'Community'} <span className="font-normal text-teton-ui-gray">· {plan.name} · {kb(plan.size)}</span>
           </p>
           <Toggle on={layer} onChange={setLayer} label="Room types" />
-          <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) setSaving(false); }} label="Scope Mode" accent />
+          <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); } }} label="Scope Mode" accent />
+          {scope && (
+            <button
+              type="button"
+              aria-pressed={noteMode}
+              className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors duration-200 drawer-in ${noteMode ? 'bg-[#E0A21B] border-[#E0A21B] text-white' : 'bg-[#FFF6DD] border-[#E9C46A] text-[#8A5A00] hover:bg-[#FFEFC2]'}`}
+              onClick={() => { setNoteMode((m) => !m); setNoteDraft(null); setPending([]); setSaving(false); setPop(null); }}
+            >
+              + Note
+            </button>
+          )}
+          <button type="button" className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors duration-200 ${notesOpen ? 'bg-teton-near-black border-teton-near-black text-white' : 'border-teton-pale-gray bg-white hover:bg-teton-almost-white'}`} aria-pressed={notesOpen} onClick={() => setNotesOpen((o) => !o)}>
+            Notes
+            <span className="inline-flex min-w-[16px] h-4 px-1 items-center justify-center rounded-full bg-[#3F8CEA] text-white text-[9.5px] font-bold leading-none">{notesApi.notes.length}</span>
+          </button>
           <div className="relative">
             <button type="button" className="btn-secondary py-1 text-xs" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               Download ▾
             </button>
             {menu && (
-              <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-64 rounded-lg border border-teton-off-white bg-white p-1 shadow-lg text-xs drawer-in">
+              <div role="menu" className="absolute right-0 top-full mt-1 z-[45] w-64 rounded-lg border border-teton-off-white bg-white p-1 shadow-lg text-xs drawer-in">
                 <a role="menuitem" className="block rounded-md px-2.5 py-2 hover:bg-teton-almost-white" href={`${url}?download=1`} onClick={() => setMenu(false)}>
                   Download plan<span className="block text-[11px] text-teton-ui-gray">The original file</span>
                 </a>
@@ -328,7 +410,10 @@ export function ScopeViewer({
           setZoom={setZoom}
           onPages={setPages}
           scope={scope}
+          modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
           onTap={(x, y) => {
+            if (noteDraft) return;
+            if (noteMode) return startNote(x, y);
             if (pop || editType || menu) {
               setPop(null);
               setEditType(null);
@@ -338,6 +423,37 @@ export function ScopeViewer({
             if (scope && !saving) setPending((p) => [...p, { id: uid('pd'), plan: plan.id, page, x, y }]);
           }}
         >
+          {notesHere.map((n) => (
+            <NoteMarker key={`m${n.id}`} color={n.color} n={n.number} x={n.x} y={n.y} size={size} onClick={() => openNote(n)} />
+          ))}
+          {notesHere.map((n) => (
+            <NoteOnPlan
+              key={`n${n.id}`}
+              note={n}
+              types={types}
+              size={size}
+              highlight={flash === n.id}
+              onOpen={() => (n.mine ? editNote(n) : openNote(n))}
+              onMove={(box) => void notesApi.update(n.id, { box })}
+            />
+          ))}
+          {noteDraft && noteDraft.page === page && (
+            <>
+              <NoteMarker color={noteDraft.color} n={noteDraft.id ? notesApi.notes.find((x) => x.id === noteDraft.id)?.number ?? '' : (notesApi.notes.reduce((m, x) => Math.max(m, x.number), 0) + 1)} x={noteDraft.x} y={noteDraft.y} size={size} />
+              <NoteEditor
+                draft={noteDraft}
+                number={noteDraft.id ? notesApi.notes.find((x) => x.id === noteDraft.id)?.number ?? 0 : notesApi.notes.reduce((m, x) => Math.max(m, x.number), 0) + 1}
+                me={notesApi.me}
+                types={types}
+                size={size}
+                saving={noteSaving}
+                onChange={setNoteDraft}
+                onCancel={() => setNoteDraft(null)}
+                onSave={saveNote}
+                onDelete={noteDraft.id ? () => void notesApi.remove(noteDraft.id as number).then(() => setNoteDraft(null)) : undefined}
+              />
+            </>
+          )}
           {showSaved &&
             placed.map((m) => (
               <PlacedBadge
@@ -400,7 +516,21 @@ export function ScopeViewer({
           )}
         </PlanStage>
 
-        {scope && (
+        <NotesDrawer
+          api={notesApi}
+          types={types}
+          pages={pages}
+          open={notesOpen}
+          focus={drawerFocus}
+          onClose={() => setNotesOpen(false)}
+          onEdit={editNote}
+          onGoTo={(n) => {
+            setPage(n.page);
+            setFlash(n.id);
+            setTimeout(() => setFlash(null), 1800);
+          }}
+        />
+        {scope && !noteMode && !noteDraft && (
           <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 max-w-[calc(100%-1.5rem)]">
             {saving ? (
               <TypeForm
@@ -468,6 +598,7 @@ function PlanStage({
   setZoom,
   onPages,
   scope,
+  modeLabel,
   onTap,
   children,
 }: {
@@ -479,6 +610,8 @@ function PlanStage({
   setZoom: (z: number | ((z: number) => number)) => void;
   onPages: (n: number) => void;
   scope: boolean;
+  /** Replaces the "Scope Mode · click to tag" label (e.g. while placing a note). */
+  modeLabel?: string;
   onTap: (x: number, y: number) => void;
   children: React.ReactNode;
 }) {
@@ -635,7 +768,7 @@ function PlanStage({
       {state !== 'ready' && (
         <p className="absolute inset-x-0 top-1/3 text-center text-sm text-teton-ui-gray pointer-events-none">{state === 'error' ? 'This file can’t be shown here. Download it to view it.' : 'Loading the floor plan…'}</p>
       )}
-      {scope && <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-[#3F8CEA] px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in">Scope Mode · click to tag</span>}
+      {scope && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
       <div data-plan-ui className="absolute right-3 top-3 flex flex-col rounded-lg border border-teton-off-white bg-white text-sm shadow-sm">
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white rounded-t-lg" aria-label="Zoom in" onClick={() => zoomAt(-2)}>+</button>
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white" aria-label="Zoom out" onClick={() => zoomAt(-1)}>−</button>

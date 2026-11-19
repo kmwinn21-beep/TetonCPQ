@@ -228,4 +228,51 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 9,
+    name: 'floor plan notes, comments and read marks',
+    sql: [
+      // A note tagged at a spot on a floor plan page, with a box placed on the page (positions are 0–1 of the page).
+      `CREATE TABLE plan_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_id INTEGER NOT NULL REFERENCES quotes(id),
+        floor_plan_id INTEGER NOT NULL REFERENCES floor_plans(id),
+        number INTEGER NOT NULL,
+        page INTEGER NOT NULL DEFAULT 1,
+        x REAL NOT NULL,
+        y REAL NOT NULL,
+        box_x REAL NOT NULL,
+        box_y REAL NOT NULL,
+        box_w REAL NOT NULL,
+        box_h REAL NOT NULL,
+        body TEXT NOT NULL,
+        room_type_id TEXT,
+        color TEXT NOT NULL,
+        on_plan INTEGER NOT NULL DEFAULT 1,
+        author_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_plan_notes_plan ON plan_notes(floor_plan_id)`,
+      // Comments on a note, or general comments on the plan (note_id null).
+      `CREATE TABLE plan_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_id INTEGER NOT NULL REFERENCES quotes(id),
+        floor_plan_id INTEGER NOT NULL REFERENCES floor_plans(id),
+        note_id INTEGER REFERENCES plan_notes(id),
+        body TEXT NOT NULL,
+        author_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_plan_comments_plan ON plan_comments(floor_plan_id, note_id)`,
+      // What each user has read (kind 'note' or 'comment').
+      `CREATE TABLE plan_reads (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        kind TEXT NOT NULL CHECK (kind IN ('note','comment')),
+        item_id INTEGER NOT NULL,
+        read_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, kind, item_id)
+      )`,
+    ],
+  },
 ];

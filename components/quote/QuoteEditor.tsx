@@ -24,6 +24,7 @@ import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
 import { FloorPlansProvider } from './FloorPlans';
 import { KpiPreview, VersionsPanel } from './ResultsRail';
+import { NotificationsPanel } from './NotificationsPanel';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
 import { Collapse, SectionGroup } from '@/components/form/fields';
@@ -466,6 +467,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
+              <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
               <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} onDelete={removeVersion} />
             </div>

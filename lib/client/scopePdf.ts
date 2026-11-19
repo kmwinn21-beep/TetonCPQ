@@ -7,6 +7,7 @@
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
 import { badgeOf, CARE_LABEL, roomScope, type RoomType } from '@/lib/quote/roomTypes';
+import type { PlanNote } from '@/lib/data/planNotes';
 
 interface Args {
   url: string;
@@ -16,6 +17,8 @@ interface Args {
   communityName: string;
   types: RoomType[];
   allowancePct: number;
+  /** The plan's notes: those shown on the plan print on their page; every note is listed on the summary page. */
+  notes?: PlanNote[];
 }
 
 const hex = (h: string) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
@@ -44,6 +47,73 @@ async function imageFor(doc: PDFDocument, bytes: ArrayBuffer, mime: string): Pro
   c.getContext('2d')!.drawImage(bmp, 0, 0);
   const png = await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('Could not read the image'))), 'image/png'));
   return doc.embedPng(await png.arrayBuffer());
+}
+
+/** Words wrapped into lines no wider than `max`. */
+function wrap(font: PDFFont, text: string, size: number, max: number): string[] {
+  const out: string[] = [];
+  for (const para of safe(font, text).split('\n')) {
+    let line = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= max || !line) line = next;
+      else {
+        out.push(line);
+        line = word;
+      }
+      // A single word wider than the line: cut it.
+      while (font.widthOfTextAtSize(line, size) > max && line.length > 1) {
+        let k = line.length - 1;
+        while (k > 1 && font.widthOfTextAtSize(line.slice(0, k), size) > max) k--;
+        out.push(line.slice(0, k));
+        line = line.slice(k);
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/** A note's numbered triangle, centred on (cx, cy). */
+function triangle(page: PDFPage, font: PDFFont, cx: number, cy: number, size: number, color: string, n: number) {
+  const h = size * 0.88;
+  page.drawSvgPath(`M ${size / 2} 0 L ${size} ${h} L 0 ${h} Z`, { x: cx - size / 2, y: cy + h * 0.6, color: hex(color), borderColor: rgb(1, 1, 1), borderWidth: Math.max(0.5, size * 0.07) });
+  const t = String(n);
+  const fs = size * (t.length > 1 ? 0.36 : 0.44);
+  page.drawText(t, { x: cx - font.widthOfTextAtSize(t, fs) / 2, y: cy - h * 0.28, size: fs, font, color: rgb(1, 1, 1) });
+}
+
+/** A note on the plan: its box, triangle left of the text, author initials, and the text (shortened to fit). */
+function drawNote(page: PDFPage, bold: PDFFont, reg: PDFFont, n: PlanNote, w: number, h: number, typeName: string | null) {
+  const bx = n.box.x * w;
+  const bw = Math.max(40, n.box.w * w);
+  const top = (1 - n.box.y) * h;
+  const bh = Math.max(22, n.box.h * h);
+  const fs = Math.max(5.5, Math.min(9, w / 95));
+  const pad = fs * 0.6;
+  const tri = fs * 1.5;
+  page.drawRectangle({ x: bx, y: top - bh, width: bw, height: bh, color: rgb(1, 1, 1), borderColor: hex(n.color), borderWidth: Math.max(0.8, fs * 0.13), opacity: 0.97 });
+  triangle(page, bold, bx + pad + tri / 2, top - pad - tri * 0.45, tri, n.color, n.number);
+  const tx = bx + pad + tri + pad * 0.8;
+  const tw = bx + bw - pad - tx;
+  // Author initials, top right.
+  const ini = safe(bold, n.author.initials);
+  const iw = bold.widthOfTextAtSize(ini, fs * 0.8) + fs * 0.8;
+  page.drawRectangle({ x: bx + bw - pad - iw, y: top - pad - fs * 1.05, width: iw, height: fs * 1.15, color: rgb(0.9, 0.93, 0.99) });
+  page.drawText(ini, { x: bx + bw - pad - iw + fs * 0.4, y: top - pad - fs * 0.78, size: fs * 0.8, font: bold, color: rgb(0.17, 0.36, 0.71) });
+  page.drawText(safe(bold, typeName ?? 'General note'), { x: tx, y: top - pad - fs * 0.8, size: fs * 0.78, font: bold, color: MUTED });
+  const lh = fs * 1.25;
+  const room = Math.max(1, Math.floor((bh - pad * 2 - fs * 1.2) / lh));
+  let lines = wrap(reg, n.body, fs, tw);
+  if (lines.length > room) {
+    // Shortened: the full note is on the summary page.
+    const tail = ` (note ${n.number})`;
+    lines = lines.slice(0, room);
+    let last = lines[room - 1];
+    while (last.length && reg.widthOfTextAtSize(`${last}…${tail}`, fs) > tw) last = last.slice(0, -1);
+    lines[room - 1] = `${last.trimEnd()}…${tail}`;
+  }
+  lines.forEach((l, k) => page.drawText(l, { x: tx, y: top - pad - fs * 1.2 - lh * (k + 0.85), size: fs, font: reg, color: INK }));
 }
 
 function badge(page: PDFPage, font: PDFFont, cx: number, cy: number, r: number, color: string, text: string) {
@@ -126,11 +196,18 @@ export async function scopePdf(a: Args): Promise<Blob> {
     p.drawRectangle({ x: 0, y: s.h, width: s.w, height: band, color: rgb(1, 1, 1) });
     p.drawLine({ start: { x: 0, y: s.h }, end: { x: s.w, y: s.h }, thickness: 0.6, color: LINE });
     for (const { b, marks } of here) for (const m of marks) badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
+    // Notes shown on the plan: the triangle on its spot, the box where it was placed.
+    const notesHere = (a.notes ?? []).filter((x) => x.onPlan && x.page === n);
+    for (const note of notesHere) {
+      triangle(p, bold, note.x * s.w, (1 - note.y) * s.h, r * 2.2, note.color, note.number);
+      drawNote(p, bold, reg, note, s.w, s.h, note.roomTypeId ? a.types.find((t) => t.id === note.roomTypeId)?.name || 'Room type' : null);
+    }
     let y = s.h + band - pad - fs * 0.4;
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
     const totS = used.reduce((t, u) => t + u.marks.length * Math.max(1, Number(u.t.sensors) || 1), 0);
-    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page`);
+    const nn = (a.notes ?? []).filter((x) => x.onPlan && x.page === n).length;
+    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
     y -= line;
     if (!items.length) p.drawText(safe(reg, 'No rooms tagged on this page.'), { x: pad, y, size: fs, font: reg, color: MUTED });
@@ -235,5 +312,49 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   if (mismatch) {
     y -= 13;
     text('* Entered by hand: differs from the number of rooms tagged.', M, 8.5, reg, MUTED);
+  }
+
+  // Notes: every note (on the plan or not) with its room type, author and page.
+  const notes = a.notes ?? [];
+  if (!notes.length) return;
+  y -= 34;
+  const NC = { tri: M, note: M + 24, type: 392, author: 476, page: W - M };
+  const noteW = NC.type - NC.note - 14;
+  const notesHead = () => {
+    text('NOTES', M, 9, bold, MUTED);
+    y -= 18;
+    text('#', NC.tri, 7.5, bold, MUTED);
+    text('NOTE', NC.note, 7.5, bold, MUTED);
+    text('ROOM TYPE', NC.type, 7.5, bold, MUTED);
+    text('AUTHOR', NC.author, 7.5, bold, MUTED);
+    text('PAGE', NC.page, 7.5, bold, MUTED, 'r');
+    y -= 8;
+    p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.8, color: INK });
+    y -= 16;
+  };
+  if (y < M + 120) {
+    p = out.addPage([W, H]);
+    y = H - M;
+  }
+  notesHead();
+  for (const n of notes) {
+    const lines = wrap(reg, n.body, 9.5, noteW);
+    const rowH = Math.max(1, lines.length) * 12.5;
+    if (y - rowH < M + 20) {
+      p = out.addPage([W, H]);
+      y = H - M;
+      notesHead();
+    }
+    triangle(p, bold, NC.tri + 7, y + 3, 12, n.color, n.number);
+    lines.forEach((l, k) => p.drawText(l, { x: NC.note, y: y - k * 12.5, size: 9.5, font: reg, color: INK }));
+    const tn = n.roomTypeId ? types.find(({ t }) => t.id === n.roomTypeId)?.t.name || 'Room type' : 'General';
+    text(tn, NC.type, 9, reg, n.roomTypeId ? INK : MUTED);
+    const ini = safe(bold, n.author.initials);
+    p.drawRectangle({ x: NC.author, y: y - 3, width: bold.widthOfTextAtSize(ini, 8) + 9, height: 12.5, color: rgb(0.9, 0.93, 0.99) });
+    text(n.author.initials, NC.author + 4.5, 8, bold, rgb(0.17, 0.36, 0.71));
+    text(n.onPlan ? String(n.page) : 'Not on plan', NC.page, 9, reg, n.onPlan ? INK : MUTED, 'r');
+    y -= rowH - 12.5 + 8;
+    p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
+    y -= 16;
   }
 }

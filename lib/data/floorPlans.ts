@@ -4,6 +4,7 @@
  * the hosting platform's request size limit.
  */
 import type { Client } from '@libsql/client';
+import { deletePlanNotesFor } from './planNotes';
 
 export const FLOOR_PLAN_CHUNK = 3 * 1024 * 1024;
 export const FLOOR_PLAN_MAX = 40 * 1024 * 1024;
@@ -87,6 +88,7 @@ export async function readFloorPlan(db: Client, quoteId: number, id: number): Pr
 
 export async function deleteFloorPlan(db: Client, quoteId: number, id: number): Promise<void> {
   await plan(db, quoteId, id);
+  await deletePlanNotesFor(db, id);
   await db.execute({ sql: 'DELETE FROM floor_plan_chunks WHERE floor_plan_id = ?', args: [id] });
   await db.execute({ sql: 'DELETE FROM floor_plans WHERE id = ?', args: [id] });
 }
