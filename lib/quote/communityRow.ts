@@ -69,7 +69,7 @@ export function communityChips(c: Partial<DraftCommunity> | undefined, deal: Dea
   if (s.unpriced > 0 && s.priced > 0) chips.push({ label: `${s.unpriced} not priced`, tone: 'gray' });
   if (c.occupancy != null) chips.push({ label: `Occ ${Number((c.occupancy * 100).toFixed(1))}%`, tone: 'yellow' });
   if (c.roiDelayMonths != null) chips.push({ label: `Delay ${c.roiDelayMonths} mo`, tone: 'yellow' });
-  if (s.monitored > 0 && Number(c.additionalSensors) > 0) chips.push({ label: `${c.additionalSensors} sensors`, tone: 'gray' });
+  if (s.monitored > 0 && Number(c.additionalSensors) > 0) chips.push({ label: `+${c.additionalSensors} sensors`, tone: 'gray' });
   return chips;
 }
 

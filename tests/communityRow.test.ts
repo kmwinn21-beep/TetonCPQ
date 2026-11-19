@@ -30,7 +30,7 @@ describe('community list rows', () => {
       'No E-Call',
       'Occ 85%',
       'Delay 2 mo',
-      '4 sensors',
+      '+4 sensors',
     ]);
     expect(communityChips(c({ pilot: true, pilotUnits: 12 }), deal)[0]).toEqual({ label: 'Pilot · 12 beds', tone: 'green', pilot: true });
   });

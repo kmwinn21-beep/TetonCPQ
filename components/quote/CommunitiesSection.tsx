@@ -442,15 +442,16 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                           {count(bedsOf(r))} beds{mix ? ` (${mix})` : ''} · {goLiveText(i)}
                           {ecallOn && hasEcall(r) ? ' · E-Call' : ''}
                         </span>
-                      </span>
-                      {r?.id && <span className="flex-shrink-0"><FloorPlanPill communityId={r.id} /></span>}
-                      <span className="hidden sm:flex flex-wrap justify-end gap-1 max-w-[45%]">
-                        {chips.map((c) => (
-                          <span key={c.label} className={`${CHIP_CLASS[c.tone]} whitespace-nowrap`}>
-                            {c.pilot && <PilotFlag />}
-                            {c.label}
-                          </span>
-                        ))}
+                        {/* Third row: every pill, the floor plan one last. */}
+                        <span className="flex flex-wrap items-center gap-1 mt-1.5">
+                          {chips.map((c) => (
+                            <span key={c.label} className={`${CHIP_CLASS[c.tone]} whitespace-nowrap`}>
+                              {c.pilot && <PilotFlag />}
+                              {c.label}
+                            </span>
+                          ))}
+                          {r?.id && <FloorPlanPill communityId={r.id} />}
+                        </span>
                       </span>
                       <span className="text-teton-light-gray" aria-hidden="true">›</span>
                     </button>
