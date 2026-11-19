@@ -29,6 +29,7 @@ import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
+import { BC_GAP_STEP, MAX_BC_GAP } from '@/lib/proposal/layout';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { resolveTerms } from '@/lib/quote/terms';
@@ -140,12 +141,30 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
   const remove = (id: string, label: string) =>
     setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), [page]: { ...(l.bcHiddenBlocks?.[page] ?? {}), [id]: label } } }));
   const btn = 'w-6 h-6 flex items-center justify-center rounded-md text-[12px] hover:bg-white/15 disabled:opacity-30';
+  const gaps = layout.bcGaps?.[page] ?? {};
+  const setGap = (id: string, px: number) =>
+    setLayout((l) => {
+      const all = { ...(l.bcGaps ?? {}) };
+      const mine = { ...(all[page] ?? {}) };
+      if (px > 0) mine[id] = Math.min(MAX_BC_GAP, px);
+      else delete mine[id];
+      if (Object.keys(mine).length) all[page] = mine;
+      else delete all[page];
+      return { ...l, bcGaps: Object.keys(all).length ? all : undefined };
+    });
   return (
     <>
       {order.map((id, i) => {
         const c = byId.get(id)!;
+        const gap = gaps[id] ?? 0;
         return (
-          <div key={id} className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''}`} data-bc-block={id}>
+          <div
+            key={id}
+            className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''} transition-[padding] duration-200 motion-reduce:transition-none`}
+            data-bc-block={id}
+            style={gap ? { paddingTop: gap } : undefined}
+          >
+            {editable && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
             {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
                 {c.props.onAdd && (
@@ -174,6 +193,50 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
         );
       })}
     </>
+  );
+}
+
+/**
+ * Hover the space above a section for − / + to change it. The standard spacing is the minimum (extra 0);
+ * + stops when the page has no room left above its footer.
+ */
+function GapControl({ gap, label, onChange }: { gap: number; label: string; onChange: (px: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [room, setRoom] = useState(true);
+  // Free space at the bottom of the page: footer top less the lowest content (scaled pages compared in page px).
+  const measure = () => {
+    const page = ref.current?.closest<HTMLElement>('.bc-page');
+    const foot = page?.querySelector<HTMLElement>('.bc-foot');
+    if (!page || !foot) return setRoom(true);
+    const scale = page.getBoundingClientRect().width / (page.offsetWidth || 1) || 1;
+    let bottom = 0;
+    page.querySelectorAll<HTMLElement>('.bc-block, .bc-lede, .bc-h1').forEach((el) => (bottom = Math.max(bottom, el.getBoundingClientRect().bottom)));
+    const free = (foot.getBoundingClientRect().top - bottom) / scale;
+    setRoom(free >= BC_GAP_STEP + 12 && gap < MAX_BC_GAP);
+  };
+  const btn = 'w-6 h-6 flex items-center justify-center rounded-full text-[14px] leading-none hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent';
+  return (
+    <div ref={ref} data-edit-ui className="no-print bc-gap group/gap" style={{ top: -12, height: gap + 12 }} onPointerEnter={measure}>
+      <div className="bc-gap-pill opacity-0 group-hover/gap:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+        <button type="button" className={btn} disabled={gap <= 0} onClick={() => onChange(Math.max(0, gap - BC_GAP_STEP))} aria-label={`Less space above ${label}`} title={gap <= 0 ? 'Standard spacing (the minimum)' : 'Less space'}>
+          −
+        </button>
+        <span className="px-1 tabular-nums">{gap ? `+${gap}px` : 'Space'}</span>
+        <button
+          type="button"
+          className={btn}
+          disabled={!room}
+          onClick={() => {
+            onChange(gap + BC_GAP_STEP);
+            requestAnimationFrame(() => setTimeout(measure, 220));
+          }}
+          aria-label={`More space above ${label}`}
+          title={room ? 'More space' : 'No room left on this page'}
+        >
+          +
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -4,6 +4,11 @@
  * next to the wording edits; the numbers themselves never change.
  */
 
+/** Most extra space above a business-case section, in px. */
+export const MAX_BC_GAP = 240;
+/** Each + / − step of that space, in px. */
+export const BC_GAP_STEP = 8;
+
 /** Standard sections, in their default order. The header and intro always stay on top. */
 export const STANDARD_SECTIONS = ['scope', 'terms', 'implementation', 'resources', 'summary', 'roi', 'assumptions'] as const;
 
@@ -46,6 +51,8 @@ export interface ProposalLayout {
   bcBlocks?: Record<string, string[]>;
   /** Business-case format: sections removed from each page (page → section id → its name, to list it for adding back). */
   bcHiddenBlocks?: Record<string, Record<string, string>>;
+  /** Business-case format: extra space above sections, in px (page → section id → px). The standard spacing is the minimum. */
+  bcGaps?: Record<string, Record<string, number>>;
   /** Business-case format: the cash flow chart's style (standard bars by default). */
   bcChart?: 'bar' | 'stacked';
   /** Business-case format: the implementation stages as cards (default) or a Gantt chart with a description list. */
@@ -199,6 +206,21 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return out;
     })(),
+    bcGaps: (() => {
+      const v = raw.bcGaps;
+      if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;
+      const out: Record<string, Record<string, number>> = {};
+      for (const [page, m] of Object.entries(v as Record<string, unknown>).slice(0, 40)) {
+        if (!ID.test(page) || !m || typeof m !== 'object' || Array.isArray(m)) continue;
+        const inner: Record<string, number> = {};
+        for (const [id, px] of Object.entries(m as Record<string, unknown>).slice(0, 20)) {
+          const n = Math.round(Number(px));
+          if (ID.test(id) && Number.isFinite(n) && n > 0) inner[id] = Math.min(MAX_BC_GAP, n);
+        }
+        if (Object.keys(inner).length) out[page] = inner;
+      }
+      return Object.keys(out).length ? out : undefined;
+    })(),
     hiddenRows: (() => {
       const v = raw.hiddenRows;
       if (v == null) return undefined;
@@ -245,5 +267,5 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + Object.keys(l.colOrder ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.values(l.bcGaps ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + Object.keys(l.colOrder ?? {}).length;
 }

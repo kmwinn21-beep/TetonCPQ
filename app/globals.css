@@ -321,6 +321,13 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-block { position: relative; }
 .bc-block-controls { position: absolute; left: -44px; top: 0; z-index: 4; display: flex; flex-direction: column; gap: 2px; background: rgba(15,23,32,.88); color: #fff; border-radius: 8px; padding: 2px; }
 .bc-block:has(> .bc-block-controls):hover { outline: 1px dashed rgba(63,140,234,.45); outline-offset: 6px; border-radius: 4px; }
+/* Space above a section: a hover band over the gap, with − / + to change it. */
+.bc-gap { position: absolute; left: 0; right: 0; z-index: 5; display: flex; align-items: center; justify-content: center; }
+.bc-gap::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed rgba(63,140,234,.55); opacity: 0; transition: opacity .15s; }
+.bc-gap:hover::before, .bc-gap:focus-within::before { opacity: 1; }
+.bc-gap:hover { background: rgba(63,140,234,.06); }
+.bc-gap-pill { position: relative; display: flex; align-items: center; gap: 2px; background: rgba(15,23,32,.88); color: #fff; border-radius: 99px; padding: 2px 4px; font-size: 10.5px; }
+@media (prefers-reduced-motion: reduce) { .bc-gap::before { transition: none; } }
 @media print { .bc-block:hover { outline: none !important; } }
 /* Page controls (screen only): move / remove on hover, "+ Add page" in the gaps. */
 .bc-slot { position: relative; padding: 12px 0; }
