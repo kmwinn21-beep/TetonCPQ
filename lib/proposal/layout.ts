@@ -66,6 +66,10 @@ export interface ProposalLayout {
   bcInvCards?: 'units';
   /** Table rows the rep removed (row key → its name, to list it for adding back). Both formats. */
   hiddenRows?: Record<string, string>;
+  /** Table columns the rep removed (table.column key → its name). Both formats. */
+  hiddenCols?: Record<string, string>;
+  /** Totals columns' width (px; pages are a fixed width) as it was before columns were removed, so they keep it. */
+  colWidths?: Record<string, number>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -198,11 +202,29 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return Object.keys(out).length ? out : undefined;
     })(),
+    colWidths: (() => {
+      const v = raw.colWidths;
+      if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;
+      const out: Record<string, number> = {};
+      for (const [id, w] of Object.entries(v as Record<string, unknown>).slice(0, 100)) if (ID.test(id) && typeof w === 'number' && w > 0 && w < 1000) out[id] = Math.round(w);
+      return Object.keys(out).length ? out : undefined;
+    })(),
+    hiddenCols: (() => {
+      const v = raw.hiddenCols;
+      if (v == null) return undefined;
+      if (typeof v !== 'object' || Array.isArray(v)) throw new Error('Bad removed columns');
+      const out: Record<string, string> = {};
+      for (const [id, label] of Object.entries(v as Record<string, unknown>).slice(0, 100)) {
+        if (!ID.test(id) || typeof label !== 'string') throw new Error('Bad removed column');
+        out[id] = label.slice(0, 80);
+      }
+      return Object.keys(out).length ? out : undefined;
+    })(),
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length;
 }

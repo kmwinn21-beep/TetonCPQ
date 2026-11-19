@@ -19,7 +19,7 @@ import { count, dateLabel, monthName, usd } from '@/lib/format';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { T } from './EditableText';
 import { renderText } from '@/lib/proposal/text';
-import { ProposalSections, RTbody, V } from './ProposalSections';
+import { ProposalSections, RTable, RTbody, V } from './ProposalSections';
 import { ImplementationGantt } from '@/components/implementation/ImplementationGantt';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { AddStageCard, RemoveStageButton, StageName } from './StageControls';
@@ -174,7 +174,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
         ))}
       </p>
 
-      <table className="m-table w-full">
+      <RTable className="m-table w-full">
         <thead className="text-[11px] text-teton-dark-gray text-left">
           <tr className="border-b border-teton-pale-gray">
             <th className="font-medium py-1.5"><T k="table.community" d="Community" /></th>
@@ -230,7 +230,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
             {showOpex && <td className="py-2 pl-2 text-right" data-label="One-time">{usd(oneTime)}</td>}
           </tr>
         </RTbody>
-      </table>
+      </RTable>
       {anyPilot && (
         <p className="text-[11px] text-teton-dark-gray mt-2 flex items-center gap-1.5">
           <PilotIcon />
@@ -251,7 +251,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
               d="You buy the hardware: title passes to you at install and the embedded license is perpetual. No separate installation charge and no license fee."
             />
           </p>
-          <table className="w-full mt-3 tabular-nums">
+          <RTable className="w-full mt-3 tabular-nums">
             <RTbody id="sdcapex" name="Equipment purchase" outside>
               {basePackageRows(capex).map((r) => (
                 <tr key={r.key} className="border-b border-teton-off-white">
@@ -304,7 +304,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 <td className="py-1.5 text-right"><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V></td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
           {conversionCreditOf(capex) > 0 && (
             <p className="text-[11px] text-teton-dark-gray mt-1">
               <T k="capex.conversionNote" d="*A {credit} conversion credit has been applied to the per bed Base Package and per additional sensor." v={{ credit: usd(conversionCreditOf(capex)) }} />
@@ -324,7 +324,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           <p className="text-[12px] text-teton-dark-gray mt-1">
             <T k="finish.note" d="Standard installation (cables in a slim white raceway) is included. For a concealed finish, cables run behind the wall and/or above the ceiling with no raceway showing. Priced per room, pending the site survey; not included in the figures above. Painting is not included." />
           </p>
-          <table className="w-full mt-3 tabular-nums">
+          <RTable className="w-full mt-3 tabular-nums">
             <RTbody id="sdfinish" name="Concealed installation" outside>
               <tr className="border-b border-teton-off-white">
                 <td className="py-1"><T k="finish.price" d="Concealed installation, per room" /></td>
@@ -339,7 +339,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 <td className="py-1.5 text-right"><V k="finish.total.value" label="Concealed installation total">{rangeText(finish.totalLow, finish.totalHigh, usd)}</V></td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
         </div>
       )}
 
@@ -354,7 +354,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
           <p className="text-[12px] text-teton-dark-gray mb-2">
             <T k="roi.benefitsNote" d="Annual benefit once every community is live ({case} case)" v={{ case: caseName }} />
           </p>
-          <table className="w-full tabular-nums">
+          <RTable className="w-full tabular-nums">
             <RTbody id="sdroi" name="Annual benefit" outside>
               {benefits.map(([key, l, v]) => (
                 <tr key={key} className="border-b border-teton-off-white">
@@ -367,7 +367,7 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 <td className="py-1.5 text-right"><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
         </div>
         <div>
           <p className="text-[12px] text-teton-dark-gray mb-2">

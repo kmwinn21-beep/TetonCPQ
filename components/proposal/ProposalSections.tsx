@@ -102,6 +102,174 @@ export function V({ k, label, children, block = false }: { k: string; label: str
   );
 }
 
+/** Table rows, flattened out of fragments and arrays. */
+function flatRows(nodes: React.ReactNode): React.ReactNode[] {
+  return Children.toArray(nodes).flatMap((el) => (isValidElement(el) && el.type === Fragment ? flatRows((el.props as { children?: React.ReactNode }).children) : [el]));
+}
+type Cell = React.ReactElement<{ colSpan?: number; className?: string; children?: React.ReactNode }>;
+const cellsOf = (tr: React.ReactElement) => flatRows((tr.props as { children?: React.ReactNode }).children);
+const isCell = (c: React.ReactNode): c is Cell => isValidElement(c) && (c.type === 'td' || c.type === 'th');
+/** A stable name for a column from its heading: the heading's text key, or its words. */
+function headingKey(node: React.ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(headingKey).join(' ');
+  if (!isValidElement(node)) return '';
+  const props = node.props as { k?: string; children?: React.ReactNode };
+  if (typeof props.k === 'string') return props.k;
+  return headingKey(props.children);
+}
+const slug = (k: string) => k.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^[-_.]+|[-_.]+$/g, '').slice(0, 40);
+
+const hash = (t: string) => {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
+const isText = (n: React.ReactNode): n is string | number => typeof n === 'string' || typeof n === 'number';
+/**
+ * Plain text in a table cell becomes editable wording (figures and other
+ * components are left as they are). Text split across expressions in one
+ * element ("82", " ", "sensors") is one piece. `path` names the cell.
+ */
+function editableCell(node: React.ReactNode, path: string): React.ReactNode {
+  const parts = Children.toArray(node);
+  if (parts.length && parts.every(isText)) {
+    const text = parts.join('');
+    return text.trim() ? <T k={`tbl.${hash(path)}`} d={text} /> : node;
+  }
+  let n = 0;
+  return parts.map((c) => {
+    const here = `${path}.${n++}`;
+    if (isText(c)) return String(c).trim() ? <T key={here} k={`tbl.${hash(here)}`} d={String(c)} /> : c;
+    if (isValidElement(c) && typeof c.type === 'string' && !(c.props as Record<string, unknown>)['aria-hidden'] && (c.props as { children?: React.ReactNode }).children != null) {
+      return cloneElement(c as React.ReactElement<{ children?: React.ReactNode }>, { children: editableCell((c.props as { children?: React.ReactNode }).children, here) });
+    }
+    return c;
+  });
+}
+
+/**
+ * A table whose columns the rep may remove from its column headings (all but
+ * the first). Every row keeps its place: a removed column's cells are dropped
+ * and cells spanning it get narrower, so a row with nothing in that column
+ * (a subtotal, a group heading) stays as it is. Removed columns are listed to
+ * add back. The id comes from the table's RTbody.
+ */
+export function RTable({ className, children }: { className?: string; children: React.ReactNode }) {
+  const { editable, layout, setLayout } = useProposalText();
+  const parts = Children.toArray(children);
+  const body = parts.find((c) => isValidElement(c) && c.type === RTbody) as React.ReactElement<{ id: string; name: string }> | undefined;
+  const id = body?.props.id;
+  const name = body?.props.name ?? 'table';
+  const rowsIn = (part: React.ReactNode) => (isValidElement(part) ? flatRows((part.props as { children?: React.ReactNode }).children).filter((r): r is React.ReactElement => isValidElement(r) && r.type === 'tr') : []);
+  // The heading row: the first row made only of th cells.
+  const head = parts.flatMap(rowsIn).find((r) => {
+    const cs = cellsOf(r).filter(isCell);
+    return cs.length > 1 && cs.every((c) => c.type === 'th');
+  });
+  if (!id) return <table className={className}>{children}</table>;
+  const columns: Array<{ key: string; start: number; span: number }> = [];
+  let at = 0;
+  for (const c of head ? cellsOf(head).filter(isCell) : []) {
+    const span = Math.max(1, Number(c.props.colSpan) || 1);
+    const k = slug(headingKey(c.props.children)) || `col${at}`;
+    columns.push({ key: `${id}.${k}`.slice(0, 80), start: at, span });
+    at += span;
+  }
+  const hiddenCols = layout.hiddenCols ?? {};
+  const hidden = new Set<number>();
+  columns.forEach((c, i) => {
+    if (i > 0 && c.key in hiddenCols) for (let x = c.start; x < c.start + c.span; x++) hidden.add(x);
+  });
+  // Totals columns (highlighted, or headed "Total") keep their width when other columns go; the rest share the room.
+  const isTotal = (c: Cell) => /\bbc-hl2?\b/.test(c.props.className ?? '') || /total/i.test(headingKey(c.props.children));
+  const headCells = head ? cellsOf(head).filter(isCell) : [];
+  const widths = layout.colWidths ?? {};
+  const remove = (col: { key: string }, e: React.MouseEvent<HTMLButtonElement>) => {
+    const th = e.currentTarget.parentElement as HTMLElement | null;
+    const text = (th?.textContent ?? '').replace(/\s+/g, ' ').trim() || 'Column';
+    // The first column removed from this table: note each totals column's share of the width as it is now.
+    const keep: Record<string, number> = {};
+    const table = th?.closest('table');
+    if (table && hidden.size === 0) {
+      const ths = Array.from(table.querySelectorAll('th')).filter((x) => x.closest('tr') === th?.closest('tr'));
+      headCells.forEach((c, i) => {
+        if (i > 0 && isTotal(c) && ths[i]) keep[columns[i].key] = Math.round(ths[i].getBoundingClientRect().width);
+      });
+    }
+    setLayout((l) => ({
+      ...l,
+      hiddenCols: { ...(l.hiddenCols ?? {}), [col.key]: `${text.slice(0, 40)} column · ${name}` },
+      colWidths: Object.keys(keep).length ? { ...(l.colWidths ?? {}), ...keep } : l.colWidths,
+    }));
+  };
+  let rowNo = 0;
+  const fixRow = (tr: React.ReactElement, isHead: boolean): React.ReactElement => {
+    let pos = 0;
+    let ci = 0;
+    const out: React.ReactNode[] = [];
+    const rowKey = tr.key != null ? `k${tr.key}` : `r${rowNo}`;
+    rowNo++;
+    for (const raw of cellsOf(tr)) {
+      if (!isCell(raw)) {
+        out.push(raw);
+        continue;
+      }
+      // Its text is editable, named by table, row and column.
+      const colAt = columns.find((x) => pos >= x.start && pos < x.start + x.span)?.key ?? `${id}.c${pos}`;
+      const c = cloneElement(raw, { children: editableCell(raw.props.children, `${colAt}.${isHead ? 'head' : rowKey}`) });
+      const span = Math.max(1, Number(c.props.colSpan) || 1);
+      let shown = 0;
+      for (let x = pos; x < pos + span; x++) if (!hidden.has(x)) shown++;
+      const col = isHead ? columns[ci] : undefined;
+      pos += span;
+      ci++;
+      if (!shown) continue;
+      const w = isHead && col && hidden.size && widths[col.key] ? { style: { width: widths[col.key], minWidth: widths[col.key] } } : {};
+      if (isHead && editable && col && ci > 1) {
+        out.push(
+          cloneElement(c, {
+            ...w,
+            colSpan: shown > 1 ? shown : undefined,
+            className: `${c.props.className ?? ''} relative group/col`,
+            children: (
+              <>
+                {c.props.children}
+                <button
+                  type="button"
+                  data-edit-ui
+                  className="no-print absolute left-0.5 top-1/2 -translate-y-1/2 hidden group-hover/col:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teton-near-black text-white shadow"
+                  title="Remove this column"
+                  aria-label="Remove this column"
+                  onClick={(e) => remove(col, e)}
+                >
+                  <MinusIcon />
+                </button>
+              </>
+            ),
+          }),
+        );
+      } else out.push(cloneElement(c, { ...w, colSpan: shown > 1 ? shown : undefined }));
+    }
+    return cloneElement(tr as React.ReactElement<{ children?: React.ReactNode }>, { children: out });
+  };
+  // Rows are changed in place (arrays and fragments kept), so their keys, and the removed-row keys built from them, stay the same.
+  const mapRows = (node: React.ReactNode): React.ReactNode => {
+    if (Array.isArray(node)) return node.map(mapRows);
+    if (!isValidElement(node)) return node;
+    if (node.type === Fragment) return cloneElement(node as React.ReactElement<{ children?: React.ReactNode }>, { children: mapRows((node.props as { children?: React.ReactNode }).children) });
+    return node.type === 'tr' ? fixRow(node, !!head && node.props === head.props) : node;
+  };
+  const fixed = Children.map(children, (part) => {
+    if (!isValidElement(part)) return part;
+    if (part.type === 'thead' || part.type === 'tbody' || part.type === 'tfoot' || part.type === RTbody) {
+      return cloneElement(part as React.ReactElement<{ children?: React.ReactNode }>, { children: mapRows((part.props as { children?: React.ReactNode }).children) });
+    }
+    return part;
+  });
+  return <table className={className}>{fixed}</table>;
+}
+
 /**
  * A table body whose rows the rep may remove (and add back from the Removed
  * list). Rows are keyed by the table's id and their place in the body, so a
@@ -589,7 +757,8 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
   // Optional rows that start out removed (shown in the Removed list until added).
   const optional = businessCase && bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment' }] : [];
   const rows = Object.entries(layout.hiddenRows ?? {});
-  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length && !rows.length) return null;
+  const cols = Object.entries(layout.hiddenCols ?? {});
+  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length && !rows.length && !cols.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -656,6 +825,25 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
                   const m = { ...(l.hiddenRows ?? {}) };
                   delete m[k];
                   return { ...l, hiddenRows: Object.keys(m).length ? m : undefined };
+                }),
+              ),
+            )}
+          </ul>
+        </>
+      )}
+      {cols.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table columns</p>
+          <ul>
+            {cols.map(([k, label]) =>
+              item(`col-${k}`, label, () =>
+                setLayout((l) => {
+                  const m = { ...(l.hiddenCols ?? {}) };
+                  delete m[k];
+                  const table = k.split('.')[0];
+                  const w = { ...(l.colWidths ?? {}) };
+                  if (!Object.keys(m).some((x) => x.split('.')[0] === table)) for (const x of Object.keys(w)) if (x.split('.')[0] === table) delete w[x];
+                  return { ...l, hiddenCols: Object.keys(m).length ? m : undefined, colWidths: Object.keys(w).length ? w : undefined };
                 }),
               ),
             )}

@@ -26,7 +26,7 @@ import { stageColor, longDate } from '@/components/implementation/Implementation
 import { buildCashFlow } from '@/lib/model';
 import { CARE_SHORT, careLabel, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
-import { CustomTitle, RichBody, RTbody, V } from './ProposalSections';
+import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
@@ -554,7 +554,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <B id="types" label="Rooms by type">
             <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
             <div className="bc-card bc-tbl bc-pilot-tbl bc-site-tbl">
-              <table>
+              <RTable>
                 <thead>
                   <tr>
                     <th>Room type</th>
@@ -604,7 +604,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <td className="bc-hl2 bc-big bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
                   </tr>
                 </RTbody>
-              </table>
+              </RTable>
             </div>
           </B>
         </Blocks>
@@ -688,7 +688,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
           <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
-            <table>
+            <RTable>
               <thead>
                 <tr>
                   <th>Community</th>
@@ -728,7 +728,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <td className="bc-hl bc-big">{usd(pilotTotal)}</td>
                 </tr>
               </RTbody>
-            </table>
+            </RTable>
           </div>
         </B>
         </Blocks>
@@ -769,7 +769,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     <>
       <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
       <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
-        <table>
+        <RTable>
           <thead>
             <tr>
               <th>Community</th>
@@ -815,7 +815,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </tr>
             )}
           </RTbody>
-        </table>
+        </RTable>
       </div>
     </>
   );
@@ -896,7 +896,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </B>
             <B id="costs" label="Equipment purchase">
             <div className="bc-card bc-tbl bc-hrs bc-inv">
-              <table>
+              <RTable>
                 <RTbody id="inv" name="The investment">
                   <tr className="bc-inv-scope">
                     <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
@@ -973,7 +973,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     </tr>
                   )}
                 </RTbody>
-              </table>
+              </RTable>
             </div>
             {conversionCreditOf(capex) > 0 && (
               <p className="bc-note bc-conv-note">
@@ -1076,7 +1076,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="roi">
         <B id="table" label="Sources of value">
         <div className="bc-card bc-tbl bc-roi-tbl">
-          <table>
+          <RTable>
             <thead>
               <tr>
                 <th>Source of value</th>
@@ -1125,7 +1125,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(stabilizedNet)}</V></td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
         </div>
         </B>
         <B id="callout" label="Asset value / Fall risk">
@@ -1226,7 +1226,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     // The Year 1 table; the cash flow page shows it without the Net Benefit row.
     const y1Table = (withNet: boolean) => (
         <div className={`bc-card bc-tbl ${withNet ? '' : 'bc-tbl-tight'}`} style={{ marginTop: withNet ? 16 : 12 }}>
-          <table>
+          <RTable>
             <thead>
               <tr>
                 <th>Measure</th>
@@ -1267,7 +1267,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-hl bc-big bc-r"><V k={y1.key('perUnit.value')} label="Net Benefit per Unit per Month figure">{usd(d.perUnit.perOccupiedUnitMonth)}</V></td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
         </div>
     );
     defs.summary = (no) => (
@@ -1409,7 +1409,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </p>
         )}
         {dates === true && (
-          <table className="bc-wave-tbl">
+          <RTable className="bc-wave-tbl">
             <RTbody id="waves" name="Go-live waves">
               {st.standard === 'evaluation' ? (
                 <tr>
@@ -1428,7 +1428,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 })
               )}
             </RTbody>
-          </table>
+          </RTable>
         )}
       </div>
     </div>
@@ -1437,7 +1437,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const baselineOf = (w: (typeof pilots)[number]) => w.schedule.stages.find((x) => x.standard === 'baseline' && x.weeks > 0) ?? null;
   const waveSchedule = (
     <div className="bc-card bc-tbl bc-wave-sched">
-      <table>
+      <RTable>
         <thead>
           <tr>
             <th><T k="bc.impl.waves.colWave" d="Wave" /></th>
@@ -1462,7 +1462,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             );
           })}
         </RTbody>
-      </table>
+      </RTable>
     </div>
   );
   const waveKey = (
@@ -1624,7 +1624,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <h1 className="bc-h1"><T k="bc.team.title" d="{hours} hours from {customer}’s team." v={{ ...vars, hours: count(team.total) }} /></h1>
         <p className="bc-lede"><T k="resources.intro" d="Estimated hours from your team by stage. Teton’s implementation and customer success team leads each stage." /></p>
         <div className="bc-card bc-tbl bc-hrs">
-          <table>
+          <RTable>
             <thead>
               <tr>
                 <th>Role</th>
@@ -1660,7 +1660,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td className="bc-hl bc-big">{count(team.total)}</td>
               </tr>
             </RTbody>
-          </table>
+          </RTable>
         </div>
       </Page>
     );
@@ -1699,7 +1699,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </>
               )}
               <div className="bc-card bc-tbl bc-roles-tbl" style={ci === 0 ? undefined : { marginTop: 8 }}>
-                <table>
+                <RTable>
                   <thead>
                     <tr>
                       <th>Stage</th>
@@ -1729,7 +1729,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       );
                     })}
                   </RTbody>
-                </table>
+                </RTable>
               </div>
             </Page>
           ))}
@@ -1911,7 +1911,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="scope-both">
           <B id="compare" label="Comparison">
             <div className="bc-card bc-tbl bc-cmp">
-              <table>
+              <RTable>
                 <thead>{head}</thead>
                 <RTbody id="cmp" name="Two ways to pay">
                   {sec('pay', 'What you pay')}
@@ -1938,7 +1938,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {row('own', 'Ownership', '', <T k="bc.cmp.own.op" d="Teton owns it" />, <T k="bc.cmp.own.cx" d="You own it" />, 'bc-cmp-text')}
                   {row('books', 'On the books', '', <T k="bc.cmp.books.op" d="Operating expense" />, <T k="bc.cmp.books.cx" d="{share} capitalized" v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />, 'bc-cmp-text')}
                 </RTbody>
-              </table>
+              </RTable>
             </div>
           </B>
         </Blocks>
@@ -1953,7 +1953,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="roi-both">
           <B id="table" label="Returns">
             <div className="bc-card bc-tbl bc-cmp bc-roi-tbl">
-              <table>
+              <RTable>
                 <thead>
                   <tr>
                     <th>Source of value</th>
@@ -1981,7 +1981,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {row('cost', 'Cost of Teton', `OpEx: annual subscription once every community is live · CapEx: ${numberWord(years)}-year cost of ownership ÷ ${years}`, neg(op.annualCost), neg(cx.annualCost))}
                   {row('net', 'Net Annual Benefit', '', usd(op.netAnnual), usd(cx.netAnnual), 'bc-tot')}
                 </RTbody>
-              </table>
+              </RTable>
             </div>
           </B>
         </Blocks>
@@ -2014,7 +2014,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           </B>
           <B id="table" label="Totals">
             <div className="bc-card bc-tbl bc-cmp" style={{ marginTop: 12 }}>
-              <table>
+              <RTable>
                 <thead>{head}</thead>
                 <RTbody id="cmptot" name="Totals, both ways">
                   {row('cf.inv', 'Total investment', 'Year 1: OpEx installation plus fees; CapEx the equipment, paid at install', neg(op.y1), neg(cx.y1))}
@@ -2029,7 +2029,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     'bc-tot',
                   )}
                 </RTbody>
-              </table>
+              </RTable>
             </div>
           </B>
           <B id="chart" label="Chart">
@@ -2152,7 +2152,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <B id="investment" label="The investment" {...card('investment')}>
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.inv', 'The investment', 'scope')}
-                <table>
+                <RTable>
                   <RTbody id="exinv" name="Executive summary · investment">
                     {capexShown ? (
                       <>
@@ -2171,7 +2171,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       </>
                     )}
                   </RTbody>
-                </table>
+                </RTable>
                 {capexShown && conversionCreditOf(capex) > 0 && (
                   <p className="bc-exec-foot"><T k="bc.exec.conversionNote" d="*Includes a {credit} conversion credit per pilot bed and sensor." v={{ credit: usd(conversionCreditOf(capex)) }} /></p>
                 )}
@@ -2189,25 +2189,25 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     </div>
                   ))}
                 </div>
-                <table>
+                <RTable>
                   <RTbody id="exroi" name="Executive summary">
                     {row('Gross annual benefit', usd(gross), 'bc-exec-tot')}
                     {row(capexShown ? 'Cost of Teton (ownership ÷ 4)' : 'Cost of Teton (subscription)', <span className="bc-cost">−{usd(tetonAnnual)}</span>)}
                     {row('Net annual benefit', usd(stabilizedNet), 'bc-exec-tot')}
                   </RTbody>
-                </table>
+                </RTable>
               </div>
             </B>
             <B id="cashflow" label="Cash flow summary" {...card('cashflow')}>
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.cf', 'Cash flow summary', 'cashflow')}
-                <table>
+                <RTable>
                   <RTbody id="excf" name="Executive summary · cash flow">
                     {row(<><b>Total investment</b><small>{capexShown ? 'One-time equipment, paid at install' : 'Everything paid to Teton in the first 12 months'}</small></>, <span className="bc-cost">{y1.investment > 0 ? '−' : ''}{usd(y1.investment)}</span>)}
                     {row(<><b>Stabilized Net Benefit</b><small>Each year, fully ramped, after the cost of Teton</small></>, usd(stabilizedNet))}
                     {row(<><b>REVPOR Impact</b><small>Per occupied room, per month · {usd(d.perUnit.perUnitMonth)} across all {count(inputs.cfo.portfolioUnits)} units</small></>, usd(d.perUnit.perOccupiedUnitMonth))}
                   </RTbody>
-                </table>
+                </RTable>
               </div>
             </B>
             <B id="terms" label="Key terms & next steps" {...card('terms')}>

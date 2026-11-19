@@ -11,7 +11,7 @@ import { normalizePlan } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor } from '@/components/implementation/ImplementationGantt';
 import { T } from './EditableText';
-import { RTbody, V } from './ProposalSections';
+import { RTable, RTbody, V } from './ProposalSections';
 import { useWhatIf } from './WhatIf';
 
 const num = (h: number) => (Number.isInteger(h) ? String(h) : h.toFixed(1));
@@ -35,7 +35,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
       <p className="text-[12.5px] text-teton-dark-gray mb-2">
         <T k="resources.intro" d="Estimated hours from your team by stage. Teton’s implementation and customer success team leads each stage." />
       </p>
-      <table className="m-table w-full text-[12px] tabular-nums">
+      <RTable className="m-table w-full text-[12px] tabular-nums">
         <thead>
           <tr className="border-b border-teton-pale-gray text-[10.5px] text-teton-dark-gray">
             <th className="text-left font-medium py-1.5 pr-2 align-bottom w-[26%]">Role</th>
@@ -70,7 +70,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
             <td className="py-1.5 pl-1.5 text-right" data-label="Total">{num(t.total)}</td>
           </tr>
         </RTbody>
-      </table>
+      </RTable>
       {t.rows.some((r) => r.notes.some((n) => n.note)) && (
         // Removable (and addable back) like a figure: some proposals want only the hours table.
         <V k="roleNotes" label="Role descriptions (resource allocation)" block>
