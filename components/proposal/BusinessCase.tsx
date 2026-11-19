@@ -655,14 +655,14 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <CostRow
             name={<T k="bc.pilot.install" d="Installation" />}
             sub={<T k="bc.oneTime" d="(one-time)" />}
-            desc={<T k="bc.pilot.installMath" d="{math}" v={{ math: pIns.text }} />}
+            desc={<T k="bc.pilot.installMath" d={pIns.text} v={{ math: pIns.text }} />}
             amount={<V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install)}</V>}
             pct={pctOf(install, pilotTotal)}
           />
           <CostRow
             name={<T k="bc.sensors" d="Additional Sensors" />}
             sub={<T k="bc.oneTime" d="(one-time)" />}
-            desc={<T k="bc.pilot.sensorMath" d="{math}" v={{ math: pSen.text }} />}
+            desc={<T k="bc.pilot.sensorMath" d={pSen.text} v={{ math: pSen.text }} />}
             amount={<V k="bc.pilot.sensors.value" label="Pilot additional sensors amount">{usd(pSen.total)}</V>}
             pct={pctOf(pSen.total, pilotTotal)}
           />
