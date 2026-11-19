@@ -101,8 +101,8 @@ const GROUP: Record<string, string> = {
   client: 'Client assumptions',
   cfo: 'CFO inputs',
   valuation: 'Valuation',
-  components: 'Case setup',
-  roiCase: 'Case setup',
+  components: 'ROI Case Setup',
+  roiCase: 'ROI Case Setup',
   customizeCaseMetrics: 'Improvement metrics',
   caseMetrics: 'Improvement metrics',
   monthsUntilCocNoticed: 'Valuation',
@@ -240,6 +240,6 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   if (JSON.stringify(normalizeTerms(_na, 'nextSteps')) !== JSON.stringify(normalizeTerms(_nb, 'nextSteps')))
     for (const c of termsChanges(before, after, 'nextSteps')) changes.push({ group: 'Terms / Notes', label: 'Next steps', from: '', to: c });
   for (const c of resourcesChanges(xa, xb, pb)) changes.push({ group: 'Resource allocation', label: 'Estimated resource allocation', from: '', to: c });
-  const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Resource allocation', 'Timeline', 'Terms / Notes', 'Case setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
+  const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Resource allocation', 'Timeline', 'Terms / Notes', 'ROI Case Setup', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
   return changes.sort((x, y) => order.indexOf(x.group) - order.indexOf(y.group));
 }

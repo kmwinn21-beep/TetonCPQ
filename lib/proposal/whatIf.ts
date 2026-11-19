@@ -36,7 +36,7 @@ export interface WhatIfField {
 const F = (path: string, label: string, group: string, where: string, kind: FieldKind, extra: Partial<WhatIfField> = {}): WhatIfField => ({ path, label, group, where, kind, min: 0, ...extra });
 
 const BENEFITS = 'Benefits included';
-const BENEFITS_AT = 'Case setup';
+const BENEFITS_AT = 'ROI Case Setup';
 const PRICING = 'Pricing';
 const PRICING_AT = 'Pricing & products';
 const CLIENT = 'Client';
@@ -53,7 +53,7 @@ const IMPL_AT = 'Implementation';
 
 /** Every deal input the proposal can change, in the order the panel lists them. */
 export const FIELDS: WhatIfField[] = [
-  // The same on/off switches as Case setup: turning one off drops that benefit from the ROI.
+  // The same on/off switches as ROI Case Setup: turning one off drops that benefit from the ROI.
   F('components.careRevenueRecapture', 'Care Revenue Recapture', BENEFITS, BENEFITS_AT, 'toggle'),
   F('components.fallsHospitalization', 'Falls → Hospitalization', BENEFITS, BENEFITS_AT, 'toggle'),
   F('components.fallsDischarge', 'Falls → Discharge', BENEFITS, BENEFITS_AT, 'toggle'),
@@ -246,7 +246,7 @@ export function figureSpec(key: string): FigureSpec | null {
     'roi.outcome.noi': 'annual.annualNetNoiImpact',
     'roi.outcome.valuation': 'annual.valuationImpact',
   };
-  // ROI line items come with their Case setup switch (and the total with all of them), so a benefit can be turned off.
+  // ROI line items come with their ROI Case Setup switch (and the total with all of them), so a benefit can be turned off.
   const toggle: Record<string, string[]> = {
     'roi.benefit.care': ['components.careRevenueRecapture'],
     'roi.benefit.falls': ['components.fallsHospitalization'],

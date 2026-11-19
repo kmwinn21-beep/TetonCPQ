@@ -30,7 +30,7 @@ export function CaseSetupSection() {
   const on = Object.values(d.components ?? {}).filter(Boolean).length;
   const total = Object.keys(d.components ?? {}).length;
   return (
-    <Section id="case" title="Case setup" description="Which ROI case to present, and which benefits to count." summary={dot(`${CASE_LABEL[d.roiCase] ?? d.roiCase} case`, `${on} of ${total} benefits included`)}>
+    <Section id="case" title="ROI Case Setup" description="Which ROI case to present, and which benefits to count." summary={dot(`${CASE_LABEL[d.roiCase] ?? d.roiCase} case`, `${on} of ${total} benefits included`)}>
       <div className="space-y-5">
         <SegmentedField name="roiCase" label="ROI case" options={ROI_CASES.map((c) => ({ value: c, label: CASE_LABEL[c] }))} />
         <div>

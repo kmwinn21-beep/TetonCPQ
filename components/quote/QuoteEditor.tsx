@@ -29,7 +29,6 @@ import { Collapse, SectionGroup } from '@/components/form/fields';
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
 const NAV = [
-  ['case', 'Case setup'],
   ['communities', 'Communities'],
   ['pricing', 'Pricing & products'],
   ['implplan', 'Implementation'],
@@ -40,6 +39,7 @@ const NAV = [
 
 /** Sections inside the collapsible Assumptions group. */
 const ASSUMPTIONS_NAV = [
+  ['case', 'ROI Case Setup'],
   ['valuation', 'Valuation & margin'],
   ['metrics', 'Improvement metrics'],
   ['revenue', 'Revenue'],
@@ -313,7 +313,6 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 {sections.allOpen ? 'Collapse all' : 'Expand all'}
               </button>
             </div>
-            <CaseSetupSection />
             <RailSlotContext.Provider value={railSlot}>
               <CommunitiesSection inputs={computed.inputs} result={computed.result} book={book} />
             </RailSlotContext.Provider>
@@ -322,7 +321,8 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <ResourcesSection inputs={computed.inputs} result={computed.result} book={book} />
             <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
             <TermsSection inputs={computed.inputs} result={computed.result} book={book} />
-            <SectionGroup id="assumptions" title="Assumptions" summary="Valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">
+            <SectionGroup id="assumptions" title="Assumptions" summary="ROI case, valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">
+              <CaseSetupSection />
               <ValuationSection />
               <MetricsSection inputs={computed.inputs} result={computed.result} book={book} />
               <ClientSection inputs={computed.inputs} result={computed.result} book={book} />
