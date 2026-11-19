@@ -94,7 +94,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     srcs.push({ w, h, draw: (p, y0) => p.drawImage(img, { x: 0, y: y0, width: w, height: h }) });
   }
 
-  // Each page: the plan, its badges, and a legend band underneath.
+  // Each page: a legend band on top, then the plan with its badges.
   srcs.forEach((s, k) => {
     const n = k + 1;
     const here = types.map(({ t, b }) => ({ t, b, marks: (t.marks ?? []).filter((m) => m.plan === a.planId && m.page === n) }));
@@ -103,7 +103,10 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const used = here.filter((x) => x.marks.length);
     // Lay out the legend items in rows to find the band's height.
     const pad = fs * 1.4;
-    const items = used.map(({ t, b, marks }) => ({ b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}`) }));
+    const items = used.map(({ t, b, marks }) => {
+      const sensors = marks.length * Math.max(1, Number(t.sensors) || 1);
+      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
+    });
     const rowsOf: (typeof items)[] = [[]];
     let x = pad;
     const head = safe(bold, `Scope · ${a.communityName} · ${a.planName}${srcs.length > 1 ? ` · page ${n}` : ''}`);
@@ -119,14 +122,15 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const line = fs * 1.9;
     const band = pad + fs * 1.3 + (items.length ? rowsOf.length * line : line) + pad * 0.6;
     const p = out.addPage([s.w, s.h + band]);
-    p.drawRectangle({ x: 0, y: 0, width: s.w, height: band, color: rgb(1, 1, 1) });
-    s.draw(p, band);
-    p.drawLine({ start: { x: 0, y: band }, end: { x: s.w, y: band }, thickness: 0.6, color: LINE });
-    for (const { b, marks } of here) for (const m of marks) badge(p, bold, m.x * s.w, band + (1 - m.y) * s.h, r, b.color, b.initials);
-    let y = band - pad - fs * 0.4;
+    s.draw(p, 0);
+    p.drawRectangle({ x: 0, y: s.h, width: s.w, height: band, color: rgb(1, 1, 1) });
+    p.drawLine({ start: { x: 0, y: s.h }, end: { x: s.w, y: s.h }, thickness: 0.6, color: LINE });
+    for (const { b, marks } of here) for (const m of marks) badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
+    let y = s.h + band - pad - fs * 0.4;
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
-    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} tagged on this page`);
+    const totS = used.reduce((t, u) => t + u.marks.length * Math.max(1, Number(u.t.sensors) || 1), 0);
+    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
     y -= line;
     if (!items.length) p.drawText(safe(reg, 'No rooms tagged on this page.'), { x: pad, y, size: fs, font: reg, color: MUTED });

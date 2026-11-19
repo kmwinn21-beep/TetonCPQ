@@ -82,7 +82,7 @@ export function ScopeViewer({
   onClose: () => void;
   onRemovePlan: (id: number) => Promise<void>;
 }) {
-  const { control, getValues } = useFormContext<QuoteDraft>();
+  const { control, getValues, setValue } = useFormContext<QuoteDraft>();
   const communities = useWatch({ control, name: 'communities' });
   const index = (communities ?? []).findIndex((c) => c?.id === communityId);
   const community = index >= 0 ? communities[index] : null;
@@ -112,7 +112,8 @@ export function ScopeViewer({
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (pop || editType || saving || menu) {
+      if (confirmRemove) setConfirmRemove(false);
+      else if (pop || editType || saving || menu) {
         setPop(null);
         setEditType(null);
         setSaving(false);
@@ -121,7 +122,7 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove]);
   useEffect(() => {
     setPage(1);
     setConfirmRemove(false);
@@ -174,11 +175,25 @@ export function ScopeViewer({
     setSaving(false);
     setLayer(true);
   };
-  const removePlan = async () => {
-    // Its badges go; their room types keep their room counts as typed-in numbers.
+  /**
+   * Remove this plan. With tagged rooms on it the rep chooses: keep the room types and their counts (as typed-in
+   * numbers, the badges go) or discard every room type of the community (beds and extra sensors cleared too).
+   */
+  const removePlan = async (tagged: 'keep' | 'discard' | null) => {
     const list = current();
-    if (list.some((t) => (t.marks ?? []).some((m) => m.plan === plan.id)))
-      write(list.map((t) => ((t.marks ?? []).some((m) => m.plan === plan.id) ? { ...t, rooms: t.rooms, roomsFromPlan: undefined, marks: (t.marks ?? []).filter((m) => m.plan !== plan.id) } : t)));
+    if (tagged === 'keep')
+      write(
+        list.map((t) =>
+          (t.marks ?? []).some((m) => m.plan === plan.id)
+            ? { ...t, rooms: t.roomsFromPlan ? (t.marks ?? []).length : Number(t.rooms) || 0, roomsFromPlan: undefined, marks: (t.marks ?? []).filter((m) => m.plan !== plan.id) }
+            : t,
+        ),
+      );
+    if (tagged === 'discard' && index >= 0) {
+      const opts = { shouldDirty: true } as const;
+      setValue(`communities.${index}.roomTypes`, [], opts);
+      for (const k of ['ilBeds', 'alBeds', 'mcBeds', 'snfBeds', 'additionalSensors'] as const) setValue(`communities.${index}.${k}`, 0, opts);
+    }
     setPending((p) => p.filter((x) => x.plan !== plan.id));
     await onRemovePlan(plan.id);
   };
@@ -250,17 +265,20 @@ export function ScopeViewer({
               </div>
             )}
           </div>
-          {confirmRemove ? (
-            <span className="flex items-center gap-1.5 text-xs">
-              Remove this plan{rows.some((r) => r.here) ? ' and its badges' : ''}?
-              <button type="button" className="py-1 px-2 rounded-md bg-[#C2412D] text-white font-medium" onClick={removePlan}>Remove</button>
-              <button type="button" className="py-1 px-2 rounded-md hover:bg-teton-off-white" onClick={() => setConfirmRemove(false)}>Keep</button>
-            </span>
-          ) : (
-            <button type="button" className={btn} onClick={() => setConfirmRemove(true)}>Remove</button>
-          )}
+          <button type="button" className={btn} onClick={() => setConfirmRemove(true)}>Remove</button>
           <button type="button" className="btn-ghost py-1" aria-label="Close" onClick={onClose}>✕</button>
         </div>
+
+        {confirmRemove && (
+          <RemoveDialog
+            planName={plan.name}
+            communityName={community?.name || 'this community'}
+            tagged={rows.reduce((n, r) => n + r.here, 0)}
+            typeCount={types.length}
+            onCancel={() => setConfirmRemove(false)}
+            onRemove={removePlan}
+          />
+        )}
 
         {/* Plans and pages */}
         {(plans.length > 1 || pages > 1) && (
@@ -866,5 +884,46 @@ function TypeForm({
         </div>
       )}
     </form>
+  );
+}
+
+/** Confirm removing a floor plan; with tagged rooms on it, keep the room types (as typed-in counts) or discard them. */
+function RemoveDialog({ planName, communityName, tagged, typeCount, onCancel, onRemove }: { planName: string; communityName: string; tagged: number; typeCount: number; onCancel: () => void; onRemove: (t: 'keep' | 'discard' | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const go = (t: 'keep' | 'discard' | null) => {
+    setBusy(true);
+    onRemove(t);
+  };
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={onCancel}>
+      <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl text-sm [animation:fadeScale_.18s_ease-out] motion-reduce:[animation:none]" role="alertdialog" aria-modal="true" aria-label="Remove floor plan" onClick={(e) => e.stopPropagation()}>
+        <p className="font-semibold text-base">Remove {planName}?</p>
+        {tagged > 0 ? (
+          <>
+            <p className="mt-1.5 text-teton-dark-gray">
+              {tagged} room{tagged === 1 ? ' is' : 's are'} tagged on this plan. Keep {communityName}&rsquo;s room types and their room counts, or discard them?
+            </p>
+            <div className="mt-3 space-y-2">
+              <button type="button" disabled={busy} className="w-full text-left rounded-lg border border-teton-pale-gray px-3 py-2.5 hover:bg-teton-almost-white disabled:opacity-50" onClick={() => go('keep')}>
+                <b>Keep room types and counts</b>
+                <span className="block text-xs text-teton-ui-gray mt-0.5">The badges go; each room type keeps its room count as a typed-in number.</span>
+              </button>
+              <button type="button" disabled={busy} className="w-full text-left rounded-lg border border-[#E7B7AC] px-3 py-2.5 hover:bg-[#FDF1EE] disabled:opacity-50" onClick={() => go('discard')}>
+                <b className="text-[#9A2E1C]">Discard room types and counts</b>
+                <span className="block text-xs text-teton-ui-gray mt-0.5">Removes {typeCount === 1 ? 'the room type' : `all ${typeCount} room types`} from {communityName} and clears its bed counts and extra sensors.</span>
+              </button>
+            </div>
+            <div className="mt-3 text-right">
+              <button type="button" className="btn-ghost py-1 text-xs" onClick={onCancel}>Cancel</button>
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" className="btn-ghost py-1 text-xs" onClick={onCancel}>Cancel</button>
+            <button type="button" disabled={busy} className="py-1 px-3 rounded-md bg-[#C2412D] text-white text-xs font-medium disabled:opacity-50" onClick={() => go(null)}>Remove</button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
