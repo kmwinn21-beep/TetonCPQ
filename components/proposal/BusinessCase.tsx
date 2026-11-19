@@ -970,6 +970,42 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         ) : (
           <Blocks page="scope">
             <B id="overview" label="Overview">
+            <div className="relative group/view">
+            {editable && (
+              <ViewSwitch
+                position="absolute right-0 -top-1"
+                label="Overview cards"
+                options={[['overview', 'Overview'], ['units', 'Unit prices']] as const}
+                value={layout.bcOpexCards ?? 'units'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcOpexCards: v === 'overview' ? 'overview' : undefined }))}
+              />
+            )}
+            {layout.bcOpexCards !== 'overview' ? (
+              <>
+                <p className="bc-eyebrow bc-gray"><T k="bc.scope.unitPrices" d="Unit prices" /></p>
+                <div className="bc-unit-cards">
+                  {(() => {
+                    const card = (k: string, name: string, price: React.ReactNode, freq: string, desc: string, v?: Record<string, string>) => (
+                      <div className="bc-dark" key={k}>
+                        <span className="bc-unit-k"><T k={`bc.opunit.${k}`} d={name} /></span>
+                        <b>{price}</b>
+                        <span className="bc-unit-f"><T k={`bc.opunit.${k}.freq`} d={freq} /></span>
+                        <span className="bc-unit-e"><T k={`bc.opunit.${k}.desc`} d={desc} v={v} /></span>
+                      </div>
+                    );
+                    // The products in scope, by name.
+                    const products = ['Teton AI Resident Monitoring & Fall Prevention/Detection', ...(anyEcall ? ['Teton Nurse / E-Call'] : [])].join(' and ');
+                    const k = draft.commercial;
+                    return [
+                      card('recurring', 'Recurring Costs', <V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>, 'per bed · per month', 'Monthly Costs for {products}', { products }),
+                      card('install', 'Installation', <V k="bc.opunit.install.value" label="Installation per bed">{money(k.installRate)}</V>, 'per bed · one-time', 'Edge unit and first sensor, installed in each resident room'),
+                      card('sensors', 'Additional Sensors', <V k="bc.opunit.sensors.value" label="Price per additional sensor">{money(k.sensorPrice)}</V>, 'per sensor · per room', 'For rooms that need more than one sensor (multiple bedrooms, living areas)'),
+                    ];
+                  })()}
+                </div>
+              </>
+            ) : (
+            <>
             <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
             <div className="bc-three bc-three-compact">
               <Stat value={<V k="scope.total.value" label="Total cost over the term">{usd(d.termTotal)}</V>}>
@@ -981,6 +1017,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <Stat value={<>{term} months</>}>
                 <T k="bc.overview.term" d="Post-Pilot Term Length" />
               </Stat>
+            </div>
+            </>
+            )}
             </div>
             </B>
             <B id="costs" label="Costs">

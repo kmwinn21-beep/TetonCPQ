@@ -265,6 +265,8 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.pilotMonthly') return { formula: 'Pilot beds × (pilot rate + E-Call during pilot)', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.install') return { formula: 'Beds × install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
+  if (k === 'bc.opunit.install') return { formula: 'Installation price per bed (before any pilot credit)', fields: ['commercial.installRate', 'commercial.installCreditPct'] };
+  if (k === 'bc.opunit.sensors') return { formula: 'Price per additional sensor', fields: ['commercial.sensorPrice', 'commercial.sensorCredit'] };
   if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price, less the install credit on pilot sites when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
   if (k === 'bc.overview.perBed') return pricing('Total cost over the term ÷ (beds × months, counting each community’s pilot and service term)');
   if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price, less the install credit when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
