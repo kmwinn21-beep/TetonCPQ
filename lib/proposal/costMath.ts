@@ -44,3 +44,46 @@ export function sensorMath(ls: PriceLine[], isPilot: (position: number | null | 
   return { total: sum([...sensors, ...sensorCredit].map(lineTotal)), text };
 }
 
+
+/**
+ * A cost line as table columns: units, price per unit (a range when it varies,
+ * e.g. full-facility sites), the conversion credit per unit and how many units
+ * it covers (pilot sites only), and the total after credits.
+ */
+export interface ColumnRow {
+  units: number;
+  minPer: number;
+  maxPer: number;
+  creditMin: number;
+  creditMax: number;
+  creditUnits: number;
+  total: number;
+}
+
+function columns(gross: PriceLine[], credits: PriceLine[]): ColumnRow {
+  const per = gross.map((l) => l.unitNet);
+  const cr = credits.map((l) => -l.unitNet);
+  return {
+    units: sum(gross.map((l) => l.qty)),
+    minPer: per.length ? Math.min(...per) : 0,
+    maxPer: per.length ? Math.max(...per) : 0,
+    creditMin: cr.length ? Math.min(...cr) : 0,
+    creditMax: cr.length ? Math.max(...cr) : 0,
+    creditUnits: sum(credits.map((l) => l.qty)),
+    total: sum([...gross, ...credits].map(lineTotal)),
+  };
+}
+
+/** Installation: beds × price per bed, less the pilot install credit on pilot beds. */
+export const installColumns = (ls: PriceLine[]) =>
+  columns(
+    ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !l.concessionCode?.startsWith('INSTALL_CREDIT') && l.qty > 0),
+    ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT') && l.qty > 0),
+  );
+
+/** Additional sensors: sensors × price, less the sensor credit at pilot sites. */
+export const sensorColumns = (ls: PriceLine[]) =>
+  columns(
+    ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.sensor && l.qty > 0 && !l.concessionCode?.startsWith('SENSOR_CREDIT')),
+    ls.filter((l) => l.concessionCode?.startsWith('SENSOR_CREDIT') && l.qty > 0),
+  );
