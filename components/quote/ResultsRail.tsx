@@ -6,14 +6,10 @@ import Link from 'next/link';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 import type { PriceBook } from '@/lib/pricing/catalog';
 import { previewTotals, type PreviewTotals } from '@/lib/quote/previewTotals';
-import type { GuardrailResult, Severity } from '@/lib/pricing/guardrails';
 import type { VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, usd } from '@/lib/format';
 
-const APPROVER: Record<string, string> = { deal_desk: 'Deal Desk', vp_sales_or_ceo: 'VP Sales or CEO (written)' };
-const SEVERITY_CLASS: Record<Severity, string> = { info: 'badge-purple', warning: 'badge-yellow', approval: 'badge-red' };
-const SEVERITY_LABEL: Record<Severity, string> = { info: 'Note', warning: 'Warning', approval: 'Needs approval' };
 
 /** A titled block of label / value rows in the live preview. */
 function Rows({ title, tag, rows }: { title: string; tag?: string; rows: Array<[string, string, boolean?]> }) {
@@ -99,25 +95,6 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
           />
         )}
       </div>
-    </div>
-  );
-}
-
-/** Pricing checks that need attention (approvals, warnings), when there are any. */
-export function GuardrailPanel({ g }: { g: GuardrailResult | null }) {
-  if (!g || !g.findings.length) return null;
-  return (
-    <div className="card">
-      <h2 className="text-sm font-semibold mb-3">Pricing checks</h2>
-      <ul className="space-y-2">
-        {g.findings.map((f) => (
-          <li key={f.code + f.message} className="text-sm">
-            <span className={SEVERITY_CLASS[f.severity]}>{SEVERITY_LABEL[f.severity]}</span>
-            <p className="mt-1">{f.message}</p>
-            {f.requiredApprover && <p className="text-xs text-teton-dark-gray mt-0.5">Approver: {APPROVER[f.requiredApprover]}. Recorded on save; not blocking yet.</p>}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

@@ -22,7 +22,7 @@ import { ImplementationSection } from './ImplementationSection';
 import { TermsSection } from './TermsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
-import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
+import { KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
 import { Collapse, SectionGroup } from '@/components/form/fields';
@@ -433,7 +433,6 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
-              <GuardrailPanel g={computed.guardrails} />
               <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} />
             </div>
           </aside>
