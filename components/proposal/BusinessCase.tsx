@@ -13,7 +13,7 @@
  */
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
-import { basePackageRows, conversionCreditOf, sensorRows, unitPriceText } from '@/lib/pricing/capex';
+import { basePackageRows, conversionCreditOf, grossBaseRows, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
@@ -832,62 +832,89 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </div>
             </B>
             <B id="costs" label="Equipment purchase">
-            <div className="bc-card bc-req bc-req-tight">
-              <ScopeRow ecall={anyEcall} />
-              {basePackageRows(capex).map((r) => (
-                <CostRow
-                  key={r.key}
-                  name={<T k={`bc.capex.base.${r.ecall}`} d="Base packages" />}
-                  sub={<T k="bc.oneTime" d="(one-time)" />}
-                  desc={
-                    <T
-                      k={`bc.capex.base.${r.ecall}.math`}
-                      d={r.ecall === 'none' ? '{math}. Edge unit + sensor, installed.' : r.ecall === 'ble' ? '{math}. Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant.' : '{math}. Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord.'}
-                      v={{ math: `${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}` }}
-                    />
-                  }
-                  amount={<V k={`capex.base.${r.key}.value`} label={`${r.label} amount`}>{usd(r.total)}</V>}
-                />
-              ))}
-              {(sensorRows(capex).length ? sensorRows(capex) : [null]).map((r) => (
-                <CostRow
-                  key={r?.key ?? 'none'}
-                  name={<T k="bc.sensors" d="Additional Sensors" />}
-                  sub={<T k="bc.oneTime" d="(one-time)" />}
-                  desc={<T k="bc.capex.sensorMath" d="{math}" v={{ math: r ? `${count(r.units)} ${r.units === 1 ? 'sensor' : 'sensors'} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}` : 'None included' }} />}
-                  amount={<V k={r?.credit ? 'capex.sensors.credited.value' : 'capex.sensors.value'} label="Additional sensors amount">{usd(r ? r.total : 0)}</V>}
-                />
-              ))}
-              <CostRow
-                total
-                name={<T k="capex.price" d="One-time equipment cost" />}
-                desc={<T k="bc.capex.equipmentNote" d="Paid at install. No separate installation charge and no license fee." />}
-                amount={<V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V>}
-              />
-              <CostRow
-                name={<T k="bc.capex.software" d={'Software & services'} />}
-                sub={<T k="bc.capex.billedMonthly" d="(billed monthly)" />}
-                desc={<T k="bc.capex.softwareMath" d="{beds} beds × {rate} per month." v={{ beds: count(capex.beds), rate: usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }) }} />}
-                amount={<V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V>}
-              />
-              {capex.renewals > 0 && (
-                <CostRow
-                  name={<T k="capex.renewals" d="E-Call renewals" />}
-                  desc={<T k="bc.capex.renewalsNote" d="Renewals that fall within the {years} years." v={{ years: String(capex.ownershipMonths / 12) }} />}
-                  amount={<V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V>}
-                />
-              )}
-              <CostRow
-                total
-                name={<T k="bc.capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />}
-                desc={<T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life." />}
-                amount={<V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V>}
-              />
-              {finishRow}
+            <div className="bc-card bc-tbl bc-hrs bc-inv">
+              <table>
+                <tbody>
+                  <tr className="bc-inv-scope">
+                    <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
+                    <td colSpan={3}><ScopePills ecall={anyEcall} /></td>
+                  </tr>
+                  <tr className="bc-inv-head">
+                    <th><T k="bc.inv.item" d="Item" /></th>
+                    <th><T k="bc.inv.units" d="Units" /></th>
+                    <th><T k="bc.inv.perUnit" d="Cost per unit" /></th>
+                    <th className="bc-hl"><T k="bc.inv.total" d="Total" /></th>
+                  </tr>
+                  {grossBaseRows(capex).map((r) => (
+                    <tr key={r.key}>
+                      <td className="bc-m">
+                        <T k={`bc.capex.base.${r.key}`} d="Base packages" />
+                        <small>
+                          <T
+                            k={`bc.capex.base.${r.key}.desc`}
+                            d={r.key === 'none' ? 'One-time · Edge unit + sensor, installed' : r.key === 'ble' ? 'One-time · Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant' : 'One-time · Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord'}
+                          />
+                        </small>
+                      </td>
+                      <td>{count(r.units)} beds</td>
+                      <td>{perUnitText(r, (n) => usd(n))}</td>
+                      <td className="bc-hl bc-big"><V k={`capex.base.${r.key}.value`} label="Base packages amount">{usd(r.total)}</V></td>
+                    </tr>
+                  ))}
+                  {grossSensorRow(capex) && (() => {
+                    const r = grossSensorRow(capex)!;
+                    return (
+                      <tr>
+                        <td className="bc-m"><T k="bc.sensors" d="Additional Sensors" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                        <td>{count(r.units)} {r.units === 1 ? 'sensor' : 'sensors'}</td>
+                        <td>{perUnitText(r, (n) => usd(n))}</td>
+                        <td className="bc-hl bc-big"><V k="capex.sensors.value" label="Additional sensors amount">{usd(r.total)}</V></td>
+                      </tr>
+                    );
+                  })()}
+                  <tr className="bc-tot">
+                    <td className="bc-m"><T k="capex.price" d="One-time equipment cost" /><small><T k="bc.capex.equipmentNote" d="Paid at install. No separate installation charge and no license fee." /></small></td>
+                    <td />
+                    <td />
+                    <td className="bc-hl bc-big"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
+                  </tr>
+                  <tr>
+                    <td className="bc-m"><T k="bc.capex.software" d={'Software & services'} /><small><T k="bc.inv.billedMonthly" d="Billed monthly" /></small></td>
+                    <td>{count(capex.beds)} beds</td>
+                    <td>{usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) })} / mo</td>
+                    <td className="bc-hl bc-big"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
+                  </tr>
+                  {capex.renewals > 0 && (
+                    <tr>
+                      <td className="bc-m"><T k="capex.renewals" d="E-Call renewals" /><small><T k="bc.capex.renewalsNote" d="Renewals that fall within the {years} years." v={{ years: String(capex.ownershipMonths / 12) }} /></small></td>
+                      <td />
+                      <td />
+                      <td className="bc-hl bc-big"><V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V></td>
+                    </tr>
+                  )}
+                  <tr className="bc-tot">
+                    <td className="bc-m">
+                      <T k="bc.capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />
+                      <small><T k="bc.capex.ownershipNote" d="Equipment plus software over the hardware’s useful life." /></small>
+                    </td>
+                    <td />
+                    <td />
+                    <td className="bc-hl bc-big"><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal)}</V></td>
+                  </tr>
+                  {finish.concealed && (
+                    <tr>
+                      <td className="bc-m"><T k="bc.finish" d="Concealed finish" /><small><T k="bc.inv.finish.sub" d="Optional · after the {credit} standard credit. Pending site survey." v={{ credit: usd(finish.credit) }} /></small></td>
+                      <td>{count(finish.rooms)} rooms</td>
+                      <td>{rangeText(finish.netLow, finish.netHigh, usd)}</td>
+                      <td className="bc-hl bc-big"><V k="finish.total.value" label="Concealed installation total"><span className="bc-range">{finish.totalLow === finish.totalHigh ? usd(finish.totalLow) : `${usd(finish.totalLow)}–${usd(finish.totalHigh)}`}</span></V></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
             {conversionCreditOf(capex) > 0 && (
               <p className="bc-note bc-conv-note">
-                <T k="bc.capex.conversionNote" d="*A {credit} conversion credit has been applied to the per bed Base Package and per additional sensor." v={{ credit: usd(conversionCreditOf(capex)) }} />
+                <T k="bc.inv.conversionNote" d="Cost per unit is after a {credit} conversion credit on each base package and additional sensor at pilot communities." v={{ credit: usd(conversionCreditOf(capex)) }} />
               </p>
             )}
             {ecall > 0 && capex.ownershipTotal > 0 && (

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultDraft, newCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { priceBook } from './catalog';
-import { basePackageRows, computeCapex, conversionCreditOf, sensorRows, unitPriceText } from './capex';
+import { basePackageRows, computeCapex, conversionCreditOf, grossBaseRows, grossSensorRow, perUnitText, sensorRows, unitPriceText } from './capex';
 
 const deal = (credit: number | null): QuoteDraft => {
   const d = defaultDraft('Acme Senior Living', priceBook(), new Date('2026-11-17'));
@@ -42,5 +42,24 @@ describe('conversion credit (equipment purchase)', () => {
     const big = computeCapex(deal(500));
     expect(big.communities[0].sensorPrice).toBe(0);
     expect(big.communities[0].basePerBed).toBe(4100);
+  });
+});
+
+describe('gross rows (investment table)', () => {
+  it('adds every community into one line, with the price per unit after the credit', () => {
+    const c = computeCapex(deal(250));
+    expect(grossBaseRows(c)).toEqual([{ key: 'none', units: 160, total: 100 * 4350 + 60 * 4600, minPer: 4350, maxPer: 4600 }]);
+    expect(perUnitText(grossBaseRows(c)[0], usd)).toBe('$4,350–$4,600');
+    const s = grossSensorRow(c)!;
+    expect([s.units, s.total, perUnitText(s, usd)]).toEqual([70, 50 * 200 + 20 * 450, '$200–$450']);
+  });
+
+  it('shows one price when every community has the same', () => {
+    const d = deal(250);
+    d.communities[1].pilot = true;
+    const c = computeCapex(d);
+    expect(perUnitText(grossBaseRows(c)[0], usd)).toBe('$4,350');
+    expect(perUnitText(grossSensorRow(c)!, usd)).toBe('$200');
+    expect(grossSensorRow(computeCapex({ ...d, communities: d.communities.map((x) => ({ ...x, additionalSensors: 0 })) }))).toBeNull();
   });
 });

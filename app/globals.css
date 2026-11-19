@@ -660,3 +660,14 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 [data-bc-page="scope"]:has(.bc-conv-note) .bc-three-compact .bc-dark { padding-top: 10px; padding-bottom: 10px; }
 [data-bc-page="scope"]:has(.bc-conv-note) .bc-pilot-tbl td { padding-top: 6px; padding-bottom: 6px; }
 .bc-conv-note { margin-top: 6px !important; }
+/* Investment (equipment purchase): scope on top, then column labels, then one line per item for the whole deal. */
+.bc-inv { margin-top: 12px; }
+.bc-inv tr.bc-inv-scope td { border-top: 0; vertical-align: middle; padding-top: 10px; padding-bottom: 10px; }
+.bc-inv tr.bc-inv-scope td:last-child { text-align: left; }
+.bc-inv tr.bc-inv-scope .bc-pills { justify-content: flex-end; gap: 8px; }
+.bc-inv tr.bc-inv-scope .bc-pills > .bc-pill-col > span:first-child { font-size: 10.4px; padding: 5px 9px; }
+.bc-inv tr.bc-inv-head th { border-top: 1px solid var(--bc-line); padding-top: 9px; padding-bottom: 8px; }
+.bc-inv td { padding-top: 7px; padding-bottom: 7px; }
+.bc-inv td.bc-m { white-space: normal; width: 46%; }
+.bc-inv td.bc-big { font-size: 16px; }
+.bc-inv tr.bc-tot td.bc-big { font-weight: 700; }

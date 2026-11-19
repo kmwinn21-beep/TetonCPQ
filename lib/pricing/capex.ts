@@ -230,3 +230,38 @@ export function sensorRows(c: Pick<CapexResult, 'communities' | 'pricing'>): Pri
   }
   return Array.from(rows.values());
 }
+
+/** One line for the whole deal: units across every community, and the price per unit after any conversion credit (a range when it differs). */
+export interface GrossRow {
+  key: string;
+  units: number;
+  total: number;
+  /** Lowest and highest price per unit, after the credit. */
+  minPer: number;
+  maxPer: number;
+}
+
+/** "$5,050", or "$5,050–$5,300" when only some communities get the credit. */
+export const perUnitText = (r: Pick<GrossRow, 'minPer' | 'maxPer'>, money: (n: number) => string) => (r.minPer === r.maxPer ? money(r.minPer) : `${money(r.minPer)}–${money(r.maxPer)}`);
+
+function gross<T extends string>(items: Array<{ key: T; units: number; per: number; total: number }>): Array<GrossRow & { key: T }> {
+  const rows = new Map<T, GrossRow & { key: T }>();
+  for (const it of items) {
+    if (!it.units) continue;
+    const r = rows.get(it.key) ?? { key: it.key, units: 0, total: 0, minPer: it.per, maxPer: it.per };
+    r.units += it.units;
+    r.total += it.total;
+    r.minPer = Math.min(r.minPer, it.per);
+    r.maxPer = Math.max(r.maxPer, it.per);
+    rows.set(it.key, r);
+  }
+  return Array.from(rows.values());
+}
+
+/** Base packages for the whole deal: one line per E-Call option in use. */
+export const grossBaseRows = (c: Pick<CapexResult, 'communities'>) =>
+  gross(c.communities.map((x) => ({ key: x.ecall, units: x.beds, per: x.basePerBed, total: x.basePackages })));
+
+/** Additional sensors for the whole deal: one line (or none). */
+export const grossSensorRow = (c: Pick<CapexResult, 'communities' | 'pricing'>): GrossRow | null =>
+  gross(c.communities.map((x) => ({ key: 'sensors' as const, units: x.sensors, per: x.sensorPrice ?? c.pricing.sensorPrice, total: x.sensorCost })))[0] ?? null;
