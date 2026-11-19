@@ -10,6 +10,8 @@ import { getSessionUser, requirePageUser } from '@/lib/auth/server';
 import { getProposalCustomization } from '@/lib/data/proposalText';
 import { ProposalTextProvider } from '@/components/proposal/EditableText';
 import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
+import { FloorPlanStatusProvider } from '@/components/proposal/FloorPlanStatus';
+import { listFloorPlans } from '@/lib/data/floorPlans';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +34,9 @@ async function load(raw: string) {
   // For previewing input changes in the browser: the price book, and the number the next saved version gets.
   const { products } = await loadPriceBook(db);
   const nextVersionNo = editor?.draftVersionNo ?? v.versionNo + 1;
-  return { id, v, lines, history, pending, newer, custom, products, nextVersionNo };
+  // Floor plans are the deal's current ones, not the version's: the pill shows what's still missing now.
+  const planIds = Array.from(new Set((await listFloorPlans(db, v.quoteId)).map((f) => f.communityId)));
+  return { id, v, lines, history, pending, newer, custom, products, nextVersionNo, planIds };
 }
 
 export async function generateMetadata({ params }: { params: { versionId: string } }): Promise<Metadata> {
@@ -45,12 +49,13 @@ export default async function ProposalPage({ params }: { params: { versionId: st
   await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
-  const { id, v, lines, history, pending, newer, custom, products, nextVersionNo } = d;
+  const { id, v, lines, history, pending, newer, custom, products, nextVersionNo, planIds } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
       {/* Wording and layout are editable on screen; figures come from the saved version, or a preview of input changes. */}
       <ProposalTextProvider versionId={id} initial={custom.edits} initialLayout={custom.layout}>
         <ValueLabelsProvider>
+          <FloorPlanStatusProvider communityIds={planIds}>
           <ProposalView
             versionId={id}
             quoteId={v.quoteId}
@@ -69,6 +74,7 @@ export default async function ProposalPage({ params }: { params: { versionId: st
             lines={lines}
             products={products}
           />
+          </FloorPlanStatusProvider>
         </ValueLabelsProvider>
       </ProposalTextProvider>
     </div>

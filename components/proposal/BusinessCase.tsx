@@ -36,6 +36,7 @@ import { renderText } from '@/lib/proposal/text';
 import { installMath, sensorMath } from '@/lib/proposal/costMath';
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
+import { MissingPlanPill } from './FloorPlanStatus';
 import { ViewSwitch } from './ViewSwitch';
 import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
@@ -675,7 +676,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <tr key={dc.id}>
                       <td className="bc-m">
                         <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
-                        <small>{d.perCommunity[i].detail}</small>
+                        <span className="bc-csub">{d.perCommunity[i].detail && <small>{d.perCommunity[i].detail}</small>}<MissingPlanPill communityId={dc.id} name={d.perCommunity[i].name} /></span>
                       </td>
                       <td>{count(b.al)}</td>
                       <td>{count(b.mc)}</td>
@@ -754,7 +755,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <tr key={dc.id}>
                   <td className="bc-m">
                     <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
-                    <small>{d.perCommunity[i].detail}</small>
+                    <span className="bc-csub">{d.perCommunity[i].detail && <small>{d.perCommunity[i].detail}</small>}<MissingPlanPill communityId={dc.id} name={d.perCommunity[i].name} /></span>
                   </td>
                   <td>{count(b.al)}</td>
                   <td>{count(b.mc)}</td>
