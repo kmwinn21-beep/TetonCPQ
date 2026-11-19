@@ -6,7 +6,7 @@
  * and removal.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { ScopeViewer } from './ScopeViewer';
 
 export interface FloorPlanItem {
   id: number;
@@ -30,6 +30,13 @@ interface Ctx {
   upload: (communityId: string, files: FileList | File[]) => void;
   remove: (id: number) => Promise<void>;
   dismiss: (key: string) => void;
+  /** Open a community's floor plans (optionally a plan, in Scope Mode, or with a room type picked out). */
+  openViewer: (communityId: string, opts?: ViewerOpts) => void;
+}
+export interface ViewerOpts {
+  planId?: number;
+  scope?: boolean;
+  typeId?: string;
 }
 
 const CHUNK = 3 * 1024 * 1024;
@@ -96,7 +103,30 @@ export function FloorPlansProvider({ quoteId, children }: { quoteId: number; chi
     [quoteId],
   );
   const dismiss = (key: string) => setUploading((u) => u.filter((x) => x.key !== key));
-  return <FloorPlansCtx.Provider value={{ quoteId, plans, uploading, upload, remove, dismiss }}>{children}</FloorPlansCtx.Provider>;
+  const [viewer, setViewer] = useState<(ViewerOpts & { communityId: string; key: number }) | null>(null);
+  const openViewer = useCallback((communityId: string, opts: ViewerOpts = {}) => setViewer({ communityId, ...opts, key: Date.now() }), []);
+  const viewerPlans = viewer ? plans.filter((p) => p.communityId === viewer.communityId) : [];
+  return (
+    <FloorPlansCtx.Provider value={{ quoteId, plans, uploading, upload, remove, dismiss, openViewer }}>
+      {children}
+      {viewer && viewerPlans.length > 0 && (
+        <ScopeViewer
+          key={viewer.key}
+          quoteId={quoteId}
+          communityId={viewer.communityId}
+          plans={viewerPlans}
+          initialPlanId={viewer.planId}
+          initialScope={viewer.scope}
+          highlightType={viewer.typeId}
+          onClose={() => setViewer(null)}
+          onRemovePlan={async (id) => {
+            await remove(id);
+            if (viewerPlans.length <= 1) setViewer(null);
+          }}
+        />
+      )}
+    </FloorPlansCtx.Provider>
+  );
 }
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -110,7 +140,6 @@ const PlanIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
 export function FloorPlans({ communityId, communityName }: { communityId: string; communityName: string }) {
   const ctx = useFloorPlans();
   const input = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<FloorPlanItem | null>(null);
   if (!ctx) return null;
   const mine = ctx.plans.filter((p) => p.communityId === communityId);
   const busy = ctx.uploading.filter((u) => u.communityId === communityId);
@@ -135,8 +164,8 @@ export function FloorPlans({ communityId, communityName }: { communityId: string
         <button
           key={p.id}
           type="button"
-          onClick={() => setPreview(p)}
-          title={`${p.name} · ${kb(p.size)} — preview or download`}
+          onClick={() => ctx.openViewer(communityId, { planId: p.id })}
+          title={`${p.name} · ${kb(p.size)} — view, scope or download`}
           className="drawer-in inline-flex items-center gap-1.5 max-w-[11rem] rounded-full bg-teton-pale-green px-2.5 py-1 text-[11px] font-medium text-[#256B41] hover:brightness-95"
         >
           <PlanIcon />
@@ -153,57 +182,7 @@ export function FloorPlans({ communityId, communityName }: { communityId: string
           )}
         </span>
       ))}
-      {preview && <FloorPlanPreview plan={preview} quoteId={ctx.quoteId} siblings={mine} onPick={setPreview} onClose={() => setPreview(null)} onRemove={async () => { await ctx.remove(preview.id); setPreview(null); }} />}
     </>
-  );
-}
-
-/** The uploaded file on screen (PDF or image), with download and remove. */
-function FloorPlanPreview({ plan, quoteId, siblings, onPick, onClose, onRemove }: { plan: FloorPlanItem; quoteId: number; siblings: FloorPlanItem[]; onPick: (p: FloorPlanItem) => void; onClose: () => void; onRemove: () => void }) {
-  const [confirm, setConfirm] = useState(false);
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
-  useEffect(() => setConfirm(false), [plan.id]);
-  const url = `/api/quotes/${quoteId}/floorplans/${plan.id}`;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label={`Floor plan: ${plan.name}`} onClick={onClose}>
-      <div className="flex flex-col w-full max-w-5xl h-full max-h-[92dvh] rounded-xl bg-white shadow-xl overflow-hidden [animation:fadeScale_.2s_ease-out]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-teton-off-white">
-          <PlanIcon className="w-4 h-4 text-teton-ui-gray" />
-          <p className="font-medium truncate min-w-0 flex-1">{plan.name} <span className="text-xs font-normal text-teton-ui-gray">· {kb(plan.size)}</span></p>
-          {siblings.length > 1 && (
-            <select className="input-field py-1 text-xs w-auto max-w-[12rem]" value={plan.id} onChange={(e) => onPick(siblings.find((s) => s.id === Number(e.target.value))!)} aria-label="Other floor plans for this community">
-              {siblings.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          )}
-          <a className="btn-primary py-1 text-xs" href={`${url}?download=1`}>Download</a>
-          {confirm ? (
-            <span className="flex items-center gap-1.5 text-xs">
-              Remove it?
-              <button type="button" className="py-1 px-2 rounded-md bg-[#C2412D] text-white font-medium" onClick={onRemove}>Remove</button>
-              <button type="button" className="py-1 px-2 rounded-md hover:bg-teton-off-white" onClick={() => setConfirm(false)}>Keep</button>
-            </span>
-          ) : (
-            <button type="button" className="btn-ghost py-1 text-xs" onClick={() => setConfirm(true)}>Remove</button>
-          )}
-          <button type="button" className="btn-ghost py-1" aria-label="Close" onClick={onClose}>✕</button>
-        </div>
-        <div className="flex-1 min-h-0 bg-teton-almost-white">
-          {plan.mime === 'application/pdf' ? (
-            <iframe key={plan.id} src={url} title={plan.name} className="w-full h-full" />
-          ) : (
-            <div className="w-full h-full overflow-auto flex items-start justify-center p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img key={plan.id} src={url} alt={plan.name} className="max-w-full h-auto" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }
 

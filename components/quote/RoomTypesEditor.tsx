@@ -8,7 +8,10 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { bedKeyOf, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, bedKeyOf, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, nextBadgeColor, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
+import { useFloorPlans } from './FloorPlans';
+import { Badge } from './ScopeViewer';
+import { useRoomTypes } from './useRoomTypes';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
 
@@ -16,7 +19,7 @@ const iconBtn = 'w-7 h-9 flex items-center justify-center rounded-md text-teton-
 const eyebrow = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1 truncate';
 
 export function RoomTypesEditor({ index: i, position }: { index: number; position: number }) {
-  const { control, setValue, getValues } = useFormContext<QuoteDraft>();
+  const { control, setValue } = useFormContext<QuoteDraft>();
   const raw = useWatch({ control, name: `communities.${i}.roomTypes` }) as RoomType[] | undefined;
   const allowance = useWatch({ control, name: `communities.${i}.sensorAllowancePct` });
   const types = Array.isArray(raw) ? raw : [];
@@ -25,19 +28,13 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const products = productsOf({ products: productsRaw, monitoring: legacy[0], ecall: legacy[1] });
 
-  // Write the room types, and the beds and additional sensors they imply.
-  const write = (next: RoomType[], pct = normalizeAllowance(getValues(`communities.${i}.sensorAllowancePct`))) => {
-    setValue(`communities.${i}.roomTypes`, next, { shouldDirty: true });
-    // Beds from every room type; extra sensors from the monitored ones (their care type has resident monitoring).
-    const s = roomDerived({ ...getValues(`communities.${i}`), roomTypes: next }, pct);
-    if (!s) return;
-    const opts = { shouldDirty: true } as const;
-    setValue(`communities.${i}.ilBeds`, s.beds.il, opts);
-    setValue(`communities.${i}.alBeds`, s.beds.al, opts);
-    setValue(`communities.${i}.mcBeds`, s.beds.mc, opts);
-    setValue(`communities.${i}.snfBeds`, s.beds.snf, opts);
-    setValue(`communities.${i}.additionalSensors`, s.additionalSensors, opts);
-  };
+  // Room types and the beds and additional sensors they imply, written together.
+  const { write } = useRoomTypes(i);
+  const fp = useFloorPlans();
+  const communityId = useWatch({ control, name: `communities.${i}.id` });
+  const plans = fp ? fp.plans.filter((p) => p.communityId === communityId) : [];
+  const planIds = plans.map((p) => p.id);
+  const anyTagged = types.some((t) => (t.marks ?? []).some((m) => planIds.includes(m.plan)));
   const patch = (id: string, p: Partial<RoomType>) => write(types.map((t) => (t.id === id ? { ...t, ...p } : t)));
   const derived = types.length ? roomDerived({ roomTypes: types, products: productsRaw, monitoring: legacy[0], ecall: legacy[1] }, normalizeAllowance(allowance)) : null;
   const scope = derived?.monitored ?? null;
@@ -59,7 +56,11 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
             <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_5.5rem_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
               <div className="col-span-4">
                 <span className={eyebrow}>Room Type/Name</span>
-                <input className="input-field px-2 py-1.5" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+                <span className="flex items-center gap-2">
+                  {/* Its badge on the floor plans. */}
+                  <Badge color={badgeOf(t, k).color} text={badgeOf(t, k).initials} size={26} className="flex-shrink-0" />
+                  <input className="input-field px-2 py-1.5" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+                </span>
               </div>
               <div className="min-w-0">
               <span className={eyebrow}>Care Setting</span>
@@ -95,13 +96,30 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               </div>
               <div>
                 <span className={eyebrow}>Rooms</span>
-                <NumInput value={t.rooms} onChange={(v) => patch(t.id, { rooms: v ?? 0 })} min={0} aria-label={`Community ${position} room type ${k + 1} rooms`} />
+                {/* Counted from the tagged badges unless overridden. */}
+                <NumInput
+                  value={t.roomsFromPlan ? (t.marks ?? []).length : t.rooms}
+                  onChange={(v) => patch(t.id, { rooms: v ?? 0 })}
+                  min={0}
+                  disabled={!!t.roomsFromPlan}
+                  aria-label={`Community ${position} room type ${k + 1} rooms`}
+                />
               </div>
               <div>
                 <span className={eyebrow}>Sensors / rm</span>
                 <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
               </div>
-              <button type="button" className={iconBtn} onClick={() => write(types.filter((x) => x.id !== t.id))} aria-label={`Remove room type ${k + 1}`} title="Remove">
+              <button
+                type="button"
+                className={iconBtn}
+                onClick={() => {
+                  const n = (t.marks ?? []).length;
+                  if (n && !window.confirm(`Remove ${t.name || 'this room type'} and its ${n} badge${n === 1 ? '' : 's'} on the floor plans?`)) return;
+                  write(types.filter((x) => x.id !== t.id));
+                }}
+                aria-label={`Remove room type ${k + 1}`}
+                title="Remove"
+              >
                 ✕
               </button>
               {/* The products this room type gets: its care setting's ticks in the Beds grid above. */}
@@ -111,12 +129,21 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                 {ecallOn && <ProductPill on={products[bedKeyOf(t)].ecall} tone="coral">E-Call</ProductPill>}
                 <span>· from {bedKeyOf(t).toUpperCase()} above</span>
               </div>
+              <PlanLine
+                t={t}
+                tagged={(t.marks ?? []).filter((m) => planIds.includes(m.plan)).length}
+                hasPlans={plans.length > 0}
+                warn={anyTagged}
+                onLock={(on) => patch(t.id, on ? { roomsFromPlan: true, rooms: (t.marks ?? []).length } : { roomsFromPlan: undefined, rooms: (t.marks ?? []).length })}
+                onShow={() => fp?.openViewer(communityId, { typeId: t.id, planId: (t.marks ?? []).find((m) => planIds.includes(m.plan))?.plan })}
+                onTag={() => fp?.openViewer(communityId, { scope: true })}
+              />
             </div>
           ))}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-3 mt-2">
-        <button type="button" className="btn-secondary py-1 text-xs" onClick={() => write([...types, newRoomType()])}>
+        <button type="button" className="btn-secondary py-1 text-xs" onClick={() => write([...types, { ...newRoomType(), color: nextBadgeColor(types) }])}>
           + Add room type
         </button>
         {types.length > 0 && (
@@ -159,5 +186,48 @@ function ProductPill({ on, tone, children }: { on: boolean; tone: 'lav' | 'coral
     <span className={`inline-flex items-center rounded-full border px-2 py-px text-[10.5px] font-semibold transition-colors duration-200 motion-reduce:transition-none ${on ? fill : 'border-teton-pale-gray text-teton-ui-gray bg-white'}`}>
       {children}
     </span>
+  );
+}
+
+/**
+ * A room type's link to the floor plans: how many rooms are tagged, whether Rooms follows them (locked) or is typed
+ * in (an override), and how far a typed-in count is from the tagged one.
+ */
+function PlanLine({ t, tagged, hasPlans, warn, onLock, onShow, onTag }: { t: RoomType; tagged: number; hasPlans: boolean; warn: boolean; onLock: (on: boolean) => void; onShow: () => void; onTag: () => void }) {
+  if (!hasPlans && !tagged) return null;
+  const rooms = Number(t.rooms) || 0;
+  const d = rooms - tagged;
+  const link = 'underline text-teton-dark-gray hover:text-teton-ink';
+  return (
+    <div className="col-span-4 -mt-0.5 text-[11px] text-teton-ui-gray space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {tagged > 0 ? (
+          <>
+            <span>📍 {count(tagged)} room{tagged === 1 ? '' : 's'} tagged on the floor plan</span>
+            {hasPlans && <button type="button" className={link} onClick={onShow}>Show on plan</button>}
+          </>
+        ) : (
+          <>
+            <span>Not tagged on a floor plan</span>
+            {hasPlans && <button type="button" className={link} onClick={onTag}>Tag on plan</button>}
+          </>
+        )}
+        {tagged > 0 && (
+          <label className="ml-auto inline-flex items-center gap-1.5 cursor-pointer select-none" title={t.roomsFromPlan ? 'Rooms follow the tagged badges. Turn off to type a number in.' : 'Rooms are typed in. Turn on to count the tagged badges.'}>
+            <span className="relative inline-flex">
+              <input type="checkbox" role="switch" className="peer sr-only" checked={!!t.roomsFromPlan} onChange={(e) => onLock(e.target.checked)} />
+              <span className="w-7 h-4 rounded-full bg-teton-pale-gray peer-checked:bg-teton-near-black transition-colors duration-200 motion-reduce:transition-none" />
+              <span className="absolute left-[2px] top-[2px] w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 motion-reduce:transition-none peer-checked:translate-x-3" />
+            </span>
+            Count from plan
+          </label>
+        )}
+      </div>
+      {warn && tagged > 0 && !t.roomsFromPlan && d !== 0 && (
+        <p className="rounded bg-teton-pale-yellow px-2 py-1 text-teton-dark-gray drawer-in">
+          {count(rooms)} entered is {count(Math.abs(d))} room{Math.abs(d) === 1 ? '' : 's'} {d > 0 ? 'more' : 'fewer'} than the {count(tagged)} tagged.
+        </p>
+      )}
+    </div>
   );
 }
