@@ -845,6 +845,42 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         {capexShown ? (
           <Blocks page="scope-capex">
             <B id="overview" label="Overview">
+            <div className="relative group/view">
+              {editable && (
+                <ViewSwitch
+                  position="absolute right-0 -top-1"
+                  label="Overview cards"
+                  options={[['overview', 'Overview'], ['units', 'Unit prices']] as const}
+                  value={layout.bcInvCards ?? 'overview'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcInvCards: v === 'units' ? 'units' : undefined }))}
+                />
+              )}
+              {layout.bcInvCards === 'units' ? (
+                <>
+                  <p className="bc-eyebrow bc-gray"><T k="bc.scope.unitPrices" d="Unit prices" /></p>
+                  <div className="bc-unit-cards">
+                    {(() => {
+                      const base = grossBaseRows(capex);
+                      const baseRange = { minPer: Math.min(...base.map((r) => r.minPer), Infinity), maxPer: Math.max(...base.map((r) => r.maxPer), 0) };
+                      const sensor = grossSensorRow(capex);
+                      const card = (k: string, name: string, price: string, freq: string, desc: string) => (
+                        <div className="bc-dark" key={k}>
+                          <span className="bc-unit-k"><T k={`bc.unit.${k}`} d={name} /></span>
+                          <b><V k={`bc.unit.${k}.value`} label={`${name} unit price`}>{price}</V></b>
+                          <span className="bc-unit-f"><T k={`bc.unit.${k}.freq`} d={freq} /></span>
+                          <span className="bc-unit-e"><T k={`bc.unit.${k}.desc`} d={desc} /></span>
+                        </div>
+                      );
+                      return [
+                        card('base', 'Base package', base.length ? perUnitText(baseRange, (n) => usd(n)) : usd(capex.pricing.basePrice), 'per room · one-time', 'Edge unit and first sensor, installed in each resident room'),
+                        card('sensors', 'Additional sensors', sensor ? perUnitText(sensor, (n) => usd(n)) : usd(capex.pricing.sensorPrice), 'per sensor · one-time', 'For rooms that need more than one sensor (bedrooms, living areas)'),
+                        card('software', 'Software & services', usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }), 'per room · per month', 'Platform, staff app, updates and support'),
+                      ];
+                    })()}
+                  </div>
+                </>
+              ) : (
+              <>
               <p className="bc-eyebrow bc-gray"><T k="bc.scope.overview" d="Overview" /></p>
               <div className="bc-two bc-three-compact bc-stat-inline">
                 <Stat value={<V k="capex.share.value" label="Share of the cost that is capitalized">{Math.round(capex.equipmentShare * 100)}%</V>}>
@@ -854,6 +890,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <T k="bc.overview.perUnit" d="Total Cost per Unit ({years}-year cost of ownership ÷ {units} units)" v={{ years: String(capex.ownershipMonths / 12), units: count(capex.beds) }} />
                 </Stat>
               </div>
+              </>
+              )}
+            </div>
             </B>
             <B id="costs" label="Equipment purchase">
             <div className="bc-card bc-tbl bc-hrs bc-inv">

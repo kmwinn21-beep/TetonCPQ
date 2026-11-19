@@ -62,6 +62,8 @@ export interface ProposalLayout {
   bcFourYears?: boolean;
   /** Business case, both pricing options: the cash flow comparison as bars (default) or lines. */
   bcCompareChart?: 'bar' | 'line';
+  /** Business case, equipment purchase: the overview cards as the summary (default) or unit prices. */
+  bcInvCards?: 'units';
   /** Table rows the rep removed (row key → its name, to list it for adding back). Both formats. */
   hiddenRows?: Record<string, string>;
   /** 2 = saved with the current default order in mind. */
@@ -168,6 +170,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecWide: raw.bcExecWide == null ? undefined : ids(raw.bcExecWide, 20),
     bcFourYears: raw.bcFourYears === true ? true : undefined,
     bcCompareChart: raw.bcCompareChart === 'line' ? 'line' : undefined,
+    bcInvCards: raw.bcInvCards === 'units' ? 'units' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

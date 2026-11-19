@@ -677,3 +677,25 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-site-tbl td { padding-left: 10px; padding-right: 10px; }
 .bc-site-tbl th:first-child, .bc-site-tbl td:first-child { padding-left: 16px; }
 .bc-site-tbl td:nth-child(2) small { white-space: nowrap; }
+/* Investment page, equipment purchase: unit price cards (price, how it's billed, what it covers). */
+.bc-unit-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.bc-unit-cards .bc-dark { padding: 12px 16px 13px; }
+.bc-unit-cards .bc-dark > b { font-size: 28px; line-height: 1.05; margin-top: 5px; }
+.bc-unit-k { display: block; font-size: 9px; letter-spacing: 1.6px; font-weight: 800; color: #9AA3AE; text-transform: uppercase; }
+.bc-unit-f { display: block; font-size: 11px; font-weight: 600; color: #fff; margin-top: 4px; }
+.bc-unit-e { display: block; font-size: 10.5px; line-height: 1.4; color: #AEB5BE; margin-top: 5px; }
+@media (max-width: 640px) { .bc-unit-cards { grid-template-columns: 1fr; } }
+/* With the unit price cards the investment page runs taller: tighten it. */
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-unit-cards .bc-dark { padding: 10px 14px 11px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-unit-cards .bc-dark > b { font-size: 25px; margin-top: 4px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-unit-e { font-size: 10px; margin-top: 3px; line-height: 1.35; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-unit-f { margin-top: 3px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-inv { margin-top: 10px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-inv td { padding-top: 5px; padding-bottom: 5px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-inv tr.bc-inv-scope td { padding-top: 7px; padding-bottom: 7px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-inv td small { margin-top: 0; line-height: 1.3; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-pilot-tbl { margin-top: 8px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-pilot-tbl th { padding-top: 7px; padding-bottom: 6px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-pilot-tbl td { padding-top: 5px; padding-bottom: 5px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-pilot-tbl td.bc-big { font-size: 15px; }
+[data-bc-page="scope"]:has(.bc-unit-cards) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }
