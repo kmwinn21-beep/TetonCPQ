@@ -17,6 +17,7 @@ import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrai
 import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';
 import { bedsOf, defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
+import { changeLines, diffDrafts } from '@/lib/quote/diff';
 
 export interface DealSummary {
   dealId: number;
@@ -44,9 +45,14 @@ export interface VersionSummary {
   requiredApprover: string | null;
   savedByName: string | null;
   sentByName: string | null;
+  /** What changed from the version it was based on, one line each. */
+  changes: string[];
 }
 
 export interface QuoteEditorData {
+  /** The version the draft is based on, and its inputs (the baseline for unsaved changes). */
+  activeVersionId: number | null;
+  activeInputs: QuoteDraft | null;
   dealId: number;
   quoteId: number;
   quoteName: string;
@@ -142,14 +148,26 @@ function versionSummary(r: Row): VersionSummary {
     requiredApprover: g?.requiredApprover ?? null,
     savedByName: r.saved_by_name ? String(r.saved_by_name) : null,
     sentByName: r.sent_by_name ? String(r.sent_by_name) : null,
+    changes: r.changes_json ? (JSON.parse(String(r.changes_json)) as string[]) : [],
   };
+}
+
+
+/** The version the draft is based on: the one last saved or made active (else the latest saved). */
+async function activeVersionId(db: Pick<Client, 'execute'>, quoteId: number): Promise<number | null> {
+  const r = await db.execute({
+    sql: `SELECT COALESCE((SELECT active_version_id FROM quotes WHERE id = ?),
+                          (SELECT id FROM quote_versions WHERE quote_id = ? AND status <> 'draft' ORDER BY version_no DESC LIMIT 1)) AS id`,
+    args: [quoteId, quoteId],
+  });
+  return r.rows[0]?.id == null ? null : Number(r.rows[0].id);
 }
 
 export async function getQuoteEditor(db: Client, quoteId: number): Promise<QuoteEditorData | null> {
   const q = await db.execute({ sql: 'SELECT id, deal_id, name FROM quotes WHERE id = ?', args: [quoteId] });
   if (!q.rows.length) return null;
   const vs = await db.execute({
-    sql: `SELECT v.id, v.version_no, v.status, v.saved_at, v.sent_at, v.change_note, v.engine_version, v.outputs_json, v.guardrail_json, v.inputs_json, v.updated_at,
+    sql: `SELECT v.id, v.version_no, v.status, v.saved_at, v.sent_at, v.change_note, v.engine_version, v.outputs_json, v.guardrail_json, v.inputs_json, v.updated_at, v.changes_json,
                  (SELECT name FROM users u WHERE u.id = v.saved_by) AS saved_by_name,
                  (SELECT name FROM users u WHERE u.id = v.sent_by) AS sent_by_name
           FROM quote_versions v WHERE v.quote_id = ? ORDER BY v.version_no DESC`,
@@ -158,7 +176,11 @@ export async function getQuoteEditor(db: Client, quoteId: number): Promise<Quote
   const draftRow = vs.rows.find((r) => r.status === 'draft');
   if (!draftRow) throw new Error(`Quote ${quoteId} has no draft`);
   const { products } = await loadPriceBook(db);
+  const activeId = await activeVersionId(db, quoteId);
+  const activeRow = vs.rows.find((r) => Number(r.id) === activeId && r.status !== 'draft');
   return {
+    activeVersionId: activeRow ? activeId : null,
+    activeInputs: activeRow ? normalizeDraft(JSON.parse(String(activeRow.inputs_json))) : null,
     dealId: Number(q.rows[0].deal_id),
     quoteId,
     quoteName: String(q.rows[0].name),
@@ -229,12 +251,17 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     const inputsJson = String(d.rows[0].inputs_json);
     const draft = normalizeDraft(JSON.parse(inputsJson) as QuoteDraft);
     const { outputs, guardrails, lines } = computeOutputs(draft, book);
+    // What changed from the version this draft was based on.
+    const baseId = await activeVersionId(tx, quoteId);
+    const base = baseId ? await tx.execute({ sql: 'SELECT inputs_json FROM quote_versions WHERE id = ?', args: [baseId] }) : null;
+    const changes = base?.rows.length ? changeLines(diffDrafts(normalizeDraft(JSON.parse(String(base.rows[0].inputs_json))), draft)) : [];
 
     await tx.execute({
       sql: `UPDATE quote_versions SET status = 'saved', engine_version = ?, outputs_json = ?, guardrail_json = ?, inputs_hash = ?,
-              change_note = ?, roi_case = ?, saved_by = ?, saved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
-      args: [ENGINE_VERSION, json(outputs), json(guardrails), createHash('sha256').update(inputsJson).digest('hex'), changeNote?.trim() || null, draft.roiCase, userId, versionId],
+              change_note = ?, roi_case = ?, saved_by = ?, saved_at = datetime('now'), updated_at = datetime('now'), changes_json = ? WHERE id = ?`,
+      args: [ENGINE_VERSION, json(outputs), json(guardrails), createHash('sha256').update(inputsJson).digest('hex'), changeNote?.trim() || null, draft.roiCase, userId, json(changes), versionId],
     });
+    await tx.execute({ sql: 'UPDATE quotes SET active_version_id = ? WHERE id = ?', args: [versionId, quoteId] });
     for (const [i, c] of draft.communities.entries()) {
       await tx.execute({
         sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, il_beds, al_beds, mc_beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
@@ -263,6 +290,28 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
     await tx.execute({ sql: "UPDATE deals SET updated_at = datetime('now') WHERE id = (SELECT deal_id FROM quotes WHERE id = ?)", args: [quoteId] });
     await tx.commit();
     return { versionId, versionNo };
+  } catch (e) {
+    await tx.rollback();
+    throw e;
+  }
+}
+
+/**
+ * Make a saved version the active one: the draft's inputs become that
+ * version's (anything unsaved in the draft is replaced) and later saves are
+ * compared with it.
+ */
+export async function activateVersion(db: Client, quoteId: number, versionId: number): Promise<void> {
+  const v = await db.execute({ sql: "SELECT inputs_json FROM quote_versions WHERE id = ? AND quote_id = ? AND status <> 'draft'", args: [versionId, quoteId] });
+  if (!v.rows.length) throw Object.assign(new Error('Version not found'), { status: 404 });
+  const tx = await db.transaction('write');
+  try {
+    await tx.execute({
+      sql: "UPDATE quote_versions SET inputs_json = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE quote_id = ? AND status = 'draft'",
+      args: [String(v.rows[0].inputs_json), quoteId],
+    });
+    await tx.execute({ sql: 'UPDATE quotes SET active_version_id = ? WHERE id = ?', args: [versionId, quoteId] });
+    await tx.commit();
   } catch (e) {
     await tx.rollback();
     throw e;

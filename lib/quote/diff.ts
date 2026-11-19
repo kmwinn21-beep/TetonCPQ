@@ -72,6 +72,8 @@ const FIELDS: Record<string, Field> = {
   'commercial.ecallPilotRate': { label: 'E-Call during pilot', fmt: 'usd' },
   'commercial.installRate': { label: 'Install / bed', fmt: 'usd' },
   'commercial.installCreditPct': { label: 'Install credit on pilot sites', fmt: 'pct' },
+  'commercial.installCreditCustom': { label: 'Custom install credit', fmt: 'bool' },
+  'commercial.installCreditCustomPct': { label: 'Custom install credit %', fmt: 'pct' },
   'commercial.installClawback': { label: 'Install credit clawback', fmt: 'bool' },
   'commercial.sensorCredit': { label: 'Install credit on additional sensors', fmt: 'bool' },
   'commercial.specialRate': { label: 'Intro rate / bed / mo', fmt: 'usd' },
@@ -173,7 +175,8 @@ function leaves(obj: unknown, prefix = ''): Record<string, unknown> {
   return out;
 }
 
-const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 1e-9);
+// An unset switch is the same as one that's off.
+const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || (a === false && b == null) || (b === false && a == null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 1e-9);
 
 const CASE_LABEL: Record<string, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const METRIC_LABEL: Record<string, string> = {
@@ -243,3 +246,6 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const order = ['Deal', 'Pricing', 'Communities', 'Implementation', 'Resource allocation', 'Terms / Notes', 'ROI Case Setup', 'ROI Timeline / Ramp', 'Improvement metrics', 'Client assumptions', 'CFO inputs', 'Valuation', 'Other'];
   return changes.sort((x, y) => order.indexOf(x.group) - order.indexOf(y.group));
 }
+
+/** One line per change: "Rate per bed / month: $99 → $89", or the change itself for list items. */
+export const changeLines = (cs: Change[]) => cs.map((c) => (c.from ? `${c.label}: ${c.from} → ${c.to}` : c.to || c.label));

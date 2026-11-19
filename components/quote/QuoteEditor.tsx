@@ -13,7 +13,8 @@ import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { runModel, type ModelInputs, type ModelResult } from '@/lib/model';
 import { priceBook, SKU } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
+import { changeLines, diffDrafts } from '@/lib/quote/diff';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import type { QuoteEditorData, VersionSummary } from '@/lib/data/quotes';
 import { CommunitiesSection } from './CommunitiesSection';
@@ -155,6 +156,51 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   // ---- save version ----
   const [versions, setVersions] = useState<VersionSummary[]>(initial.versions);
   const latestSaved = versions.filter((v) => v.status !== 'draft').sort((a, b) => b.versionNo - a.versionNo)[0];
+  // The version the draft is based on; unsaved changes are measured against it.
+  const [active, setActive] = useState<{ id: number | null; inputs: QuoteDraft | null }>({ id: initial.activeVersionId, inputs: initial.activeInputs });
+  const activeVersion = versions.find((v) => v.id === active.id) ?? latestSaved;
+  const pending = useMemo(() => {
+    if (!active.inputs) return [];
+    try {
+      return changeLines(diffDrafts(normalizeDraft(active.inputs), normalizeDraft(deferred)));
+    } catch {
+      return [];
+    }
+  }, [active.inputs, deferred]);
+  const [changesOpen, setChangesOpen] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const { reset } = methods;
+  /** Load the server's editor state after a save or a Make Active: versions, the active one and (optionally) the draft. */
+  const adopt = useCallback(
+    (editor: QuoteEditorData, withDraft: boolean) => {
+      setVersions(editor.versions);
+      setDraftNo(editor.draftVersionNo);
+      setActive({ id: editor.activeVersionId, inputs: editor.activeInputs });
+      baseRev.current = editor.draftUpdatedAt;
+      if (withDraft) {
+        lastSaved.current = JSON.stringify(editor.draft);
+        reset(editor.draft);
+        setSaveState('saved');
+      }
+    },
+    [reset],
+  );
+  async function makeActive(v: VersionSummary) {
+    if (pending.length && !window.confirm(`Make ${v.changeNote || `v${v.versionNo}`} active? Your ${pending.length} unsaved ${pending.length === 1 ? 'change' : 'changes'} will be discarded.`)) return;
+    setActivating(true);
+    setVersionError(null);
+    try {
+      const res = await fetch(`/api/quotes/${initial.quoteId}/versions/${v.id}/activate`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      adopt(body.editor, true);
+      setChangesOpen(false);
+    } catch (e) {
+      setVersionError(e instanceof Error ? e.message : 'Could not make that version active');
+    } finally {
+      setActivating(false);
+    }
+  }
   const [draftNo, setDraftNo] = useState(initial.draftVersionNo);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
@@ -186,12 +232,11 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       }
       if (!res.ok) throw new Error(body.error);
       lastSaved.current = JSON.stringify(draft);
-      baseRev.current = body.editor.draftUpdatedAt;
       setSaveState('saved');
-      setVersions(body.editor.versions);
-      setDraftNo(body.editor.draftVersionNo);
+      adopt(body.editor, false);
       setNote('');
       setNoteOpen(false);
+      setChangesOpen(false);
     } catch (e) {
       setVersionError(e instanceof Error ? e.message : 'Could not save the version');
     } finally {
@@ -237,8 +282,8 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
             {/* Proposals are made from saved versions: the latest one. */}
-            {latestSaved ? (
-              <Link href={`/proposal/${latestSaved.id}`} className="btn-secondary whitespace-nowrap" title={`The proposal for v${latestSaved.versionNo}, the latest saved version`}>
+            {activeVersion ? (
+              <Link href={`/proposal/${activeVersion.id}`} className="btn-secondary whitespace-nowrap" title={`The proposal for v${activeVersion.versionNo}, the active version`}>
                 View proposal
               </Link>
             ) : (
@@ -248,15 +293,36 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             )}
             {noteOpen ? (
               <div className="flex flex-1 sm:flex-none flex-wrap items-start gap-2">
-                <input autoFocus className="input-field w-full sm:w-72" placeholder="What changed? (e.g. Sent to CFO, 50% install credit)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Version note" />
+                <input autoFocus className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
                 <button type="button" className="btn-primary" onClick={saveVersion} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
                 <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
               </div>
             ) : (
-              <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length}>Save version</button>
+              <>
+                {pending.length > 0 && (
+                  <button type="button" className="btn-secondary whitespace-nowrap" aria-expanded={changesOpen} aria-controls="pending-changes" onClick={() => setChangesOpen(!changesOpen)}>
+                    View changes ({pending.length})
+                  </button>
+                )}
+                <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length}>Save version</button>
+              </>
             )}
           </div>
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
+          {/* Unsaved changes since the active version, like the proposal's change bar. */}
+          {pending.length > 0 && (
+            <div className="w-full rounded-lg bg-teton-pale-yellow px-3 py-2 text-sm drawer-in" role="status">
+              <p>
+                <span className="inline-block w-2 h-2 rounded-full bg-[#E2A72B] mr-2 align-middle" aria-hidden="true" />
+                <b>{pending.length} unsaved {pending.length === 1 ? 'change' : 'changes'}</b> since {activeVersion ? (activeVersion.changeNote || `v${activeVersion.versionNo}`) : 'the last version'}. {pending.length === 1 ? 'Save a version to keep it, or it’ll be discarded.' : 'Save a version to keep them, or they’ll be discarded.'}
+              </p>
+              <Collapse open={changesOpen} id="pending-changes">
+                <ul className="list-disc pl-9 pt-1.5 space-y-0.5 text-[13px] text-teton-dark-gray">
+                  {pending.map((c, i) => <li key={i}>{c}</li>)}
+                </ul>
+              </Collapse>
+            </div>
+          )}
           {Object.keys(formState.errors).length > 0 && !versionError && (
             <p className="w-full text-sm bg-teton-pale-yellow rounded px-2 py-1">Some fields need attention — they’re highlighted below.</p>
           )}
@@ -368,7 +434,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
               <GuardrailPanel g={computed.guardrails} />
-              <VersionsPanel versions={versions} quoteId={initial.quoteId} />
+              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} />
             </div>
           </aside>
         </div>

@@ -190,4 +190,14 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
     name: 'who last changed a list price',
     sql: [`ALTER TABLE products ADD COLUMN updated_by INTEGER REFERENCES users(id)`],
   },
+  {
+    id: 7,
+    name: 'version change lists and the active version',
+    sql: [
+      // What changed from the version it was based on, as readable lines.
+      `ALTER TABLE quote_versions ADD COLUMN changes_json TEXT`,
+      // The version the draft was last made from (saved, or made active).
+      `ALTER TABLE quotes ADD COLUMN active_version_id INTEGER REFERENCES quote_versions(id)`,
+    ],
+  },
 ];
