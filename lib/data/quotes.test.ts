@@ -59,6 +59,23 @@ describe('deals, drafts and versions', () => {
     expect(Number(rows.rows[0].n)).toBe(1);
   });
 
+  it("carries the proposal's wording and layout to each new version", async () => {
+    const { quoteId } = await createDeal(db, 'Carry Co');
+    const ed = (await getQuoteEditor(db, quoteId))!;
+    await saveDraft(db, quoteId, { ...ed.draft, communities: [{ ...newCommunity(0), name: 'Site A', alBeds: 40 }] });
+    const v1 = await saveVersion(db, quoteId, null);
+    await db.execute({ sql: "INSERT INTO proposal_text (quote_version_id, edits_json, layout_json) VALUES (?, ?, ?)", args: [v1.versionId, '{"bc.title":"Custom"}', '{"format":"businessCase"}'] });
+    // An input change, then a new version: the customizations come along.
+    const ed2 = (await getQuoteEditor(db, quoteId))!;
+    await saveDraft(db, quoteId, { ...ed2.draft, commercial: { ...ed2.draft.commercial, platformRate: 95 } });
+    const v2 = await saveVersion(db, quoteId, null);
+    const r = await db.execute({ sql: 'SELECT edits_json, layout_json FROM proposal_text WHERE quote_version_id = ?', args: [v2.versionId] });
+    expect(r.rows[0]).toMatchObject({ edits_json: '{"bc.title":"Custom"}', layout_json: '{"format":"businessCase"}' });
+    // The earlier version keeps its own.
+    const r1 = await db.execute({ sql: 'SELECT edits_json FROM proposal_text WHERE quote_version_id = ?', args: [v1.versionId] });
+    expect(r1.rows[0].edits_json).toBe('{"bc.title":"Custom"}');
+  });
+
   it('refuses to change a saved version, but can delete one with its rows', async () => {
     const { quoteId } = await createDeal(db, 'Frozen Co');
     const { versionId } = await saveVersion(db, quoteId, null);

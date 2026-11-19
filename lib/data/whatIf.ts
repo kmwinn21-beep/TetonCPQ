@@ -25,7 +25,8 @@ export async function saveProposalChanges(db: Client, versionId: number, changes
 
   // The proposal's wording and layout carry over to the new version.
   await db.execute({
-    sql: `INSERT INTO proposal_text (quote_version_id, edits_json, layout_json, updated_by, updated_at)
+    // (The version the changes were made on wins over the one the draft was based on.)
+    sql: `INSERT OR REPLACE INTO proposal_text (quote_version_id, edits_json, layout_json, updated_by, updated_at)
           SELECT ?, edits_json, layout_json, ?, datetime('now') FROM proposal_text WHERE quote_version_id = ?`,
     args: [saved.versionId, userId, versionId],
   });

@@ -262,6 +262,15 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
       args: [ENGINE_VERSION, json(outputs), json(guardrails), createHash('sha256').update(inputsJson).digest('hex'), changeNote?.trim() || null, draft.roiCase, userId, json(changes), versionId],
     });
     await tx.execute({ sql: 'UPDATE quotes SET active_version_id = ? WHERE id = ?', args: [versionId, quoteId] });
+    // The proposal's wording and layout (both formats) carry over from the version this draft was based on,
+    // so a new version keeps every customization; "Reset to standard" on the proposal clears them.
+    if (baseId) {
+      await tx.execute({
+        sql: `INSERT OR IGNORE INTO proposal_text (quote_version_id, edits_json, layout_json, updated_by, updated_at)
+              SELECT ?, edits_json, layout_json, ?, datetime('now') FROM proposal_text WHERE quote_version_id = ?`,
+        args: [versionId, userId, baseId],
+      });
+    }
     for (const [i, c] of draft.communities.entries()) {
       await tx.execute({
         sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, il_beds, al_beds, mc_beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
