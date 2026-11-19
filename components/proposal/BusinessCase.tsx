@@ -37,6 +37,7 @@ import { installColumns, installMath, sensorColumns, sensorMath } from '@/lib/pr
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
 import { MissingPlanPill } from './FloorPlanStatus';
+import { CallOut } from './CallOut';
 import { ViewSwitch } from './ViewSwitch';
 import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
@@ -73,10 +74,12 @@ function Page({ crumb, no, children }: { crumb: React.ReactNode; no: number; chi
   );
 }
 
-function Stat({ value, children }: { value: React.ReactNode; children: React.ReactNode }) {
+function Stat({ value, children, ck }: { value: React.ReactNode; children: React.ReactNode; /** Names the figure for a custom value (else its figure key). */ ck?: string }) {
+  // A figure (V) or a named value can be replaced with a custom one; wording (T) is already editable.
+  const k = ck ?? (isValidElement(value) && value.type === V ? (value.props as { k: string }).k : null);
   return (
     <div className="bc-dark">
-      <b>{value}</b>
+      <b>{k ? <CallOut k={k}>{value}</CallOut> : value}</b>
       <span>{children}</span>
     </div>
   );
@@ -505,17 +508,17 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="sitescope">
           <B id="cards" label="Scope figures">
             <div className="bc-four">
-              <Stat value={count(roomsTotal)}>
+              <Stat ck="site.rooms" value={count(roomsTotal)}>
                 <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
               </Stat>
-              <Stat value={count(roomsTotal)}>
+              <Stat ck="site.edge" value={count(roomsTotal)}>
                 <T k="bc.site.edge" d="Edge units, one in every resident room" />
               </Stat>
               <div className="bc-dark bc-dark-hot">
-                <b>{count(sensorsTotal)}</b>
+                <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
                 <span><T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} /></span>
               </div>
-              <Stat value={count(extraTotal)}>
+              <Stat ck="site.extra" value={count(extraTotal)}>
                 <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
               </Stat>
             </div>
@@ -870,7 +873,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       const card = (k: string, name: string, price: string, freq: string, desc: string) => (
                         <div className="bc-dark" key={k}>
                           <span className="bc-unit-k"><T k={`bc.unit.${k}`} d={name} /></span>
-                          <b><V k={`bc.unit.${k}.value`} label={`${name} unit price`}>{price}</V></b>
+                          <b><CallOut k={`bc.unit.${k}`}><V k={`bc.unit.${k}.value`} label={`${name} unit price`}>{price}</V></CallOut></b>
                           <span className="bc-unit-f"><T k={`bc.unit.${k}.freq`} d={freq} /></span>
                           <span className="bc-unit-e"><T k={`bc.unit.${k}.desc`} d={desc} /></span>
                         </div>
@@ -1026,7 +1029,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     const card = (k: string, name: string, price: React.ReactNode, freq: string, desc: string, v?: Record<string, string>) => (
                       <div className="bc-dark" key={k}>
                         <span className="bc-unit-k"><T k={`bc.opunit.${k}`} d={name} /></span>
-                        <b>{price}</b>
+                        <b><CallOut k={`unit.${k}`}>{price}</CallOut></b>
                         <span className="bc-unit-f"><T k={`bc.opunit.${k}.freq`} d={freq} /></span>
                         <span className="bc-unit-e"><T k={`bc.opunit.${k}.desc`} d={desc} v={v} /></span>
                       </div>
@@ -1052,7 +1055,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <Stat value={<V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>}>
                 <T k="bc.overview.perBed" d="Total Cost per Bed, Per Month" />
               </Stat>
-              <Stat value={<>{term} months</>}>
+              <Stat ck="bc.overview.term" value={<>{term} months</>}>
                 <T k="bc.overview.term" d="Post-Pilot Term Length" />
               </Stat>
             </div>
@@ -1282,7 +1285,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           ) : (
             <div className={`bc-callout ${layout.bcRoiQuote ? 'bc-callout-q' : ''}`}>
               <div className="bc-callout-row">
-              <b><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></b>
+              <b><CallOut k="roi.outcome.valuation.value"><V k="roi.outcome.valuation.value" label="Asset Value Impact figure">{usd(sel.valuationImpact, { compact: true })}</V></CallOut></b>
                 <div>
                   <span className="bc-chip"><T k="bc.roi.chip" d="Asset value · {capRate} cap" v={vars} /></span>
                   <p><T k="bc.roi.callout" d="of asset value from {noi} a year of added net operating income, capitalized once at a {capRate} cap rate: the figure an owner or REIT partner sees on the community’s valuation." v={{ ...vars, noi: usd(sel.annualNetNoiImpact, { compact: true }) }} /></p>
@@ -1389,7 +1392,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <B id="callout" label="Run-rate callout">
         {y1.investment > 0 && (
           <div className="bc-callout">
-            <b><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></b>
+            <b><CallOut k="card.runRate.value"><V k="card.runRate.value" label="Run-Rate Annual Net Benefit figure">{usd(stabilizedNet)}</V></CallOut></b>
             <div>
               <span className="bc-chip"><T k="bc.y1.chip" d="Every year at run rate" /></span>
               <p><T k="bc.y1.callout" d="Once {site} is fully ramped, the program returns this much a year after Teton’s fees: about {ratio} times the first year’s total investment." v={{ ...vars, ratio: (stabilizedNet / y1.investment).toFixed(1) }} /></p>
@@ -1448,7 +1451,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </B>
         <B id="total" label="Total value callout">
           <div className="bc-callout bc-cf-total">
-            <b><V k="bc.cf.total.value" label="Total value added over the term">{usd(sum(net), { compact: true })}</V></b>
+            <b><CallOut k="bc.cf.total.callout"><V k="bc.cf.total.value" label="Total value added over the term">{usd(sum(net), { compact: true })}</V></CallOut></b>
             <div>
               <span className="bc-chip"><T k="bc.cf.total.chip" d="Total Value Added Over Term" /></span>
               <p>
@@ -1854,7 +1857,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           {capexShown && (
             <B id="callout" label="Cost of ownership">
               <div className="bc-callout">
-                <b><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal, { compact: capex.ownershipTotal >= 10_000_000 })}</V></b>
+                <b><CallOut k="capex.ownership.callout"><V k="capex.ownership.value" label="Cost of ownership">{usd(capex.ownershipTotal, { compact: capex.ownershipTotal >= 10_000_000 })}</V></CallOut></b>
                 <div>
                   <span className="bc-chip"><T k="bc.terms.chip" d="Four-year cost of ownership" /></span>
                   <p><T k="bc.terms.callout" d="{equipment} of equipment paid once at install, plus {software} of software and services over four years, the useful life of the hardware. About {share} of it is equipment." v={{ equipment: usd(capex.equipment), software: usd(capex.software), share: `${Math.round(capex.equipmentShare * 100)}%` }} /></p>
