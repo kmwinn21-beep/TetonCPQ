@@ -176,6 +176,17 @@ export function RTable({ className, children }: { className?: string; children: 
     columns.push({ key: `${id}.${k}`.slice(0, 80), start: at, span });
     at += span;
   }
+  // Column order: the first column stays put; the rest follow the saved order (new columns keep their place at the end).
+  const allRows = parts.flatMap(rowsIn);
+  const canMove =
+    !!head && columns.length > 2 && columns.every((c) => c.span === 1) && !allRows.some((r) => cellsOf(r).some((c) => isCell(c) && Number((c.props as { rowSpan?: number }).rowSpan) > 1));
+  const saved = layout.colOrder?.[id] ?? [];
+  const rest = columns.map((_, i) => i).slice(1);
+  const perm = canMove ? [0, ...[...rest].sort((x, y) => {
+    const a = saved.indexOf(columns[x].key);
+    const b = saved.indexOf(columns[y].key);
+    return (a < 0 ? 1e6 + x : a) - (b < 0 ? 1e6 + y : b);
+  })] : columns.map((_, i) => i);
   const hiddenCols = layout.hiddenCols ?? {};
   const hidden = new Set<number>();
   columns.forEach((c, i) => {
@@ -186,7 +197,7 @@ export function RTable({ className, children }: { className?: string; children: 
   const headCells = head ? cellsOf(head).filter(isCell) : [];
   const widths = layout.colWidths ?? {};
   const remove = (col: { key: string }, e: React.MouseEvent<HTMLButtonElement>) => {
-    const th = e.currentTarget.parentElement as HTMLElement | null;
+    const th = e.currentTarget.closest('th') as HTMLElement | null;
     const text = (th?.textContent ?? '').replace(/\s+/g, ' ').trim() || 'Column';
     // The first column removed from this table: note each totals column's share of the width as it is now.
     const keep: Record<string, number> = {};
@@ -203,14 +214,37 @@ export function RTable({ className, children }: { className?: string; children: 
       colWidths: Object.keys(keep).length ? { ...(l.colWidths ?? {}), ...keep } : l.colWidths,
     }));
   };
+  // Move a column one place left or right, past any removed ones.
+  const move = (i: number, dir: -1 | 1) => {
+    const shownOrder = perm.slice(1).filter((x) => !(columns[x].key in hiddenCols));
+    const at = shownOrder.indexOf(i);
+    const to = at + dir;
+    if (at < 0 || to < 0 || to >= shownOrder.length) return;
+    const next = [...shownOrder];
+    [next[at], next[to]] = [next[to], next[at]];
+    // Removed columns keep their place relative to the start, so adding one back puts it where it was.
+    const full = perm.slice(1).map((x) => (columns[x].key in hiddenCols ? x : next.shift()!));
+    setLayout((l) => ({ ...l, colOrder: { ...(l.colOrder ?? {}), [id]: full.map((x) => columns[x].key) } }));
+  };
+  const visibleOrder = perm.slice(1).filter((x) => !(columns[x].key in hiddenCols));
   let rowNo = 0;
   const fixRow = (tr: React.ReactElement, isHead: boolean): React.ReactElement => {
-    let pos = 0;
-    let ci = 0;
     const out: React.ReactNode[] = [];
     const rowKey = tr.key != null ? `k${tr.key}` : `r${rowNo}`;
     rowNo++;
-    for (const raw of cellsOf(tr)) {
+    // Each cell with the column position it was written at.
+    let at0 = 0;
+    let items = cellsOf(tr).map((raw) => {
+      if (!isCell(raw)) return { raw, pos: -1, span: 0, idx: -1 };
+      const span = Math.max(1, Number(raw.props.colSpan) || 1);
+      const it = { raw, pos: at0, span, idx: columns.findIndex((x) => x.start === at0) };
+      at0 += span;
+      return it;
+    });
+    // A row with one cell per column follows the column order; rows with wider cells (a heading across the table) keep theirs.
+    const cellsOnly = items.filter((x) => x.pos >= 0);
+    if (canMove && cellsOnly.length === columns.length && cellsOnly.every((x) => x.span === 1)) items = perm.map((i) => cellsOnly[i]);
+    for (const { raw, pos, span, idx } of items) {
       if (!isCell(raw)) {
         out.push(raw);
         continue;
@@ -218,12 +252,10 @@ export function RTable({ className, children }: { className?: string; children: 
       // Its text is editable, named by table, row and column.
       const colAt = columns.find((x) => pos >= x.start && pos < x.start + x.span)?.key ?? `${id}.c${pos}`;
       const c = cloneElement(raw, { children: editableCell(raw.props.children, `${colAt}.${isHead ? 'head' : rowKey}`) });
-      const span = Math.max(1, Number(c.props.colSpan) || 1);
       let shown = 0;
       for (let x = pos; x < pos + span; x++) if (!hidden.has(x)) shown++;
-      const col = isHead ? columns[ci] : undefined;
-      pos += span;
-      ci++;
+      const col = isHead && idx >= 0 ? columns[idx] : undefined;
+      const ci = idx + 1;
       if (!shown) continue;
       const w = isHead && col && hidden.size && widths[col.key] ? { style: { width: widths[col.key], minWidth: widths[col.key] } } : {};
       if (isHead && editable && col && ci > 1) {
@@ -235,16 +267,21 @@ export function RTable({ className, children }: { className?: string; children: 
             children: (
               <>
                 {c.props.children}
-                <button
-                  type="button"
-                  data-edit-ui
-                  className="no-print absolute left-0.5 top-1/2 -translate-y-1/2 hidden group-hover/col:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teton-near-black text-white shadow"
-                  title="Remove this column"
-                  aria-label="Remove this column"
-                  onClick={(e) => remove(col, e)}
-                >
-                  <MinusIcon />
-                </button>
+                <span data-edit-ui className="no-print absolute left-0.5 top-1/2 -translate-y-1/2 hidden group-hover/col:flex items-center gap-0.5 rounded-full bg-teton-near-black p-0.5 text-white shadow z-10">
+                  {canMove && (
+                    <button type="button" className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-white/25 disabled:opacity-30" disabled={visibleOrder.indexOf(idx) <= 0} title="Move this column left" aria-label="Move this column left" onClick={() => move(idx, -1)}>
+                      <svg viewBox="0 0 16 16" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5" /></svg>
+                    </button>
+                  )}
+                  <button type="button" className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-white/25" title="Remove this column" aria-label="Remove this column" onClick={(e) => remove(col, e)}>
+                    <MinusIcon />
+                  </button>
+                  {canMove && (
+                    <button type="button" className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-white/25 disabled:opacity-30" disabled={visibleOrder.indexOf(idx) >= visibleOrder.length - 1} title="Move this column right" aria-label="Move this column right" onClick={() => move(idx, 1)}>
+                      <svg viewBox="0 0 16 16" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" /></svg>
+                    </button>
+                  )}
+                </span>
               </>
             ),
           }),

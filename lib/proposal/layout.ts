@@ -74,6 +74,8 @@ export interface ProposalLayout {
   hiddenCols?: Record<string, string>;
   /** Totals columns' width (px; pages are a fixed width) as it was before columns were removed, so they keep it. */
   colWidths?: Record<string, number>;
+  /** Column order per table (column keys after the first column). */
+  colOrder?: Record<string, string[]>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -208,6 +210,17 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return Object.keys(out).length ? out : undefined;
     })(),
+    colOrder: (() => {
+      const v = raw.colOrder;
+      if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;
+      const out: Record<string, string[]> = {};
+      for (const [t, keys] of Object.entries(v as Record<string, unknown>).slice(0, 60)) {
+        if (!ID.test(t) || !Array.isArray(keys)) continue;
+        const ks = keys.filter((k): k is string => typeof k === 'string' && ID.test(k)).slice(0, 30);
+        if (ks.length) out[t] = ks;
+      }
+      return Object.keys(out).length ? out : undefined;
+    })(),
     colWidths: (() => {
       const v = raw.colWidths;
       if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;
@@ -232,5 +245,5 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + Object.keys(l.colOrder ?? {}).length;
 }
