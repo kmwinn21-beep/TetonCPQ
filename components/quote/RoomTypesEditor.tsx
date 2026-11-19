@@ -51,7 +51,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
           <div className="grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem_1.75rem] gap-x-1.5 text-[10.5px] text-teton-ui-gray px-2">
             <span>Care</span>
             <span>Rooms</span>
-            <span>Sensors / room</span>
+            <span>Sensors per Room</span>
             <span />
           </div>
           {types.map((t, k) => (

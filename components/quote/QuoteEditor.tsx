@@ -25,21 +25,22 @@ import { GuardrailPanel, KpiPreview, VersionsPanel } from './ResultsRail';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
 import { Collapse, SectionGroup } from '@/components/form/fields';
+import { usePersistedOpen } from '@/components/Sidebar';
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
 const NAV = [
-  ['communities', 'Communities'],
   ['pricing', 'Pricing & products'],
+  ['communities', 'Communities'],
   ['implplan', 'Implementation'],
   ['resources', 'Resource allocation'],
-  ['schedule', 'Timeline'],
   ['terms', 'Terms / Notes'],
 ] as const;
 
 /** Sections inside the collapsible Assumptions group. */
 const ASSUMPTIONS_NAV = [
   ['case', 'ROI Case Setup'],
+  ['schedule', 'ROI Timeline / Ramp'],
   ['valuation', 'Valuation & margin'],
   ['metrics', 'Improvement metrics'],
   ['revenue', 'Revenue'],
@@ -63,6 +64,8 @@ export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
 function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const sections = useSections();
   const assumptionsOpen = sections.isOpen('assumptions');
+  // The section menu beside the form: collapsed by default, remembered per browser.
+  const [navOpen, setNavOpen] = usePersistedOpen('teton.sectionNav.open');
   // The rail column can host the Communities editor panel (wide screens only; below xl the rail sits under the form).
   const [railEl, setRailEl] = useState<HTMLDivElement | null>(null);
   const [railActive, setRailActive] = useState(false);
@@ -259,9 +262,33 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           )}
         </header>
 
-        <div className="grid gap-6 grid-cols-1 xl:grid-cols-[170px_minmax(0,1fr)_340px]">
-          <nav className="hidden xl:block" aria-label="Form sections">
+        {/* The inputs and the right panel share the room 1.75 : 1, so both widen when the menus collapse. */}
+        <div
+          className={`grid gap-6 grid-cols-1 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none ${
+            navOpen ? 'xl:grid-cols-[170px_minmax(0,1.75fr)_minmax(300px,1fr)]' : 'xl:grid-cols-[32px_minmax(0,1.75fr)_minmax(300px,1fr)]'
+          }`}
+        >
+          <nav className="hidden xl:block min-w-0" aria-label="Form sections">
             <div className="sticky top-0 text-sm">
+              <button
+                type="button"
+                onClick={() => setNavOpen(!navOpen)}
+                aria-expanded={navOpen}
+                aria-controls="form-section-menu"
+                aria-label={navOpen ? 'Collapse the section menu' : 'Expand the section menu'}
+                title={navOpen ? 'Collapse the menu' : 'Sections'}
+                className="mb-1 flex items-center gap-2 h-8 px-2 rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink"
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={navOpen ? 'M11 19l-7-7 7-7m8 14l-7-7 7-7' : 'M4 6h16M4 12h16M4 18h10'} />
+                </svg>
+                <span className={`text-xs font-medium whitespace-nowrap overflow-hidden transition-[opacity,max-width] duration-300 ${navOpen ? 'opacity-100 max-w-[8rem]' : 'opacity-0 max-w-0'}`}>Sections</span>
+              </button>
+              <div
+                id="form-section-menu"
+                className={`transition-[opacity,transform] duration-300 ease-out ${navOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 pointer-events-none'}`}
+                {...((navOpen ? {} : { inert: '' }) as Record<string, string>)}
+              >
               <ul className="space-y-0.5">
                 {NAV.map(([id, label]) => (
                   <li key={id}>
@@ -304,6 +331,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                   ))}
                 </ul>
               </Collapse>
+              </div>
             </div>
           </nav>
 
@@ -313,16 +341,16 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 {sections.allOpen ? 'Collapse all' : 'Expand all'}
               </button>
             </div>
+            <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <RailSlotContext.Provider value={railSlot}>
               <CommunitiesSection inputs={computed.inputs} result={computed.result} book={book} />
             </RailSlotContext.Provider>
-            <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <ImplementationSection inputs={computed.inputs} result={computed.result} book={book} />
             <ResourcesSection inputs={computed.inputs} result={computed.result} book={book} />
-            <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
             <TermsSection inputs={computed.inputs} result={computed.result} book={book} />
-            <SectionGroup id="assumptions" title="Assumptions" summary="ROI case, valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">
+            <SectionGroup id="assumptions" title="Assumptions" summary="ROI case, ROI timeline, valuation, improvement metrics, client revenue, move-in, falls, night staffing and CFO inputs">
               <CaseSetupSection />
+              <ScheduleSection inputs={computed.inputs} result={computed.result} book={book} />
               <ValuationSection />
               <MetricsSection inputs={computed.inputs} result={computed.result} book={book} />
               <ClientSection inputs={computed.inputs} result={computed.result} book={book} />
@@ -331,10 +359,14 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start xl:max-h-[calc(100dvh-3rem)] xl:overflow-y-auto">
+            {/* Same height as the "Expand all" row over the form, so the panel's top lines up with the first section. */}
+            <div className="hidden xl:flex justify-end -mb-1 invisible" aria-hidden="true">
+              <span className="btn-ghost">Expand all</span>
+            </div>
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
-            <div ref={setRailEl} className={railActive && railBeside ? 'card p-4' : 'hidden'} />
-            <div className={railActive && railBeside ? 'hidden' : 'space-y-4'}>
-              <KpiPreview result={computed.result} error={computed.error} draft={deferred} />
+            <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
+            <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
+              <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
               <GuardrailPanel g={computed.guardrails} />
               <VersionsPanel versions={versions} quoteId={initial.quoteId} />
             </div>

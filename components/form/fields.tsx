@@ -4,10 +4,11 @@
  * Form fields bound to the QuoteDraft form via react-hook-form's context.
  * Rates are stored as fractions and shown as percents (PercentField).
  */
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Controller, useFormContext, type FieldPath, type RegisterOptions } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { NumInput } from './NumInput';
+import { SegGroup } from './SegGroup';
 import { useSections } from './SectionsContext';
 
 type Name = FieldPath<QuoteDraft>;
@@ -86,11 +87,11 @@ export function ToggleField({ name, label, hint, disabled }: { name: Name; label
             aria-checked={!!field.value}
             disabled={disabled}
             onClick={() => field.onChange(!field.value)}
-            className={`mt-0.5 relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent ${
+            className={`mt-0.5 relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent ${
               field.value ? 'bg-brand-secondary' : 'bg-teton-pale-gray'
             }`}
           >
-            <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform ${field.value ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+            <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 ease-out ${field.value ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
           </button>
           <span>
             <span className="text-sm text-teton-ink">{label}</span>
@@ -111,7 +112,7 @@ export function SegmentedField<T extends string>({ name, label, options }: { nam
       render={({ field }) => (
         <div>
           <span className="label">{label}</span>
-          <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap rounded-lg border border-teton-pale-gray bg-white p-0.5">
+          <SegGroup label={label} className="inline-flex flex-wrap rounded-lg border border-teton-pale-gray bg-white p-0.5">
             {options.map((o) => (
               <button
                 key={o.value}
@@ -119,14 +120,14 @@ export function SegmentedField<T extends string>({ name, label, options }: { nam
                 role="radio"
                 aria-checked={field.value === o.value}
                 onClick={() => field.onChange(o.value)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  field.value === o.value ? 'bg-brand-secondary text-white' : 'text-teton-dark-gray hover:bg-teton-off-white'
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors duration-200 ${
+                  field.value === o.value ? 'text-white' : 'text-teton-dark-gray hover:bg-teton-off-white'
                 }`}
               >
                 {o.label}
               </button>
             ))}
-          </div>
+          </SegGroup>
         </div>
       )}
     />
@@ -181,7 +182,7 @@ export function Section({
           onClick={() => setOpen(id, !open)}
         >
           <svg
-            className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 ${open ? 'rotate-90' : ''}`}
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden="true"
@@ -206,9 +207,9 @@ export function Section({
           </div>
         )}
       </div>
-      <div id={bodyId} hidden={!open} className="px-5 pb-5">
-        {children}
-      </div>
+      <Collapse open={open} id={bodyId}>
+        <div className="px-5 pb-5">{children}</div>
+      </Collapse>
     </section>
   );
 }
@@ -219,14 +220,22 @@ export const Grid = ({ children, cols = 3 }: { children: React.ReactNode; cols?:
 
 /** Height animation for expanding content: grid rows 0fr ↔ 1fr, with a fade. */
 export function Collapse({ open, id, children, className = '' }: { open: boolean; id?: string; children: React.ReactNode; className?: string }) {
+  // Clip only while moving: once open, menus and focus rings can spill past the edge.
+  const [settled, setSettled] = useState(open);
+  useEffect(() => {
+    if (!open) setSettled(false);
+  }, [open]);
   return (
     <div
       id={id}
       className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'} ${className}`}
+      onTransitionEnd={(e) => {
+        if (e.target === e.currentTarget && open) setSettled(true);
+      }}
       // Hidden content stays mounted (its fields still validate) but can't be tabbed into.
       {...((open ? {} : { inert: '' }) as Record<string, string>)}
     >
-      <div className="min-h-0 overflow-hidden">{children}</div>
+      <div className={`min-h-0 ${open && settled ? 'overflow-visible' : 'overflow-hidden'}`}>{children}</div>
     </div>
   );
 }

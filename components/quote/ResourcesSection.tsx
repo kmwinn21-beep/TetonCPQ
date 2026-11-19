@@ -21,7 +21,7 @@ export function ResourcesSection(_props: SectionProps) {
   return (
     <Section
       id="resources"
-      title="Estimated Resource Allocation"
+      title="Est. Implementation Resource Allocation"
       description={`Who at ${company} takes part in each implementation stage, for roughly how many hours, and what they do. Each role is listed once. Shown on the proposal as “Implementation – Estimated Resource Allocation”.`}
       summary={t.rows.length ? `${t.rows.length} ${t.rows.length === 1 ? 'role' : 'roles'} · ${fmtHours(t.total)}` : 'None yet'}
     >

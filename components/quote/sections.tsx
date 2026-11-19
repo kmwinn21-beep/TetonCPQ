@@ -8,6 +8,7 @@ import { communityRates } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, pct, usd } from '@/lib/format';
 import { DerivedField, Grid, MoneyField, NumberField, PercentField, Section, SegmentedField, ToggleField } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
+import { SegGroup } from '@/components/form/SegGroup';
 
 export interface SectionProps {
   inputs: ModelInputs | null;
@@ -49,6 +50,72 @@ export function CaseSetupSection() {
   );
 }
 
+/** Install credit on pilot sites: None, 50%, 100% or a custom percentage typed beside the buttons (required once Custom is chosen). */
+function InstallCreditChoice() {
+  const { control, setValue } = useFormContext<QuoteDraft>();
+  const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
+  const custom = !!k.installCreditCustom;
+  const pick = (v: number | 'custom') => {
+    if (v === 'custom') {
+      setValue('commercial.installCreditCustom', true, { shouldDirty: true });
+      setValue('commercial.installCreditPct', k.installCreditCustomPct ?? 0, { shouldDirty: true });
+    } else {
+      setValue('commercial.installCreditCustom', false, { shouldDirty: true });
+      setValue('commercial.installCreditPct', v, { shouldDirty: true });
+    }
+  };
+  const opts: Array<[number | 'custom', string]> = [[0, 'None'], [0.5, '50%'], [1, '100%'], ['custom', 'Custom']];
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <SegGroup label="Install credit on pilot sites" className="inline-flex rounded-lg bg-teton-off-white p-0.5">
+        {opts.map(([v, text]) => {
+          const on = v === 'custom' ? custom : !custom && k.installCreditPct === v;
+          return (
+            <button
+              key={String(v)}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => pick(v)}
+              className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[13px] rounded-md whitespace-nowrap transition-colors duration-200 ${on ? 'text-white font-medium' : 'text-teton-dark-gray hover:bg-white/70'}`}
+            >
+              {text}
+            </button>
+          );
+        })}
+      </SegGroup>
+      {custom && (
+        <Controller
+          control={control}
+          name="commercial.installCreditCustomPct"
+          rules={{ validate: (v) => (v != null && Number.isFinite(v as number)) || 'Enter the custom credit' }}
+          render={({ field, fieldState }) => (
+            <div className="w-[5.5rem] drawer-in">
+              <NumInput
+                value={field.value as number | null | undefined}
+                onChange={(v) => {
+                  const pct = v == null ? null : Math.min(1, Math.max(0, v));
+                  field.onChange(pct);
+                  setValue('commercial.installCreditPct', pct ?? 0, { shouldDirty: true });
+                }}
+                onBlur={field.onBlur}
+                scale={100}
+                nullable
+                suffix="%"
+                min={0}
+                max={100}
+                placeholder="25"
+                invalid={!!fieldState.error}
+                aria-label="Custom install credit"
+              />
+            </div>
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ---------- Pricing section pieces ---------- */
 
 /** One row of the Deal setup panel: the setting's name and note on the left, its control on the right. */
@@ -74,9 +141,9 @@ function SwitchButton({ label, on, onChange, disabled }: { label: string; on: bo
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`relative inline-flex h-5 w-9 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent disabled:cursor-not-allowed ${on ? 'bg-brand-secondary' : 'bg-teton-pale-gray'}`}
+      className={`relative inline-flex h-5 w-9 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent disabled:cursor-not-allowed ${on ? 'bg-brand-secondary' : 'bg-teton-pale-gray'}`}
     >
-      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+      <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform duration-200 ease-out ${on ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
     </button>
   );
 }
@@ -96,7 +163,7 @@ function Seg<V extends string | number>({ name, label, options, onPick }: { name
       control={control}
       name={name}
       render={({ field }) => (
-        <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-teton-off-white p-0.5">
+        <SegGroup label={label} className="inline-flex rounded-lg bg-teton-off-white p-0.5">
           {options.map(([v, text]) => {
             const on = field.value === v;
             return (
@@ -109,13 +176,13 @@ function Seg<V extends string | number>({ name, label, options, onPick }: { name
                   field.onChange(v);
                   onPick?.(v);
                 }}
-                className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[13px] rounded-md whitespace-nowrap transition-colors ${on ? 'bg-brand-secondary text-white font-medium' : 'text-teton-dark-gray hover:bg-white'}`}
+                className={`px-3 py-1.5 sm:px-2.5 sm:py-1 text-[13px] rounded-md whitespace-nowrap transition-colors duration-200 ${on ? 'text-white font-medium' : 'text-teton-dark-gray hover:bg-white/70'}`}
               >
                 {text}
               </button>
             );
           })}
-        </div>
+        </SegGroup>
       )}
     />
   );
@@ -180,7 +247,7 @@ export function PricingSection({ book }: SectionProps) {
           {pilot && (
             <>
               <SetupRow stack sub label="Install credit on pilot sites">
-                <Seg name="commercial.installCreditPct" label="Install credit on pilot sites" options={[[0, 'None'], [0.5, '50%'], [1, '100%']]} />
+                <InstallCreditChoice />
               </SetupRow>
               <SetupRow sub label="Clawback if they don’t convert" disabled={!k.installCreditPct}>
                 <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
@@ -317,7 +384,7 @@ export function ScheduleSection(_props: SectionProps) {
   return (
     <Section
       id="schedule"
-      title="Timeline"
+      title="ROI Timeline / Ramp"
       description="Month 1 of the cash flow is the desired go-live month, or an earlier community go-live if one is set. Each community can go live later."
       summary={dot(
         d.implementation?.desiredGoLive && `Go-live ${dateLabel(d.implementation.desiredGoLive)}`,

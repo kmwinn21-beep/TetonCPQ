@@ -95,7 +95,7 @@ export function PasteDialog({
         <div className="sheet-handle flex-none" aria-hidden="true" />
         <div className="px-5 py-4 border-b border-teton-off-white flex items-start justify-between gap-4">
           <div>
-            <h2 id="paste-title" className="text-lg font-semibold">{step === 'paste' ? 'Paste communities' : 'Review communities'}</h2>
+            <h2 id="paste-title" className="text-lg font-semibold">{step === 'paste' ? 'Paste from NIC' : 'Review communities'}</h2>
             <p className="text-sm text-teton-ui-gray">
               {step === 'paste'
                 ? 'Step 1 of 2 — paste from the NIC MAP portal or a spreadsheet.'

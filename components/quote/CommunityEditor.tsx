@@ -5,6 +5,7 @@
  * name, beds, timing, coverage & add-ons, pilot, then the per-site overrides.
  * Shown in the panel beside the list, or under its row where there isn't room.
  */
+import { SegGroup } from '@/components/form/SegGroup';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { bedsOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityProblems, ymLabel } from '@/lib/quote/communityRow';
@@ -29,8 +30,8 @@ export function Switch({ checked, onChange, disabled, label, id }: { checked: bo
     <label htmlFor={id} className={`inline-flex items-center gap-2 text-sm select-none ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
       <span className="relative inline-flex">
         <input id={id} type="checkbox" role="switch" className="peer sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-        <span className="w-8 h-[18px] rounded-full bg-teton-pale-gray peer-checked:bg-teton-near-black transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent" />
-        <span className="absolute left-[2px] top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform peer-checked:translate-x-[14px]" />
+        <span className="w-8 h-[18px] rounded-full bg-teton-pale-gray peer-checked:bg-teton-near-black transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent" />
+        <span className="absolute left-[2px] top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform duration-200 ease-out peer-checked:translate-x-[14px]" />
       </span>
       {label}
     </label>
@@ -175,7 +176,7 @@ export function CommunityEditor({
 
       <Group title="Coverage & add-ons">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <div role="radiogroup" aria-label={`Community ${position} coverage`} className="inline-flex rounded-lg border border-teton-pale-gray p-0.5">
+          <SegGroup label={`Community ${position} coverage`} thumbClass="bg-teton-near-black" className="inline-flex rounded-lg border border-teton-pale-gray p-0.5">
             {(
               [
                 ['rooms_only', 'Rooms only'],
@@ -184,12 +185,12 @@ export function CommunityEditor({
             ).map(([v, label]) => (
               <label key={v} className="cursor-pointer">
                 <input type="radio" value={v} className="peer sr-only" {...register(`communities.${i}.coverage`)} />
-                <span className="block px-3 py-1.5 rounded-md text-xs text-teton-dark-gray peer-checked:bg-teton-near-black peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent">
+                <span className="block px-3 py-1.5 rounded-md text-xs text-teton-dark-gray transition-colors duration-200 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent">
                   {label}
                 </span>
               </label>
             ))}
-          </div>
+          </SegGroup>
           <Controller
             control={control}
             name={`communities.${i}.ecall`}

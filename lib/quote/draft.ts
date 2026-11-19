@@ -60,6 +60,9 @@ export interface Commercial {
   installRate: number;
   /** Install credit on pilot communities, 0–1. */
   installCreditPct: number;
+  /** The rep chose a custom install credit (installCreditPct then carries it; blank until typed, which blocks saving). */
+  installCreditCustom?: boolean;
+  installCreditCustomPct?: number | null;
   /** Credit is clawed back if the customer doesn't convert. */
   installClawback: boolean;
   /** Apply the install credit to pilot sites' additional sensors too. */

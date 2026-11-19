@@ -293,11 +293,20 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   const showSelection = checkedIdx.length > 0 && (panel === 'selection' || openIndex < 0);
   const panelContent = showSelection ? selectionPanel() : openIndex >= 0 ? editorFor(openIndex, mode === 'rail' ? () => setOpenKey(null) : undefined) : emptyPanel();
   const railActive = mode === 'rail' && sectionOpen && (showSelection || openIndex >= 0);
+  // The drawer slides in, and on closing slides out showing what it last held before the rail goes back to the results.
+  const [railShown, setRailShown] = useState(railActive);
+  const lastPanel = useRef<React.ReactNode>(null);
+  if (railActive) lastPanel.current = panelContent;
+  useEffect(() => {
+    if (railActive) return setRailShown(true);
+    const t = setTimeout(() => setRailShown(false), 200);
+    return () => clearTimeout(t);
+  }, [railActive]);
   const { setActive } = rail;
   useEffect(() => {
-    setActive(railActive);
+    setActive(railActive || railShown);
     return () => setActive(false);
-  }, [railActive, setActive]);
+  }, [railActive, railShown, setActive]);
 
   const pilotCount = rows.filter((r) => r?.pilot).length;
   const staggerIdx = staggering === 'all' ? fields.map((_, i) => i) : staggering ?? [];
@@ -325,7 +334,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
             Stagger go-live dates
           </button>
           <button type="button" className="btn-secondary" onClick={() => setPasting(true)}>
-            Paste communities
+            Paste from NIC
           </button>
           <button type="button" className="btn-primary" onClick={addCommunity}>
             Add community
@@ -453,7 +462,13 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
         </div>
 
         {mode === 'split' && <aside className="p-4 min-w-0" aria-label="Community details"><div className="sticky top-4">{panelContent}</div></aside>}
-        {railActive && rail.el && createPortal(<div aria-label="Community details" role="region">{panelContent}</div>, rail.el)}
+        {(railActive || railShown) && rail.el &&
+          createPortal(
+            <div aria-label="Community details" role="region" className={`card p-4 ${railActive ? 'drawer-in' : 'drawer-out'}`}>
+              {railActive ? panelContent : lastPanel.current}
+            </div>,
+            rail.el,
+          )}
         {mode === 'sheet' && (
           <BottomSheet open={openIndex >= 0 && (panel === 'edit' || checkedIdx.length === 0)} onClose={closeSheet} label="Edit community" title="Edit community">
             {openIndex >= 0 && <div aria-label="Community details" role="region">{editorFor(openIndex)}</div>}

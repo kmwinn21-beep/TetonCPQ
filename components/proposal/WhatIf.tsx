@@ -8,6 +8,7 @@
  * wording and layout) and opens that version's proposal. Until then an amber
  * bar stays up, printing and "Record as sent" are off, and leaving asks first.
  */
+import { SegGroup } from '@/components/form/SegGroup';
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { runModel, type Trace } from '@/lib/model';
 import { priceBook, type Product } from '@/lib/pricing/catalog';
@@ -593,20 +594,20 @@ function FieldRow({ f, draft, raw, error, onChange }: { f: WhatIfField; draft: Q
             </button>
           ) : null}
         </div>
-        <div role="radiogroup" aria-label={f.label} className="flex rounded-lg border border-teton-pale-gray p-0.5 text-[12px]">
+        <SegGroup label={f.label} thumbClass="bg-teton-near-black" className="flex rounded-lg border border-teton-pale-gray p-0.5 text-[12px]">
           {(f.options ?? []).map(([v, label]) => (
             <button
               key={v}
               type="button"
               role="radio"
               aria-checked={cur === v}
-              className={`flex-1 rounded-md px-2 py-1.5 font-medium ${cur === v ? 'bg-teton-near-black text-white' : 'text-teton-dark-gray hover:bg-teton-off-white'}`}
+              className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors duration-200 ${cur === v ? 'text-white' : 'text-teton-dark-gray hover:bg-teton-off-white'}`}
               onClick={() => onChange(f.path, v === String(saved) ? undefined : v)}
             >
               {label}
             </button>
           ))}
-        </div>
+        </SegGroup>
         {changed && <p className="text-[11px] text-[#8A5A00] mt-0.5">Saved: {f.options?.find(([o]) => o === saved)?.[1] ?? String(saved)}</p>}
       </div>
     );

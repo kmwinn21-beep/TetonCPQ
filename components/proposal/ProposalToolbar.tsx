@@ -5,6 +5,7 @@
  * that it was sent — which keeps a standalone HTML copy of exactly what was on
  * screen, so "what did we send them in October?" has a literal answer.
  */
+import { SegGroup } from '@/components/form/SegGroup';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -121,7 +122,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
               <Link href={`/quotes/${quoteId}`} className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10">Inputs</Link>
               <Link href={`/quotes/${quoteId}/results?v=${versionId}`} className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10">Results</Link>
               {text.editable && (
-                <div role="group" aria-label="Proposal format" className="flex flex-1 sm:flex-none rounded-lg border border-white/30 p-0.5 text-sm">
+                <SegGroup role="group" label="Proposal format" thumbClass="bg-white" className="flex flex-1 sm:flex-none rounded-lg border border-white/30 p-0.5 text-sm">
                   {(
                     [
                       ['standard', 'Standard'],
@@ -134,7 +135,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                         key={f}
                         type="button"
                         aria-pressed={on}
-                        className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-md font-medium whitespace-nowrap ${on ? 'bg-white text-teton-ink' : 'text-sidebar-font/80 hover:text-sidebar-font'}`}
+                        className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-md font-medium whitespace-nowrap transition-colors duration-200 ${on ? 'text-teton-ink' : 'text-sidebar-font/80 hover:text-sidebar-font'}`}
                         onClick={() => {
                           if (f === 'businessCase') setPagesOpen(false);
                           text.setLayout((l) => ({ ...l, format: f }));
@@ -145,7 +146,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                       </button>
                     );
                   })}
-                </div>
+                </SegGroup>
               )}
               {text.editable && text.layout.format !== 'businessCase' && (
                 <button

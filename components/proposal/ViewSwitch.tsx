@@ -1,5 +1,7 @@
 'use client';
 
+import { SegGroup } from '@/components/form/SegGroup';
+
 /**
  * A small screen-only switch between two or more ways of showing a section
  * (e.g. Standard Bar / Stacked Bar, Cards / Gantt). It sits at the section's
@@ -7,21 +9,17 @@
  */
 export function ViewSwitch<T extends string>({ label, options, value, onChange, position = 'absolute right-3 top-3' }: { label: string; options: ReadonlyArray<readonly [T, string]>; value: T; onChange: (v: T) => void; position?: string }) {
   return (
-    <div
-      data-edit-ui
-      role="group"
-      aria-label={label}
-      className={`no-print ${position} z-[5] flex rounded-lg bg-[rgba(15,23,32,.88)] p-0.5 text-[11px] text-white opacity-0 group-hover/view:opacity-100 focus-within:opacity-100 transition-opacity`}
-      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-    >
+    <div data-edit-ui className={`no-print ${position} z-[5] opacity-0 group-hover/view:opacity-100 focus-within:opacity-100 transition-opacity`} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <SegGroup role="group" label={label} thumbClass="bg-white" className="flex rounded-lg bg-[rgba(15,23,32,.88)] p-0.5 text-[11px] text-white">
       {options.map(([v, text]) => {
         const on = value === v;
         return (
-          <button key={v} type="button" aria-pressed={on} className={`px-2.5 py-1 rounded-md ${on ? 'bg-white text-teton-ink font-medium' : 'hover:bg-white/15'}`} onClick={() => onChange(v)}>
+          <button key={v} type="button" aria-pressed={on} className={`px-2.5 py-1 rounded-md transition-colors duration-200 ${on ? 'text-teton-ink font-medium' : 'hover:bg-white/15'}`} onClick={() => onChange(v)}>
             {text}
           </button>
         );
       })}
+    </SegGroup>
     </div>
   );
 }
