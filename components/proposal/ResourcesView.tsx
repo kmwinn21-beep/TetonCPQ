@@ -11,7 +11,7 @@ import { normalizePlan } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor } from '@/components/implementation/ImplementationGantt';
 import { T } from './EditableText';
-import { V } from './ProposalSections';
+import { RTbody, V } from './ProposalSections';
 import { useWhatIf } from './WhatIf';
 
 const num = (h: number) => (Number.isInteger(h) ? String(h) : h.toFixed(1));
@@ -48,7 +48,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
             <th className="text-right font-medium py-1.5 pl-1.5 align-bottom">Total</th>
           </tr>
         </thead>
-        <tbody>
+        <RTbody id="sdres" name="Resource hours" outside>
           {t.rows.map((r) => (
             <tr key={r.id} className="border-b border-teton-off-white">
               <td className="py-1.5 pr-2">{r.role}</td>
@@ -69,7 +69,7 @@ export function ResourcesView({ draft }: { draft: QuoteDraft }) {
             ))}
             <td className="py-1.5 pl-1.5 text-right" data-label="Total">{num(t.total)}</td>
           </tr>
-        </tbody>
+        </RTbody>
       </table>
       {t.rows.some((r) => r.notes.some((n) => n.note)) && (
         // Removable (and addable back) like a figure: some proposals want only the hours table.

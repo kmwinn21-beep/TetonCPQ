@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { bedsOf, newCommunity, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { bedsOf, newCommunity, placeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { bedMix, communityChips, communityIsValid, MIXED, sharedValue, sortedIndices, ymLabel, type Chip, type SortKey } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count, pct } from '@/lib/format';
@@ -420,7 +420,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                       <span className="flex-1 min-w-0">
                         <span className="block truncate text-sm font-medium">
                           {r.name || <span className="text-teton-ui-gray font-normal">Unnamed community</span>}
-                          {r.market && <span className="font-normal text-teton-ui-gray"> · {r.market}</span>}
+                          {placeOf(r) && <span className="font-normal text-teton-ui-gray"> · {placeOf(r)}</span>}
                         </span>
                         <span className="block truncate text-xs text-teton-ui-gray mt-0.5">
                           {count(bedsOf(r))} beds{mix ? ` (${mix})` : ''} · {goLiveText(i)}

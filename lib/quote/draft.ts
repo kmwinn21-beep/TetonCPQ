@@ -18,6 +18,8 @@ export type Coverage = 'rooms_only' | 'full_facility';
 export interface DraftCommunity {
   id: string;
   name: string;
+  /** City; with the state (market) it reads "Louisville, KY". */
+  city?: string;
   market: string;
   /** Beds by care type. Every bed is priced the same; the split is for scope and reporting. */
   ilBeds: number;
@@ -122,6 +124,7 @@ export function newCommunity(i: number): DraftCommunity {
   return {
     id: `c${Date.now().toString(36)}${i}`,
     name: '',
+    city: '',
     market: '',
     ilBeds: 0,
     alBeds: 0,
@@ -218,6 +221,9 @@ export function normalizeCommunity(c: DraftCommunity): DraftCommunity {
   const { beds, ...rest } = c;
   return { ...rest, ilBeds: 0, alBeds: Number(beds) || 0, mcBeds: 0, snfBeds: Number(c.snfBeds) || 0 };
 }
+
+/** "Louisville, KY", "Louisville", "KY" or "" from the community's city and state. */
+export const placeOf = (c: Pick<DraftCommunity, 'city' | 'market'>) => [c.city?.trim(), c.market?.trim()].filter(Boolean).join(', ');
 
 /** Total beds (IL + AL + MC + SNF). Tolerates un-normalized legacy communities. */
 export function bedsOf(c: Partial<DraftCommunity> | undefined | null): number {

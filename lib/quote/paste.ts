@@ -17,6 +17,7 @@
 
 export interface PastedCommunity {
   name: string;
+  city?: string;
   market: string;
   ilBeds: number;
   alBeds: number;

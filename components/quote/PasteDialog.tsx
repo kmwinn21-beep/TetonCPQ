@@ -76,7 +76,7 @@ export function PasteDialog({
         const mix = b ? CARE_ORDER.filter((t) => (b.careMix[t] ?? 0) > 0).map((t) => `${t} ${b.careMix[t]}`).join(' · ') : '';
         const detail = b ? [b.city && `${b.city}, ${b.state}`, b.operator, mix].filter(Boolean).join(' — ') : '';
         const duplicate = existing.has(norm(c.name));
-        return { name: c.name, market: c.market, ilBeds: c.ilBeds, alBeds: c.alBeds, mcBeds: c.mcBeds, snfBeds: c.snfBeds, key, include: !duplicate, duplicate, detail };
+        return { name: c.name, city: b?.city ?? '', market: c.market, ilBeds: c.ilBeds, alBeds: c.alBeds, mcBeds: c.mcBeds, snfBeds: c.snfBeds, key, include: !duplicate, duplicate, detail };
       }),
     );
     setStep('review');
@@ -247,7 +247,7 @@ export function PasteDialog({
                 type="button"
                 className="btn-primary"
                 disabled={!included.length || invalid.length > 0}
-                onClick={() => onConfirm(included.map(({ name, market, ilBeds, alBeds, mcBeds, snfBeds }) => ({ name: name.trim(), market: market.trim(), ilBeds: Number(ilBeds) || 0, alBeds: Number(alBeds) || 0, mcBeds: Number(mcBeds) || 0, snfBeds: Number(snfBeds) || 0 })), mode)}
+                onClick={() => onConfirm(included.map(({ name, city, market, ilBeds, alBeds, mcBeds, snfBeds }) => ({ name: name.trim(), ...(city?.trim() ? { city: city.trim() } : {}), market: market.trim(), ilBeds: Number(ilBeds) || 0, alBeds: Number(alBeds) || 0, mcBeds: Number(mcBeds) || 0, snfBeds: Number(snfBeds) || 0 })), mode)}
               >
                 {mode === 'replace' ? 'Replace with' : 'Add'} {included.length} {included.length === 1 ? 'community' : 'communities'}
               </button>

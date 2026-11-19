@@ -111,7 +111,8 @@ const GROUP: Record<string, string> = {
 
 const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
-  market: { label: 'Market', fmt: 'text' },
+  city: { label: 'City', fmt: 'text' },
+  market: { label: 'State', fmt: 'text' },
   ilBeds: { label: 'IL beds', fmt: 'num' },
   alBeds: { label: 'AL beds', fmt: 'num' },
   mcBeds: { label: 'MC beds', fmt: 'num' },

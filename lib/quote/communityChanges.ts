@@ -14,6 +14,7 @@ export function normalizeCommunities(v: unknown): DraftCommunity[] {
 
 const LABELS: Partial<Record<keyof DraftCommunity, string>> = {
   name: 'name',
+  city: 'city',
   market: 'state',
   ilBeds: 'IL beds',
   alBeds: 'AL beds',

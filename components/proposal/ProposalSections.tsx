@@ -7,7 +7,7 @@
  * Everything here is screen-only chrome (data-edit-ui): it never prints and
  * is stripped from the copy kept when a proposal is recorded as sent.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
 import { isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
@@ -100,6 +100,60 @@ export function V({ k, label, children, block = false }: { k: string; label: str
       )}
     </Tag>
   );
+}
+
+/**
+ * A table body whose rows the rep may remove (and add back from the Removed
+ * list). Rows are keyed by the table's id and their place in the body, so a
+ * removed row stays removed when figures change. A row with data-fixed (a
+ * group heading, column labels) stays.
+ */
+export function RTbody({ id, name, className, outside = false, children }: { id: string; name: string; className?: string; /** Put the remove button left of the table (cells with no left padding). */ outside?: boolean; children: React.ReactNode }) {
+  const { editable, layout, setLayout } = useProposalText();
+  const hidden = layout.hiddenRows ?? {};
+  const clean = (k: string) => k.replace(/[^a-z0-9_.-]+/gi, '_').replace(/^[_.-]+/, '').slice(0, 50);
+  const walk = (nodes: React.ReactNode, prefix: string): React.ReactNode[] =>
+    Children.toArray(nodes).flatMap((el) => {
+      if (!isValidElement(el)) return [el];
+      const key = `${prefix}${String(el.key ?? '')}`;
+      if (el.type === Fragment) return walk((el.props as { children?: React.ReactNode }).children, `${key}-`);
+      if (el.type !== 'tr') return [el];
+      const props = el.props as { className?: string; children?: React.ReactNode; 'data-fixed'?: boolean };
+      if (props['data-fixed']) return [el];
+      const rk = `${id}.${clean(key)}`.slice(0, 80);
+      if (rk in hidden) return [];
+      if (!editable) return [el];
+      // The remove button sits in the row's first cell, shown on hover.
+      const cells = Children.toArray(props.children);
+      const first = cells.findIndex((c) => isValidElement(c));
+      if (first < 0) return [el];
+      const cell = cells[first] as React.ReactElement<{ className?: string; children?: React.ReactNode }>;
+      const remove = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const tr = e.currentTarget.closest('tr');
+        const text = (tr?.querySelector('td, th') as HTMLElement | null)?.innerText.trim().split('\n')[0].replace(/\s+/g, ' ').trim() || 'Row';
+        setLayout((l) => ({ ...l, hiddenRows: { ...(l.hiddenRows ?? {}), [rk]: `${text.slice(0, 50)} · ${name}` } }));
+      };
+      cells[first] = cloneElement(cell, {
+        className: `${cell.props.className ?? ''} relative`,
+        children: (
+          <>
+            {cell.props.children}
+            <button
+              type="button"
+              data-edit-ui
+              className={`no-print absolute ${outside ? '-left-5' : 'left-px'} top-1/2 -translate-y-1/2 hidden group-hover/row:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teton-near-black text-white shadow`}
+              title="Remove this row"
+              aria-label="Remove this row"
+              onClick={remove}
+            >
+              <MinusIcon />
+            </button>
+          </>
+        ),
+      });
+      return [cloneElement(el as React.ReactElement<{ className?: string; children?: React.ReactNode }>, { className: `${props.className ?? ''} group/row`, children: cells })];
+    });
+  return <tbody className={className}>{walk(children, '')}</tbody>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -534,7 +588,8 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
     : [];
   // Optional rows that start out removed (shown in the Removed list until added).
   const optional = businessCase && bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment' }] : [];
-  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length) return null;
+  const rows = Object.entries(layout.hiddenRows ?? {});
+  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length && !rows.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -589,6 +644,22 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Optional rows</p>
           <ul>{optional.map((o) => item(o.key, o.label, () => setLayout((l) => ({ ...l, bcFourYears: true }))))}</ul>
+        </>
+      )}
+      {rows.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table rows</p>
+          <ul>
+            {rows.map(([k, label]) =>
+              item(`row-${k}`, label, () =>
+                setLayout((l) => {
+                  const m = { ...(l.hiddenRows ?? {}) };
+                  delete m[k];
+                  return { ...l, hiddenRows: Object.keys(m).length ? m : undefined };
+                }),
+              ),
+            )}
+          </ul>
         </>
       )}
       {values.length > 0 && (

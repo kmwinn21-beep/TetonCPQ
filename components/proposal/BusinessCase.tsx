@@ -26,7 +26,7 @@ import { stageColor, longDate } from '@/components/implementation/Implementation
 import { buildCashFlow } from '@/lib/model';
 import { CARE_SHORT, careLabel, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
-import { CustomTitle, RichBody, V } from './ProposalSections';
+import { CustomTitle, RichBody, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
@@ -313,8 +313,28 @@ function ScopeRow({ ecall, rates }: { ecall: boolean; rates?: { monitoring: stri
 
 /** A cost line: a name with an optional "(one-time)" under it, the math, and the amount. */
 function CostRow({ name, sub, desc, amount, pct, total }: { name: React.ReactNode; sub?: React.ReactNode; desc: React.ReactNode; amount: React.ReactNode; pct?: string; total?: boolean }) {
+  // Removable like a table row, keyed by its name's text key.
+  const { editable, layout, setLayout } = useProposalText();
+  const tk = isValidElement(name) ? (name.props as { k?: string }).k : undefined;
+  const rk = tk ? `cost.${tk.replace(/[^a-z0-9_.-]+/gi, '_')}`.slice(0, 80) : null;
+  if (rk && layout.hiddenRows && rk in layout.hiddenRows) return null;
   return (
-    <div className={`bc-req-row ${total ? 'bc-req-total' : ''}`}>
+    <div className={`bc-req-row ${total ? 'bc-req-total' : ''} ${rk && editable ? 'relative group/row' : ''}`}>
+      {rk && editable && (
+        <button
+          type="button"
+          data-edit-ui
+          className="no-print absolute -left-2 top-1/2 -translate-y-1/2 hidden group-hover/row:flex items-center justify-center w-4 h-4 rounded-full bg-teton-near-black text-white shadow"
+          title="Remove this row"
+          aria-label="Remove this row"
+          onClick={(e) => {
+            const text = (e.currentTarget.parentElement?.querySelector('.bc-req-name') as HTMLElement | null)?.innerText.trim().split('\n')[0].replace(/\s+/g, ' ').trim() || 'Row';
+            setLayout((l) => ({ ...l, hiddenRows: { ...(l.hiddenRows ?? {}), [rk]: `${text.slice(0, 60)} · cost table` } }));
+          }}
+        >
+          <svg viewBox="0 0 16 16" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true"><path d="M4 8h8" strokeLinecap="round" /></svg>
+        </button>
+      )}
       <div className="bc-req-name">
         {name}
         {sub && <span className="bc-req-sub">{sub}</span>}
@@ -545,11 +565,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <th className="bc-hl2 bc-r">Edge units</th>
                   </tr>
                 </thead>
-                <tbody>
+                <RTbody id="site" name="Rooms by type">
                   {perSite.map(({ c, i, types, s: st }) => (
                     <Fragment key={c.id}>
                       {multi && (
-                        <tr className="bc-site-group">
+                        <tr className="bc-site-group" data-fixed>
                           <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
                         </tr>
                       )}
@@ -583,7 +603,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <td className="bc-hl bc-big bc-r">{count(sum(perSite.map((x) => x.s.totalSensors)))}</td>
                     <td className="bc-hl2 bc-big bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
                   </tr>
-                </tbody>
+                </RTbody>
               </table>
             </div>
           </B>
@@ -679,7 +699,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <th className="bc-hl">Pilot cost</th>
                 </tr>
               </thead>
-              <tbody>
+              <RTbody id="pilot" name="The pilot">
                 {pilotSites.map(({ dc, i }) => {
                   const b = beds(dc);
                   const ls = siteLines.filter((l) => l.communityPosition === i);
@@ -707,7 +727,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <td>{usd(pilotMonthlyTotal)}</td>
                   <td className="bc-hl bc-big">{usd(pilotTotal)}</td>
                 </tr>
-              </tbody>
+              </RTbody>
             </table>
           </div>
         </B>
@@ -760,7 +780,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <th className="bc-hl">Total cost</th>
             </tr>
           </thead>
-          <tbody>
+          <RTbody id="comm" name="By community">
             {draft.communities.map((dc, i) => {
               const b = bedsOf(dc);
               const c = cell(i);
@@ -794,7 +814,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </td>
               </tr>
             )}
-          </tbody>
+          </RTbody>
         </table>
       </div>
     </>
@@ -838,12 +858,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <B id="costs" label="Equipment purchase">
             <div className="bc-card bc-tbl bc-hrs bc-inv">
               <table>
-                <tbody>
+                <RTbody id="inv" name="The investment">
                   <tr className="bc-inv-scope">
                     <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
                     <td colSpan={3}><ScopePills ecall={anyEcall} /></td>
                   </tr>
-                  <tr className="bc-inv-head">
+                  <tr className="bc-inv-head" data-fixed>
                     <th><T k="bc.inv.item" d="Item" /></th>
                     <th><T k="bc.inv.units" d="Units" /></th>
                     <th><T k="bc.inv.perUnit" d="Cost per unit" /></th>
@@ -913,7 +933,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       <td className="bc-hl bc-big"><V k="finish.total.value" label="Concealed installation total"><span className="bc-range">{finish.totalLow === finish.totalHigh ? usd(finish.totalLow) : `${usd(finish.totalLow)}–${usd(finish.totalHigh)}`}</span></V></td>
                     </tr>
                   )}
-                </tbody>
+                </RTbody>
               </table>
             </div>
             {conversionCreditOf(capex) > 0 && (
@@ -1026,7 +1046,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <th className="bc-hl bc-r">Annual benefit</th>
               </tr>
             </thead>
-            <tbody>
+            <RTbody id="roi" name="Sources of value">
               {benefitRows.map((b) => (
                 <tr key={b.key}>
                   <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
@@ -1065,7 +1085,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <td />
                 <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(stabilizedNet)}</V></td>
               </tr>
-            </tbody>
+            </RTbody>
           </table>
         </div>
         </B>
@@ -1175,7 +1195,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <th className="bc-hl bc-r">{withNet ? <T k="bc.y1.col" d="Year 1" /> : <T k="bc.cf.col" d="Totals" />}</th>
               </tr>
             </thead>
-            <tbody>
+            <RTbody id={`y1${withNet ? 'n' : ''}`} name="Cash flow totals">
               <tr>
                 <td className="bc-m"><T k="bc.y1.investment" d="Total investment" /></td>
                 <td>
@@ -1207,7 +1227,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </td>
                 <td className="bc-hl bc-big bc-r"><V k={y1.key('perUnit.value')} label="Net Benefit per Unit per Month figure">{usd(d.perUnit.perOccupiedUnitMonth)}</V></td>
               </tr>
-            </tbody>
+            </RTbody>
           </table>
         </div>
     );
@@ -1351,7 +1371,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         )}
         {dates === true && (
           <table className="bc-wave-tbl">
-            <tbody>
+            <RTbody id="waves" name="Go-live waves">
               {st.standard === 'evaluation' ? (
                 <tr>
                   <td><T k="bc.impl.waves.allComm" d="All communities (one agreement)" /></td>
@@ -1368,7 +1388,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   ) : null;
                 })
               )}
-            </tbody>
+            </RTbody>
           </table>
         )}
       </div>
@@ -1388,7 +1408,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <th><T k="bc.impl.waves.colGo" d="Go-live" /></th>
           </tr>
         </thead>
-        <tbody>
+        <RTbody id="wavesched" name="Go-live schedule">
           {waves.map((w, k) => {
             const ko = kickoffOf(w);
             const bl = baselineOf(w);
@@ -1402,7 +1422,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </tr>
             );
           })}
-        </tbody>
+        </RTbody>
       </table>
     </div>
   );
@@ -1578,7 +1598,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <th className="bc-hl">Total</th>
               </tr>
             </thead>
-            <tbody>
+            <RTbody id="res" name="Resource allocation">
               {team.rows.map((r) => (
                 <tr key={r.id}>
                   <td className="bc-m">
@@ -1600,7 +1620,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 ))}
                 <td className="bc-hl bc-big">{count(team.total)}</td>
               </tr>
-            </tbody>
+            </RTbody>
           </table>
         </div>
       </Page>
@@ -1649,7 +1669,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       <th className="bc-hl bc-r">Hours</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <RTbody id={`roles${ci}`} name="Role descriptions">
                     {chunk.map((x, k) => {
                       const firstOfStage = k === 0 || chunk[k - 1].stageId !== x.stageId;
                       const span = chunk.slice(k).findIndex((y) => y.stageId !== x.stageId);
@@ -1669,7 +1689,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         </tr>
                       );
                     })}
-                  </tbody>
+                  </RTbody>
                 </table>
               </div>
             </Page>
@@ -1854,7 +1874,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="bc-card bc-tbl bc-cmp">
               <table>
                 <thead>{head}</thead>
-                <tbody>
+                <RTbody id="cmp" name="Two ways to pay">
                   {sec('pay', 'What you pay')}
                   {row('upfront', 'Upfront', 'Installation and sensors (OpEx), or the equipment itself (CapEx), net of pilot credits', usd(op.upfront), usd(cx.upfront))}
                   {row('monthly', 'Monthly', `Subscription (OpEx) or software & services (CapEx), all ${count(units)} beds`, <>{usd(op.monthly)}{mo}</>, <>{usd(cx.monthly)}{mo}</>)}
@@ -1878,7 +1898,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {sec('means', 'What it means')}
                   {row('own', 'Ownership', '', <T k="bc.cmp.own.op" d="Teton owns it" />, <T k="bc.cmp.own.cx" d="You own it" />, 'bc-cmp-text')}
                   {row('books', 'On the books', '', <T k="bc.cmp.books.op" d="Operating expense" />, <T k="bc.cmp.books.cx" d="{share} capitalized" v={{ share: `${Math.round(capex.equipmentShare * 100)}%` }} />, 'bc-cmp-text')}
-                </tbody>
+                </RTbody>
               </table>
             </div>
           </B>
@@ -1902,7 +1922,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <th className="bc-r" colSpan={2}>Annual benefit · same under both</th>
                   </tr>
                 </thead>
-                <tbody>
+                <RTbody id="cmproi" name="Returns, both ways">
                   {benefitRows.map((b) => (
                     <tr key={b.key}>
                       <td className="bc-m"><T k={`${b.key}.label`} d={b.label} /></td>
@@ -1921,7 +1941,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {headRow('')}
                   {row('cost', 'Cost of Teton', `OpEx: annual subscription once every community is live · CapEx: ${numberWord(years)}-year cost of ownership ÷ ${years}`, neg(op.annualCost), neg(cx.annualCost))}
                   {row('net', 'Net Annual Benefit', '', usd(op.netAnnual), usd(cx.netAnnual), 'bc-tot')}
-                </tbody>
+                </RTbody>
               </table>
             </div>
           </B>
@@ -1957,7 +1977,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="bc-card bc-tbl bc-cmp" style={{ marginTop: 12 }}>
               <table>
                 <thead>{head}</thead>
-                <tbody>
+                <RTbody id="cmptot" name="Totals, both ways">
                   {row('cf.inv', 'Total investment', 'Year 1: OpEx installation plus fees; CapEx the equipment, paid at install', neg(op.y1), neg(cx.y1))}
                   {row('cf.net', 'Stabilized Net Benefit', 'Each year, fully ramped, after the cost of Teton', usd(op.netAnnual), usd(cx.netAnnual))}
                   {row('cf.revpor', 'REVPOR Impact', 'Per occupied room, per month', usd(op.revpor), usd(cx.revpor))}
@@ -1969,7 +1989,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     <>{usd(cx.total, { compact: true })}<small>{cx.months} months</small></>,
                     'bc-tot',
                   )}
-                </tbody>
+                </RTbody>
               </table>
             </div>
           </B>
@@ -2094,7 +2114,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.inv', 'The investment', 'scope')}
                 <table>
-                  <tbody>
+                  <RTbody id="exinv" name="Executive summary · investment">
                     {capexShown ? (
                       <>
                         {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
@@ -2111,7 +2131,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         {row(`Total over the ${term}-month term`, usd(d.termTotal), 'bc-exec-tot')}
                       </>
                     )}
-                  </tbody>
+                  </RTbody>
                 </table>
                 {capexShown && conversionCreditOf(capex) > 0 && (
                   <p className="bc-exec-foot"><T k="bc.exec.conversionNote" d="*Includes a {credit} conversion credit per pilot bed and sensor." v={{ credit: usd(conversionCreditOf(capex)) }} /></p>
@@ -2131,11 +2151,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   ))}
                 </div>
                 <table>
-                  <tbody>
+                  <RTbody id="exroi" name="Executive summary">
                     {row('Gross annual benefit', usd(gross), 'bc-exec-tot')}
                     {row(capexShown ? 'Cost of Teton (ownership ÷ 4)' : 'Cost of Teton (subscription)', <span className="bc-cost">−{usd(tetonAnnual)}</span>)}
                     {row('Net annual benefit', usd(stabilizedNet), 'bc-exec-tot')}
-                  </tbody>
+                  </RTbody>
                 </table>
               </div>
             </B>
@@ -2143,11 +2163,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.cf', 'Cash flow summary', 'cashflow')}
                 <table>
-                  <tbody>
+                  <RTbody id="excf" name="Executive summary · cash flow">
                     {row(<><b>Total investment</b><small>{capexShown ? 'One-time equipment, paid at install' : 'Everything paid to Teton in the first 12 months'}</small></>, <span className="bc-cost">{y1.investment > 0 ? '−' : ''}{usd(y1.investment)}</span>)}
                     {row(<><b>Stabilized Net Benefit</b><small>Each year, fully ramped, after the cost of Teton</small></>, usd(stabilizedNet))}
                     {row(<><b>REVPOR Impact</b><small>Per occupied room, per month · {usd(d.perUnit.perUnitMonth)} across all {count(inputs.cfo.portfolioUnits)} units</small></>, usd(d.perUnit.perOccupiedUnitMonth))}
-                  </tbody>
+                  </RTbody>
                 </table>
               </div>
             </B>

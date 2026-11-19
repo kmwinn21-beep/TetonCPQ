@@ -104,7 +104,7 @@ export function CommunityEditor({
         <button type="button" className="btn-ghost px-1.5 py-0.5 text-xs disabled:opacity-40" onClick={onNext} disabled={!onNext} aria-label="Next community">Next ›</button>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2 mt-3">
+      <div className="mt-3">
         <div>
           <label className="eyebrow" htmlFor={id('name')}>Community</label>
           <input
@@ -116,9 +116,15 @@ export function CommunityEditor({
             {...register(`communities.${i}.name`)}
           />
         </div>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2 mt-2">
+        <div>
+          <label className="eyebrow" htmlFor={id('city')}>City</label>
+          <input id={id('city')} className="input-field" placeholder="Louisville" aria-label={`Community ${position} city`} {...register(`communities.${i}.city`)} />
+        </div>
         <div>
           <label className="eyebrow" htmlFor={id('market')}>State</label>
-          <input id={id('market')} className="input-field px-2.5" placeholder="CO" aria-label={`Community ${position} market`} {...register(`communities.${i}.market`)} />
+          <input id={id('market')} className="input-field px-2.5" placeholder="KY" aria-label={`Community ${position} market`} {...register(`communities.${i}.market`)} />
         </div>
       </div>
 

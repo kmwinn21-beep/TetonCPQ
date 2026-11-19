@@ -62,6 +62,8 @@ export interface ProposalLayout {
   bcFourYears?: boolean;
   /** Business case, both pricing options: the cash flow comparison as bars (default) or lines. */
   bcCompareChart?: 'bar' | 'line';
+  /** Table rows the rep removed (row key → its name, to list it for adding back). Both formats. */
+  hiddenRows?: Record<string, string>;
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -182,11 +184,22 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       }
       return out;
     })(),
+    hiddenRows: (() => {
+      const v = raw.hiddenRows;
+      if (v == null) return undefined;
+      if (typeof v !== 'object' || Array.isArray(v)) throw new Error('Bad removed rows');
+      const out: Record<string, string> = {};
+      for (const [id, label] of Object.entries(v as Record<string, unknown>).slice(0, 200)) {
+        if (!ID.test(id) || typeof label !== 'string') throw new Error('Bad removed row');
+        out[id] = label.slice(0, 80);
+      }
+      return Object.keys(out).length ? out : undefined;
+    })(),
   };
 }
 
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0);
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length;
 }

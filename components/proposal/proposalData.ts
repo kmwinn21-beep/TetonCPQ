@@ -7,7 +7,7 @@ import type { RoiCase } from '@/lib/model';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { POLICY } from '@/lib/pricing/catalog';
 import { capexFor } from '@/lib/quote/outputs';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { placeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, monthName, multiple, pct, usd } from '@/lib/format';
 import { longDate } from '@/components/implementation/ImplementationGantt';
@@ -70,7 +70,10 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
       key: dc.id,
       name: inputs.communities[i].name,
       pilot: cc.inPilot,
-      detail: [dc.market, coverage, hasEcall ? 'E-Call' : null].filter(Boolean).join(' · '),
+      // Under the name in the community tables: "Louisville, KY".
+      detail: placeOf(dc),
+      /** Coverage and E-Call, for places that describe the community's scope. */
+      scope: [coverage, hasEcall ? 'E-Call' : null].filter(Boolean).join(' · '),
       units: inputs.communities[i].units,
       // Care-type mix under the total, e.g. "AL 10 · MC 19" (zeros left out).
       mix: (
