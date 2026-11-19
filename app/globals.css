@@ -717,3 +717,24 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @media print { .bc-fp-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .bc-tbl td.bc-neg { color: #C2412D; font-weight: 600; }
 .bc-tbl td.bc-neg small { color: var(--bc-muted); font-weight: 400; }
+
+/* Scope page: the hardware that gets installed, each photo whole beside its caption. */
+.bc-hw { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bc-hw-card { margin: 0; background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: 56% 1fr; align-items: center; break-inside: avoid; }
+.bc-hw-img { aspect-ratio: 473 / 320; overflow: hidden; }
+/* The photos' own white rounded corners are trimmed by a slight zoom. */
+.bc-hw-img img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.03); display: block; }
+.bc-hw-card figcaption { padding: 10px 12px; }
+.bc-hw-card figcaption b { display: block; font-size: 12.5px; color: var(--bc-ink); }
+.bc-hw-card figcaption > span { display: block; font-size: 10.5px; color: var(--bc-muted); line-height: 1.4; margin-top: 2px; }
+@media (max-width: 640px) { .bc-hw { grid-template-columns: 1fr; } }
+/* With the hardware photos on it, the scope page tightens so the cards, table and photos share one sheet. */
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-lede { margin-bottom: 10px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark { padding: 11px 14px 12px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark > b { font-size: 28px; line-height: 1.1; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark > span { font-size: 10.5px; margin-top: 4px; line-height: 1.35; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl { margin-top: 6px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl th { padding-top: 7px; padding-bottom: 6px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl td { padding-top: 5px; padding-bottom: 5px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl td.bc-big { font-size: 15px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }

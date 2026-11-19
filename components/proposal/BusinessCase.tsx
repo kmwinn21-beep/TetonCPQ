@@ -574,6 +574,29 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
               </RTable>
             </div>
           </B>
+          <B id="hardware" label="What gets installed">
+            <p className="bc-eyebrow bc-gray"><T k="bc.site.hardware" d="What gets installed" /></p>
+            {/* The hardware, each photo shown whole beside its caption. */}
+            <div className="bc-hw">
+              {(
+                [
+                  ['sensor', '/Teton_Sensor.png', 'Teton Sensor', 'One per room or living area, more where a room needs it'],
+                  ['edge', '/Teton_ComputeUnit.png', 'Teton Edge Unit', 'One per resident room'],
+                ] as const
+              ).map(([k, src, name, desc]) => (
+                <figure key={k} className="bc-hw-card">
+                  <div className="bc-hw-img">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={name} />
+                  </div>
+                  <figcaption>
+                    <b><T k={`bc.site.hw.${k}`} d={name} /></b>
+                    <span><T k={`bc.site.hw.${k}.desc`} d={desc} /></span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </B>
         </Blocks>
       </Page>
     );
