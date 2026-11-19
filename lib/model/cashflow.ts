@@ -96,11 +96,13 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
   const roiStartMonth = inPilot ? Math.max(firstPostPilotMonth, goLiveMonth + roiDelayMonths) : goLiveMonth + roiDelayMonths;
   const fullRoiMonth = roiStartMonth + Math.max(schedule.rampMonths || 0, 1) - 1;
 
-  const installCost = inPilot
-    ? pilotUnits * rates.pilotInstallPerBed +
-      (c.units - pilotUnits) * rates.postPilotInstallPerBed +
-      c.additionalSensors * pricing.pilotSensorPrice
-    : c.units * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice;
+  const extrasInstall = (c.extras ?? []).reduce((s, x) => s + x.units * (inPilot ? x.rates.pilotInstallPerBed : x.rates.postPilotInstallPerBed), 0);
+  const installCost =
+    (inPilot
+      ? pilotUnits * rates.pilotInstallPerBed +
+        (c.units - pilotUnits) * rates.postPilotInstallPerBed +
+        c.additionalSensors * pricing.pilotSensorPrice
+      : c.units * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice) + extrasInstall;
 
   const monthlyReimbursement = schedule.includeReimbursement
     ? Math.min(c.units * rates.postPilotFeePerBedMonth, occupiedUnits(inputs, c) * inputs.cfo.reimbursementPerOccupiedUnitMonth)
@@ -125,9 +127,11 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
 export function monthlyFee(inputs: ModelInputs, c: Community, s: CommunitySchedule, m: number): number {
   const r = s.rates;
   if (m < s.goLiveMonth) return 0;
-  if (s.inPilot && m < s.firstPostPilotMonth) return s.pilotUnits * r.pilotFeePerBedMonth;
-  const special = r.specialFeePerBedMonth ?? r.postPilotFeePerBedMonth;
-  return c.units * (m < s.firstPostPilotMonth + inputs.pricing.specialTermMonths ? special : r.postPilotFeePerBedMonth);
+  const pilot = s.inPilot && m < s.firstPostPilotMonth;
+  const inSpecial = m < s.firstPostPilotMonth + inputs.pricing.specialTermMonths;
+  const fee = (units: number, x: CommunityRates) =>
+    units * (pilot ? x.pilotFeePerBedMonth : inSpecial ? (x.specialFeePerBedMonth ?? x.postPilotFeePerBedMonth) : x.postPilotFeePerBedMonth);
+  return fee(pilot ? s.pilotUnits : c.units, r) + (c.extras ?? []).reduce((t, x) => t + fee(x.units, x.rates), 0);
 }
 
 /** Benefit accrued by one community in month m, after delay and ramp. */

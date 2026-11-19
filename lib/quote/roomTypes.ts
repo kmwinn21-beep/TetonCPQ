@@ -9,7 +9,7 @@
  *   additional sensors    = total − rooms   (the first sensor in each room is in the base package)
  *   beds by care type     = Σ rooms of that care type
  */
-import type { DraftCommunity } from './draft';
+import { productsOf, type BedKey, type DraftCommunity } from './draft';
 
 export type CareType = 'il' | 'al' | 'mc' | 'snf' | 'custom';
 export const CARE_LABEL: Record<CareType, string> = { il: 'Independent living', al: 'Assisted living', mc: 'Memory care', snf: 'Skilled nursing', custom: 'Custom…' };
@@ -67,16 +67,36 @@ export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   const totalSensors = planSensors + allowance;
   const beds = { il: 0, al: 0, mc: 0, snf: 0 } as Record<'il' | 'al' | 'mc' | 'snf', number>;
   // Custom care types count as assisted living beds (every bed is priced the same).
-  types.forEach((t) => (beds[t.care === 'custom' ? 'al' : t.care] += t.rooms));
+  types.forEach((t) => (beds[bedKeyOf(t)] += t.rooms));
   return { rooms, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
+}
+
+/** The care type a room type's beds count as (custom care types count as assisted living). */
+export const bedKeyOf = (t: Pick<RoomType, 'care'>): BedKey => (t.care === 'custom' ? 'al' : t.care);
+
+/** The room types whose care type has resident monitoring: only they get Edge units and sensors. */
+export const monitoredTypes = (types: RoomType[], c: Partial<DraftCommunity> | null | undefined) => {
+  const p = productsOf(c);
+  return types.filter((t) => p[bedKeyOf(t)].monitoring);
+};
+
+/**
+ * What a community's room types set: beds by care type (every room type) and additional sensors
+ * (monitored room types only). Null when it has no room types.
+ */
+export function roomDerived(c: Partial<DraftCommunity>, pct = normalizeAllowance(c.sensorAllowancePct)) {
+  const types = normalizeRoomTypes(c.roomTypes);
+  if (!types.length) return null;
+  const all = roomScope(types, pct);
+  const mon = roomScope(monitoredTypes(types, c), pct);
+  return { types, beds: all.beds, additionalSensors: mon.additionalSensors, all, monitored: mon };
 }
 
 /** A community with its beds and additional sensors set from its room types (unchanged when it has none). */
 export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
-  const types = normalizeRoomTypes(c.roomTypes);
-  if (!types.length) return c;
-  const s = roomScope(types, normalizeAllowance(c.sensorAllowancePct));
-  return { ...c, roomTypes: types, ilBeds: s.beds.il, alBeds: s.beds.al, mcBeds: s.beds.mc, snfBeds: s.beds.snf, additionalSensors: s.additionalSensors };
+  const r = roomDerived(c);
+  if (!r) return c;
+  return { ...c, roomTypes: r.types, ilBeds: r.beds.il, alBeds: r.beds.al, mcBeds: r.beds.mc, snfBeds: r.beds.snf, additionalSensors: r.additionalSensors };
 }
 
 export const newRoomType = (): RoomType => ({ id: `rt-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', care: 'al', rooms: 0, sensors: 1 });

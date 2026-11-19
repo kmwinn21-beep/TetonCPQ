@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newCommunity } from '@/lib/quote/draft';
+import { allProducts, newCommunity } from '@/lib/quote/draft';
 import { bedMix, communityChips, communityProblems, MIXED, sharedValue, sortedIndices, ymLabel } from '@/lib/quote/communityRow';
 
 const c = (over: object = {}) => ({ ...newCommunity(0), name: 'Maple', alBeds: 10, ...over });
@@ -24,7 +24,7 @@ describe('community list rows', () => {
 
   it('flags only what differs from the deal defaults', () => {
     expect(communityChips(c(), deal)).toEqual([]);
-    expect(communityChips(c({ pilot: true, coverage: 'full_facility', ecall: false, occupancy: 0.85, roiDelayMonths: 2, additionalSensors: 4 }), deal).map((x) => x.label)).toEqual([
+    expect(communityChips(c({ pilot: true, coverage: 'full_facility', products: allProducts({ monitoring: true, ecall: false }), occupancy: 0.85, roiDelayMonths: 2, additionalSensors: 4 }), deal).map((x) => x.label)).toEqual([
       'Pilot',
       'Full facility',
       'No E-Call',
@@ -36,7 +36,7 @@ describe('community list rows', () => {
   });
 
   it('hides pilot and e-call chips when the deal has neither', () => {
-    expect(communityChips(c({ pilot: true, ecall: false }), { withPilot: false, ecallOn: false })).toEqual([]);
+    expect(communityChips(c({ pilot: true, products: allProducts({ monitoring: true, ecall: false }) }), { withPilot: false, ecallOn: false })).toEqual([]);
   });
 
   it('puts problems first', () => {

@@ -8,7 +8,8 @@
 import { SegGroup } from '@/components/form/SegGroup';
 import { FloorPlans } from './FloorPlans';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { bedsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { BED_KEYS, bedsOf, productsOf, scopeOf, type BedKey, type BedProducts, type QuoteDraft } from '@/lib/quote/draft';
+import { roomDerived } from '@/lib/quote/roomTypes';
 import { communityProblems, ymLabel } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import type { ModelInputs, ModelResult } from '@/lib/model';
@@ -19,11 +20,28 @@ import { NumInput } from '@/components/form/NumInput';
 import { RoomTypesEditor } from './RoomTypesEditor';
 
 const BEDS = [
-  ['ilBeds', 'IL'],
-  ['alBeds', 'AL'],
-  ['mcBeds', 'MC'],
-  ['snfBeds', 'SNF'],
+  ['ilBeds', 'IL', 'il'],
+  ['alBeds', 'AL', 'al'],
+  ['mcBeds', 'MC', 'mc'],
+  ['snfBeds', 'SNF', 'snf'],
 ] as const;
+
+/** A tick box drawn as a filled square (a real checkbox underneath), with a roomy tap target. */
+export function Tick({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
+  return (
+    <label className={`inline-flex items-center justify-center w-10 h-10 -my-1 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`} title={label}>
+      <input type="checkbox" className="peer sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} aria-label={label} />
+      <span
+        aria-hidden="true"
+        className="relative w-5 h-5 rounded-md border-[1.5px] border-teton-pale-gray bg-white transition-colors duration-200 motion-reduce:transition-none peer-checked:bg-teton-near-black peer-checked:border-teton-near-black peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent [&>svg]:opacity-0 [&>svg]:scale-50 peer-checked:[&>svg]:opacity-100 peer-checked:[&>svg]:scale-100"
+      >
+        <svg viewBox="0 0 16 16" className="absolute inset-0 m-auto w-3.5 h-3.5 text-white transition duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3.5 8.5l3 3 6-7" />
+        </svg>
+      </span>
+    </label>
+  );
+}
 
 /** An on/off switch over a checkbox, so it stays a real form control. */
 export function Switch({ checked, onChange, disabled, label, id }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string; id: string }) {
@@ -76,7 +94,7 @@ export function CommunityEditor({
   onRemove: () => void;
   onClose?: () => void;
 }) {
-  const { control, register } = useFormContext<QuoteDraft>();
+  const { control, register, setValue, getValues } = useFormContext<QuoteDraft>();
   const row = useWatch({ control, name: `communities.${i}` });
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = !!useWatch({ control, name: 'schedule.withPilot' });
@@ -90,8 +108,20 @@ export function CommunityEditor({
   const bedsBad = problems.includes('No beds');
   const start = inputs?.schedule.startDate;
   const isPilot = withPilot && !!row.pilot;
-  const monitoring = row.monitoring !== false;
-  const hasEcall = ecallOn && !!row.ecall;
+  const products = productsOf(row);
+  const scope = scopeOf(row, ecallOn);
+  // Tick or untick a product for one care type; room types' extra sensors follow (only monitored rooms get sensors).
+  const setProduct = (k: BedKey, f: keyof BedProducts, v: boolean) => {
+    const cur = productsOf(getValues(`communities.${i}`));
+    const next = { ...cur, [k]: { ...cur[k], [f]: v } };
+    const opts = { shouldDirty: true } as const;
+    setValue(`communities.${i}.products`, next, opts);
+    const after = { ...getValues(`communities.${i}`), products: next };
+    setValue(`communities.${i}.monitoring`, BED_KEYS.some((t) => next[t].monitoring), opts);
+    setValue(`communities.${i}.ecall`, BED_KEYS.some((t) => next[t].ecall), opts);
+    const r = roomDerived(after);
+    if (r) setValue(`communities.${i}.additionalSensors`, r.additionalSensors, opts);
+  };
 
   return (
     <div className="text-sm" aria-label={`Edit ${row.name || `community ${position}`}`} role="group">
@@ -117,28 +147,8 @@ export function CommunityEditor({
             render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot} onChange={field.onChange} />}
           />
         </span>
-        {/* Resident monitoring and E-Call are sold separately; a community needs at least one. */}
-        <span title={monitoring && !hasEcall ? 'Turn on E-Call to make this community E-Call only' : undefined}>
-          <Controller
-            control={control}
-            name={`communities.${i}.monitoring`}
-            render={({ field }) => (
-              <Switch id={id('monitoring')} label="Resident Monitoring" checked={field.value !== false} disabled={monitoring && !hasEcall} onChange={(v) => field.onChange(v ? undefined : false)} />
-            )}
-          />
-        </span>
-        <span title={ecallOn ? (!monitoring && hasEcall ? 'This community is E-Call only: turn Resident Monitoring on first' : undefined) : 'The deal has no E-Call add-on (Pricing & products)'}>
-          <Controller
-            control={control}
-            name={`communities.${i}.ecall`}
-            render={({ field }) => <Switch id={id('ecall')} label="E-Call" checked={!!field.value && ecallOn} disabled={!ecallOn || (!monitoring && hasEcall)} onChange={field.onChange} />}
-          />
-        </span>
         <FloorPlans communityId={row.id} communityName={row.name} />
       </div>
-      {!monitoring && (
-        <p className="hint mt-1.5 drawer-in">E-Call only: no resident monitoring subscription, Edge units or sensors, and no ROI benefits. Beds set the E-Call pricing.</p>
-      )}
 
       <div className="mt-3">
         <div>
@@ -164,21 +174,61 @@ export function CommunityEditor({
         </div>
       </div>
 
-      <Group title="Beds" note={`${count(bedsOf(row))} total`}>
-        <div className="grid grid-cols-4 gap-2">
-          {BEDS.map(([k, label]) => (
-            <div key={k}>
-              <label className="eyebrow" htmlFor={id(k)}>{label}</label>
-              <Controller
-                control={control}
-                name={`communities.${i}.${k}`}
-                render={({ field }) => (
-                  <NumInput id={id(k)} value={field.value} onChange={field.onChange} onBlur={field.onBlur} min={0} invalid={bedsBad} disabled={fromRooms} aria-label={`Community ${position} ${label} beds`} />
-                )}
-              />
-            </div>
-          ))}
-        </div>
+      <Group title="Beds" note={`${count(bedsOf(row))} total${fromRooms ? ' · set from the room types' : ''}`}>
+        {/* Each care type's beds and the products priced on them. */}
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray">
+              <th className="text-left font-semibold pb-1.5 w-12">Care</th>
+              <th className="text-left font-semibold pb-1.5">Beds</th>
+              <th className="font-semibold pb-1.5 w-[5.5rem] leading-tight">Resident<br />Monitoring</th>
+              {ecallOn && <th className="font-semibold pb-1.5 w-[4.5rem]">E-Call</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {BEDS.map(([k, label, key]) => {
+              const p = products[key];
+              const off = !p.monitoring && !(ecallOn && p.ecall);
+              return (
+                <tr key={k} className="border-t border-teton-off-white">
+                  <td className="py-1.5 font-semibold">{label}</td>
+                  <td className="py-1.5 pr-2">
+                    <div className="max-w-[6.5rem]">
+                      <Controller
+                        control={control}
+                        name={`communities.${i}.${k}`}
+                        render={({ field }) => (
+                          <NumInput id={id(k)} value={field.value} onChange={field.onChange} onBlur={field.onBlur} min={0} invalid={bedsBad} disabled={fromRooms} className={off && !fromRooms ? '[&_input]:text-teton-ui-gray' : undefined} aria-label={`Community ${position} ${label} beds`} />
+                        )}
+                      />
+                    </div>
+                  </td>
+                  <td className="py-1.5 text-center">
+                    <Tick checked={p.monitoring} onChange={(v) => setProduct(key, 'monitoring', v)} label={`${label} beds: Resident Monitoring`} />
+                  </td>
+                  {ecallOn && (
+                    <td className="py-1.5 text-center">
+                      <Tick checked={p.ecall} onChange={(v) => setProduct(key, 'ecall', v)} label={`${label} beds: E-Call`} />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+            <tr className="border-t-[1.5px] border-teton-near-black font-semibold">
+              <td className="py-1.5">Priced</td>
+              <td className="py-1.5 text-xs font-normal text-teton-ui-gray">of {count(scope.beds)}</td>
+              <td className="py-1.5 text-center tabular-nums">{count(scope.monitored)}</td>
+              {ecallOn && <td className="py-1.5 text-center tabular-nums">{count(scope.ecall)}</td>}
+            </tr>
+          </tbody>
+        </table>
+        <p className="hint mt-1.5">
+          {fromRooms
+            ? 'Bed counts come from the room types. Tick products per care type here; each room type follows its care setting.'
+            : 'Tick the products priced on each care type’s beds. Beds with neither are left out of the pricing.'}
+          {scope.monitored === 0 && scope.priced > 0 && ' E-Call only: no resident monitoring subscription, Edge units or sensors, and no ROI benefits.'}
+          {!ecallOn && ' The deal has no E-Call add-on (Pricing & products).'}
+        </p>
         {problems.length > 0 && <p className="text-xs mt-1.5 rounded bg-teton-red/30 px-2 py-1">{problems.join(' · ')}</p>}
         <RoomTypesEditor index={i} position={position} />
       </Group>

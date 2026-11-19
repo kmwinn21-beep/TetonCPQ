@@ -6,7 +6,7 @@
 import { planChanges } from './implementationPlan';
 import { normalizeTerms, termsChanges } from './terms';
 import { resourcesChanges } from './resources';
-import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
+import { BED_KEYS, bedsOf, productsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
 
@@ -113,17 +113,16 @@ const GROUP: Record<string, string> = {
   customerName: 'Deal',
 };
 
-const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes'>, Field> = {
+// Products are compared per care type below (the community-wide monitoring / E-Call flags follow them).
+const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes' | 'products' | 'monitoring' | 'ecall'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
   city: { label: 'City', fmt: 'text' },
   market: { label: 'State', fmt: 'text' },
-  monitoring: { label: 'Resident monitoring', fmt: 'bool' },
   ilBeds: { label: 'IL beds', fmt: 'num' },
   alBeds: { label: 'AL beds', fmt: 'num' },
   mcBeds: { label: 'MC beds', fmt: 'num' },
   snfBeds: { label: 'SNF beds', fmt: 'num' },
   coverage: { label: 'Coverage', fmt: 'text' },
-  ecall: { label: 'E-Call', fmt: 'bool' },
   pilot: { label: 'Pilot', fmt: 'bool' },
   pilotUnits: { label: 'Pilot units', fmt: 'num' },
   occupancy: { label: 'Occupancy', fmt: 'pct' },
@@ -232,6 +231,12 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
     }
     for (const [k, f] of Object.entries(COMMUNITY_FIELDS) as Array<[keyof typeof COMMUNITY_FIELDS, Field]>) {
       if (!same(prev[k], c[k])) changes.push({ group: 'Communities', label: `${c.name || prev.name}: ${f.label}`, from: fmtValue(prev[k], f.fmt), to: fmtValue(c[k], f.fmt) });
+    }
+    const pp = productsOf(prev);
+    const cp = productsOf(c);
+    for (const k of BED_KEYS) {
+      if (pp[k].monitoring !== cp[k].monitoring) changes.push({ group: 'Communities', label: `${c.name || prev.name}: ${k.toUpperCase()} Resident Monitoring`, from: fmtValue(pp[k].monitoring, 'bool'), to: fmtValue(cp[k].monitoring, 'bool') });
+      if (pp[k].ecall !== cp[k].ecall) changes.push({ group: 'Communities', label: `${c.name || prev.name}: ${k.toUpperCase()} E-Call`, from: fmtValue(pp[k].ecall, 'bool'), to: fmtValue(cp[k].ecall, 'bool') });
     }
     if (JSON.stringify(prev.roomTypes ?? []) !== JSON.stringify(c.roomTypes ?? [])) {
       const n = (x: typeof c) => (x.roomTypes ?? []).length;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultDraft, newCommunity, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
+import { defaultDraft, allProducts, newCommunity, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { priceBook } from './catalog';
 import { computeCapex } from './capex';
 
@@ -35,7 +35,7 @@ describe('equipment purchase (CapEx)', () => {
 
   it('prices communities without E-Call at the base package', () => {
     const d = forestHills('ble');
-    d.communities[0].ecall = false;
+    d.communities[0].products = allProducts({ monitoring: true, ecall: false });
     expect(computeCapex(d).basePackages).toBe(547_400);
   });
 

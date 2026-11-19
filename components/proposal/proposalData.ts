@@ -7,7 +7,7 @@ import type { RoiCase } from '@/lib/model';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { POLICY } from '@/lib/pricing/catalog';
 import { capexFor } from '@/lib/quote/outputs';
-import { placeOf, type QuoteDraft } from '@/lib/quote/draft';
+import { hasEcall, placeOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { count, monthName, multiple, pct, usd } from '@/lib/format';
 import { longDate } from '@/components/implementation/ImplementationGantt';
@@ -38,7 +38,9 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   const year1 = capexCf
     ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, runRate: sel.annualRoi - capexAnnualCost, stabilizedReturn: capexAnnualCost > 0 ? sel.annualRoi / capexAnnualCost : 0, discountedNet: capexCf.discountedNet }
     : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, runRate: kp.runRateAnnualNetBenefit, stabilizedReturn: sel.returnOnCost, discountedNet: cf.discountedNet };
-  const units = inputs.communities.reduce((s, c) => s + c.units, 0);
+  // Priced beds (beds with no product are left out; E-Call-only beds count).
+  const ecallOn = draft.commercial.ecall !== 'none';
+  const units = draft.communities.reduce((s, dc) => s + scopeOf(dc, ecallOn).priced, 0);
   const anyPilot = cf.communities.some((c) => c.inPilot);
   // The pilot phase ends when the last pilot site converts to the service term.
   const pilotEndMonth = anyPilot ? Math.max(...cf.communities.filter((c) => c.inPilot).map((c) => c.firstPostPilotMonth - 1)) : null;
@@ -65,7 +67,8 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
       ? sum(introLines.map((l) => l.qty * l.unitNet)) + sum(ls.filter((l) => l.billing === 'monthly' && !isPilotLine(l) && !isIntroLine(l) && !l.description.startsWith('Teton subscription')).map((l) => l.qty * l.unitNet))
       : null;
     const coverage = dc.coverage === 'full_facility' ? 'Full facility' : 'Resident rooms';
-    const hasEcall = draft.commercial.ecall !== 'none' && dc.ecall;
+    const sc = scopeOf(dc, ecallOn);
+    const hasEcall = sc.ecall > 0;
     return {
       key: dc.id,
       name: inputs.communities[i].name,
@@ -74,14 +77,14 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
       detail: placeOf(dc),
       /** Coverage and E-Call, for places that describe the community's scope. */
       scope: [coverage, hasEcall ? 'E-Call' : null].filter(Boolean).join(' · '),
-      units: inputs.communities[i].units,
+      units: sc.priced,
       // Care-type mix under the total, e.g. "AL 10 · MC 19" (zeros left out).
       mix: (
         [
-          ['IL', dc.ilBeds],
-          ['AL', dc.alBeds],
-          ['MC', dc.mcBeds],
-          ['SNF', dc.snfBeds],
+          ['IL', sc.pricedByCare.il],
+          ['AL', sc.pricedByCare.al],
+          ['MC', sc.pricedByCare.mc],
+          ['SNF', sc.pricedByCare.snf],
         ] as const
       )
         .filter(([, n]) => (Number(n) || 0) > 0)
@@ -114,7 +117,7 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   const money = (n: number) => usd(n, { cents: !Number.isInteger(n) });
   const rateSummary: Array<{ key: string; label: string; value: string; list?: string }> = [
     { key: 'rate.subscription', label: 'Teton subscription', value: `${money(k.platformRate)}/bed/mo`, list: platformList != null && platformList > k.platformRate ? money(platformList) : undefined },
-    ...(k.ecall !== 'none' && draft.communities.some((dc) => dc.ecall)
+    ...(k.ecall !== 'none' && draft.communities.some((dc) => hasEcall(dc))
       ? [{ key: 'rate.ecall', label: `E-Call (${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'})`, value: `${money(k.ecallRate)}/bed/mo`, list: ecallList != null && ecallList > k.ecallRate ? money(ecallList) : undefined }]
       : []),
     { key: 'rate.install', label: 'Installation', value: `${money(k.installRate)}/bed one-time`, list: installList != null && installList > k.installRate ? money(installList) : undefined },

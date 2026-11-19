@@ -10,7 +10,7 @@
  * realigned, costly falls prevented, and hospitalizations used for fall cost.
  */
 import { excelRound } from './excel';
-import type { Community, ModelInputs, RoiCase } from './types';
+import type { Community, CommunityRates, ModelInputs, RoiCase } from './types';
 import { ROI_CASES } from './types';
 
 export interface CommunityDrivers {
@@ -168,14 +168,15 @@ export function annualForCase(inputs: ModelInputs, roiCase: RoiCase): AnnualCase
   const occ = totalOccupiedUnits(inputs);
   const { pricing, valuation } = inputs;
   // Assumptions R19 (install) + R20:R21 (platform + add-ons × 12) — every unit at post-pilot prices.
-  const uniform = inputs.communities.every((c) => !c.rates);
+  const uniform = inputs.communities.every((c) => !c.rates && !c.extras?.length);
+  const extras = (c: Community, f: (r: CommunityRates) => number) => (c.extras ?? []).reduce((s, x) => s + f(x.rates) * x.units, 0);
   // Uniform pricing keeps the workbook's arithmetic (price × total units) exactly.
   const installCost = uniform
     ? pricing.postPilotInstallPerBed * units
-    : inputs.communities.reduce((s, c) => s + (c.rates?.postPilotInstallPerBed ?? pricing.postPilotInstallPerBed) * c.units, 0);
+    : inputs.communities.reduce((s, c) => s + (c.rates?.postPilotInstallPerBed ?? pricing.postPilotInstallPerBed) * c.units + extras(c, (r) => r.postPilotInstallPerBed), 0);
   const annualRecurringCost = uniform
     ? pricing.postPilotFeePerBedMonth * units * 12
-    : inputs.communities.reduce((s, c) => s + (c.rates?.postPilotFeePerBedMonth ?? pricing.postPilotFeePerBedMonth) * c.units * 12, 0);
+    : inputs.communities.reduce((s, c) => s + ((c.rates?.postPilotFeePerBedMonth ?? pricing.postPilotFeePerBedMonth) * c.units + extras(c, (r) => r.postPilotFeePerBedMonth)) * 12, 0);
   const totalCostBasis = installCost + annualRecurringCost;
 
   const annualNetNoiImpact =

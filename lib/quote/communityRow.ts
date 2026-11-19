@@ -3,15 +3,15 @@
  * summary, the chips that flag anything not at the deal's defaults, what's
  * missing, and the shared value of a field across a bulk selection.
  */
-import { bedsOf, type DraftCommunity } from './draft';
+import { bedsOf, scopeOf, type DraftCommunity } from './draft';
 
 /** What a community still needs before a version can be saved. */
 export function communityProblems(c: Partial<DraftCommunity> | undefined): string[] {
   const out: string[] = [];
   if (!c?.name?.trim()) out.push('Needs a name');
   if (bedsOf(c as DraftCommunity) <= 0) out.push('No beds');
-  // Without resident monitoring the community needs E-Call (it would have nothing else).
-  if (c?.monitoring === false && !c?.ecall) out.push('Turn on Resident Monitoring or E-Call');
+  // Beds with no product aren't priced: a community needs at least some priced beds.
+  else if (scopeOf(c).priced <= 0) out.push('No products on its beds');
   return out;
 }
 
@@ -60,12 +60,16 @@ export function communityChips(c: Partial<DraftCommunity> | undefined, deal: Dea
   if (!c) return [];
   const chips: Chip[] = communityProblems(c).map((label) => ({ label, tone: 'red' as const }));
   if (deal.withPilot && c.pilot) chips.push({ label: c.pilotUnits ? `Pilot · ${c.pilotUnits} beds` : 'Pilot', tone: 'green', pilot: true });
-  if (c.monitoring === false) chips.push({ label: 'E-Call only', tone: 'purple' });
-  if (c.coverage === 'full_facility' && c.monitoring !== false) chips.push({ label: 'Full facility', tone: 'purple' });
-  if (deal.ecallOn && c.ecall === false) chips.push({ label: 'No E-Call', tone: 'yellow' });
+  const s = scopeOf(c, deal.ecallOn);
+  if (s.priced > 0 && s.monitored === 0) chips.push({ label: 'E-Call only', tone: 'purple' });
+  else if (s.ecallOnly > 0) chips.push({ label: `${s.ecallOnly} E-Call only`, tone: 'purple' });
+  if (c.coverage === 'full_facility' && s.monitored > 0) chips.push({ label: 'Full facility', tone: 'purple' });
+  if (deal.ecallOn && s.priced > 0 && s.ecall === 0) chips.push({ label: 'No E-Call', tone: 'yellow' });
+  else if (deal.ecallOn && s.monitored > s.monitoredEcall && s.ecall > 0) chips.push({ label: `${s.monitored - s.monitoredEcall} without E-Call`, tone: 'yellow' });
+  if (s.unpriced > 0 && s.priced > 0) chips.push({ label: `${s.unpriced} not priced`, tone: 'gray' });
   if (c.occupancy != null) chips.push({ label: `Occ ${Number((c.occupancy * 100).toFixed(1))}%`, tone: 'yellow' });
   if (c.roiDelayMonths != null) chips.push({ label: `Delay ${c.roiDelayMonths} mo`, tone: 'yellow' });
-  if (c.monitoring !== false && Number(c.additionalSensors) > 0) chips.push({ label: `${c.additionalSensors} sensors`, tone: 'gray' });
+  if (s.monitored > 0 && Number(c.additionalSensors) > 0) chips.push({ label: `${c.additionalSensors} sensors`, tone: 'gray' });
   return chips;
 }
 

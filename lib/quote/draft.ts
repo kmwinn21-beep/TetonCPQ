@@ -13,6 +13,14 @@ import { normalizeTerms, type TermsSetting } from './terms';
 import { normalizeResources, type Resources } from './resources';
 
 export type EcallOption = 'none' | 'ble' | 'inovonics';
+/** The four care types a community's beds are split into. */
+export type BedKey = 'il' | 'al' | 'mc' | 'snf';
+export const BED_KEYS: BedKey[] = ['il', 'al', 'mc', 'snf'];
+/** Which products are priced for one care type's beds. */
+export interface BedProducts {
+  monitoring: boolean;
+  ecall: boolean;
+}
 export type Coverage = 'rooms_only' | 'full_facility';
 
 export interface DraftCommunity {
@@ -20,7 +28,10 @@ export interface DraftCommunity {
   name: string;
   /** City; with the state (market) it reads "Louisville, KY". */
   city?: string;
-  /** Resident monitoring at this community (on unless turned off). Off = E-Call only. */
+  /** Products priced for each care type's beds (IL starts with neither). Missing on communities saved before
+   *  per-care-type products: every care type then takes `monitoring` and `ecall`. */
+  products?: Partial<Record<BedKey, BedProducts>>;
+  /** @deprecated community-wide resident monitoring, from before `products`. Kept in step with them (any care type). */
   monitoring?: boolean;
   market: string;
   /** Beds by care type. Every bed is priced the same; the split is for scope and reporting. */
@@ -32,7 +43,7 @@ export interface DraftCommunity {
   /** @deprecated single bed count from before the IL/AL/MC split; normalizeDraft moves it to alBeds. */
   beds?: number;
   coverage: Coverage;
-  /** Takes the deal's e-call add-on. */
+  /** Takes the deal's e-call add-on: kept in step with `products` (any care type). */
   ecall: boolean;
   pilot: boolean;
   /** null = whole community is in the pilot. */
@@ -139,6 +150,7 @@ export function newCommunity(i: number): DraftCommunity {
     snfBeds: 0,
     coverage: 'rooms_only',
     ecall: true,
+    products: defaultProducts(),
     pilot: false,
     pilotUnits: null,
     occupancy: null,
@@ -221,24 +233,127 @@ function normalizeCommercial(c: Commercial): Commercial {
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */
 export function normalizeCommunity(c: DraftCommunity): DraftCommunity {
-  if (c.ilBeds != null || c.alBeds != null || c.mcBeds != null) {
-    const { beds: _legacy, ...rest } = c;
-    return { ...rest, ilBeds: Number(c.ilBeds) || 0, alBeds: Number(c.alBeds) || 0, mcBeds: Number(c.mcBeds) || 0, snfBeds: Number(c.snfBeds) || 0 };
-  }
-  const { beds, ...rest } = c;
-  return { ...rest, ilBeds: 0, alBeds: Number(beds) || 0, mcBeds: 0, snfBeds: Number(c.snfBeds) || 0 };
+  const { beds: _legacy, ...rest } = c;
+  const b = bedsByCare(c);
+  // Products per care type (older communities: their community-wide switches, for every care type).
+  const products = productsOf(c);
+  const withProducts = { ...rest, ilBeds: b.il, alBeds: b.al, mcBeds: b.mc, snfBeds: b.snf, products };
+  return { ...withProducts, monitoring: monitors(withProducts), ecall: hasEcall(withProducts) };
 }
 
-/** Whether a community has resident monitoring (the default) or is E-Call only. */
-export const monitors = (c: Pick<DraftCommunity, 'monitoring'> | undefined | null) => c?.monitoring !== false;
+/** New communities: independent living beds start with no products; the rest with both. */
+export const defaultProducts = (): Record<BedKey, BedProducts> => ({
+  il: { monitoring: false, ecall: false },
+  al: { monitoring: true, ecall: true },
+  mc: { monitoring: true, ecall: true },
+  snf: { monitoring: true, ecall: true },
+});
+
+/** The same products on every care type. */
+export const allProducts = (p: BedProducts): Record<BedKey, BedProducts> => Object.fromEntries(BED_KEYS.map((k) => [k, { ...p }])) as Record<BedKey, BedProducts>;
+
+type CommunityLike = Partial<DraftCommunity> | undefined | null;
+
+/** Each care type's products (communities from before per-care-type products: the community-wide switches for all four). */
+export function productsOf(c: CommunityLike): Record<BedKey, BedProducts> {
+  const legacy: BedProducts = { monitoring: c?.monitoring !== false, ecall: c?.ecall !== false };
+  const p = c?.products;
+  return Object.fromEntries(
+    BED_KEYS.map((k) => {
+      const x = p?.[k];
+      return [k, x ? { monitoring: x.monitoring === true, ecall: x.ecall === true } : p ? defaultProducts()[k] : legacy];
+    }),
+  ) as Record<BedKey, BedProducts>;
+}
+
+/** Beds by care type. Tolerates un-normalized legacy communities (one bed count = assisted living). */
+export function bedsByCare(c: CommunityLike): Record<BedKey, number> {
+  const split = c?.ilBeds != null || c?.alBeds != null || c?.mcBeds != null;
+  return {
+    il: split ? Number(c?.ilBeds) || 0 : 0,
+    al: split ? Number(c?.alBeds) || 0 : Number(c?.beds) || 0,
+    mc: split ? Number(c?.mcBeds) || 0 : 0,
+    snf: Number(c?.snfBeds) || 0,
+  };
+}
+
+/** What a community's beds are priced with. */
+export interface CommunityScope {
+  /** Every bed. */
+  beds: number;
+  /** Beds with resident monitoring (Edge units, sensors, subscription, ROI). */
+  monitored: number;
+  /** Beds with E-Call (with or without monitoring). */
+  ecall: number;
+  /** Of those, beds with monitoring too. */
+  monitoredEcall: number;
+  /** Beds with E-Call and no monitoring. */
+  ecallOnly: number;
+  /** Beds with at least one product. */
+  priced: number;
+  /** Beds with no product (left out of the pricing). */
+  unpriced: number;
+  /** Beds of each care type that are priced, and that are monitored. */
+  pricedByCare: Record<BedKey, number>;
+  monitoredByCare: Record<BedKey, number>;
+  /** The products every priced bed shares; null when they differ by care type. */
+  uniform: BedProducts | null;
+}
+
+/**
+ * A community's scope from its beds and each care type's products. E-Call only counts when the deal has
+ * E-Call (`ecallOn`). With no beds yet, `uniform` follows the care types' settings.
+ */
+export function scopeOf(c: CommunityLike, ecallOn = true): CommunityScope {
+  const beds = bedsByCare(c);
+  const p = productsOf(c);
+  const z = () => ({ il: 0, al: 0, mc: 0, snf: 0 }) as Record<BedKey, number>;
+  const s: CommunityScope = { beds: 0, monitored: 0, ecall: 0, monitoredEcall: 0, ecallOnly: 0, priced: 0, unpriced: 0, pricedByCare: z(), monitoredByCare: z(), uniform: null };
+  const combos = new Set<string>();
+  for (const k of BED_KEYS) {
+    const n = beds[k];
+    const m = p[k].monitoring;
+    const e = ecallOn && p[k].ecall;
+    s.beds += n;
+    if (m) { s.monitored += n; s.monitoredByCare[k] = n; }
+    if (e) s.ecall += n;
+    if (m && e) s.monitoredEcall += n;
+    if (e && !m) s.ecallOnly += n;
+    if (m || e) { s.priced += n; s.pricedByCare[k] = n; if (n > 0) combos.add(`${m}:${e}`); }
+    else s.unpriced += n;
+  }
+  if (combos.size === 1) {
+    const [m, e] = Array.from(combos)[0].split(':');
+    s.uniform = { monitoring: m === 'true', ecall: e === 'true' };
+  } else if (combos.size === 0) {
+    // No priced beds yet: the first care type with a product (assisted living first).
+    const k = (['al', 'mc', 'snf', 'il'] as const).find((x) => p[x].monitoring || (ecallOn && p[x].ecall));
+    s.uniform = k ? { monitoring: p[k].monitoring, ecall: ecallOn && p[k].ecall } : { monitoring: true, ecall: false };
+  }
+  return s;
+}
+
+/** Whether a community has resident monitoring on any of its beds (else it is E-Call only, or not priced). */
+export const monitors = (c: CommunityLike) => {
+  const s = scopeOf(c);
+  return s.beds > 0 ? s.monitored > 0 : !!s.uniform?.monitoring;
+};
+
+/** Whether a community has E-Call on any of its beds (ignores whether the deal offers E-Call). */
+export const hasEcall = (c: CommunityLike) => {
+  const s = scopeOf(c);
+  return s.beds > 0 ? s.ecall > 0 : BED_KEYS.some((k) => productsOf(c)[k].ecall);
+};
+
+/** Beds that are priced (have at least one product). */
+export const pricedBedsOf = (c: CommunityLike, ecallOn = true) => scopeOf(c, ecallOn).priced;
 
 /** "Louisville, KY", "Louisville", "KY" or "" from the community's city and state. */
 export const placeOf = (c: Pick<DraftCommunity, 'city' | 'market'>) => [c.city?.trim(), c.market?.trim()].filter(Boolean).join(', ');
 
-/** Total beds (IL + AL + MC + SNF). Tolerates un-normalized legacy communities. */
+/** Total beds (IL + AL + MC + SNF), priced or not. Tolerates un-normalized legacy communities. */
 export function bedsOf(c: Partial<DraftCommunity> | undefined | null): number {
   if (!c) return 0;
-  const split = c.ilBeds != null || c.alBeds != null || c.mcBeds != null;
-  const nonSnf = split ? (Number(c.ilBeds) || 0) + (Number(c.alBeds) || 0) + (Number(c.mcBeds) || 0) : Number(c.beds) || 0;
-  return nonSnf + (Number(c.snfBeds) || 0);
+  const b = bedsByCare(c);
+  return b.il + b.al + b.mc + b.snf;
 }

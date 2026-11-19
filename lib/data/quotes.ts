@@ -15,7 +15,7 @@ import { runModel, ENGINE_VERSION, type ModelResult } from '@/lib/model';
 import { priceBook, SKU, type PriceBook, type Product, type PricingModel } from '@/lib/pricing/catalog';
 import { evaluateGuardrails, type GuardrailResult } from '@/lib/pricing/guardrails';
 import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';
-import { bedsOf, defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
+import { bedsOf, hasEcall, defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { changeLines, diffDrafts } from '@/lib/quote/diff';
 
@@ -275,7 +275,7 @@ export async function saveVersion(db: Client, quoteId: number, changeNote: strin
       await tx.execute({
         sql: `INSERT INTO communities (quote_version_id, position, name, market, beds, il_beds, al_beds, mc_beds, snf_beds, coverage, ecall, is_pilot, pilot_units, occupancy, go_live_month, roi_delay_months, additional_sensors)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [versionId, i, c.name, c.market, c.ilBeds + c.alBeds + c.mcBeds, c.ilBeds, c.alBeds, c.mcBeds, c.snfBeds, c.coverage, c.ecall ? 1 : 0, c.pilot ? 1 : 0, c.pilotUnits, c.occupancy, c.goLiveMonth, c.roiDelayMonths, c.additionalSensors],
+        args: [versionId, i, c.name, c.market, c.ilBeds + c.alBeds + c.mcBeds, c.ilBeds, c.alBeds, c.mcBeds, c.snfBeds, c.coverage, hasEcall(c) ? 1 : 0, c.pilot ? 1 : 0, c.pilotUnits, c.occupancy, c.goLiveMonth, c.roiDelayMonths, c.additionalSensors],
       });
     }
     for (const l of lines) {

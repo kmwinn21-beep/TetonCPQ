@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultDraft, newCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { defaultDraft, allProducts, newCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { priceBook } from './catalog';
 import { computeCapex, grossBaseRows } from './capex';
 import { buildPriceLines, lineTotal } from './lines';
@@ -14,7 +14,7 @@ const deal = (): QuoteDraft => {
   d.schedule.withPilot = false;
   d.communities = [
     { ...newCommunity(0), id: 'm', name: 'Monitored', alBeds: 100, additionalSensors: 20, ecall: true },
-    { ...newCommunity(1), id: 'e', name: 'E-Call only', alBeds: 50, additionalSensors: 10, ecall: true, monitoring: false },
+    { ...newCommunity(1), id: 'e', name: 'E-Call only', alBeds: 50, additionalSensors: 10, ecall: true, products: allProducts({ monitoring: false, ecall: true }) },
   ];
   return d;
 };

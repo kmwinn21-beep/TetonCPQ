@@ -21,7 +21,7 @@
 import { SEED_PRODUCTS, SKU, POLICY } from './catalog';
 import { derived, input, type Trace } from '@/lib/model/trace';
 import type { EcallOption, QuoteDraft } from '@/lib/quote/draft';
-import { bedsOf } from '@/lib/quote/draft';
+import { scopeOf } from '@/lib/quote/draft';
 
 /** A deal's equipment-purchase prices (copied from the price book when the deal is created). */
 export interface CapexPricing {
@@ -76,7 +76,26 @@ export interface CapexCommunity {
   equipment: number;
   softwareMonthly: number;
   renewals: number;
+  /** The community's beds by what they buy (where products differ by care type there is more than one). */
+  parts?: CapexPart[];
 }
+
+/** Beds at one community that buy the same thing at the same price. */
+export interface CapexPart {
+  /** False: E-Call only units. */
+  monitoring: boolean;
+  ecall: EcallOption;
+  beds: number;
+  perBed: number;
+  listPerBed: number;
+  credit: number;
+  total: number;
+  renewals: number;
+}
+
+/** A community's parts (results saved before parts: one, from the community's own fields). */
+export const partsOf = (x: CapexCommunity): CapexPart[] =>
+  x.parts ?? [{ monitoring: x.monitoring !== false, ecall: x.ecall, beds: x.beds, perBed: x.basePerBed, listPerBed: x.listPerBed ?? x.basePerBed, credit: x.credit ?? 0, total: x.basePackages, renewals: x.renewals }];
 
 export interface CapexResult {
   /** Marks results from this equipment-purchase model (older saved versions used a different one). */
@@ -111,40 +130,57 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const pricing: CapexPricing = { ...DEFAULT_CAPEX_PRICING, ...(draft.commercial.capex ?? {}) };
   const option = draft.commercial.ecall;
   const conversion = Math.max(0, Number(pricing.conversionCredit) || 0);
+  const renewalPer = (ecall: EcallOption) =>
+    ecall === 'ble'
+      ? pricing.bleRenewal * renewalsWithin(ownershipMonths, POLICY.capexBleRenewalYears)
+      : ecall === 'inovonics'
+        ? pricing.inovonicsRenewal * renewalsWithin(ownershipMonths, POLICY.capexInovonicsRenewalYears)
+        : 0;
   const communities: CapexCommunity[] = draft.communities.map((c) => {
-    const beds = bedsOf(c);
-    const ecall: EcallOption = option !== 'none' && c.ecall ? option : 'none';
-    // E-Call only: the E-Call equipment price per bed (no base package, sensors or software).
-    if (c.monitoring === false) {
-      const per = ecall !== 'none' ? Math.max(0, Number(pricing.ecallOnlyPrice ?? 480)) : 0;
-      return { name: c.name, beds, ecall, basePerBed: per, listPerBed: per, basePackages: beds * per, sensors: 0, sensorPrice: 0, listSensorPrice: pricing.sensorPrice, credit: 0, sensorCost: 0, equipment: beds * per, softwareMonthly: 0, renewals: 0, monitoring: false };
-    }
-    const listPerBed = ecall === 'ble' ? pricing.bleBasePrice : ecall === 'inovonics' ? pricing.inovonicsBasePrice : pricing.basePrice;
+    const sc = scopeOf(c, option !== 'none');
     const credit = draft.schedule?.withPilot && c.pilot ? conversion : 0;
-    const basePerBed = Math.max(0, listPerBed - credit);
-    const sensorPrice = Math.max(0, pricing.sensorPrice - credit);
-    const sensors = Math.max(0, Number(c.additionalSensors) || 0);
-    const renewalPerBed =
-      ecall === 'ble'
-        ? pricing.bleRenewal * renewalsWithin(ownershipMonths, POLICY.capexBleRenewalYears)
-        : ecall === 'inovonics'
-          ? pricing.inovonicsRenewal * renewalsWithin(ownershipMonths, POLICY.capexInovonicsRenewalYears)
-          : 0;
+    // Monitored beds buy base packages (with E-Call where their care type has it); beds with E-Call only buy
+    // E-Call units (no base package, sensors or software). Unpriced beds buy nothing.
+    const parts: CapexPart[] = [];
+    const pkg = (ecall: EcallOption, beds: number) => {
+      if (beds <= 0) return;
+      const list = ecall === 'ble' ? pricing.bleBasePrice : ecall === 'inovonics' ? pricing.inovonicsBasePrice : pricing.basePrice;
+      const per = Math.max(0, list - credit);
+      parts.push({ monitoring: true, ecall, beds, perBed: per, listPerBed: list, credit, total: beds * per, renewals: beds * renewalPer(ecall) });
+    };
+    pkg(option, sc.monitoredEcall);
+    pkg('none', sc.monitored - sc.monitoredEcall);
+    if (sc.ecallOnly > 0) {
+      const per = Math.max(0, Number(pricing.ecallOnlyPrice ?? 480));
+      parts.push({ monitoring: false, ecall: option, beds: sc.ecallOnly, perBed: per, listPerBed: per, credit: 0, total: sc.ecallOnly * per, renewals: 0 });
+    }
+    const monitored = sc.monitored > 0 || (sc.priced === 0 && sc.uniform?.monitoring !== false);
+    // The community's headline price: its first part (or what a monitored bed would cost here).
+    const head = parts[0] ?? { monitoring: monitored, ecall: (monitored ? (sc.uniform?.ecall ? option : 'none') : option) as EcallOption, perBed: 0, listPerBed: 0, credit };
+    if (!parts.length && monitored) {
+      const list = head.ecall === 'ble' ? pricing.bleBasePrice : head.ecall === 'inovonics' ? pricing.inovonicsBasePrice : pricing.basePrice;
+      Object.assign(head, { listPerBed: list, perBed: Math.max(0, list - credit) });
+    }
+    const sensors = monitored ? Math.max(0, Number(c.additionalSensors) || 0) : 0;
+    const sensorPrice = monitored ? Math.max(0, pricing.sensorPrice - credit) : 0;
+    const basePackages = parts.reduce((s, p) => s + p.total, 0);
     return {
       name: c.name,
-      beds,
-      ecall,
-      basePerBed,
-      listPerBed,
-      basePackages: beds * basePerBed,
+      beds: sc.priced,
+      ecall: head.ecall,
+      basePerBed: head.perBed,
+      listPerBed: head.listPerBed,
+      basePackages,
       sensors,
       sensorPrice,
       listSensorPrice: pricing.sensorPrice,
-      credit,
+      credit: monitored ? credit : 0,
       sensorCost: sensors * sensorPrice,
-      equipment: beds * basePerBed + sensors * sensorPrice,
-      softwareMonthly: beds * pricing.softwareRate,
-      renewals: beds * renewalPerBed,
+      equipment: basePackages + sensors * sensorPrice,
+      softwareMonthly: sc.monitored * pricing.softwareRate,
+      renewals: parts.reduce((s, p) => s + p.renewals, 0),
+      ...(monitored ? {} : { monitoring: false }),
+      parts,
     };
   });
   const sum = (k: 'beds' | 'sensors' | 'basePackages' | 'sensorCost' | 'equipment' | 'softwareMonthly' | 'renewals') => communities.reduce((s, c) => s + c[k], 0);
@@ -156,10 +192,14 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
 
   const trace = derived('capex.total', 'One-time equipment cost', equipment, 'usd', 'Base packages + Additional sensors', [
     derived('capex.base', 'Base packages', sum('basePackages'), 'usd', 'Σ beds × base package price (by E-Call option)', communities.map((c, i) =>
-      derived(`capex.base.c${i}`, `Base packages — ${c.name}`, c.basePackages, 'usd', 'Beds × price per bed', [
-        input(`capex.beds.c${i}`, `Beds — ${c.name}`, c.beds, 'count'),
-        input(`capex.price.c${i}`, `Price per bed${c.ecall === 'ble' ? ' (with E-Call)' : c.ecall === 'inovonics' ? ' (with Inovonics E-Call)' : ''}${c.credit ? ' after the conversion credit' : ''}`, c.basePerBed, 'usd'),
-      ]),
+      derived(`capex.base.c${i}`, `Base packages — ${c.name}`, c.basePackages, 'usd', 'Beds × price per bed', partsOf(c).flatMap((p, j) => {
+        const what = !p.monitoring ? ' (E-Call only units)' : p.ecall === 'ble' ? ' (with E-Call)' : p.ecall === 'inovonics' ? ' (with Inovonics E-Call)' : '';
+        const sfx = j ? `.${j}` : '';
+        return [
+          input(`capex.beds.c${i}${sfx}`, `Beds${what} — ${c.name}`, p.beds, 'count'),
+          input(`capex.price.c${i}${sfx}`, `Price per bed${what}${p.credit ? ' after the conversion credit' : ''}`, p.perBed, 'usd'),
+        ];
+      })),
     )),
     derived('capex.sensors', 'Additional sensors', sum('sensorCost'), 'usd', conversion ? 'Sensors × sensor price (less the conversion credit at pilot communities)' : 'Sensors × sensor price', [
       input('capex.sensorCount', 'Additional sensors', sum('sensors'), 'count'),
@@ -209,17 +249,15 @@ export const conversionCreditOf = (c: Pick<CapexResult, 'communities'>) => Math.
 /** Base packages grouped by price: one row per E-Call option in use, split where a conversion credit applies. */
 export function basePackageRows(c: Pick<CapexResult, 'communities'>): Array<PriceRow & { ecall: EcallOption; label: string; perBed: number; beds: number }> {
   const rows = new Map<string, PriceRow & { ecall: EcallOption; label: string; perBed: number; beds: number }>();
-  for (const x of c.communities) {
-    if (!x.beds) continue;
-    const credit = x.credit ?? 0;
-    const list = x.listPerBed ?? x.basePerBed;
-    // E-Call-only communities buy E-Call units, not base packages.
-    const eo = x.monitoring === false;
-    const key = `${x.ecall}:${x.basePerBed}:${credit}:${eo ? 'eo' : ''}`;
-    const r = rows.get(key) ?? { key: `${eo ? 'ecallonly' : x.ecall}${credit ? '-credited' : ''}`, ecall: x.ecall, label: eo ? 'E-Call only unit' : ECALL_LABEL[x.ecall], perBed: x.basePerBed, list, credit, perUnit: x.basePerBed, units: 0, beds: 0, total: 0 };
-    r.beds += x.beds;
-    r.units += x.beds;
-    r.total += x.basePackages;
+  for (const p of c.communities.flatMap(partsOf)) {
+    if (!p.beds) continue;
+    // Beds with E-Call only buy E-Call units, not base packages.
+    const eo = !p.monitoring;
+    const key = `${p.ecall}:${p.perBed}:${p.credit}:${eo ? 'eo' : ''}`;
+    const r = rows.get(key) ?? { key: `${eo ? 'ecallonly' : p.ecall}${p.credit ? '-credited' : ''}`, ecall: p.ecall, label: eo ? 'E-Call only unit' : ECALL_LABEL[p.ecall], perBed: p.perBed, list: p.listPerBed, credit: p.credit, perUnit: p.perBed, units: 0, beds: 0, total: 0 };
+    r.beds += p.beds;
+    r.units += p.beds;
+    r.total += p.total;
     rows.set(key, r);
   }
   return Array.from(rows.values());
@@ -271,7 +309,7 @@ function gross<T extends string>(items: Array<{ key: T; units: number; per: numb
 
 /** Base packages for the whole deal: one line per E-Call option in use. */
 export const grossBaseRows = (c: Pick<CapexResult, 'communities'>) =>
-  gross(c.communities.map((x) => ({ key: x.monitoring === false ? ('ecallonly' as const) : x.ecall, units: x.beds, per: x.basePerBed, total: x.basePackages })));
+  gross(c.communities.flatMap(partsOf).map((p) => ({ key: !p.monitoring ? ('ecallonly' as const) : p.ecall, units: p.beds, per: p.perBed, total: p.total })));
 
 /** Additional sensors for the whole deal: one line (or none). */
 export const grossSensorRow = (c: Pick<CapexResult, 'communities' | 'pricing'>): GrossRow | null =>

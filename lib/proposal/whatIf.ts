@@ -90,7 +90,7 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.capex.softwareRate', 'Equipment: software & services / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.capex.bleRenewal', 'Equipment: E-Call renewal / bed (4 yr)', PRICING, PRICING_AT, 'usd'),
   F('commercial.capex.inovonicsRenewal', 'Equipment: Inovonics renewal / bed (3 yr)', PRICING, PRICING_AT, 'usd'),
-  F('commercial.ecallInstallRate', 'E-Call installation / bed (E-Call-only communities)', PRICING, PRICING_AT, 'usd', { nullable: true }),
+  F('commercial.ecallInstallRate', 'E-Call installation / bed (beds with E-Call only)', PRICING, PRICING_AT, 'usd', { nullable: true }),
   F('commercial.capex.ecallOnlyPrice', 'Equipment: E-Call only / bed', PRICING, PRICING_AT, 'usd', { nullable: true }),
   F('commercial.capex.conversionCredit', 'Equipment: conversion credit (pilot, per bed and sensor)', PRICING, PRICING_AT, 'usd', { nullable: true }),
 

@@ -13,7 +13,7 @@
 import { running, stayPaidMonth, type CashFlow } from '@/lib/model/cashflow';
 import { derived, input, type Trace } from '@/lib/model/trace';
 import { POLICY } from './catalog';
-import type { CapexResult } from './capex';
+import { partsOf, type CapexResult } from './capex';
 
 export interface CapexCashFlow {
   equipment: number[];
@@ -49,9 +49,13 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
     if (!c) return;
     if (s.goLiveMonth >= 1 && s.goLiveMonth <= n) equipment[s.goLiveMonth - 1] += c.equipment;
     for (let m = Math.max(1, s.firstPostPilotMonth); m <= n; m++) software[m - 1] += c.softwareMonthly;
-    const years = c.ecall === 'ble' ? POLICY.capexBleRenewalYears : c.ecall === 'inovonics' ? POLICY.capexInovonicsRenewalYears : 0;
-    const each = c.beds * (c.ecall === 'ble' ? capex.pricing.bleRenewal : c.ecall === 'inovonics' ? capex.pricing.inovonicsRenewal : 0);
-    if (years && each) for (let m = s.goLiveMonth + years * 12; m <= n; m += years * 12) renewals[m - 1] += each;
+    // E-Call renewals on base packages with E-Call (E-Call only units have none).
+    for (const p of partsOf(c)) {
+      if (!p.monitoring) continue;
+      const years = p.ecall === 'ble' ? POLICY.capexBleRenewalYears : p.ecall === 'inovonics' ? POLICY.capexInovonicsRenewalYears : 0;
+      const each = p.beds * (p.ecall === 'ble' ? capex.pricing.bleRenewal : p.ecall === 'inovonics' ? capex.pricing.inovonicsRenewal : 0);
+      if (years && each) for (let m = s.goLiveMonth + years * 12; m <= n; m += years * 12) renewals[m - 1] += each;
+    }
   });
   const totalCost = cf.months.map((_, i) => equipment[i] + software[i] + renewals[i]);
   const netBenefit = cf.months.map((_, i) => cf.grossBenefit[i] - totalCost[i]);

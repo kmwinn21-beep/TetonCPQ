@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { bedsOf, newCommunity, placeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { BED_KEYS, bedsOf, hasEcall, newCommunity, placeOf, productsOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { bedMix, communityChips, communityIsValid, MIXED, sharedValue, sortedIndices, ymLabel, type Chip, type SortKey } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count, pct } from '@/lib/format';
@@ -142,6 +142,12 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
   function applyBulk(patch: BulkPatch) {
     for (const i of checkedIdx) {
       for (const [k, v] of Object.entries(patch)) {
+        if (k === 'ecall') {
+          // E-Call is chosen per care type: on for every care type with resident monitoring, or off for all.
+          const p = productsOf(getValues(`communities.${i}`));
+          const next = Object.fromEntries(BED_KEYS.map((t) => [t, { ...p[t], ecall: v ? p[t].monitoring || p[t].ecall : false }]));
+          setValue(`communities.${i}.products`, next as never, { shouldDirty: true });
+        }
         setValue(`communities.${i}.${k as keyof BulkPatch}`, v as never, { shouldDirty: true });
       }
     }
@@ -245,7 +251,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
               [
                 ['Go-live', shared((c) => c.goLiveMonth, (v) => (v ? ymLabel(v) : 'Default'))],
                 ['Coverage', shared((c) => c.coverage, (v) => (v === 'full_facility' ? 'Full facility' : 'Rooms only'))],
-                ['E-Call', ecallOn ? shared((c) => !!c.ecall, (v) => (v ? 'On' : 'Off')) : 'Not in deal'],
+                ['E-Call', ecallOn ? shared((c) => hasEcall(c), (v) => (v ? 'On' : 'Off')) : 'Not in deal'],
                 ['Pilot', withPilot ? shared((c) => !!c.pilot, (v) => (v ? 'Yes' : 'No')) : 'No pilot phase'],
                 ['Occupancy', shared((c) => c.occupancy, (v) => (v == null ? 'Deal value' : pct(v)))],
                 ['ROI delay', shared((c) => c.roiDelayMonths, (v) => (v == null ? 'Deal value' : `${v} mo`))],
@@ -434,7 +440,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                         </span>
                         <span className="block truncate text-xs text-teton-ui-gray mt-0.5">
                           {count(bedsOf(r))} beds{mix ? ` (${mix})` : ''} · {goLiveText(i)}
-                          {ecallOn && r.ecall ? ' · E-Call' : ''}
+                          {ecallOn && hasEcall(r) ? ' · E-Call' : ''}
                         </span>
                       </span>
                       {r?.id && <span className="flex-shrink-0"><FloorPlanPill communityId={r.id} /></span>}

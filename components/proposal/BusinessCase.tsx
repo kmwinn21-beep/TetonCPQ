@@ -13,18 +13,18 @@
  */
 import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
-import { basePackageRows, conversionCreditOf, grossBaseRows, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
+import { basePackageRows, conversionCreditOf, grossBaseRows, partsOf, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
-import { monitors, type QuoteDraft } from '@/lib/quote/draft';
+import { hasEcall, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { CARE_SHORT, careLabel, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
+import { bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
 import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
@@ -328,19 +328,16 @@ function CommunityName({ index, children }: { index: number; children: React.Rea
   );
 }
 
-/** A community's beds by care type. */
-const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
-  il: Number(dc.ilBeds) || 0,
-  al: Number(dc.alBeds) || 0,
-  mc: Number(dc.mcBeds) || 0,
-  snf: Number(dc.snfBeds) || 0,
-});
+/** A community's priced beds by care type (beds with no product are left out). */
+const bedsOf = (dc: QuoteDraft['communities'][number]) => scopeOf(dc).pricedByCare;
+/** A community's monitored beds by care type (they get Edge units and sensors). */
+const monBedsOf = (dc: QuoteDraft['communities'][number]) => scopeOf(dc).monitoredByCare;
 
-/** A community's sensors: the one in each room plus its additional sensors. */
+/** A community's sensors: the one in each monitored room plus its additional sensors. */
 const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
-  if (!monitors(dc)) return 0; // E-Call only: no sensors
-  const b = bedsOf(dc);
-  return b.il + b.al + b.mc + b.snf + Math.max(0, Number(dc.additionalSensors) || 0);
+  const n = scopeOf(dc).monitored;
+  if (!n) return 0; // E-Call only: no sensors
+  return n + Math.max(0, Number(dc.additionalSensors) || 0);
 };
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
@@ -429,7 +426,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // Equipment purchase split: the AI platform (base package, sensors, software) and E-Call (its price premium and renewals).
   const basePrice = capex.pricing.basePrice;
-  const ecallEquipment = sum(capex.communities.map((c) => (c.ecall === 'none' ? 0 : (c.basePerBed - basePrice) * c.beds)));
+  const ecallEquipment = sum(capex.communities.flatMap(partsOf).map((p) => (!p.monitoring ? p.total : p.ecall === 'none' ? 0 : (p.perBed - basePrice) * p.beds)));
   const platformEquipment = capex.equipment - ecallEquipment;
   const platform = platformEquipment + capex.software;
   const ecall = ecallEquipment + capex.renewals;
@@ -480,12 +477,21 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // ---------- Scope (from the floor plans) ----------
   // Shown when at least one community has room types.
-  const scoped = draft.communities.map((c, i) => ({ c, i, types: normalizeRoomTypes(c.roomTypes) })).filter((x) => x.types.length && monitors(x.c));
+  // Only room types whose care type has resident monitoring get Edge units and sensors; those with E-Call only
+  // are listed as such, and room types with no product are left out.
+  const scoped = draft.communities
+    .map((c, i) => {
+      const all = normalizeRoomTypes(c.roomTypes);
+      const p = productsOf(c);
+      const ecallOn = draft.commercial.ecall !== 'none';
+      return { c, i, types: monitoredTypes(all, c), eoTypes: all.filter((t) => !p[bedKeyOf(t)].monitoring && ecallOn && p[bedKeyOf(t)].ecall) };
+    })
+    .filter((x) => x.types.length);
   // E-Call-only communities: listed in the table, outside the room, sensor and Edge unit counts.
-  const ecallOnlySites = draft.communities.map((c, i) => ({ c, i })).filter((x) => !monitors(x.c));
+  const ecallOnlySites = draft.communities.map((c, i) => ({ c, i })).filter((x) => !monitors(x.c) && scopeOf(x.c).priced > 0);
   if (scoped.length) {
     const all = draft.communities.filter((c) => monitors(c));
-    const roomsTotal = sum(all.map((c) => bedsOf(c).il + bedsOf(c).al + bedsOf(c).mc + bedsOf(c).snf));
+    const roomsTotal = sum(all.map((c) => scopeOf(c).monitored));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
     const sensorsTotal = roomsTotal + extraTotal;
     const perSite = scoped.map((x) => ({ ...x, s: roomScope(x.types, normalizeAllowance(x.c.sensorAllowancePct)) }));
@@ -493,7 +499,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const allowanceTotal = sum(perSite.map((x) => x.s.allowance));
     const pctText = Array.from(new Set(perSite.map((x) => `${Math.round(normalizeAllowance(x.c.sensorAllowancePct) * 1000) / 10}%`))).join(' / ');
     const careMix = (['al', 'mc', 'il', 'snf'] as const)
-      .map((k) => [k, sum(all.map((c) => bedsOf(c)[k]))] as const)
+      .map((k) => [k, sum(all.map((c) => monBedsOf(c)[k]))] as const)
       .filter(([, n]) => n > 0)
       .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
     const multi = draft.communities.length > 1;
@@ -552,7 +558,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   </tr>
                 </thead>
                 <RTbody id="site" name="Rooms by type">
-                  {perSite.map(({ c, i, types, s: st }) => (
+                  {perSite.map(({ c, i, types, eoTypes, s: st }) => (
                     <Fragment key={c.id}>
                       {multi && (
                         <tr className="bc-site-group" data-fixed>
@@ -579,6 +585,13 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                           <td className="bc-hl2 bc-r">–</td>
                         </tr>
                       )}
+                      {eoTypes.map((t) => (
+                        <tr key={t.id} className="bc-site-ecall">
+                          <td colSpan={6}>
+                            <T k={`bc.site.ecallOnlyType.${t.id}`} d="{name} ({care}) · E-Call only · {rooms} rooms" v={{ name: t.name || 'Room type', care: careLabel(t), rooms: count(t.rooms) }} />
+                          </td>
+                        </tr>
+                      ))}
                     </Fragment>
                   ))}
                   {ecallOnlySites.map(({ c, i }) => (
@@ -587,7 +600,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
                       </tr>
                       <tr className="bc-site-ecall">
-                        <td colSpan={6}><T k="bc.site.ecallOnly" d="E-Call only · {beds} beds" v={{ beds: count(bedsOf(c).il + bedsOf(c).al + bedsOf(c).mc + bedsOf(c).snf) }} /></td>
+                        <td colSpan={6}><T k="bc.site.ecallOnly" d="E-Call only · {beds} beds" v={{ beds: count(scopeOf(c).priced) }} /></td>
                       </tr>
                     </Fragment>
                   ))}
@@ -649,7 +662,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     const pSen = sensorMath(siteLines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
     const install = pIns.gross - pIns.credit;
     const pilotTotal = pilotFees + install + pSen.total;
-    const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => x.dc.ecall);
+    const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => hasEcall(x.dc));
     const months = inputs.schedule.pilotLengthMonths;
     const beds = bedsOf;
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
@@ -760,7 +773,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // Investment page (subscription): the math behind each line, and all-in cost per bed per month over each community's pilot and term.
   const allIns = installMath(lines);
   const allSen = sensorMath(lines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
-  const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => c.ecall);
+  const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => hasEcall(c));
   // Resident monitoring is in scope unless every community is E-Call only.
   const anyMonitoring = draft.communities.some((c) => monitors(c));
   const perBed = units > 0 ? d.serviceMonthly / units : 0;
@@ -937,7 +950,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         <small>
                           <T
                             k={`bc.capex.base.${r.key}.desc`}
-                            d={r.key === 'ecallonly' ? 'One-time · E-Call-only communities: 48 months of E-Call paid up front' : r.key === 'none' ? 'One-time · Edge unit + sensor, installed' : r.key === 'ble' ? 'One-time · Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant' : 'One-time · Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord'}
+                            d={r.key === 'ecallonly' ? 'One-time · beds with E-Call only: 48 months of E-Call paid up front' : r.key === 'none' ? 'One-time · Edge unit + sensor, installed' : r.key === 'ble' ? 'One-time · Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant' : 'One-time · Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord'}
                           />
                         </small>
                       </td>

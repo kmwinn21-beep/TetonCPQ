@@ -7,8 +7,8 @@
  * each room) and those fields stop being typed in.
  */
 import { useFormContext, useWatch } from 'react-hook-form';
-import type { QuoteDraft } from '@/lib/quote/draft';
-import { CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, normalizeAllowance, normalizeRoomTypes, roomScope, type CareType, type RoomType } from '@/lib/quote/roomTypes';
+import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { bedKeyOf, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
 
@@ -20,13 +20,17 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   const raw = useWatch({ control, name: `communities.${i}.roomTypes` }) as RoomType[] | undefined;
   const allowance = useWatch({ control, name: `communities.${i}.sensorAllowancePct` });
   const types = Array.isArray(raw) ? raw : [];
+  const productsRaw = useWatch({ control, name: `communities.${i}.products` });
+  const legacy = useWatch({ control, name: [`communities.${i}.monitoring`, `communities.${i}.ecall`] });
+  const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
+  const products = productsOf({ products: productsRaw, monitoring: legacy[0], ecall: legacy[1] });
 
   // Write the room types, and the beds and additional sensors they imply.
   const write = (next: RoomType[], pct = normalizeAllowance(getValues(`communities.${i}.sensorAllowancePct`))) => {
     setValue(`communities.${i}.roomTypes`, next, { shouldDirty: true });
-    const clean = normalizeRoomTypes(next);
-    if (!clean.length) return;
-    const s = roomScope(clean, pct);
+    // Beds from every room type; extra sensors from the monitored ones (their care type has resident monitoring).
+    const s = roomDerived({ ...getValues(`communities.${i}`), roomTypes: next }, pct);
+    if (!s) return;
     const opts = { shouldDirty: true } as const;
     setValue(`communities.${i}.ilBeds`, s.beds.il, opts);
     setValue(`communities.${i}.alBeds`, s.beds.al, opts);
@@ -35,7 +39,9 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
     setValue(`communities.${i}.additionalSensors`, s.additionalSensors, opts);
   };
   const patch = (id: string, p: Partial<RoomType>) => write(types.map((t) => (t.id === id ? { ...t, ...p } : t)));
-  const scope = types.length ? roomScope(normalizeRoomTypes(types), normalizeAllowance(allowance)) : null;
+  const derived = types.length ? roomDerived({ roomTypes: types, products: productsRaw, monitoring: legacy[0], ecall: legacy[1] }, normalizeAllowance(allowance)) : null;
+  const scope = derived?.monitored ?? null;
+  const unmonitored = derived ? derived.all.rooms - derived.monitored.rooms : 0;
 
   return (
     <div className="mt-3">
@@ -98,6 +104,13 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               <button type="button" className={iconBtn} onClick={() => write(types.filter((x) => x.id !== t.id))} aria-label={`Remove room type ${k + 1}`} title="Remove">
                 ✕
               </button>
+              {/* The products this room type gets: its care setting's ticks in the Beds grid above. */}
+              <div className="col-span-4 -mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teton-ui-gray">
+                Products
+                <ProductPill on={products[bedKeyOf(t)].monitoring} tone="lav">Monitoring</ProductPill>
+                {ecallOn && <ProductPill on={products[bedKeyOf(t)].ecall} tone="coral">E-Call</ProductPill>}
+                <span>· from {bedKeyOf(t).toUpperCase()} above</span>
+              </div>
             </div>
           ))}
         </div>
@@ -130,10 +143,21 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
       {scope && (
         <p className="text-xs text-teton-dark-gray mt-2 rounded-lg bg-teton-almost-white px-3 py-2">
           {types.some((t) => t.care === 'custom') && <span className="block mb-1">Custom care types count as assisted living beds.</span>}
-          {count(scope.rooms)} rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
+          {unmonitored > 0 && <span className="block mb-1">{count(unmonitored)} rooms without Resident Monitoring get no Edge units or sensors.</span>}
+          {count(scope.rooms)} monitored rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
         </p>
       )}
     </div>
+  );
+}
+
+/** A product a room type gets (filled) or doesn't (outlined); read-only, set per care type in the Beds grid. */
+function ProductPill({ on, tone, children }: { on: boolean; tone: 'lav' | 'coral'; children: React.ReactNode }) {
+  const fill = tone === 'lav' ? 'bg-[#E7E2FB] border-[#E7E2FB] text-[#3B3270]' : 'bg-[#FDE3DD] border-[#FDE3DD] text-[#9A2E1C]';
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-px text-[10.5px] font-semibold transition-colors duration-200 motion-reduce:transition-none ${on ? fill : 'border-teton-pale-gray text-teton-ui-gray bg-white'}`}>
+      {children}
+    </span>
   );
 }

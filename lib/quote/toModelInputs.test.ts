@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runModel } from '@/lib/model';
 import { priceBook } from '@/lib/pricing/catalog';
-import { defaultDraft, newCommunity, type QuoteDraft } from './draft';
+import { defaultDraft, allProducts, newCommunity, type QuoteDraft } from './draft';
 import { cashFlowStart, monthIndex, toModelInputs } from './toModelInputs';
 
 function draft(): QuoteDraft {
@@ -10,7 +10,7 @@ function draft(): QuoteDraft {
   d.communities = [
     { ...newCommunity(0), name: 'Pilot site', alBeds: 100, pilot: true },
     { ...newCommunity(1), name: 'Full facility', alBeds: 80, snfBeds: 20, coverage: 'full_facility', goLiveMonth: '2027-06' },
-    { ...newCommunity(2), name: 'No e-call', alBeds: 50, ecall: false, goLiveMonth: '2027-06' },
+    { ...newCommunity(2), name: 'No e-call', alBeds: 50, products: allProducts({ monitoring: true, ecall: false }), goLiveMonth: '2027-06' },
   ];
   return d;
 }

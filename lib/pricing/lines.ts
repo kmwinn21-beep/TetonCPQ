@@ -6,7 +6,7 @@
 import { communitySchedule } from '@/lib/model/cashflow';
 import { annualForCase } from '@/lib/model/annual';
 import type { ModelInputs } from '@/lib/model';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { POLICY, SKU, type PriceBook } from './catalog';
 
 export interface PriceLine {
@@ -41,29 +41,40 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
     const s = communitySchedule(inputs, c, annual.communities[i].annualRoi);
     const mult = dc.coverage === 'full_facility' ? k.fullFacilityMultiplier : 1;
     const cov = dc.coverage === 'full_facility' ? ', full-facility coverage' : '';
-    const ecall = k.ecall !== 'none' && dc.ecall;
+    // Products: the same for every priced bed, or differing by care type (then the units are the monitored
+    // beds, E-Call goes on its own beds, and beds with E-Call only get the E-Call installation price).
+    const sc = scopeOf(dc, k.ecall !== 'none');
+    const mixed = !sc.uniform;
+    const ecall = k.ecall !== 'none' && (mixed ? sc.ecall > 0 : !!sc.uniform?.ecall);
+    const ecallQty = mixed ? sc.ecall : c.units;
+    const ecallPilotQty = mixed ? sc.ecall : s.pilotUnits;
     const base = { communityPosition: i, communityName: c.name };
     const L = s.firstPostPilotMonth - s.goLiveMonth;
     const special = k.specialRate != null && k.specialTermMonths > 0 ? Math.min(k.specialTermMonths, serviceTermMonths) : 0;
 
     // E-Call only: no monitoring subscription or sensors; E-Call fees and the E-Call installation price.
-    const mon = dc.monitoring !== false;
+    const mon = mixed || sc.uniform?.monitoring !== false;
     if (s.inPilot) {
       if (mon) lines.push({ ...base, sku: SKU.platform, description: `Teton subscription — pilot${cov}`, qty: s.pilotUnits, unitList: POLICY.standardPilotRate * mult, unitNet: k.pilotRate * mult, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.pilotRate < POLICY.standardPilotRate ? 'PILOT_DISCOUNT' : null });
-      if (ecall) lines.push({ ...base, sku: ecallSku, description: 'E-Call — pilot', qty: s.pilotUnits, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
+      if (ecall) lines.push({ ...base, sku: ecallSku, description: 'E-Call — pilot', qty: ecallPilotQty, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
     }
     if (mon && special > 0) {
       lines.push({ ...base, sku: SKU.platform, description: `Teton subscription — introductory rate${cov}`, qty: c.units, unitList: listPlatform * mult, unitNet: (k.specialRate as number) * mult, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: special, concessionCode: 'INTRO_RATE' });
     }
     if (mon) lines.push({ ...base, sku: SKU.platform, description: `Teton subscription${cov}`, qty: c.units, unitList: listPlatform * mult, unitNet: k.platformRate * mult, billing: 'monthly', startMonth: s.firstPostPilotMonth + special, termMonths: serviceTermMonths - special, concessionCode: k.platformRate < listPlatform ? 'RATE_DISCOUNT' : null });
     if (ecall) {
-      lines.push({ ...base, sku: ecallSku, description: `E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'})`, qty: c.units, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
+      lines.push({ ...base, sku: ecallSku, description: `E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'})`, qty: ecallQty, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
     }
-    const installPer = mon ? k.installRate * mult : Number(k.ecallInstallRate) || 0;
-    lines.push({ ...base, sku: SKU.install, description: mon ? `Installation & implementation${cov}` : 'E-Call installation', qty: c.units, unitList: mon ? listInstall * mult : installPer, unitNet: installPer, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: mon && k.installRate < listInstall ? 'INSTALL_DISCOUNT' : null });
-    if (s.inPilot && k.installCreditPct > 0 && installPer > 0) {
-      lines.push({ ...base, sku: SKU.install, description: `Install credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: s.pilotUnits, unitList: 0, unitNet: -installPer * k.installCreditPct, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: k.installClawback ? 'INSTALL_CREDIT_CLAWBACK' : 'INSTALL_CREDIT' });
-    }
+    const ecallInstall = Number(k.ecallInstallRate) || 0;
+    const install = (monitoring: boolean, qty: number, pilotQty: number) => {
+      const per = monitoring ? k.installRate * mult : ecallInstall;
+      lines.push({ ...base, sku: SKU.install, description: monitoring ? `Installation & implementation${cov}` : 'E-Call installation', qty, unitList: monitoring ? listInstall * mult : per, unitNet: per, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: monitoring && k.installRate < listInstall ? 'INSTALL_DISCOUNT' : null });
+      if (s.inPilot && k.installCreditPct > 0 && per > 0 && pilotQty > 0) {
+        lines.push({ ...base, sku: SKU.install, description: `Install credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: pilotQty, unitList: 0, unitNet: -per * k.installCreditPct, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: k.installClawback ? 'INSTALL_CREDIT_CLAWBACK' : 'INSTALL_CREDIT' });
+      }
+    };
+    install(mon, c.units, s.pilotUnits);
+    if (mixed && sc.ecallOnly > 0) install(false, sc.ecallOnly, sc.ecallOnly);
     if (c.additionalSensors > 0) {
       lines.push({ ...base, sku: SKU.sensor, description: 'Additional sensors', qty: c.additionalSensors, unitList: book[SKU.sensor]?.list ?? 300, unitNet: k.sensorPrice, billing: 'one_time', startMonth: s.goLiveMonth, termMonths: null, concessionCode: null });
       if (s.inPilot && k.sensorCredit && k.installCreditPct > 0 && k.sensorPrice > 0) {

@@ -10,7 +10,7 @@ import { buildPriceLines, lineTotal, type PriceLine } from '@/lib/pricing/lines'
 import { computeCapex, grossBaseRows, grossSensorRow } from '@/lib/pricing/capex';
 import { computeFinish } from '@/lib/pricing/finish';
 import { installMath, sensorMath } from '@/lib/proposal/costMath';
-import { bedsOf, type QuoteDraft } from './draft';
+import { scopeOf, type QuoteDraft } from './draft';
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
@@ -24,9 +24,9 @@ export interface PreviewTotals {
 
 export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: ModelResult, book: PriceBook): PreviewTotals {
   const lines = buildPriceLines(draft, inputs, book);
-  // Edge units and sensors are resident monitoring hardware: E-Call-only communities have none.
-  const monitored = draft.communities.filter((c) => c.monitoring !== false);
-  const beds = sum(monitored.map((c) => bedsOf(c)));
+  // Edge units and sensors are resident monitoring hardware: only monitored beds get them.
+  const monitored = draft.communities.filter((c) => scopeOf(c).monitored > 0);
+  const beds = sum(monitored.map((c) => scopeOf(c).monitored));
   const additional = sum(monitored.map((c) => Math.max(0, Number(c.additionalSensors) || 0)));
   const showCapex = draft.presentation !== 'opex';
   const showOpex = draft.presentation !== 'capex';

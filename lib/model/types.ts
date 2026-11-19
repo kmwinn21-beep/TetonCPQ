@@ -134,6 +134,17 @@ export interface Community {
   monitoring?: boolean;
   /** Overrides the deal-wide per-bed rates for this community. */
   rates?: CommunityRates | null;
+  /**
+   * Further beds billed at this community on top of `units`, at their own rates (E-Call on beds whose
+   * products differ by care type). Billed only: they add no benefits, sensors or vendor costs. In the pilot
+   * with the community.
+   */
+  extras?: CommunityExtra[];
+}
+
+export interface CommunityExtra {
+  units: number;
+  rates: CommunityRates;
 }
 
 export interface VendorCostAssumptions {
