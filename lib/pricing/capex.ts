@@ -35,6 +35,8 @@ export interface CapexPricing {
   inovonicsRenewal: number;
   /** Per bed and per additional sensor, off the price at pilot communities (0 or blank = none). Not in the price book. */
   conversionCredit?: number | null;
+  /** Per bed at E-Call-only communities (no resident monitoring): 48 months of E-Call paid up front. */
+  ecallOnlyPrice?: number;
 }
 
 const seed = (sku: string, fallback: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fallback;
@@ -52,7 +54,7 @@ export function capexPricingFrom(list: (sku: string) => number | undefined): Cap
     inovonicsRenewal: get(SKU.capexInovonicsRenewal, 400),
   };
 }
-export const DEFAULT_CAPEX_PRICING: CapexPricing = capexPricingFrom(() => undefined);
+export const DEFAULT_CAPEX_PRICING: CapexPricing = { ...capexPricingFrom(() => undefined), ecallOnlyPrice: 480 };
 
 export interface CapexCommunity {
   name: string;
@@ -68,6 +70,8 @@ export interface CapexCommunity {
   listSensorPrice?: number;
   /** The conversion credit applied to each bed and sensor here (pilot communities only). */
   credit?: number;
+  /** False at an E-Call-only community: E-Call equipment instead of base packages, no sensors or software. */
+  monitoring?: boolean;
   sensorCost: number;
   equipment: number;
   softwareMonthly: number;
@@ -110,6 +114,11 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const communities: CapexCommunity[] = draft.communities.map((c) => {
     const beds = bedsOf(c);
     const ecall: EcallOption = option !== 'none' && c.ecall ? option : 'none';
+    // E-Call only: the E-Call equipment price per bed (no base package, sensors or software).
+    if (c.monitoring === false) {
+      const per = ecall !== 'none' ? Math.max(0, Number(pricing.ecallOnlyPrice ?? 480)) : 0;
+      return { name: c.name, beds, ecall, basePerBed: per, listPerBed: per, basePackages: beds * per, sensors: 0, sensorPrice: 0, listSensorPrice: pricing.sensorPrice, credit: 0, sensorCost: 0, equipment: beds * per, softwareMonthly: 0, renewals: 0, monitoring: false };
+    }
     const listPerBed = ecall === 'ble' ? pricing.bleBasePrice : ecall === 'inovonics' ? pricing.inovonicsBasePrice : pricing.basePrice;
     const credit = draft.schedule?.withPilot && c.pilot ? conversion : 0;
     const basePerBed = Math.max(0, listPerBed - credit);
@@ -204,8 +213,10 @@ export function basePackageRows(c: Pick<CapexResult, 'communities'>): Array<Pric
     if (!x.beds) continue;
     const credit = x.credit ?? 0;
     const list = x.listPerBed ?? x.basePerBed;
-    const key = `${x.ecall}:${x.basePerBed}:${credit}`;
-    const r = rows.get(key) ?? { key: `${x.ecall}${credit ? '-credited' : ''}`, ecall: x.ecall, label: ECALL_LABEL[x.ecall], perBed: x.basePerBed, list, credit, perUnit: x.basePerBed, units: 0, beds: 0, total: 0 };
+    // E-Call-only communities buy E-Call units, not base packages.
+    const eo = x.monitoring === false;
+    const key = `${x.ecall}:${x.basePerBed}:${credit}:${eo ? 'eo' : ''}`;
+    const r = rows.get(key) ?? { key: `${eo ? 'ecallonly' : x.ecall}${credit ? '-credited' : ''}`, ecall: x.ecall, label: eo ? 'E-Call only unit' : ECALL_LABEL[x.ecall], perBed: x.basePerBed, list, credit, perUnit: x.basePerBed, units: 0, beds: 0, total: 0 };
     r.beds += x.beds;
     r.units += x.beds;
     r.total += x.basePackages;
@@ -260,7 +271,7 @@ function gross<T extends string>(items: Array<{ key: T; units: number; per: numb
 
 /** Base packages for the whole deal: one line per E-Call option in use. */
 export const grossBaseRows = (c: Pick<CapexResult, 'communities'>) =>
-  gross(c.communities.map((x) => ({ key: x.ecall, units: x.beds, per: x.basePerBed, total: x.basePackages })));
+  gross(c.communities.map((x) => ({ key: x.monitoring === false ? ('ecallonly' as const) : x.ecall, units: x.beds, per: x.basePerBed, total: x.basePackages })));
 
 /** Additional sensors for the whole deal: one line (or none). */
 export const grossSensorRow = (c: Pick<CapexResult, 'communities' | 'pricing'>): GrossRow | null =>

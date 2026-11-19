@@ -738,3 +738,6 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td { padding-top: 5px; padding-bottom: 5px; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td.bc-big { font-size: 15px; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }
+
+/* Rooms by type: an E-Call-only community, one line across the table. */
+.bc-site-tbl tr.bc-site-ecall td { text-align: center !important; font-style: italic; color: var(--bc-muted); font-size: 12px; }

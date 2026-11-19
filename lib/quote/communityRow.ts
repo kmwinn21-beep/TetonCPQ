@@ -10,6 +10,8 @@ export function communityProblems(c: Partial<DraftCommunity> | undefined): strin
   const out: string[] = [];
   if (!c?.name?.trim()) out.push('Needs a name');
   if (bedsOf(c as DraftCommunity) <= 0) out.push('No beds');
+  // Without resident monitoring the community needs E-Call (it would have nothing else).
+  if (c?.monitoring === false && !c?.ecall) out.push('Turn on Resident Monitoring or E-Call');
   return out;
 }
 
@@ -58,11 +60,12 @@ export function communityChips(c: Partial<DraftCommunity> | undefined, deal: Dea
   if (!c) return [];
   const chips: Chip[] = communityProblems(c).map((label) => ({ label, tone: 'red' as const }));
   if (deal.withPilot && c.pilot) chips.push({ label: c.pilotUnits ? `Pilot · ${c.pilotUnits} beds` : 'Pilot', tone: 'green', pilot: true });
-  if (c.coverage === 'full_facility') chips.push({ label: 'Full facility', tone: 'purple' });
+  if (c.monitoring === false) chips.push({ label: 'E-Call only', tone: 'purple' });
+  if (c.coverage === 'full_facility' && c.monitoring !== false) chips.push({ label: 'Full facility', tone: 'purple' });
   if (deal.ecallOn && c.ecall === false) chips.push({ label: 'No E-Call', tone: 'yellow' });
   if (c.occupancy != null) chips.push({ label: `Occ ${Number((c.occupancy * 100).toFixed(1))}%`, tone: 'yellow' });
   if (c.roiDelayMonths != null) chips.push({ label: `Delay ${c.roiDelayMonths} mo`, tone: 'yellow' });
-  if (Number(c.additionalSensors) > 0) chips.push({ label: `${c.additionalSensors} sensors`, tone: 'gray' });
+  if (c.monitoring !== false && Number(c.additionalSensors) > 0) chips.push({ label: `${c.additionalSensors} sensors`, tone: 'gray' });
   return chips;
 }
 

@@ -20,6 +20,8 @@ export interface DraftCommunity {
   name: string;
   /** City; with the state (market) it reads "Louisville, KY". */
   city?: string;
+  /** Resident monitoring at this community (on unless turned off). Off = E-Call only. */
+  monitoring?: boolean;
   market: string;
   /** Beds by care type. Every bed is priced the same; the split is for scope and reporting. */
   ilBeds: number;
@@ -60,6 +62,8 @@ export interface Commercial {
   installRate: number;
   /** Install credit on pilot communities, 0–1. */
   installCreditPct: number;
+  /** One-time E-Call installation per bed at E-Call-only communities (subscription). */
+  ecallInstallRate?: number;
   /** The rep chose a custom install credit (installCreditPct then carries it; blank until typed, which blocks saving). */
   installCreditCustom?: boolean;
   installCreditCustomPct?: number | null;
@@ -224,6 +228,9 @@ export function normalizeCommunity(c: DraftCommunity): DraftCommunity {
   const { beds, ...rest } = c;
   return { ...rest, ilBeds: 0, alBeds: Number(beds) || 0, mcBeds: 0, snfBeds: Number(c.snfBeds) || 0 };
 }
+
+/** Whether a community has resident monitoring (the default) or is E-Call only. */
+export const monitors = (c: Pick<DraftCommunity, 'monitoring'> | undefined | null) => c?.monitoring !== false;
 
 /** "Louisville, KY", "Louisville", "KY" or "" from the community's city and state. */
 export const placeOf = (c: Pick<DraftCommunity, 'city' | 'market'>) => [c.city?.trim(), c.market?.trim()].filter(Boolean).join(', ');

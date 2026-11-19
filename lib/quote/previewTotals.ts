@@ -16,7 +16,7 @@ const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 export interface PreviewTotals {
   scope: { edgeUnits: number; sensors: number; additionalSensors: number };
-  capex: null | { basePackages: number; sensors: number; equipment: number; softwareMonthly: number; renewals: number; ownership: number; years: number };
+  capex: null | { basePackages: number; ecallUnits: number; sensors: number; equipment: number; softwareMonthly: number; renewals: number; ownership: number; years: number };
   opex: null | { install: number; sensors: number; monthly: number; year1: number };
   pilot: null | { install: number; sensors: number; fees: number; total: number; months: number };
   finish: null | { low: number; high: number };
@@ -24,8 +24,10 @@ export interface PreviewTotals {
 
 export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: ModelResult, book: PriceBook): PreviewTotals {
   const lines = buildPriceLines(draft, inputs, book);
-  const beds = sum(draft.communities.map((c) => bedsOf(c)));
-  const additional = sum(draft.communities.map((c) => Math.max(0, Number(c.additionalSensors) || 0)));
+  // Edge units and sensors are resident monitoring hardware: E-Call-only communities have none.
+  const monitored = draft.communities.filter((c) => c.monitoring !== false);
+  const beds = sum(monitored.map((c) => bedsOf(c)));
+  const additional = sum(monitored.map((c) => Math.max(0, Number(c.additionalSensors) || 0)));
   const showCapex = draft.presentation !== 'opex';
   const showOpex = draft.presentation !== 'capex';
 
@@ -33,7 +35,8 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
   if (showCapex) {
     const c = computeCapex(draft);
     capex = {
-      basePackages: sum(grossBaseRows(c).map((r) => r.total)),
+      basePackages: sum(grossBaseRows(c).filter((r) => r.key !== 'ecallonly').map((r) => r.total)),
+      ecallUnits: sum(grossBaseRows(c).filter((r) => r.key === 'ecallonly').map((r) => r.total)),
       sensors: grossSensorRow(c)?.total ?? 0,
       equipment: c.equipment,
       softwareMonthly: c.softwareMonthly,

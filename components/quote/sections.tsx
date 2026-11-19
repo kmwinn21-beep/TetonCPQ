@@ -301,6 +301,7 @@ export function PricingSection({ book }: SectionProps) {
             <MoneyField name="commercial.installRate" label="Install per bed" hint={`List $${listInstall} · one-time`} min={0} />
             <MoneyField name="commercial.sensorPrice" label="Additional sensor" hint="Each, one-time" min={0} />
             {ecallOn && <MoneyField name="commercial.ecallRate" label="E-Call per bed / month" suffix="/bed" hint={`List $${ecallList(k.ecall)}`} min={0} />}
+            {ecallOn && <MoneyField name="commercial.ecallInstallRate" label="E-Call installation per bed" hint="One-time, at E-Call-only communities" min={0} nullable placeholder="0" />}
             <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Common areas & hallways; usually 1.2–1.4×" min={1} />
           </PriceGroup>
         )}
@@ -312,6 +313,7 @@ export function PricingSection({ book }: SectionProps) {
             {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsBasePrice" label="With Inovonics E-Call per bed" hint="Replaces the base price" min={0} />}
             <MoneyField name="commercial.capex.sensorPrice" label="Additional sensor" hint="One-time" min={0} />
             <MoneyField name="commercial.capex.softwareRate" label="Software & services" suffix="/bed/mo" min={0} />
+            {ecallOn && <MoneyField name="commercial.capex.ecallOnlyPrice" label="E-Call only per bed" hint="E-Call-only communities: 48 months of E-Call up front" min={0} nullable placeholder="480" />}
             {k.ecall === 'ble' && <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" min={0} />}
             {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" min={0} />}
             {pilot && <MoneyField name="commercial.capex.conversionCredit" label="Conversion credit" hint="Off each base package & sensor at pilot sites" min={0} nullable placeholder="0" />}

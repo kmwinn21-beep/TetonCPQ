@@ -18,7 +18,7 @@ import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { monitors, type QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
@@ -255,12 +255,12 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
 }
 
 /** What's in scope, as pills: filled when included, dimmed when not. */
-function ScopePills({ ecall, rates }: { ecall: boolean; rates?: { monitoring: string; ecall: string } }) {
+function ScopePills({ ecall, rates, monitoring = true }: { ecall: boolean; rates?: { monitoring: string; ecall: string }; monitoring?: boolean }) {
   return (
     <div className="bc-pills">
       <span className="bc-pill-col">
-        <span className="bc-pill-on bc-pill-lav"><T k="bc.scope.pill.monitoring" d="AI Resident Monitoring & Fall Prevention/Detection" /></span>
-        {rates && <span className="bc-pill-rate"><T k="bc.scope.pill.monitoringRate" d="({rate} per bed, per month)" v={{ rate: rates.monitoring }} /></span>}
+        <span className={monitoring ? 'bc-pill-on bc-pill-lav' : 'bc-pill-off'}><T k="bc.scope.pill.monitoring" d="AI Resident Monitoring & Fall Prevention/Detection" /></span>
+        {rates && monitoring && <span className="bc-pill-rate"><T k="bc.scope.pill.monitoringRate" d="({rate} per bed, per month)" v={{ rate: rates.monitoring }} /></span>}
       </span>
       <span className="bc-pill-col">
         <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
@@ -272,11 +272,11 @@ function ScopePills({ ecall, rates }: { ecall: boolean; rates?: { monitoring: st
   );
 }
 
-function ScopeRow({ ecall, rates }: { ecall: boolean; rates?: { monitoring: string; ecall: string } }) {
+function ScopeRow({ ecall, rates, monitoring = true }: { ecall: boolean; rates?: { monitoring: string; ecall: string }; monitoring?: boolean }) {
   return (
     <div className="bc-req-row">
       <div className="bc-req-name"><T k="bc.scope.scope" d="Scope" /></div>
-      <div className="bc-req-span"><ScopePills ecall={ecall} rates={rates} /></div>
+      <div className="bc-req-span"><ScopePills ecall={ecall} rates={rates} monitoring={monitoring} /></div>
     </div>
   );
 }
@@ -338,6 +338,7 @@ const bedsOf = (dc: QuoteDraft['communities'][number]) => ({
 
 /** A community's sensors: the one in each room plus its additional sensors. */
 const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
+  if (!monitors(dc)) return 0; // E-Call only: no sensors
   const b = bedsOf(dc);
   return b.il + b.al + b.mc + b.snf + Math.max(0, Number(dc.additionalSensors) || 0);
 };
@@ -479,9 +480,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
 
   // ---------- Scope (from the floor plans) ----------
   // Shown when at least one community has room types.
-  const scoped = draft.communities.map((c, i) => ({ c, i, types: normalizeRoomTypes(c.roomTypes) })).filter((x) => x.types.length);
+  const scoped = draft.communities.map((c, i) => ({ c, i, types: normalizeRoomTypes(c.roomTypes) })).filter((x) => x.types.length && monitors(x.c));
+  // E-Call-only communities: listed in the table, outside the room, sensor and Edge unit counts.
+  const ecallOnlySites = draft.communities.map((c, i) => ({ c, i })).filter((x) => !monitors(x.c));
   if (scoped.length) {
-    const all = draft.communities;
+    const all = draft.communities.filter((c) => monitors(c));
     const roomsTotal = sum(all.map((c) => bedsOf(c).il + bedsOf(c).al + bedsOf(c).mc + bedsOf(c).snf));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
     const sensorsTotal = roomsTotal + extraTotal;
@@ -493,7 +496,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
       .map((k) => [k, sum(all.map((c) => bedsOf(c)[k]))] as const)
       .filter(([, n]) => n > 0)
       .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
-    const multi = all.length > 1;
+    const multi = draft.communities.length > 1;
     // The scope figure cards removed from the scope page (frees room for full-height table rows).
     const siteCardsHidden = !!layout.bcHiddenBlocks?.sitescope?.cards;
     defs.sitescope = (no) => (
@@ -578,6 +581,16 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       )}
                     </Fragment>
                   ))}
+                  {ecallOnlySites.map(({ c, i }) => (
+                    <Fragment key={c.id}>
+                      <tr className="bc-site-group" data-fixed>
+                        <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
+                      </tr>
+                      <tr className="bc-site-ecall">
+                        <td colSpan={6}><T k="bc.site.ecallOnly" d="E-Call only · {beds} beds" v={{ beds: count(bedsOf(c).il + bedsOf(c).al + bedsOf(c).mc + bedsOf(c).snf) }} /></td>
+                      </tr>
+                    </Fragment>
+                  ))}
                   <tr className="bc-tot">
                     <td className="bc-m">Total</td>
                     <td />
@@ -654,7 +667,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="pilot">
         <B id="costs" label="Pilot costs">
         <div className="bc-card bc-req">
-          <ScopeRow ecall={pilotEcall} />
+          <ScopeRow ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} />
           <CostRow
             name={<T k="bc.pilot.install" d="Installation" />}
             sub={<T k="bc.oneTime" d="(one-time)" />}
@@ -748,6 +761,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const allIns = installMath(lines);
   const allSen = sensorMath(lines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
   const anyEcall = draft.commercial.ecall !== 'none' && draft.communities.some((c) => c.ecall);
+  // Resident monitoring is in scope unless every community is E-Call only.
+  const anyMonitoring = draft.communities.some((c) => monitors(c));
   const perBed = units > 0 ? d.serviceMonthly / units : 0;
   const perBedMonthly = usd(perBed, { cents: !Number.isInteger(Math.round(perBed * 100) / 100) });
   const money = (n: number) => usd(n, { cents: !Number.isInteger(Math.round(n * 100) / 100) });
@@ -907,7 +922,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 <RTbody id="inv" name="The investment">
                   <tr className="bc-inv-scope">
                     <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
-                    <td colSpan={3}><ScopePills ecall={anyEcall} /></td>
+                    <td colSpan={3}><ScopePills ecall={anyEcall} monitoring={anyMonitoring} /></td>
                   </tr>
                   <tr className="bc-inv-head" data-fixed>
                     <th><T k="bc.inv.item" d="Item" /></th>
@@ -918,11 +933,11 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {grossBaseRows(capex).map((r) => (
                     <tr key={r.key}>
                       <td className="bc-m">
-                        <T k={`bc.capex.base.${r.key}`} d="Base packages" />
+                        <T k={`bc.capex.base.${r.key}`} d={r.key === 'ecallonly' ? 'E-Call equipment' : 'Base packages'} />
                         <small>
                           <T
                             k={`bc.capex.base.${r.key}.desc`}
-                            d={r.key === 'none' ? 'One-time · Edge unit + sensor, installed' : r.key === 'ble' ? 'One-time · Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant' : 'One-time · Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord'}
+                            d={r.key === 'ecallonly' ? 'One-time · E-Call-only communities: 48 months of E-Call paid up front' : r.key === 'none' ? 'One-time · Edge unit + sensor, installed' : r.key === 'ble' ? 'One-time · Edge unit + sensor, installed, with E-Call pendant and wall-mount pendant' : 'One-time · Edge unit + sensor, installed, with Inovonics E-Call pendant and wall-mount pull cord'}
                           />
                         </small>
                       </td>
@@ -1035,7 +1050,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       </div>
                     );
                     // The products in scope, by name.
-                    const products = ['Teton AI Resident Monitoring & Fall Prevention/Detection', ...(anyEcall ? ['Teton Nurse / E-Call'] : [])].join(' and ');
+                    const products = [...(anyMonitoring ? ['Teton AI Resident Monitoring & Fall Prevention/Detection'] : []), ...(anyEcall ? ['Teton Nurse / E-Call'] : [])].join(' and ');
                     const k = draft.commercial;
                     return [
                       card('recurring', 'Recurring Costs', <V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>, 'per bed · per month', 'Monthly Costs for {products}', { products }),
@@ -1085,7 +1100,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       <RTbody id="opinv" name="The investment">
                         <tr className="bc-inv-scope">
                           <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
-                          <td colSpan={4}><ScopePills ecall={anyEcall} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate) }} /></td>
+                          <td colSpan={4}><ScopePills ecall={anyEcall} monitoring={anyMonitoring} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate) }} /></td>
                         </tr>
                         <tr className="bc-inv-head" data-fixed>
                           <th><T k="bc.inv.item" d="Item" /></th>

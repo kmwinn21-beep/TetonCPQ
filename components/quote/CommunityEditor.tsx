@@ -90,6 +90,8 @@ export function CommunityEditor({
   const bedsBad = problems.includes('No beds');
   const start = inputs?.schedule.startDate;
   const isPilot = withPilot && !!row.pilot;
+  const monitoring = row.monitoring !== false;
+  const hasEcall = ecallOn && !!row.ecall;
 
   return (
     <div className="text-sm" aria-label={`Edit ${row.name || `community ${position}`}`} role="group">
@@ -115,15 +117,28 @@ export function CommunityEditor({
             render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot} onChange={field.onChange} />}
           />
         </span>
-        <span title={ecallOn ? undefined : 'The deal has no E-Call add-on (Pricing & products)'}>
+        {/* Resident monitoring and E-Call are sold separately; a community needs at least one. */}
+        <span title={monitoring && !hasEcall ? 'Turn on E-Call to make this community E-Call only' : undefined}>
+          <Controller
+            control={control}
+            name={`communities.${i}.monitoring`}
+            render={({ field }) => (
+              <Switch id={id('monitoring')} label="Resident Monitoring" checked={field.value !== false} disabled={monitoring && !hasEcall} onChange={(v) => field.onChange(v ? undefined : false)} />
+            )}
+          />
+        </span>
+        <span title={ecallOn ? (!monitoring && hasEcall ? 'This community is E-Call only: turn Resident Monitoring on first' : undefined) : 'The deal has no E-Call add-on (Pricing & products)'}>
           <Controller
             control={control}
             name={`communities.${i}.ecall`}
-            render={({ field }) => <Switch id={id('ecall')} label="E-Call" checked={!!field.value && ecallOn} disabled={!ecallOn} onChange={field.onChange} />}
+            render={({ field }) => <Switch id={id('ecall')} label="E-Call" checked={!!field.value && ecallOn} disabled={!ecallOn || (!monitoring && hasEcall)} onChange={field.onChange} />}
           />
         </span>
         <FloorPlans communityId={row.id} communityName={row.name} />
       </div>
+      {!monitoring && (
+        <p className="hint mt-1.5 drawer-in">E-Call only: no resident monitoring subscription, Edge units or sensors, and no ROI benefits. Beds set the E-Call pricing.</p>
+      )}
 
       <div className="mt-3">
         <div>

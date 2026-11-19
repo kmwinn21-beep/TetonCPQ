@@ -130,6 +130,8 @@ export interface Community {
   /** Community-specific ROI start delay; null = schedule default. Assumptions S. */
   roiDelayMonths: number | null;
   additionalSensors: number; // Assumptions T
+  /** False for a community without resident monitoring (E-Call only): it adds no ROI benefits. */
+  monitoring?: boolean;
   /** Overrides the deal-wide per-bed rates for this community. */
   rates?: CommunityRates | null;
 }

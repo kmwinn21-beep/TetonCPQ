@@ -61,6 +61,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
             tag={t.opex ? '· CapEx' : undefined}
             rows={[
               ['Base packages', usd(t.capex.basePackages)],
+              ...(t.capex.ecallUnits > 0 ? ([['E-Call units (E-Call only)', usd(t.capex.ecallUnits)]] as Array<[string, string]>) : []),
               ['Additional sensors', usd(t.capex.sensors)],
               ['One-time equipment cost', usd(t.capex.equipment), true],
               ['Software & services', mo(t.capex.softwareMonthly)],

@@ -93,7 +93,9 @@ export function communityDrivers(inputs: ModelInputs, c: Community, roiCase: Roi
 }
 
 export function communityAnnualRoi(inputs: ModelInputs, c: Community, roiCase: RoiCase, d: CommunityDrivers): CommunityAnnualRoi {
-  const { client, components: on } = inputs;
+  const { client } = inputs;
+  // Every benefit comes from resident monitoring: an E-Call-only community adds none.
+  const on = c.monitoring === false ? { careRevenueRecapture: false, fallsHospitalization: false, fallsDischarge: false, staffingAlignment: false, moveInImpact: false, techReplacement: false } : inputs.components;
   const m = inputs.caseMetrics[roiCase];
   const occ = occupiedUnits(inputs, c);
 

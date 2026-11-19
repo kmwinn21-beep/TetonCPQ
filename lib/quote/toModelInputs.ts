@@ -4,7 +4,7 @@
  */
 import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityRates, type ModelInputs } from '@/lib/model';
-import { bedsOf, type DraftCommunity, type QuoteDraft } from './draft';
+import { bedsOf, monitors, type DraftCommunity, type QuoteDraft } from './draft';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -22,6 +22,17 @@ export function communityRates(d: QuoteDraft, c: DraftCommunity): CommunityRates
   const k = d.commercial;
   const mult = c.coverage === 'full_facility' ? k.fullFacilityMultiplier : 1;
   const ecall = d.commercial.ecall !== 'none' && c.ecall;
+  // E-Call only (no resident monitoring): the E-Call fees, and its own installation price.
+  if (!monitors(c)) {
+    const install = Number(k.ecallInstallRate) || 0;
+    return {
+      pilotFeePerBedMonth: ecall ? k.ecallPilotRate : 0,
+      postPilotFeePerBedMonth: ecall ? k.ecallRate : 0,
+      specialFeePerBedMonth: null,
+      pilotInstallPerBed: install * (1 - k.installCreditPct),
+      postPilotInstallPerBed: install,
+    };
+  }
   return {
     pilotFeePerBedMonth: k.pilotRate * mult + (ecall ? k.ecallPilotRate : 0),
     postPilotFeePerBedMonth: k.platformRate * mult + (ecall ? k.ecallRate : 0),
@@ -95,7 +106,8 @@ export function toModelInputs(d: QuoteDraft): ModelInputs {
       occupancy: c.occupancy,
       goLiveMonth: c.goLiveMonth ? monthIndex(startDate, c.goLiveMonth) : null,
       roiDelayMonths: c.roiDelayMonths,
-      additionalSensors: Number(c.additionalSensors) || 0,
+      additionalSensors: monitors(c) ? Number(c.additionalSensors) || 0 : 0,
+      monitoring: monitors(c),
       rates: communityRates(d, c),
     })),
   };
