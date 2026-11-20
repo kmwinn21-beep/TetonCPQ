@@ -34,3 +34,20 @@ describe('room types tagged on floor plans', () => {
     expect(nextBadgeColor([{ name: 'a' }, { name: 'b', color: BADGE_COLORS[2] }])).toBe(BADGE_COLORS[1]);
   });
 });
+
+import { duplicateRoomTypes } from './roomTypes';
+import { communityProblems } from './communityRow';
+
+describe('room type names', () => {
+  const rt = (id: string, name: string, care: 'al' | 'mc' | 'custom', customCare?: string) => ({ id, name, care, rooms: 1, sensors: 1, ...(customCare ? { customCare } : {}) });
+  it('flags a name repeated in the same care setting, ignoring case and spaces', () => {
+    const d = duplicateRoomTypes([rt('a', 'Studio', 'al'), rt('b', '  studio ', 'al'), rt('c', 'Studio', 'mc'), rt('d', '', 'al'), rt('e', '', 'al')]);
+    expect(Array.from(d.keys())).toEqual(['b']);
+    expect(d.get('b')?.id).toBe('a');
+    expect(duplicateRoomTypes([rt('a', 'Suite', 'custom', 'Respite'), rt('b', 'suite', 'custom', 'Rehab')]).size).toBe(0);
+  });
+  it('blocks saving the community', () => {
+    const c = { ...newCommunity(0), name: 'Oak', roomTypes: [rt('a', 'Studio', 'al'), rt('b', 'STUDIO', 'al')] };
+    expect(communityProblems(c as never)).toContain('Two room types named “Studio” in assisted living');
+  });
+});

@@ -4,6 +4,7 @@
  * missing, and the shared value of a field across a bulk selection.
  */
 import { bedsOf, scopeOf, type DraftCommunity } from './draft';
+import { CARE_SHORT, duplicateRoomTypes, normalizeRoomTypes } from './roomTypes';
 
 /** What a community still needs before a version can be saved. */
 export function communityProblems(c: Partial<DraftCommunity> | undefined): string[] {
@@ -12,6 +13,12 @@ export function communityProblems(c: Partial<DraftCommunity> | undefined): strin
   if (bedsOf(c as DraftCommunity) <= 0) out.push('No beds');
   // Beds with no product aren't priced: a community needs at least some priced beds.
   else if (scopeOf(c).priced <= 0) out.push('No products on its beds');
+  // Room type names are unique within a care setting.
+  const types = normalizeRoomTypes(c?.roomTypes);
+  for (const [id, first] of duplicateRoomTypes(types)) {
+    const t = types.find((x) => x.id === id)!;
+    out.push(`Two room types named “${first.name}” in ${t.care === 'custom' ? t.customCare || 'a custom care type' : CARE_SHORT[t.care].toLowerCase()}`);
+  }
   return out;
 }
 

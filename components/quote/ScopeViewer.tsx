@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, BADGE_COLORS, CARE_LABEL, initialsOf, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, BADGE_COLORS, CARE_LABEL, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -956,11 +956,8 @@ function TypeForm({
   const auto = initialsOf(name || 'Room type');
   // A room type's name must be unique within its care setting (ignoring case and extra spaces); the same name
   // in another care setting is fine.
-  const norm = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const careKey = (c: CareType, custom?: string) => (c === 'custom' ? `custom:${norm(custom)}` : c);
-  const clash = name.trim()
-    ? types.find((t) => t.id !== initial?.id && norm(t.name) === norm(name) && careKey(t.care, t.customCare) === careKey(care, initial?.customCare))
-    : undefined;
+  const key = roomTypeKey({ name, care, customCare: initial?.customCare });
+  const clash = name.trim() ? types.find((t) => t.id !== initial?.id && roomTypeKey(t) === key) : undefined;
   const ok = name.trim().length > 0 && !clash;
   return (
     <form

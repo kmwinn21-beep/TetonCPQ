@@ -48,7 +48,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     name: 'communities',
     keyName: '_key',
     rules: {
-      validate: (all) => (all ?? []).every(communityIsValid) || 'Every community needs a name and at least one bed.',
+      validate: (all) => (all ?? []).every(communityIsValid) || 'Fix the communities flagged in red before saving (a name, beds with products, and no repeated room type names).',
     },
   });
   const watched = useWatch({ control, name: 'communities' });

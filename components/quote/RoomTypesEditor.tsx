@@ -8,7 +8,7 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, bedKeyOf, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, nextBadgeColor, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, bedKeyOf, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, nextBadgeColor, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
@@ -34,6 +34,8 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   const communityId = useWatch({ control, name: `communities.${i}.id` });
   const plans = fp ? fp.plans.filter((p) => p.communityId === communityId) : [];
   const planIds = plans.map((p) => p.id);
+  // A later room type that repeats an earlier one's name in the same care setting is flagged (saving is blocked).
+  const dupes = duplicateRoomTypes(types.map((t) => ({ ...t, name: t.name ?? '' })));
   const anyTagged = types.some((t) => (t.marks ?? []).some((m) => planIds.includes(m.plan)));
   const patch = (id: string, p: Partial<RoomType>) => write(types.map((t) => (t.id === id ? { ...t, ...p } : t)));
   const derived = types.length ? roomDerived({ roomTypes: types, products: productsRaw, monitoring: legacy[0], ecall: legacy[1] }, normalizeAllowance(allowance)) : null;
@@ -59,8 +61,20 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                 <span className="flex items-center gap-2">
                   {/* Its badge on the floor plans. */}
                   <Badge color={badgeOf(t, k).color} text={badgeOf(t, k).initials} size={26} className="flex-shrink-0" />
-                  <input className="input-field px-2 py-1.5" value={t.name} placeholder="e.g. Studio" aria-label={`Community ${position} room type ${k + 1} name`} onChange={(e) => patch(t.id, { name: e.target.value })} />
+                  <input
+                    className={`input-field px-2 py-1.5 ${dupes.has(t.id) ? 'ring-2 ring-teton-red border-transparent' : ''}`}
+                    value={t.name}
+                    placeholder="e.g. Studio"
+                    aria-invalid={dupes.has(t.id) || undefined}
+                    aria-label={`Community ${position} room type ${k + 1} name`}
+                    onChange={(e) => patch(t.id, { name: e.target.value })}
+                  />
                 </span>
+                {dupes.has(t.id) && (
+                  <p role="alert" className="mt-1 rounded bg-teton-red/25 px-2 py-1 text-[11px] text-[#9A2E1C] drawer-in">
+                    “{dupes.get(t.id)!.name}” already exists in {t.care === 'custom' ? t.customCare || 'this care type' : CARE_LABEL[t.care]}. Rename it or change its care setting.
+                  </p>
+                )}
               </div>
               <div className="min-w-0">
               <span className={eyebrow}>Care Setting</span>

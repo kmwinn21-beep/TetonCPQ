@@ -48,6 +48,24 @@ export interface RoomMark {
   label?: string;
 }
 
+const normName = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+/** What must be unique among a community's room types: the name (ignoring case and extra spaces) within a care setting. */
+export const roomTypeKey = (t: Pick<RoomType, 'name' | 'care' | 'customCare'>) => `${t.care === 'custom' ? `custom:${normName(t.customCare)}` : t.care}|${normName(t.name)}`;
+
+/** Room types that repeat an earlier one's name in the same care setting (blank names aside): id → the earlier one. */
+export function duplicateRoomTypes(types: RoomType[]): Map<string, RoomType> {
+  const seen = new Map<string, RoomType>();
+  const out = new Map<string, RoomType>();
+  for (const t of types) {
+    if (!normName(t.name)) continue;
+    const k = roomTypeKey(t);
+    const first = seen.get(k);
+    if (first) out.set(t.id, first);
+    else seen.set(k, t);
+  }
+  return out;
+}
+
 /** Badge colors, in the order new room types take them. */
 export const BADGE_COLORS = ['#3F6FD8', '#2E9E6B', '#E0782B', '#8E5BD6', '#D64B7A', '#1F9BB0', '#9A7B2F', '#5B6472'] as const;
 
