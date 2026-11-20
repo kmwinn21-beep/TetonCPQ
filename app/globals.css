@@ -748,3 +748,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 
 /* Rooms by type: an E-Call-only community, one line across the table. */
 .bc-site-tbl tr.bc-site-ecall td { text-align: center !important; font-style: italic; color: var(--bc-muted); font-size: 12px; }
+
+/* Scrolls without showing a scrollbar (the inputs page's right panel). */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

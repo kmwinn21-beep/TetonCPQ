@@ -481,7 +481,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </SectionGroup>
           </div>
 
-          <aside className="space-y-4 xl:sticky xl:top-[calc(var(--hdr-h,0px)+8px)] xl:self-start xl:max-h-[calc(100dvh-var(--hdr-h,0px)-4rem)] xl:overflow-y-auto">
+          <aside className="space-y-4 xl:sticky xl:top-[calc(var(--hdr-h,0px)+8px)] xl:self-start xl:max-h-[calc(100dvh-var(--hdr-h,0px)-4rem)] xl:overflow-y-auto no-scrollbar">
             {/* Same height as the "Expand all" row over the form, so the panel's top lines up with the first section. */}
             <div className="hidden xl:flex justify-end -mb-1 invisible" aria-hidden="true">
               <span className="btn-ghost">Expand all</span>
