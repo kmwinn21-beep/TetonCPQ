@@ -2233,16 +2233,16 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {benefitRows.map((b) => (
                     <tr key={b.key}>
                       <td className="bc-m"><T k={`${b.key}.label`} d={b.label} /></td>
-                      <td>
+                      <td colSpan={2}>
                         <T k={`${b.key}.means`} d={b.means} v={b.v} />
                       </td>
-                      <td className="bc-cmp-v" colSpan={2}>{usd(b.value)}</td>
+                      <td className="bc-cmp-v">{usd(b.value)}</td>
                     </tr>
                   ))}
                   <tr className="bc-tot">
                     <td className="bc-m"><T k="bc.roi.gross" d="Gross Annual Benefit" /></td>
-                    <td><T k="bc.cmp.gross.note" d="The benefit doesn’t depend on how Teton is paid for" /></td>
-                    <td className="bc-cmp-v" colSpan={2}>{usd(sel.annualRoi)}</td>
+                    <td colSpan={2}><T k="bc.cmp.gross.note" d="The benefit doesn’t depend on how Teton is paid for" /></td>
+                    <td className="bc-cmp-v">{usd(sel.annualRoi)}</td>
                   </tr>
                   {headRow('')}
                   {row('cost', 'Cost of Teton', `OpEx: annual subscription once every community is live · CapEx: ${numberWord(years)}-year cost of ownership ÷ ${years}`, neg(op.annualCost), neg(cx.annualCost))}
