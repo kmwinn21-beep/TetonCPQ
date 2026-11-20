@@ -823,7 +823,25 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       <td>{money(perBed)} per room, per month</td>
                       <td>{count(months)} Months</td>
                       <td>–</td>
-                      <td className="bc-hl bc-big"><V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V></td>
+                      <td className="bc-hl bc-big">
+                        {/* Per month by default; a hover switch shows the total over the pilot instead. */}
+                        <div className="relative group/view">
+                          {editable && (
+                            <ViewSwitch
+                              position="absolute right-0 bottom-full mb-1"
+                              label="Monthly fees shown as"
+                              options={[['monthly', 'Monthly'], ['total', 'Total']] as const}
+                              value={layout.bcPilotFees ?? 'monthly'}
+                              onChange={(v) => setLayout((l) => ({ ...l, bcPilotFees: v === 'total' ? 'total' : undefined }))}
+                            />
+                          )}
+                          {layout.bcPilotFees === 'total' ? (
+                            <V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V>
+                          ) : (
+                            <V k="bc.pilot.fees.monthly" label="Pilot fees per month">{usd(pilotMonthlyTotal)} / mo</V>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                     <tr className="bc-tot">
                       <td className="bc-m">
