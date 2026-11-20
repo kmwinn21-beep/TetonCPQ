@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Collapse } from '@/components/form/fields';
+import { usePersistedOpen } from '@/components/Sidebar';
 import Link from 'next/link';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 import type { PriceBook } from '@/lib/pricing/catalog';
@@ -37,6 +38,8 @@ function Rows({ title, tag, rows }: { title: string; tag?: string; rows: Array<[
  * the pilot's cost table.
  */
 export function KpiPreview({ result, error, draft, inputs, book }: { result: ModelResult | null; error: string | null; draft?: QuoteDraft; inputs?: ModelInputs | null; book?: PriceBook }) {
+  // Collapsible; open by default, and remembered on this browser.
+  const [open, setOpen] = usePersistedOpen('teton.livePreview.open', true);
   if (error) return <div className="card text-sm"><p className="font-medium">Can’t calculate yet</p><p className="text-teton-ui-gray mt-1">{error}</p></div>;
   if (!result || !draft || !inputs || !book) return null;
   let t: PreviewTotals | null = null;
@@ -49,11 +52,13 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
   const mo = (n: number) => `${usd(n)} / mo`;
   return (
     <div className="card">
-      <div className="flex items-baseline justify-between mb-3">
+      <button type="button" className="flex w-full items-center gap-2 text-left" aria-expanded={open} aria-controls="live-preview" onClick={() => setOpen(!open)}>
+        <Chevron open={open} />
         <h2 className="text-sm font-semibold">Live preview</h2>
-        <span className="text-xs text-teton-ui-gray">{result.roiCase.charAt(0).toUpperCase() + result.roiCase.slice(1)} case</span>
-      </div>
-      <div className="divide-y divide-teton-off-white [&>*]:pb-3 [&>*:last-child]:pb-0">
+        <span className="ml-auto text-xs text-teton-ui-gray">{result.roiCase.charAt(0).toUpperCase() + result.roiCase.slice(1)} case</span>
+      </button>
+      <Collapse open={open} id="live-preview">
+      <div className="pt-3 divide-y divide-teton-off-white [&>*]:pb-3 [&>*:last-child]:pb-0">
         <Rows title="Scope" rows={[['Edge units', count(t.scope.edgeUnits)], ['Sensors', count(t.scope.sensors)], ['Additional sensors', count(t.scope.additionalSensors)]]} />
         {t.capex && (
           <Rows
@@ -96,6 +101,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
           />
         )}
       </div>
+      </Collapse>
     </div>
   );
 }
