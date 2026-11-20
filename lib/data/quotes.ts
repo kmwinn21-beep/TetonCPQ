@@ -29,6 +29,9 @@ export interface DealSummary {
   communities: number;
   beds: number;
   ownerName: string | null;
+  ownerId: number | null;
+  /** For the user asking: their collaborator permissions on it (null when they aren't one). */
+  myPerms: { inputs: boolean; scope: boolean; deliverables: boolean } | null;
 }
 
 export interface VersionSummary {
@@ -82,15 +85,20 @@ export async function loadPriceBook(db: Client): Promise<{ products: Product[]; 
   return { products, book: priceBook(products) };
 }
 
-export async function listDeals(db: Client): Promise<DealSummary[]> {
-  const rs = await db.execute(`
-    SELECT d.id AS deal_id, q.id AS quote_id, d.customer_name, d.status, d.updated_at,
+export async function listDeals(db: Client, userId: number | null = null): Promise<DealSummary[]> {
+  const rs = await db.execute({
+    sql: `
+    SELECT d.id AS deal_id, q.id AS quote_id, d.customer_name, d.status, d.updated_at, d.owner_id,
+           c.can_inputs, c.can_scope, c.can_deliverables, c.user_id AS collab,
            (SELECT COUNT(*) FROM quote_versions v WHERE v.quote_id = q.id AND v.status <> 'draft') AS saved_versions,
            (SELECT inputs_json FROM quote_versions v WHERE v.quote_id = q.id AND v.status = 'draft') AS draft_json,
            (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name
     FROM deals d JOIN quotes q ON q.deal_id = d.id
+    LEFT JOIN deal_collaborators c ON c.deal_id = d.id AND c.user_id = ?
     WHERE q.id = (SELECT MIN(id) FROM quotes WHERE deal_id = d.id)
-    ORDER BY d.updated_at DESC, d.id DESC`);
+    ORDER BY d.updated_at DESC, d.id DESC`,
+    args: [userId ?? 0],
+  });
   return rs.rows.map((r) => {
     const draft = r.draft_json ? (JSON.parse(String(r.draft_json)) as QuoteDraft) : null;
     return {
@@ -103,6 +111,8 @@ export async function listDeals(db: Client): Promise<DealSummary[]> {
       communities: draft?.communities.length ?? 0,
       beds: draft?.communities.reduce((s, c) => s + bedsOf(c), 0) ?? 0,
       ownerName: r.owner_name ? String(r.owner_name) : null,
+      ownerId: r.owner_id == null ? null : Number(r.owner_id),
+      myPerms: r.collab == null ? null : { inputs: Number(r.can_inputs) === 1, scope: Number(r.can_scope) === 1, deliverables: Number(r.can_deliverables) === 1 },
     };
   });
 }

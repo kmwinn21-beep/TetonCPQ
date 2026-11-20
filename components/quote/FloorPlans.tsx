@@ -8,6 +8,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ScopeViewer } from './ScopeViewer';
 import type { UnreadItem } from '@/lib/data/planNotes';
+import { useAccess } from './AccessContext';
 
 export interface FloorPlanItem {
   id: number;
@@ -193,14 +194,17 @@ const PlanIcon = ({ className = 'w-3.5 h-3.5' }: { className?: string }) => (
 export function FloorPlans({ communityId, communityName }: { communityId: string; communityName: string }) {
   const ctx = useFloorPlans();
   const input = useRef<HTMLInputElement>(null);
+  const acc = useAccess();
   if (!ctx) return null;
   const mine = ctx.plans.filter((p) => p.communityId === communityId);
   const busy = ctx.uploading.filter((u) => u.communityId === communityId);
   return (
     <>
-      <button type="button" className="btn-secondary py-1 px-2.5 text-xs whitespace-nowrap" onClick={() => input.current?.click()}>
-        + Floor Plan
-      </button>
+      {(acc.inputs || acc.scope) && (
+        <button type="button" className="btn-secondary py-1 px-2.5 text-xs whitespace-nowrap" onClick={() => input.current?.click()}>
+          + Floor Plan
+        </button>
+      )}
       <input
         ref={input}
         type="file"

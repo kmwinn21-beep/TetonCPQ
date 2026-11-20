@@ -7,6 +7,7 @@ import { buildPriceLines } from '@/lib/pricing/lines';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { ProposalView } from '@/components/proposal/ProposalView';
 import { getSessionUser, requirePageUser } from '@/lib/auth/server';
+import { accessForVersion } from '@/lib/data/access';
 import { getProposalCustomization } from '@/lib/data/proposalText';
 import { ProposalTextProvider } from '@/components/proposal/EditableText';
 import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
@@ -46,14 +47,16 @@ export async function generateMetadata({ params }: { params: { versionId: string
 }
 
 export default async function ProposalPage({ params }: { params: { versionId: string } }) {
-  await requirePageUser();
+  const user = await requirePageUser();
   const d = await load(params.versionId);
   if (!d) notFound();
+  // Edit Deliverables: wording and layout; Edit Inputs: figures open their inputs.
+  const access = await accessForVersion(await getDb(), d.id, user);
   const { id, v, lines, history, pending, newer, custom, products, nextVersionNo, planIds } = d;
   return (
     <div className="proposal-page min-h-screen bg-teton-almost-white print:bg-white">
       {/* Wording and layout are editable on screen; figures come from the saved version, or a preview of input changes. */}
-      <ProposalTextProvider versionId={id} initial={custom.edits} initialLayout={custom.layout}>
+      <ProposalTextProvider versionId={id} initial={custom.edits} initialLayout={custom.layout} editable={access.deliverables}>
         <ValueLabelsProvider>
           <FloorPlanStatusProvider communityIds={planIds}>
           <ProposalView
@@ -73,6 +76,7 @@ export default async function ProposalPage({ params }: { params: { versionId: st
             outputs={v.outputs!}
             lines={lines}
             products={products}
+            canEditInputs={access.inputs}
           />
           </FloorPlanStatusProvider>
         </ValueLabelsProvider>

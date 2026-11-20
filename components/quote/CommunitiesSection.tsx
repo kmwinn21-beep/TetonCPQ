@@ -6,14 +6,14 @@
  * change them together from the bulk bar. Where there isn't room beside the
  * list, the editor opens under its row instead.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { BED_KEYS, bedsOf, hasEcall, newCommunity, placeOf, productsOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { bedMix, communityChips, communityIsValid, MIXED, sharedValue, sortedIndices, ymLabel, type Chip, type SortKey } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import { count, pct } from '@/lib/format';
-import { Section } from '@/components/form/fields';
+import { ReadOnlyContext, Section } from '@/components/form/fields';
 import type { SectionProps } from './sections';
 import { PasteDialog } from './PasteDialog';
 import { FloorPlanPill } from './FloorPlans';
@@ -43,6 +43,7 @@ const SPLIT_MIN_WIDTH = 760;
 
 export function CommunitiesSection({ inputs, result }: SectionProps) {
   const { control, setValue, getValues, formState, clearErrors } = useFormContext<QuoteDraft>();
+  const readOnly = useContext(ReadOnlyContext);
   const { fields, append, remove, replace } = useFieldArray({
     control,
     name: 'communities',
@@ -325,7 +326,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     <Section
       id="communities"
       title="Communities"
-      description="Click a community to edit it; tick several to change them together."
+      interactive
+      description={readOnly ? 'Click a community to see its details.' : 'Click a community to edit it; tick several to change them together.'}
       summary={
         fields.length === 0
           ? 'None yet'
@@ -384,7 +386,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
 
       <div ref={bodyRef} className={`rounded-lg border border-teton-off-white overflow-visible ${mode === 'split' ? 'grid grid-cols-[minmax(0,1fr)_minmax(280px,340px)]' : ''}`}>
         <div className={`min-w-0 ${mode === 'split' ? 'border-r border-teton-off-white' : ''}`}>
-          {checkedIdx.length > 0 ? (
+          {checkedIdx.length > 0 && !readOnly ? (
             <BulkBar
               selected={checkedIdx.length}
               allChecked={allChecked}
@@ -400,8 +402,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
             />
           ) : (
             <div className="flex items-center gap-3 px-4 py-2.5 min-h-[48px] bg-teton-almost-white border-b border-teton-off-white text-xs text-teton-ui-gray rounded-tl-lg">
-              <input type="checkbox" className="h-4 w-4 accent-teton-near-black" checked={false} disabled={fields.length === 0} onChange={toggleAll} aria-label="Select all communities" />
-              <span className="flex-1">Tick communities to change several at once</span>
+              {!readOnly && <input type="checkbox" className="h-4 w-4 accent-teton-near-black" checked={false} disabled={fields.length === 0} onChange={toggleAll} aria-label="Select all communities" />}
+              <span className="flex-1">{readOnly ? 'View only' : 'Tick communities to change several at once'}</span>
               <label className="flex items-center gap-1">
                 <span className="sr-only sm:not-sr-only">Sort</span>
                 <select className="bg-transparent text-xs text-teton-dark-gray py-1 pr-1 rounded focus:outline-none focus:ring-2 focus:ring-brand-accent" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort communities">
@@ -423,18 +425,19 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
                 if (!r || !key) return null;
                 const isChecked = checked.has(key);
                 const isOpen = openKey === key && (panel === 'edit' || checkedIdx.length === 0);
-                const isPilot = withPilot && !!r.pilot;
+                // With one community open, the others dim so it's clear which is selected.
+                const dimmed = !isOpen && !isChecked && openIndex >= 0 && (panel === 'edit' || checkedIdx.length === 0);
                 const chips = communityChips(r, deal);
                 const invalid = !communityIsValid(r);
                 const mix = bedMix(r);
                 return (
                   <li
                     key={key}
-                    className={`relative flex items-center gap-3 px-4 py-2.5 border-b border-teton-off-white last:border-b-0 ${
-                      isOpen ? 'bg-[#F5F8FE] shadow-[inset_3px_0_0_rgb(var(--teton-blue-rgb))]' : isChecked ? 'bg-[#F5F8FE]' : isPilot ? 'bg-teton-pale-green/50' : 'hover:bg-teton-almost-white'
-                    }`}
+                    className={`relative flex items-center gap-3 px-4 py-2.5 border-b border-teton-off-white last:border-b-0 transition-[opacity,background-color] duration-200 motion-reduce:transition-none ${
+                      isOpen ? 'bg-[#F5F8FE] shadow-[inset_3px_0_0_rgb(var(--teton-blue-rgb))]' : isChecked ? 'bg-[#F5F8FE]' : 'hover:bg-teton-almost-white'
+                    } ${dimmed ? 'opacity-45 hover:opacity-90 focus-within:opacity-100' : ''}`}
                   >
-                    <input type="checkbox" className="h-4 w-4 accent-teton-near-black flex-shrink-0" checked={isChecked} onChange={() => toggle(i)} aria-label={`Select ${r.name || `community ${i + 1}`}`} />
+                    {!readOnly && <input type="checkbox" className="h-4 w-4 accent-teton-near-black flex-shrink-0" checked={isChecked} onChange={() => toggle(i)} aria-label={`Select ${r.name || `community ${i + 1}`}`} />}
                     <button type="button" className="flex-1 min-w-0 text-left flex items-center gap-3 after:absolute after:inset-0 after:left-10" onClick={() => openRow(i)} aria-current={isOpen || undefined} data-invalid={showErrors && invalid ? 'true' : undefined}>
                       <span className="flex-1 min-w-0">
                         <span className="block truncate text-sm font-medium">

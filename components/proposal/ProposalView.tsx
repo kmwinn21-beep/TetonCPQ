@@ -32,6 +32,8 @@ export function ProposalView(p: {
   outputs: StoredOutputs;
   lines: PriceLine[];
   products: Product[];
+  /** Edit Inputs: figures open their inputs (what-if). */
+  canEditInputs?: boolean;
 }) {
   return (
     <WhatIfWorkspace
@@ -43,6 +45,7 @@ export function ProposalView(p: {
       outputs={p.outputs}
       lines={p.lines}
       products={p.products}
+      enabled={p.canEditInputs !== false}
     >
       {(data, banner) => (
         <>

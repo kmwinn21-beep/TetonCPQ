@@ -159,11 +159,16 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                   ▤ Pages{text.layout.pageStarts ? ' · custom' : ''}
                 </button>
               )}
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>
+              {text.editable ? (
+                <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-[#FFE08A]" title="Ask the deal's owner for Edit Deliverables to change this proposal">🔒 View only</span>
+              )}
               <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF"><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Print / Save as PDF</span></button>
             </>
           )}
         </div>
+        {text.editable && (
         <p className="w-full text-xs text-sidebar-font/70 flex flex-wrap items-center gap-x-3 gap-y-1">
           {/* Touch screens have no hover: a shorter hint, and the move / remove controls are always shown there. */}
           <span className="sm:hidden">Tap text to reword it, or a figure to change its inputs.</span>
@@ -183,6 +188,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
             </button>
           </span>
         </p>
+        )}
         {text.error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{text.error}</p>}
         {error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{error}</p>}
         {pendingChanges > 0 && (

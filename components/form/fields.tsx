@@ -4,7 +4,7 @@
  * Form fields bound to the QuoteDraft form via react-hook-form's context.
  * Rates are stored as fractions and shown as percents (PercentField).
  */
-import { useEffect, useId, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useState } from 'react';
 import { Controller, useFormContext, type FieldPath, type RegisterOptions } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { NumInput } from './NumInput';
@@ -153,6 +153,9 @@ export function DerivedField({ label, value, formula }: { label: string; value: 
  * mounted when collapsed (only hidden), so the live preview and validation
  * keep working.
  */
+/** True when the form is view only: sections still open and close, but their fields are disabled. */
+export const ReadOnlyContext = createContext(false);
+
 export function Section({
   id,
   title,
@@ -160,6 +163,7 @@ export function Section({
   summary,
   children,
   aside,
+  interactive = false,
 }: {
   id: string;
   title: string;
@@ -167,8 +171,11 @@ export function Section({
   summary?: React.ReactNode;
   children: React.ReactNode;
   aside?: React.ReactNode;
+  /** The section handles view-only mode itself (e.g. rows that open read-only details). */
+  interactive?: boolean;
 }) {
   const { isOpen, setOpen } = useSections();
+  const readOnly = useContext(ReadOnlyContext);
   const open = isOpen(id);
   const bodyId = `${id}-body`;
   return (
@@ -196,7 +203,7 @@ export function Section({
               : summary && <span className="block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
           </span>
         </button>
-        {aside && (
+        {aside && !readOnly && (
           <div
             onClick={() => {
               // Actions in the header (e.g. "Add community") act on the contents, so show them.
@@ -208,7 +215,11 @@ export function Section({
         )}
       </div>
       <Collapse open={open} id={bodyId}>
-        <div className="px-5 pb-5">{children}</div>
+        {readOnly && !interactive ? (
+          <fieldset disabled className="px-5 pb-5 min-w-0">{children}</fieldset>
+        ) : (
+          <div className="px-5 pb-5">{children}</div>
+        )}
       </Collapse>
     </section>
   );

@@ -113,7 +113,7 @@ const Chevron = ({ open }: { open: boolean }) => (
 );
 
 /** One saved version: its name, when and by whom, and (opened) what changed from the version before it. */
-function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void; onDelete: () => void }) {
+function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete, readOnly }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void; onDelete: () => void; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const name = v.changeNote || `v${v.versionNo}`;
@@ -150,7 +150,7 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete }: { v: 
       <div className="flex items-center gap-3 px-3 pb-2 pl-9 text-xs">
         <Link className="underline" href={`/quotes/${quoteId}/results?v=${v.id}`}>Results</Link>
         <Link className="underline" href={`/proposal/${v.id}`}>Proposal</Link>
-        <span className="ml-auto flex items-center gap-1.5">
+        {!readOnly && <span className="ml-auto flex items-center gap-1.5">
           {!active && (
             <button type="button" className="btn-secondary py-0.5 px-2 text-xs" disabled={busy} onClick={onMakeActive}>
               Make Active
@@ -159,7 +159,7 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete }: { v: 
           <button type="button" className="py-0.5 px-2 text-xs rounded-md text-teton-dark-gray hover:bg-teton-red/20 hover:text-teton-ink" disabled={busy} onClick={() => setConfirming(true)} aria-label={`Delete ${name}`}>
             Delete
           </button>
-        </span>
+        </span>}
       </div>
       <Collapse open={confirming}>
         <div className="mx-3 mb-2.5 rounded-md bg-teton-red/20 px-2.5 py-2 text-xs" role="alertdialog" aria-label={`Delete ${name}?`}>
@@ -184,7 +184,7 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete }: { v: 
  * Version History: every saved version, the active one first. Collapsed to its
  * header (with the count and the active version) until opened.
  */
-export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void }) {
+export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const active = versions.find((v) => v.id === activeId) ?? null;
   const ordered = active ? [active, ...versions.filter((v) => v !== active)] : versions;
@@ -205,7 +205,7 @@ export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMak
           ) : (
             <ul className="space-y-2">
               {ordered.map((v) => (
-                <VersionCard key={v.id} v={v} quoteId={quoteId} active={v.id === activeId} busy={busy} onMakeActive={() => onMakeActive?.(v)} onDelete={() => onDelete?.(v)} />
+                <VersionCard key={v.id} v={v} quoteId={quoteId} active={v.id === activeId} busy={busy} onMakeActive={() => onMakeActive?.(v)} onDelete={() => onDelete?.(v)} readOnly={readOnly} />
               ))}
             </ul>
           )}

@@ -25,9 +25,12 @@ import { RailSlotContext, type RailSlot } from './RailSlot';
 import { FloorPlansProvider } from './FloorPlans';
 import { KpiPreview, VersionsPanel } from './ResultsRail';
 import { NotificationsPanel } from './NotificationsPanel';
+import { AccessContext, useAccess } from './AccessContext';
+import { CollaboratorsPanel } from './CollaboratorsPanel';
+import type { DealAccess } from '@/lib/data/access';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
-import { Collapse, SectionGroup } from '@/components/form/fields';
+import { Collapse, ReadOnlyContext, SectionGroup } from '@/components/form/fields';
 import { usePersistedOpen } from '@/components/Sidebar';
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
@@ -56,10 +59,12 @@ const ASSUMPTIONS_NAV = [
 type SaveState = 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
 
 /** Sections start collapsed; each header shows a one-line summary. */
-export function QuoteEditor({ initial }: { initial: QuoteEditorData }) {
+export function QuoteEditor({ initial, access }: { initial: QuoteEditorData; access: DealAccess }) {
   return (
     <SectionsProvider defaultOpen={false}>
-      <QuoteEditorBody initial={initial} />
+      <AccessContext.Provider value={access}>
+        <QuoteEditorBody initial={initial} />
+      </AccessContext.Provider>
     </SectionsProvider>
   );
 }
@@ -116,6 +121,9 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   }, [deferred, book]);
 
   // ---- autosave ----
+  const access = useAccess();
+  // Edit Inputs or Edit Scope: the draft can change (the server checks what changed against what's allowed).
+  const canEdit = access.inputs || access.scope;
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const lastSaved = useRef(JSON.stringify(initial.draft));
   // The draft revision this tab last saw; the server refuses saves based on an older one.
@@ -142,7 +150,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   }, [initial.quoteId]);
   useEffect(() => {
     const snapshot = JSON.stringify(values);
-    if (conflicted.current) return;
+    if (conflicted.current || !canEdit) return;
     if (snapshot === lastSaved.current) {
       // Edited and then put back before the autosave fired: nothing to save.
       setSaveState((st) => (st === 'pending' ? 'saved' : st));
@@ -158,7 +166,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [values, getValues, putDraft]);
+  }, [values, getValues, putDraft, canEdit]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -291,6 +299,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   return (
     <FormProvider {...methods}>
       <FloorPlansProvider quoteId={initial.quoteId}>
+      <ReadOnlyContext.Provider value={!access.inputs}>
       <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto [&_section[id]]:scroll-mt-[calc(var(--hdr-h,0px)+16px)]" noValidate>
         {/* Always in view: the page scrolls behind it. Its height feeds --hdr-h, so the menus and panel stick below it. */}
         <header
@@ -302,6 +311,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <input
               className="block w-full max-w-xl mt-1 text-2xl font-semibold bg-transparent border-b border-transparent hover:border-teton-pale-gray focus:border-brand-accent focus:outline-none"
               aria-label="Customer name"
+              readOnly={!access.inputs}
               {...register('customerName', { required: 'Customer name is required' })}
             />
             <p className="text-sm text-teton-ui-gray mt-1">
@@ -339,11 +349,23 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                     View changes ({pending.length})
                   </button>
                 )}
-                <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length}>Save version</button>
+                {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length}>Save version</button>}
               </>
             )}
           </div>
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
+          {!access.inputs && (
+            <div className="w-full flex items-center gap-2 rounded-lg bg-teton-pale-yellow border border-[#F0D58A] px-3 py-2 text-sm" role="status">
+              <span aria-hidden="true">🔒</span>
+              <span>
+                {access.scope ? (
+                  <><b>You can edit the scope.</b> Room types (Scope Mode and the room type cards) are yours to change; the rest of the deal is view only.</>
+                ) : (
+                  <><b>View only.</b> {access.owner?.name ?? 'The owner'} owns this deal. Ask them to add you as a collaborator to make changes. You can still add floor plan notes and comments.</>
+                )}
+              </span>
+            </div>
+          )}
           {/* Unsaved changes since the active version, like the proposal's change bar. */}
           {pending.length > 0 && (
             <div className="w-full rounded-lg bg-teton-pale-yellow px-3 py-2 text-sm drawer-in" role="status">
@@ -467,13 +489,15 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
+              <CollaboratorsPanel />
               <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
-              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} onDelete={removeVersion} />
+              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} onDelete={removeVersion} readOnly={!access.inputs} />
             </div>
           </aside>
         </div>
       </form>
+      </ReadOnlyContext.Provider>
       </FloorPlansProvider>
     </FormProvider>
   );

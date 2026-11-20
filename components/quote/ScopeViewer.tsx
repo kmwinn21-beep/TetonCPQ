@@ -18,6 +18,7 @@ import { count } from '@/lib/format';
 import { useRoomTypes } from './useRoomTypes';
 import type { FloorPlanItem } from './FloorPlans';
 import { useFloorPlans } from './FloorPlans';
+import { useAccess } from './AccessContext';
 import { NoteEditor, NoteMarker, NoteOnPlan, NotesDrawer, nextNoteColor, usePlanNotes, type NoteDraft } from './PlanNotes';
 import type { PlanNote } from '@/lib/data/planNotes';
 
@@ -120,6 +121,7 @@ export function ScopeViewer({
 
   // ---- notes ----
   const fp = useFloorPlans();
+  const acc = useAccess();
   const notesApi = usePlanNotes(quoteId, plan?.id);
   const [notesOpen, setNotesOpen] = useState(initialNotes || !!focusNote);
   const [noteMode, setNoteMode] = useState(false);
@@ -318,8 +320,9 @@ export function ScopeViewer({
             {community?.name || 'Community'} <span className="font-normal text-teton-ui-gray">· {plan.name} · {kb(plan.size)}</span>
           </p>
           <Toggle on={layer} onChange={setLayer} label="Room types" />
-          <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); } }} label="Scope Mode" accent />
-          {scope && (
+          {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); } }} label="Scope Mode" accent />}
+          {/* Notes: with Scope Mode on, or always for people who can't use Scope Mode (anyone can add notes). */}
+          {(scope || !acc.scope) && (
             <button
               type="button"
               aria-pressed={noteMode}
@@ -351,7 +354,7 @@ export function ScopeViewer({
               </div>
             )}
           </div>
-          <button type="button" className={btn} onClick={() => setConfirmRemove(true)}>Remove</button>
+          {(acc.inputs || acc.scope) && <button type="button" className={btn} onClick={() => setConfirmRemove(true)}>Remove</button>}
           <button type="button" className="btn-ghost py-1" aria-label="Close" onClick={onClose}>✕</button>
         </div>
 
@@ -471,7 +474,7 @@ export function ScopeViewer({
                 selected={pop?.markId === m.id}
                 size={size}
                 onClick={() => { setPop({ typeId: m.typeId, markId: m.id }); setEditType(null); setMenu(false); }}
-                onMove={(x, y) => moveMark(m.typeId, m.id, x, y)}
+                onMove={(x, y) => acc.scope && moveMark(m.typeId, m.id, x, y)}
               />
             ))}
           {pendingHere.map((p) => (
@@ -494,6 +497,7 @@ export function ScopeViewer({
                 type={popType}
                 types={types}
                 mark={popMark}
+                readOnly={!acc.scope}
                 onRetype={(to) => retypeMark(popType.id, to, popMark.id)}
                 onLabel={(l) => labelMark(popType.id, popMark.id, l)}
                 onRemove={() => removeMark(popType.id, popMark.id)}
@@ -897,7 +901,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, onRetype, onLabel, onRemove, onEdit, onClose }: { type: RoomType; types: RoomType[]; mark: RoomMark; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void }) {
+function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove, onEdit, onClose }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -911,6 +915,8 @@ function MarkPopover({ type, types, mark, onRetype, onLabel, onRemove, onEdit, o
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>
+      {!readOnly && (
+      <>
       <label className={eyebrow} htmlFor={`rt-${mark.id}`}>Room type</label>
       <select id={`rt-${mark.id}`} className="input-field py-1.5 text-xs" value={type.id} onChange={(e) => onRetype(e.target.value)}>
         {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Room type'}</option>)}
@@ -921,6 +927,9 @@ function MarkPopover({ type, types, mark, onRetype, onLabel, onRemove, onEdit, o
         <button type="button" className="text-[11.5px] text-[#B23A26] underline" onClick={onRemove}>Remove this room</button>
         <button type="button" className="btn-secondary py-1 text-xs truncate max-w-[60%]" onClick={onEdit}>Edit “{type.name || 'Room type'}”…</button>
       </div>
+      </>
+      )}
+      {readOnly && <p className="mt-2 text-[10.5px] text-teton-ui-gray">🔒 Changing room types needs Edit Scope.</p>}
     </div>
   );
 }

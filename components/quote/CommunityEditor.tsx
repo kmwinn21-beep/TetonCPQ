@@ -10,6 +10,7 @@ import { FloorPlans } from './FloorPlans';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { BED_KEYS, bedsOf, productsOf, scopeOf, type BedKey, type BedProducts, type QuoteDraft } from '@/lib/quote/draft';
 import { roomDerived } from '@/lib/quote/roomTypes';
+import { useAccess } from './AccessContext';
 import { communityProblems, ymLabel } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
 import type { ModelInputs, ModelResult } from '@/lib/model';
@@ -95,6 +96,7 @@ export function CommunityEditor({
   onClose?: () => void;
 }) {
   const { control, register, setValue, getValues } = useFormContext<QuoteDraft>();
+  const acc = useAccess();
   const row = useWatch({ control, name: `communities.${i}` });
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = !!useWatch({ control, name: 'schedule.withPilot' });
@@ -127,7 +129,7 @@ export function CommunityEditor({
     <div className="text-sm" aria-label={`Edit ${row.name || `community ${position}`}`} role="group">
       <div className="flex items-center gap-2">
         <h3 className="text-base font-semibold truncate min-w-0 flex-1">{row.name || <span className="text-teton-ui-gray">Unnamed community</span>}</h3>
-        <button type="button" className="btn-ghost text-teton-dark-gray" onClick={onRemove}>Remove</button>
+        {acc.inputs && <button type="button" className="btn-ghost text-teton-dark-gray" onClick={onRemove}>Remove</button>}
         {onClose && (
           <button type="button" className="btn-ghost" onClick={onClose} aria-label="Close editor">✕</button>
         )}
@@ -144,12 +146,14 @@ export function CommunityEditor({
           <Controller
             control={control}
             name={`communities.${i}.pilot`}
-            render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot} onChange={field.onChange} />}
+            render={({ field }) => <Switch id={id('pilot')} label="Pilot site" checked={isPilot} disabled={!withPilot || !acc.inputs} onChange={field.onChange} />}
           />
         </span>
         <FloorPlans communityId={row.id} communityName={row.name} />
       </div>
 
+      {/* Without Edit Inputs the fields show but can't change; room types follow Edit Scope. */}
+      <fieldset disabled={!acc.inputs} className="min-w-0">
       <div className="mt-3">
         <div>
           <label className="eyebrow" htmlFor={id('name')}>Community</label>
@@ -174,7 +178,9 @@ export function CommunityEditor({
         </div>
       </div>
 
+      </fieldset>
       <Group title="Beds" note={`${count(bedsOf(row))} total${fromRooms ? ' · set from the room types' : ''}`}>
+        <fieldset disabled={!acc.inputs} className="min-w-0">
         {/* Each care type's beds and the products priced on them. */}
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -230,9 +236,13 @@ export function CommunityEditor({
           {!ecallOn && ' The deal has no E-Call add-on (Pricing & products).'}
         </p>
         {problems.length > 0 && <p className="text-xs mt-1.5 rounded bg-teton-red/30 px-2 py-1">{problems.join(' · ')}</p>}
-        <RoomTypesEditor index={i} position={position} />
+        </fieldset>
+        <fieldset disabled={!acc.scope} className="min-w-0">
+          <RoomTypesEditor index={i} position={position} />
+        </fieldset>
       </Group>
 
+      <fieldset disabled={!acc.inputs} className="min-w-0">
       <Group title="Timing">
         <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-2">
           <div>
@@ -314,6 +324,7 @@ export function CommunityEditor({
           </div>
         </div>
       </Group>
+      </fieldset>
 
       {cashFlow && start && (
         <p className="text-xs text-teton-dark-gray mt-3 rounded-lg bg-teton-almost-white px-3 py-2">

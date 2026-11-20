@@ -122,8 +122,11 @@ export function WhatIfWorkspace({
   outputs,
   lines,
   products,
+  enabled = true,
   children,
 }: {
+  /** Off without Edit Inputs: figures show but don't open their inputs. */
+  enabled?: boolean;
   versionId: number;
   versionNo: number;
   nextVersionNo: number;
@@ -267,7 +270,7 @@ export function WhatIfWorkspace({
   const previewCommunities = preview.draft.communities;
   const ctx = useMemo<WhatIfCtx>(
     () => ({
-      enabled: true,
+      enabled,
       changes,
       dirty,
       setChange,
@@ -291,7 +294,7 @@ export function WhatIfWorkspace({
         setCommunity({ index: list.length, isNew: true, session: Date.now() });
       },
     }),
-    [changes, dirty, setChange, discard, selected, previewCommunities, preview.draft.schedule.withPilot],
+    [enabled, changes, dirty, setChange, discard, selected, previewCommunities, preview.draft.schedule.withPilot],
   );
 
   const count = Object.keys(changes).length;

@@ -275,4 +275,24 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 10,
+    name: 'deal collaborators',
+    sql: [
+      // People the deal's owner lets edit parts of it: the inputs, Scope Mode (room types), the deliverables.
+      `CREATE TABLE deal_collaborators (
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        can_inputs INTEGER NOT NULL DEFAULT 0,
+        can_scope INTEGER NOT NULL DEFAULT 0,
+        can_deliverables INTEGER NOT NULL DEFAULT 0,
+        added_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (deal_id, user_id)
+      )`,
+      `CREATE INDEX idx_deal_collaborators_user ON deal_collaborators(user_id)`,
+      // Deals created before owners were recorded go to the first admin, to hand out.
+      `UPDATE deals SET owner_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) WHERE owner_id IS NULL`,
+    ],
+  },
 ];

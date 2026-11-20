@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db/client';
 import { idParam, jsonError } from '@/lib/db/server';
 import { deleteFloorPlan, readFloorPlan } from '@/lib/data/floorPlans';
 import { requireApiUser } from '@/lib/auth/server';
+import { accessForQuote, need } from '@/lib/data/access';
 
 /** The file itself: shown in the browser, or downloaded with ?download=1. */
 export async function GET(req: Request, { params }: { params: { id: string; fid: string } }) {
@@ -27,8 +28,10 @@ export async function GET(req: Request, { params }: { params: { id: string; fid:
 
 export async function DELETE(_req: Request, { params }: { params: { id: string; fid: string } }) {
   try {
-    await requireApiUser();
-    await deleteFloorPlan(await getDb(), idParam(params.id), idParam(params.fid));
+    const user = await requireApiUser();
+    const db = await getDb();
+    need(await accessForQuote(db, idParam(params.id), user), 'inputs', 'scope');
+    await deleteFloorPlan(db, idParam(params.id), idParam(params.fid));
     return NextResponse.json({ ok: true });
   } catch (e) {
     return jsonError(e);

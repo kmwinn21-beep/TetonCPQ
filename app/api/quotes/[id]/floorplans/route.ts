@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db/client';
 import { idParam, jsonError } from '@/lib/db/server';
 import { listFloorPlans, startFloorPlan } from '@/lib/data/floorPlans';
 import { requireApiUser } from '@/lib/auth/server';
+import { accessForQuote, need } from '@/lib/data/access';
 
 /** The deal's floor plans (every community). */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -19,7 +20,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await requireApiUser();
     const body = (await req.json()) as { communityId: string; name: string; mime: string; size: number };
-    return NextResponse.json(await startFloorPlan(await getDb(), idParam(params.id), body, user.id), { status: 201 });
+    const db = await getDb();
+    need(await accessForQuote(db, idParam(params.id), user), 'inputs', 'scope');
+    return NextResponse.json(await startFloorPlan(db, idParam(params.id), body, user.id), { status: 201 });
   } catch (e) {
     return jsonError(e);
   }
