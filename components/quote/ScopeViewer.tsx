@@ -974,6 +974,17 @@ function TypeForm({
         });
       }}
     >
+      {/* Add the selection to a room type that already exists, or make a new one below the line. */}
+      {onAddTo && (
+        <div className="flex items-center gap-1.5 mb-2.5 pb-2.5 border-b border-teton-off-white">
+          <span className="text-[11px] font-medium text-teton-dark-gray whitespace-nowrap">Add To</span>
+          <select className="input-field py-1 text-xs min-w-0" value={addTo} onChange={(e) => setAddTo(e.target.value)} aria-label="Add to an existing room type">
+            <option value="">Choose a room type…</option>
+            {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Room type'}</option>)}
+          </select>
+          <button type="button" className="btn-secondary py-1 text-xs disabled:opacity-40" disabled={!addTo} onClick={() => addTo && onAddTo(addTo)}>Add</button>
+        </div>
+      )}
       <p className="font-semibold text-[13px]">{title}</p>
       {sub && <p className="text-[11px] text-teton-ui-gray">{sub}</p>}
       <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
@@ -1010,16 +1021,6 @@ function TypeForm({
         <button type="button" className="btn-ghost py-1 text-xs" onClick={onCancel}>Cancel</button>
         <button type="submit" className="btn-primary py-1 text-xs disabled:opacity-40" disabled={!ok}>{submit}</button>
       </div>
-      {onAddTo && (
-        <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-teton-off-white">
-          <span className="text-[11px] text-teton-ui-gray whitespace-nowrap">or add to</span>
-          <select className="input-field py-1 text-xs min-w-0" value={addTo} onChange={(e) => setAddTo(e.target.value)} aria-label="Add to an existing room type">
-            <option value="">Choose a room type…</option>
-            {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Room type'}</option>)}
-          </select>
-          <button type="button" className="btn-secondary py-1 text-xs disabled:opacity-40" disabled={!addTo} onClick={() => addTo && onAddTo(addTo)}>Add</button>
-        </div>
-      )}
     </form>
   );
 }
