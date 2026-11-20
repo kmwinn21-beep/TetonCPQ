@@ -1332,71 +1332,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
     );
   }
 
-  // ---------- The return ----------
-  {
-    defs.roi = (no) => (
-      <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
-        <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
-        <h1 className="bc-h1"><T k="bc.roi.title" d="Projected Return on Teton Investment" /></h1>
-        <p className="bc-lede">
-          <T k="bc.roi.lede" d="The sources of value, modeled for {customer}, based on real outcomes from existing Teton customers" v={vars} />
-        </p>
-        <Blocks page="roi">
-        <B id="table" label="Sources of value">
-        <div className="bc-card bc-tbl bc-roi-tbl">
-          <RTable>
-            <thead>
-              <tr>
-                <th>Source of value</th>
-                <th>What it means each year</th>
-                <th>Share of the benefit</th>
-                <th className="bc-hl bc-r">Annual benefit</th>
-              </tr>
-            </thead>
-            <RTbody id="roi" name="Sources of value">
-              {benefitRows.map((b) => (
-                <tr key={b.key}>
-                  <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
-                  <td>
-                    <T k={`bc.${b.key}.means`} d={b.means} v={b.v} />
-                    {b.sub && <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>}
-                  </td>
-                  <td>
-                    {pctOf(b.value, sel.annualRoi)}
-                    <div className="bc-bar"><i style={{ width: pctOf(Math.max(0, b.value), sel.annualRoi) }} /></div>
-                  </td>
-                  <td className="bc-hl bc-big bc-r"><V k={`${b.key}.value`} label={`${b.label} amount`}>{usd(b.value)}</V></td>
-                </tr>
-              ))}
-              <tr className="bc-tot">
-                <td className="bc-m"><T k="bc.roi.gross" d="Gross Annual Benefit" /></td>
-                <td />
-                <td>100%</td>
-                <td className="bc-hl bc-big bc-r"><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></td>
-              </tr>
-              <tr>
-                <td className="bc-m"><T k="bc.roi.cost" d="Cost of Teton" /></td>
-                <td>
-                  <T
-                    k={capexShown ? 'bc.roi.costNote.capex' : 'bc.roi.costNote.opex'}
-                    d={capexShown ? '{years}-year cost of ownership ÷ {years} years' : 'Annual subscription once every community is live'}
-                    v={{ years: String(capex.ownershipMonths / 12) }}
-                  />
-                </td>
-                <td />
-                <td className="bc-hl bc-big bc-r"><V k="bc.roi.cost.value" label="Annual cost of Teton">−{usd(tetonAnnual)}</V></td>
-              </tr>
-              <tr className="bc-tot">
-                <td className="bc-m"><T k="bc.roi.net" d="Net Annual Benefit" /></td>
-                <td />
-                <td />
-                <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(stabilizedNet)}</V></td>
-              </tr>
-            </RTbody>
-          </RTable>
-        </div>
-        </B>
-        <B id="callout" label="Asset value / Fall risk">
+  // The asset value / fall risk callout under the returns table (single and Both pages), with its screen-only switches.
+  const roiCallout = () => (
         <div className="relative group/view">
           {editable && (
             // Screen only: asset value (default) or fall risk; saved with the proposal.
@@ -1480,6 +1417,74 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
           )}
         </div>
+  );
+
+  // ---------- The return ----------
+  {
+    defs.roi = (no) => (
+      <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
+        <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
+        <h1 className="bc-h1"><T k="bc.roi.title" d="Projected Return on Teton Investment" /></h1>
+        <p className="bc-lede">
+          <T k="bc.roi.lede" d="The sources of value, modeled for {customer}, based on real outcomes from existing Teton customers" v={vars} />
+        </p>
+        <Blocks page="roi">
+        <B id="table" label="Sources of value">
+        <div className="bc-card bc-tbl bc-roi-tbl">
+          <RTable>
+            <thead>
+              <tr>
+                <th>Source of value</th>
+                <th>What it means each year</th>
+                <th>Share of the benefit</th>
+                <th className="bc-hl bc-r">Annual benefit</th>
+              </tr>
+            </thead>
+            <RTbody id="roi" name="Sources of value">
+              {benefitRows.map((b) => (
+                <tr key={b.key}>
+                  <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
+                  <td>
+                    <T k={`bc.${b.key}.means`} d={b.means} v={b.v} />
+                    {b.sub && <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>}
+                  </td>
+                  <td>
+                    {pctOf(b.value, sel.annualRoi)}
+                    <div className="bc-bar"><i style={{ width: pctOf(Math.max(0, b.value), sel.annualRoi) }} /></div>
+                  </td>
+                  <td className="bc-hl bc-big bc-r"><V k={`${b.key}.value`} label={`${b.label} amount`}>{usd(b.value)}</V></td>
+                </tr>
+              ))}
+              <tr className="bc-tot">
+                <td className="bc-m"><T k="bc.roi.gross" d="Gross Annual Benefit" /></td>
+                <td />
+                <td>100%</td>
+                <td className="bc-hl bc-big bc-r"><V k="roi.total.value" label="Total annual benefit amount">{usd(sel.annualRoi)}</V></td>
+              </tr>
+              <tr>
+                <td className="bc-m"><T k="bc.roi.cost" d="Cost of Teton" /></td>
+                <td>
+                  <T
+                    k={capexShown ? 'bc.roi.costNote.capex' : 'bc.roi.costNote.opex'}
+                    d={capexShown ? '{years}-year cost of ownership ÷ {years} years' : 'Annual subscription once every community is live'}
+                    v={{ years: String(capex.ownershipMonths / 12) }}
+                  />
+                </td>
+                <td />
+                <td className="bc-hl bc-big bc-r"><V k="bc.roi.cost.value" label="Annual cost of Teton">−{usd(tetonAnnual)}</V></td>
+              </tr>
+              <tr className="bc-tot">
+                <td className="bc-m"><T k="bc.roi.net" d="Net Annual Benefit" /></td>
+                <td />
+                <td />
+                <td className="bc-hl bc-big bc-r"><V k="bc.roi.net.value" label="Net annual benefit">{usd(stabilizedNet)}</V></td>
+              </tr>
+            </RTbody>
+          </RTable>
+        </div>
+        </B>
+        <B id="callout" label="Asset value / Fall risk">
+        {roiCallout()}
         </B>
         </Blocks>
       </Page>
@@ -2250,6 +2255,9 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 </RTbody>
               </RTable>
             </div>
+          </B>
+          <B id="callout" label="Asset value / Fall risk">
+            {roiCallout()}
           </B>
         </Blocks>
       </Page>
