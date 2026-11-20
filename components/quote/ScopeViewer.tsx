@@ -954,7 +954,14 @@ function TypeForm({
   const [color, setColor] = useState(initial ? badgeOf(initial, index).color : nextBadgeColor(types));
   const [addTo, setAddTo] = useState('');
   const auto = initialsOf(name || 'Room type');
-  const ok = name.trim().length > 0;
+  // A room type's name must be unique within its care setting (ignoring case and extra spaces); the same name
+  // in another care setting is fine.
+  const norm = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const careKey = (c: CareType, custom?: string) => (c === 'custom' ? `custom:${norm(custom)}` : c);
+  const clash = name.trim()
+    ? types.find((t) => t.id !== initial?.id && norm(t.name) === norm(name) && careKey(t.care, t.customCare) === careKey(care, initial?.customCare))
+    : undefined;
+  const ok = name.trim().length > 0 && !clash;
   return (
     <form
       className={`${card} w-[19rem] max-w-full`}
@@ -990,7 +997,7 @@ function TypeForm({
       <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
         <div>
           <label className={eyebrow} htmlFor="tf-name">Room type / name</label>
-          <input id="tf-name" className="input-field py-1.5 text-xs" value={name} placeholder="e.g. Studio" autoFocus onChange={(e) => setName(e.target.value)} />
+          <input id="tf-name" className={`input-field py-1.5 text-xs ${clash ? 'ring-2 ring-teton-red border-transparent' : ''}`} aria-invalid={!!clash || undefined} aria-describedby={clash ? 'tf-clash' : undefined} value={name} placeholder="e.g. Studio" autoFocus onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
           <label className={eyebrow} htmlFor="tf-ini">Badge</label>
@@ -1011,6 +1018,11 @@ function TypeForm({
           <NumInput id="tf-sen" value={sensors} onChange={(v) => setSensors(Math.max(1, v ?? 1))} min={1} max={20} aria-label="Sensors per room" />
         </div>
       </div>
+      {clash && (
+        <p id="tf-clash" role="alert" className="mt-2 rounded bg-teton-red/25 px-2 py-1 text-[11px] text-[#9A2E1C] drawer-in">
+          “{clash.name}” already exists in {care === 'custom' ? initial?.customCare || 'this care setting' : CARE_LABEL[care]}. Use a different name or care setting{onAddTo ? ', or add these rooms to it with Add To above' : ''}.
+        </p>
+      )}
       <span className={eyebrow}>Color</span>
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Badge color">
         {BADGE_COLORS.map((c) => (
