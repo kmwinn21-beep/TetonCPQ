@@ -518,12 +518,12 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   // Stabilized return on cost: yearly gross benefit ÷ the annual cost of Teton (the cost of ownership per year on an equipment purchase).
   const stabilizedReturn = capexShown ? (tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0) : sel.returnOnCost;
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
-    { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: '{n} residents realigned to the right level of care', sub: 'Care needs seen sooner, billed at the right tier', v: { n: count(sel.residentsRealigned) } },
-    { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Faster fill of open apartments', sub: 'Monitoring as a reason families choose the community' },
-    { key: 'roi.benefit.staffing', label: 'Night shift savings', value: sel.nightShiftSavings, means: 'Fewer routine night checks', sub: 'Staff go where they are needed' },
-    { key: 'roi.benefit.los', label: 'Increased Length of Stay', value: sel.revenueFromLosIncrease, means: 'Fewer move-outs after a fall', sub: 'Revenue kept from residents who stay longer' },
-    { key: 'roi.benefit.tech', label: 'Tech replacement', value: sel.techReplacement, means: 'Systems Teton replaces', sub: 'Spend that no longer recurs' },
-    { key: 'roi.benefit.falls', label: 'Fall cost avoidance', value: sel.fallCostAvoidance, means: 'Costly Falls Prevented', sub: 'Hospital transfers and their costs avoided' },
+    { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: 'Identifying & correcting residents who are receiving care/services outside of their assessed LOC, earlier', sub: '' },
+    { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Total annual move-ins attributed to Teton’s community presence', sub: '' },
+    { key: 'roi.benefit.staffing', label: 'Night shift savings', value: sel.nightShiftSavings, means: 'Better visibility into the acuity and care needs of a resident, alongside increased caregiver capacity', sub: '' },
+    { key: 'roi.benefit.los', label: 'Increased Length of Stay', value: sel.revenueFromLosIncrease, means: 'Preventing & reacting quicker to falls, resulting in less hospitalizations and increased Length of Stay', sub: '' },
+    { key: 'roi.benefit.tech', label: 'Tech replacement', value: sel.techReplacement, means: 'Systems Teton replaces, and spend that no longer recurs', sub: '' },
+    { key: 'roi.benefit.falls', label: 'Fall cost avoidance', value: sel.fallCostAvoidance, means: 'Overall reduction in falls with injury resulting in a decrease in ER visits and risk/litigation costs', sub: '' },
   ]
     .filter((b) => b.value !== 0)
     .sort((a, b) => b.value - a.value);
@@ -1341,7 +1341,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
                   <td>
                     <T k={`bc.${b.key}.means`} d={b.means} v={b.v} />
-                    <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>
+                    {b.sub && <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>}
                   </td>
                   <td>
                     {pctOf(b.value, sel.annualRoi)}
@@ -2208,7 +2208,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   <tr>
                     <th>Source of value</th>
                     <th>What it means each year</th>
-                    <th className="bc-r" colSpan={2}>Annual benefit · same under both</th>
+                    <th className="bc-r" colSpan={2}>Annual benefit</th>
                   </tr>
                 </thead>
                 <RTbody id="cmproi" name="Returns, both ways">
@@ -2217,7 +2217,6 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                       <td className="bc-m"><T k={`${b.key}.label`} d={b.label} /></td>
                       <td>
                         <T k={`${b.key}.means`} d={b.means} v={b.v} />
-                        <div className="bc-bar"><i style={{ width: `${sel.annualRoi > 0 ? Math.max(1.5, (b.value / sel.annualRoi) * 100) : 0}%` }} /></div>
                       </td>
                       <td className="bc-cmp-v" colSpan={2}>{usd(b.value)}</td>
                     </tr>
