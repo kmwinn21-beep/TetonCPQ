@@ -79,6 +79,8 @@ export interface ProposalLayout {
   hiddenRows?: Record<string, string>;
   /** Table columns the rep removed (table.column key → its name). Both formats. */
   hiddenCols?: Record<string, string>;
+  /** Columns that start out removed (DEFAULT_HIDDEN_COLS) and were added back. */
+  shownCols?: string[];
   /** Totals columns' width (px; pages are a fixed width) as it was before columns were removed, so they keep it. */
   colWidths?: Record<string, number>;
   /** Column order per table (column keys after the first column). */
@@ -250,6 +252,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       for (const [id, w] of Object.entries(v as Record<string, unknown>).slice(0, 100)) if (ID.test(id) && typeof w === 'number' && w > 0 && w < 1000) out[id] = Math.round(w);
       return Object.keys(out).length ? out : undefined;
     })(),
+    shownCols: Array.isArray(raw.shownCols) ? (raw.shownCols as unknown[]).filter((x): x is string => typeof x === 'string' && ID.test(x)).slice(0, 40) : undefined,
     hiddenCols: (() => {
       const v = raw.hiddenCols;
       if (v == null) return undefined;
@@ -267,5 +270,19 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.values(l.bcGaps ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + Object.keys(l.colOrder ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.values(l.bcGaps ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + (l.shownCols?.length ?? 0) + Object.keys(l.colOrder ?? {}).length;
+}
+
+/** Table columns that start out removed (table id + heading key → their name in the Removed list). */
+export const DEFAULT_HIDDEN_COLS: Record<string, string> = {
+  'opinv.bc.inv.convcredits': 'Conv. credits column · The investment',
+  'pilotinv.bc.inv.convcredits': 'Conv. credits column · The pilot',
+};
+
+/** The columns removed from tables: the rep's, plus the ones that start out removed and weren't added back. */
+export function hiddenColsOf(l: Pick<ProposalLayout, 'hiddenCols' | 'shownCols'>): Record<string, string> {
+  const shown = new Set(l.shownCols ?? []);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(DEFAULT_HIDDEN_COLS)) if (!shown.has(k)) out[k] = v;
+  return { ...out, ...(l.hiddenCols ?? {}) };
 }

@@ -742,43 +742,105 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         </p>
         <Blocks page="pilot">
         <B id="costs" label="Pilot costs">
-        <div className="bc-card bc-req">
-          <ScopeRow ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} />
-          <CostRow
-            name={<T k="bc.pilot.install" d="Installation" />}
-            sub={<T k="bc.oneTime" d="(one-time)" />}
-            desc={<T k="bc.pilot.installMath" d={pIns.text} v={{ math: pIns.text }} />}
-            amount={<V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install)}</V>}
-            pct={pctOf(install, pilotTotal)}
-          />
-          <CostRow
-            name={<T k="bc.sensors" d="Additional Sensors" />}
-            sub={<T k="bc.oneTime" d="(one-time)" />}
-            desc={<T k="bc.pilot.sensorMath" d={pSen.text} v={{ math: pSen.text }} />}
-            amount={<V k="bc.pilot.sensors.value" label="Pilot additional sensors amount">{usd(pSen.total)}</V>}
-            pct={pctOf(pSen.total, pilotTotal)}
-          />
-          <CostRow
-            name={<T k="bc.pilot.fees" d="Monthly Fees" />}
-            desc={
-              <T
-                k="bc.pilot.feesNote"
-                d="{monthly} per month for {months} months. Includes Teton Resident Monitoring{ecall}."
-                v={{ monthly: usd(pilotMonthlyTotal), months: String(months), ecall: pilotEcall ? ` and E-Call (${ECALL_NAME[draft.commercial.ecall]})` : '' }}
-              />
-            }
-            amount={<V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V>}
-            pct={pctOf(pilotFees, pilotTotal)}
-          />
-          <div className="bc-req-row bc-req-total">
-            <div className="bc-req-name"><T k="bc.pilot.total" d="Total pilot cost" /></div>
-            <div className="bc-req-desc">
-              <T k="bc.pilot.totalNote" d={pilotSites.length === 1 ? 'Everything paid during the {months}-month pilot. After it, the community converts to the {term}-month service term.' : 'Everything paid during the {months}-month pilot. After it, the communities convert to the {term}-month service term.'} v={pvars} />
+        {pilotTotal <= 0 ? (
+          // A free pilot: what's included, and that nothing is billed.
+          <div className="bc-card bc-req">
+            <ScopeRow ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} />
+            <CostRow
+              name={<T k="bc.pilot.install" d="Installation" />}
+              sub={<T k="bc.oneTime" d="(one-time)" />}
+              desc={<T k="bc.pilot.free.install" d="Installation + Additional Sensors" />}
+              amount={<V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install + pSen.total)}</V>}
+              pct="–"
+            />
+            <CostRow
+              name={<T k="bc.pilot.fees" d="Monthly Fees" />}
+              desc={<T k="bc.pilot.free.fees" d="No monthly fees during pilot period" />}
+              amount={<V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V>}
+              pct="–"
+            />
+            <div className="bc-req-row bc-req-total">
+              <div className="bc-req-name"><T k="bc.pilot.total" d="Total pilot cost" /></div>
+              <div className="bc-req-desc"><T k="bc.pilot.free.total" d="No one-time or monthly fees during pilot period" /></div>
+              <div className="bc-req-amt"><V k="bc.pilot.total.value" label="Total pilot cost">{usd(pilotTotal)}</V></div>
+              <div className="bc-req-pct">100%</div>
             </div>
-            <div className="bc-req-amt"><V k="bc.pilot.total.value" label="Total pilot cost">{usd(pilotTotal)}</V></div>
-            <div className="bc-req-pct">100%</div>
           </div>
-        </div>
+        ) : (
+          (() => {
+            // A paid pilot: the same columns as the investment table.
+            const ins = installColumns(siteLines);
+            const sen = sensorColumns(siteLines);
+            const money = (n: number) => usd(n, { cents: !Number.isInteger(Math.round(n * 100) / 100) });
+            const range = (a: number, b: number) => (a === b ? money(a) : `${money(a)}–${money(b)}`);
+            const pilotBeds = sum(pilotFeeLines.filter((l) => l.sku === SKU.platform).map((l) => l.qty)) || ins.units;
+            const perBed = pilotBeds > 0 ? pilotMonthlyTotal / pilotBeds : 0;
+            const credit = (r: typeof ins, what: string) =>
+              r.creditUnits > 0 ? (
+                <td className="bc-neg">
+                  {`−${range(r.creditMin, r.creditMax)}`}
+                  <small>{`on ${count(r.creditUnits)} pilot ${what}`}</small>
+                </td>
+              ) : (
+                <td>–</td>
+              );
+            return (
+              <div className="bc-card bc-tbl bc-hrs bc-inv">
+                <RTable>
+                  <RTbody id="pilotinv" name="The pilot">
+                    <tr className="bc-inv-scope">
+                      <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
+                      <td colSpan={4}><ScopePills ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} /></td>
+                    </tr>
+                    <tr className="bc-inv-head" data-fixed>
+                      <th><T k="bc.inv.item" d="Item" /></th>
+                      <th><T k="bc.inv.unitPrice" d="Unit price" /></th>
+                      <th><T k="bc.inv.quantity" d="Quantity" /></th>
+                      <th><T k="bc.inv.convCredits" d="Conv. credits" /></th>
+                      <th className="bc-hl"><T k="bc.inv.total" d="Total" /></th>
+                    </tr>
+                    <tr>
+                      <td className="bc-m"><T k="bc.pilot.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                      <td>{range(ins.minPer, ins.maxPer)} per room, one-time</td>
+                      <td>{count(ins.units)}</td>
+                      {credit(ins, 'beds')}
+                      <td className="bc-hl bc-big"><V k="bc.pilot.install.value" label="Pilot installation amount">{usd(ins.total)}</V></td>
+                    </tr>
+                    {sen.units > 0 && (
+                      <tr>
+                        <td className="bc-m"><T k="bc.sensors" d="Additional Sensors" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                        <td>{range(sen.minPer, sen.maxPer)} per sensor, one-time</td>
+                        <td>{count(sen.units)}</td>
+                        {credit(sen, 'sensors')}
+                        <td className="bc-hl bc-big"><V k="bc.pilot.sensors.value" label="Pilot additional sensors amount">{usd(sen.total)}</V></td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="bc-m">
+                        <T k="bc.pilot.fees" d="Monthly Fees" />
+                        <small><T k="bc.pilot.feesSub" d={pilotEcall ? 'Teton Resident Monitoring and E-Call' : 'Teton Resident Monitoring'} /></small>
+                      </td>
+                      <td>{money(perBed)} per room, per month</td>
+                      <td>{count(months)} Months</td>
+                      <td>–</td>
+                      <td className="bc-hl bc-big"><V k="bc.pilot.fees.value" label="Pilot fees amount">{usd(pilotFees)}</V></td>
+                    </tr>
+                    <tr className="bc-tot">
+                      <td className="bc-m">
+                        <T k="bc.pilot.total" d="Total pilot cost" />
+                        <small><T k="bc.pilot.totalNote" d={pilotSites.length === 1 ? 'Everything paid during the {months}-month pilot. After it, the community converts to the {term}-month service term.' : 'Everything paid during the {months}-month pilot. After it, the communities convert to the {term}-month service term.'} v={pvars} /></small>
+                      </td>
+                      <td />
+                      <td />
+                      <td />
+                      <td className="bc-hl bc-big"><V k="bc.pilot.total.value" label="Total pilot cost">{usd(pilotTotal)}</V></td>
+                    </tr>
+                  </RTbody>
+                </RTable>
+              </div>
+            );
+          })()
+        )}
         </B>
         <B id="communities" label="Pilot communities" onAdd={addCommunity?.(true)} addLabel="Add a pilot community">
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
@@ -1002,8 +1064,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   </tr>
                   <tr className="bc-inv-head" data-fixed>
                     <th><T k="bc.inv.item" d="Item" /></th>
-                    <th><T k="bc.inv.units" d="Units" /></th>
-                    <th><T k="bc.inv.perUnit" d="Cost per unit" /></th>
+                    <th><T k="bc.inv.unitPrice" d="Unit price" /></th>
+                    <th><T k="bc.inv.quantity" d="Quantity" /></th>
                     <th className="bc-hl"><T k="bc.inv.total" d="Total" /></th>
                   </tr>
                   {grossBaseRows(capex).map((r) => (
@@ -1017,8 +1079,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                           />
                         </small>
                       </td>
-                      <td>{count(r.units)} beds</td>
-                      <td>{perUnitText(r, (n) => usd(n))}</td>
+                      <td>{perUnitText(r, (n) => usd(n))} per room, one-time</td>
+                      <td>{count(r.units)}</td>
                       <td className="bc-hl bc-big"><V k={`capex.base.${r.key}.value`} label="Base packages amount">{usd(r.total)}</V></td>
                     </tr>
                   ))}
@@ -1027,8 +1089,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                     return (
                       <tr>
                         <td className="bc-m"><T k="bc.sensors" d="Additional Sensors" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
-                        <td>{count(r.units)} {r.units === 1 ? 'sensor' : 'sensors'}</td>
-                        <td>{perUnitText(r, (n) => usd(n))}</td>
+                        <td>{perUnitText(r, (n) => usd(n))} per sensor, one-time</td>
+                        <td>{count(r.units)}</td>
                         <td className="bc-hl bc-big"><V k="capex.sensors.value" label="Additional sensors amount">{usd(r.total)}</V></td>
                       </tr>
                     );
@@ -1041,8 +1103,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   </tr>
                   <tr>
                     <td className="bc-m"><T k="bc.capex.software" d={'Software & services'} /><small><T k="bc.inv.billedMonthly" d="Billed monthly" /></small></td>
-                    <td>{count(capex.beds)} beds</td>
-                    <td>{usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) })} / mo</td>
+                    <td>{usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) })} per room, per month</td>
+                    <td>{count(capex.ownershipMonths)} Months</td>
                     <td className="bc-hl bc-big"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
                   </tr>
                   {capex.renewals > 0 && (
@@ -1065,8 +1127,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                   {finish.concealed && (
                     <tr>
                       <td className="bc-m"><T k="bc.finish" d="Concealed finish" /><small><T k="bc.inv.finish.sub" d="Optional · after the {credit} standard credit. Pending site survey." v={{ credit: usd(finish.credit) }} /></small></td>
-                      <td>{count(finish.rooms)} rooms</td>
-                      <td>{rangeText(finish.netLow, finish.netHigh, usd)}</td>
+                      <td>{rangeText(finish.netLow, finish.netHigh, usd)} per room, one-time</td>
+                      <td>{count(finish.rooms)}</td>
                       <td className="bc-hl bc-big"><V k="finish.total.value" label="Concealed installation total"><span className="bc-range">{finish.totalLow === finish.totalHigh ? usd(finish.totalLow) : `${usd(finish.totalLow)}–${usd(finish.totalHigh)}`}</span></V></td>
                     </tr>
                   )}
@@ -1075,7 +1137,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             </div>
             {conversionCreditOf(capex) > 0 && (
               <p className="bc-note bc-conv-note">
-                <T k="bc.inv.conversionNote" d="Cost per unit is after a {credit} conversion credit on each base package and additional sensor at pilot communities." v={{ credit: usd(conversionCreditOf(capex)) }} />
+                <T k="bc.inv.conversionNote" d="Unit prices are after a {credit} conversion credit on each base package and additional sensor at pilot communities." v={{ credit: usd(conversionCreditOf(capex)) }} />
               </p>
             )}
             {ecall > 0 && capex.ownershipTotal > 0 && (
@@ -1180,22 +1242,22 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         </tr>
                         <tr className="bc-inv-head" data-fixed>
                           <th><T k="bc.inv.item" d="Item" /></th>
-                          <th><T k="bc.inv.units" d="Units" /></th>
-                          <th><T k="bc.inv.perUnit" d="Cost per unit" /></th>
+                          <th><T k="bc.inv.unitPrice" d="Unit price" /></th>
+                          <th><T k="bc.inv.quantity" d="Quantity" /></th>
                           <th><T k="bc.inv.convCredits" d="Conv. credits" /></th>
-                          <th className="bc-hl"><T k="bc.inv.totals" d="Totals" /></th>
+                          <th className="bc-hl"><T k="bc.inv.total" d="Total" /></th>
                         </tr>
                         <tr>
                           <td className="bc-m"><T k="bc.scope.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
-                          <td>{count(ins.units)} beds</td>
-                          <td>{range(ins.minPer, ins.maxPer)}</td>
+                          <td>{range(ins.minPer, ins.maxPer)} per room, one-time</td>
+                          <td>{count(ins.units)}</td>
                           {credit(ins, 'beds')}
                           <td className="bc-hl bc-big"><V k="scope.install.value" label="Installation amount">{usd(ins.total)}</V></td>
                         </tr>
                         <tr>
                           <td className="bc-m"><T k="bc.sensors" d="Additional Sensors" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
-                          <td>{count(sen.units)} {sen.units === 1 ? 'sensor' : 'sensors'}</td>
-                          <td>{sen.units ? range(sen.minPer, sen.maxPer) : money(draft.commercial.sensorPrice)}</td>
+                          <td>{sen.units ? range(sen.minPer, sen.maxPer) : money(draft.commercial.sensorPrice)} per sensor, one-time</td>
+                          <td>{count(sen.units)}</td>
                           {credit(sen, 'sensors')}
                           <td className="bc-hl bc-big"><V k="scope.sensors.value" label="Additional sensors amount">{usd(sen.total)}</V></td>
                         </tr>
@@ -1204,8 +1266,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                             <T k="bc.scope.subscription" d="Monthly Cost" />
                             <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
                           </td>
-                          <td>{count(units)} beds</td>
-                          <td>{perBedMonthly} / mo</td>
+                          <td>{perBedMonthly} per room, per month</td>
+                          <td>{count(term)} Months</td>
                           <td>–</td>
                           <td className="bc-hl bc-big"><V k="scope.serviceMonthly.value" label="Monthly once in service amount">{usd(d.serviceMonthly)} / mo</V></td>
                         </tr>
@@ -1222,8 +1284,8 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         {finish.concealed && (
                           <tr>
                             <td className="bc-m"><T k="bc.finish" d="Concealed finish" /><small><T k="bc.inv.finish.sub" d="Optional · after the {credit} standard credit. Pending site survey." v={{ credit: usd(finish.credit) }} /></small></td>
-                            <td>{count(finish.rooms)} rooms</td>
-                            <td>{rangeText(finish.netLow, finish.netHigh, usd)}</td>
+                            <td>{rangeText(finish.netLow, finish.netHigh, usd)} per room, one-time</td>
+                            <td>{count(finish.rooms)}</td>
                             <td>–</td>
                             <td className="bc-hl bc-big"><V k="finish.total.value" label="Concealed installation total"><span className="bc-range">{finish.totalLow === finish.totalHigh ? usd(finish.totalLow) : `${usd(finish.totalLow)}–${usd(finish.totalHigh)}`}</span></V></td>
                           </tr>

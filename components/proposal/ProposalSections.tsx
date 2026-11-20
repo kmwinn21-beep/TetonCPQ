@@ -10,7 +10,7 @@
 import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
-import { isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
+import { DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
 
@@ -168,6 +168,7 @@ export function RTable({ className, children }: { className?: string; children: 
     return cs.length > 1 && cs.every((c) => c.type === 'th');
   });
   if (!id) return <table className={className}>{children}</table>;
+  // (data-rtable lets the Removed list show only the start-out-removed columns of tables on the page.)
   const columns: Array<{ key: string; start: number; span: number }> = [];
   let at = 0;
   for (const c of head ? cellsOf(head).filter(isCell) : []) {
@@ -180,14 +181,16 @@ export function RTable({ className, children }: { className?: string; children: 
   const allRows = parts.flatMap(rowsIn);
   const canMove =
     !!head && columns.length > 2 && columns.every((c) => c.span === 1) && !allRows.some((r) => cellsOf(r).some((c) => isCell(c) && Number((c.props as { rowSpan?: number }).rowSpan) > 1));
-  const saved = layout.colOrder?.[id] ?? [];
+  // A saved order that doesn't cover every column (the table changed since) gives way to the standard order.
+  const savedRaw = layout.colOrder?.[id] ?? [];
+  const saved = columns.slice(1).every((c) => savedRaw.includes(c.key)) ? savedRaw : [];
   const rest = columns.map((_, i) => i).slice(1);
   const perm = canMove ? [0, ...[...rest].sort((x, y) => {
     const a = saved.indexOf(columns[x].key);
     const b = saved.indexOf(columns[y].key);
     return (a < 0 ? 1e6 + x : a) - (b < 0 ? 1e6 + y : b);
   })] : columns.map((_, i) => i);
-  const hiddenCols = layout.hiddenCols ?? {};
+  const hiddenCols = hiddenColsOf(layout);
   const hidden = new Set<number>();
   columns.forEach((c, i) => {
     if (i > 0 && c.key in hiddenCols) for (let x = c.start; x < c.start + c.span; x++) hidden.add(x);
@@ -208,11 +211,15 @@ export function RTable({ className, children }: { className?: string; children: 
         if (i > 0 && isTotal(c) && ths[i]) keep[columns[i].key] = Math.round(ths[i].getBoundingClientRect().width);
       });
     }
-    setLayout((l) => ({
-      ...l,
-      hiddenCols: { ...(l.hiddenCols ?? {}), [col.key]: `${text.slice(0, 40)} column · ${name}` },
-      colWidths: Object.keys(keep).length ? { ...(l.colWidths ?? {}), ...keep } : l.colWidths,
-    }));
+    setLayout((l) => {
+      const colWidths = Object.keys(keep).length ? { ...(l.colWidths ?? {}), ...keep } : l.colWidths;
+      // A column that starts out removed goes back to removed.
+      if (col.key in DEFAULT_HIDDEN_COLS) {
+        const shownCols = (l.shownCols ?? []).filter((k) => k !== col.key);
+        return { ...l, shownCols: shownCols.length ? shownCols : undefined, colWidths };
+      }
+      return { ...l, hiddenCols: { ...(l.hiddenCols ?? {}), [col.key]: `${text.slice(0, 40)} column · ${name}` }, colWidths };
+    });
   };
   // Move a column one place left or right, past any removed ones.
   const move = (i: number, dir: -1 | 1) => {
@@ -304,7 +311,7 @@ export function RTable({ className, children }: { className?: string; children: 
     }
     return part;
   });
-  return <table className={className}>{fixed}</table>;
+  return <table className={className} data-rtable={id}>{fixed}</table>;
 }
 
 /**
@@ -778,6 +785,12 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
+  // The tables on the page now (checked after each render).
+  const [presentTables, setPresentTables] = useState<string[]>([]);
+  useEffect(() => {
+    const ids = Array.from(document.querySelectorAll<HTMLElement>('table[data-rtable]')).map((t) => t.dataset.rtable ?? '').sort();
+    if (ids.join() !== presentTables.join()) setPresentTables(ids);
+  }, [layout, edits, presentTables]);
   if (!editable) return null;
   const businessCase = layout.format === 'businessCase';
   // The business-case format arranges pages instead of sections.
@@ -794,7 +807,8 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
   // Optional rows that start out removed (shown in the Removed list until added).
   const optional = businessCase && bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment' }] : [];
   const rows = Object.entries(layout.hiddenRows ?? {});
-  const cols = Object.entries(layout.hiddenCols ?? {});
+  // Columns that start out removed are listed only when their table is on the page.
+  const cols = Object.entries(hiddenColsOf(layout)).filter(([k]) => !(k in DEFAULT_HIDDEN_COLS) || presentTables.includes(k.split('.')[0]));
   if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length && !rows.length && !cols.length) return null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
@@ -875,6 +889,7 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
             {cols.map(([k, label]) =>
               item(`col-${k}`, label, () =>
                 setLayout((l) => {
+                  if (k in DEFAULT_HIDDEN_COLS) return { ...l, shownCols: Array.from(new Set([...(l.shownCols ?? []), k])) };
                   const m = { ...(l.hiddenCols ?? {}) };
                   delete m[k];
                   const table = k.split('.')[0];
