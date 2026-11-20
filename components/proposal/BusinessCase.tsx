@@ -520,7 +520,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
     { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: 'Identifying & correcting residents who are receiving care/services outside of their assessed LOC, earlier', sub: '' },
     { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Total annual move-ins attributed to Teton’s community presence', sub: '' },
-    { key: 'roi.benefit.staffing', label: 'Night shift savings', value: sel.nightShiftSavings, means: 'Better visibility into the acuity and care needs of a resident, alongside increased caregiver capacity', sub: '' },
+    { key: 'roi.benefit.staffing', label: 'Staffing Alignment', value: sel.nightShiftSavings, means: 'Better visibility into the acuity and care needs of a resident, alongside increased caregiver capacity', sub: '' },
     { key: 'roi.benefit.los', label: 'Increased Length of Stay', value: sel.revenueFromLosIncrease, means: 'Preventing & reacting quicker to falls, resulting in less hospitalizations and increased Length of Stay', sub: '' },
     { key: 'roi.benefit.tech', label: 'Tech replacement', value: sel.techReplacement, means: 'Systems Teton replaces, and spend that no longer recurs', sub: '' },
     { key: 'roi.benefit.falls', label: 'Fall cost avoidance', value: sel.fallCostAvoidance, means: 'Overall reduction in falls with injury resulting in a decrease in ER visits and risk/litigation costs', sub: '' },
