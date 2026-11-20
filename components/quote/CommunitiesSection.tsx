@@ -206,6 +206,9 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     const pos = order.indexOf(i);
     return (
       <CommunityEditor
+        // One editor per community: its registered inputs (name, city, state, go-live, coverage) read their value
+        // when they mount, so switching communities must mount fresh ones.
+        key={keyAt(i) ?? i}
         index={i}
         position={pos + 1}
         total={order.length}
