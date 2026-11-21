@@ -7,7 +7,7 @@
  * It minimizes to its header (the – button, or a click on the plan) so nothing typed is lost; closing with
  * unsaved changes asks to save, discard or go back.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
 import { badgeOf, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
@@ -72,6 +72,27 @@ export function BulkEditTags({
   onMinimize: (v: boolean) => void;
 }) {
   const [asking, setAsking] = useState(false);
+  // The rows' height, set by dragging the panel's top edge (remembered in this browser).
+  const list = useRef<HTMLDivElement>(null);
+  const [listH, setListH] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem('teton.bulkEdit.height'));
+      return v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const sizeTo = (h: number) => {
+    const max = Math.max(160, window.innerHeight * 0.8 - 160);
+    const v = Math.round(Math.min(max, Math.max(72, h)));
+    setListH(v);
+    try {
+      localStorage.setItem('teton.bulkEdit.height', String(v));
+    } catch {
+      /* fine without it */
+    }
+  };
+  const drag = useRef<{ y: number; h: number; id: number } | null>(null);
   const mineOf = (id: string) => notes.of(id).find((n) => n.mine);
   const initial = useMemo(
     () =>
@@ -169,7 +190,42 @@ export function BulkEditTags({
   const cell = 'input-field py-1 text-xs disabled:opacity-60';
   return (
     <div className="fixed sm:absolute inset-x-0 bottom-0 z-[70] sm:z-30 flex flex-col rounded-t-xl border-t border-teton-off-white bg-white shadow-[0_-12px_36px_rgba(0,0,0,.18)] drawer-in" role="dialog" aria-label="Edit tags" data-plan-ui onPointerDown={(e) => e.stopPropagation()}>
-      <div className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 ${minimized ? '' : 'border-b border-teton-off-white'}`}>
+      {/* Drag the top edge to make the panel taller or shorter (arrow keys too). */}
+      {!minimized && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize the panel"
+          tabIndex={0}
+          title="Drag to resize"
+          className="group absolute inset-x-0 -top-1.5 z-10 flex h-4 cursor-ns-resize touch-none items-center justify-center focus:outline-none"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            drag.current = { y: e.clientY, h: list.current?.getBoundingClientRect().height ?? 300, id: e.pointerId };
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (d && d.id === e.pointerId) sizeTo(d.h + (d.y - e.clientY));
+          }}
+          onPointerUp={() => (drag.current = null)}
+          onPointerCancel={() => (drag.current = null)}
+          onKeyDown={(e) => {
+            const h = list.current?.getBoundingClientRect().height ?? 300;
+            if (e.key === 'ArrowUp') sizeTo(h + 40);
+            else if (e.key === 'ArrowDown') sizeTo(h - 40);
+            else return;
+            e.preventDefault();
+          }}
+        >
+          <span className="h-1 w-10 rounded-full bg-teton-pale-gray transition-[background-color,width] duration-200 group-hover:w-14 group-hover:bg-[#3F8CEA] group-focus-visible:bg-[#3F8CEA]" />
+        </div>
+      )}
+      {/* Minimized, the whole bar expands it again. */}
+      <div
+        className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 transition-colors duration-200 ${minimized ? 'cursor-pointer rounded-t-xl hover:bg-teton-almost-white' : 'border-b border-teton-off-white'}`}
+        onClick={minimized ? () => onMinimize(false) : undefined}
+        title={minimized ? 'Expand' : undefined}
+      >
         <button type="button" className="flex items-center gap-2 min-w-0 text-left" onClick={() => onMinimize(!minimized)} aria-expanded={!minimized}>
           <span className="font-semibold text-sm">Edit {rows.length} tag{rows.length === 1 ? '' : 's'}</span>
           {minimized && changes > 0 && <span className="rounded-full bg-[#E8F1FD] px-2 py-px text-[11px] font-semibold text-[#1F5FB5] drawer-in">{changes} unsaved change{changes === 1 ? '' : 's'}</span>}
@@ -183,7 +239,7 @@ export function BulkEditTags({
               <span className="block text-lg leading-none -mt-0.5" aria-hidden="true">–</span>
             )}
           </button>
-          <button type="button" className="w-7 h-7 rounded-md text-teton-ui-gray hover:bg-teton-almost-white hover:text-teton-ink" aria-label="Close" title="Close" onClick={tryClose}>✕</button>
+          <button type="button" className="w-7 h-7 rounded-md text-teton-ui-gray hover:bg-teton-almost-white hover:text-teton-ink" aria-label="Close" title="Close" onClick={(e) => { e.stopPropagation(); tryClose(); }}>✕</button>
         </span>
       </div>
       {asking && (
@@ -195,7 +251,7 @@ export function BulkEditTags({
         </div>
       )}
       <Collapse open={!minimized}>
-      <div className="overflow-y-auto max-h-[52dvh] sm:max-h-[min(46vh,520px)]">
+      <div ref={list} className={`overflow-y-auto ${listH ? '' : 'max-h-[52dvh] sm:max-h-[min(46vh,520px)]'}`} style={listH ? { height: listH } : undefined}>
         {/* Apply to the ticked rows */}
         <div className="grid gap-2 px-3 sm:px-4 py-2.5 bg-[#F3F7FD] border-b border-[#D6E4F7] text-xs sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.4fr)] items-center">
           <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#1F5FB5]">Apply to {ticked.length}</span>
