@@ -101,7 +101,7 @@ export function TagCard({
 }) {
   const b = badgeOf(type, index);
   const p = productsOf(community ?? {})[bedKeyOf(type)];
-  const sensors = Math.max(1, Number(type.sensors) || 1);
+  const sensors = p.monitoring ? Math.max(1, Number(type.sensors) || 1) : 0;
   return (
     <div className="rounded-xl border border-teton-off-white bg-white p-3 text-xs shadow-[0_12px_36px_rgba(0,0,0,.2)]" role="tooltip">
       <div className="flex items-start gap-2">
@@ -113,7 +113,7 @@ export function TagCard({
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 mt-2.5 text-[11.5px]">
         <dt className="text-teton-ui-gray">Sensors</dt>
-        <dd>{sensors} per room</dd>
+        <dd>{sensors ? `${sensors} per room` : 'None (no Resident Monitoring)'}</dd>
         <dt className="text-teton-ui-gray">Products</dt>
         <dd className="flex flex-wrap gap-1">
           <span className={`rounded-full px-1.5 text-[10.5px] font-semibold ${p.monitoring ? 'bg-[#E6F4EC] text-[#2B7A4B]' : 'bg-teton-off-white text-teton-ui-gray line-through'}`}>Resident monitoring</span>

@@ -68,3 +68,15 @@ describe('duplicate room numbers', () => {
     expect(duplicateRoomNumbers([{ id: 'st', marks: [mk('a', '143'), mk('g', '143', 9)] }], [1])).toEqual([]);
   });
 });
+
+describe('sensors by care setting', () => {
+  it('gives no sensors to rooms without resident monitoring and leaves unpriced care out', async () => {
+    const { sensorsPerRoom, isPriced } = await import('./roomTypes');
+    const p = { il: { monitoring: false, ecall: false }, al: { monitoring: true, ecall: false }, mc: { monitoring: false, ecall: true }, snf: { monitoring: true, ecall: true } };
+    expect(sensorsPerRoom({ care: 'il', sensors: 1 }, p)).toBe(0);
+    expect(sensorsPerRoom({ care: 'al', sensors: 2 }, p)).toBe(2);
+    expect(sensorsPerRoom({ care: 'custom', sensors: 3 }, p)).toBe(3); // custom counts as assisted living
+    expect(sensorsPerRoom({ care: 'mc', sensors: 2 }, p)).toBe(0);
+    expect([isPriced({ care: 'il' }, p), isPriced({ care: 'mc' }, p), isPriced({ care: 'al' }, p)]).toEqual([false, true, true]);
+  });
+});

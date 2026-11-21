@@ -10,8 +10,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
-import type { QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, BADGE_COLORS, CARE_LABEL, careLabel, duplicateRoomNumbers, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -101,6 +101,13 @@ export function ScopeViewer({
   const index = (communities ?? []).findIndex((c) => c?.id === communityId);
   const community = index >= 0 ? communities[index] : null;
   const { types, write, current } = useRoomTypes(index);
+  // Products by care setting: rooms without resident monitoring get no sensors.
+  // (E-Call counts only when the deal offers it.)
+  const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
+  const products = useMemo(() => {
+    const p = productsOf(community ?? {});
+    return ecallOn ? p : (Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { ...v, ecall: false }])) as CareProducts);
+  }, [community, ecallOn]);
   const planIds = useMemo(() => plans.map((p) => p.id), [plans]);
 
   const [planId, setPlanId] = useState(initialPlanId ?? plans[0]?.id);
@@ -349,6 +356,7 @@ export function ScopeViewer({
         notes: withNotes ? notesApi.notes : [],
         tagNotes: withNotes ? liveTagNotes : [],
         allowancePct: normalizeAllowance(getValues(`communities.${index}.sensorAllowancePct`)),
+        products,
       });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -370,7 +378,7 @@ export function ScopeViewer({
   });
   const taggedTotal = rows.reduce((s, r) => s + r.tagged, 0);
   const taggedHere = rows.reduce((s, r) => s + r.here, 0);
-  const sensorsTagged = rows.reduce((s, r) => s + r.tagged * Math.max(1, Number(r.t.sensors) || 1), 0);
+  const sensorsTagged = rows.reduce((s, r) => s + r.tagged * sensorsPerRoom(r.t, products), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
   const mismatches = rows.filter((r) => r.tagged > 0 && !r.t.roomsFromPlan && (Number(r.t.rooms) || 0) !== r.tagged);
   // Tagged rooms' numbers (for "also 126, 128"), and the notes on rooms that still exist.
@@ -659,6 +667,7 @@ export function ScopeViewer({
             notes={notesApi.notes}
             tagNotes={liveTagNotes}
             allowancePct={normalizeAllowance(community?.sensorAllowancePct)}
+            products={products}
           />
         )}
         <PlanStage
@@ -810,6 +819,7 @@ export function ScopeViewer({
                 onEdit={() => setEditType(popType.id)}
                 onClose={() => setPop(null)}
                 suggest={popSuggest}
+                products={products}
               >
                 <TagNoteSection api={tagApi} markId={popMark.id} me={notesApi.me} labelOf={labelOf} />
               </MarkPopover>
@@ -838,6 +848,7 @@ export function ScopeViewer({
           {editType && popMark && (
             <Anchored x={popMark.x} y={popMark.y}>
               <TypeForm
+                products={products}
                 title={`Edit “${types.find((t) => t.id === editType)?.name || 'Room type'}”`}
                 initial={types.find((t) => t.id === editType)}
                 index={types.findIndex((t) => t.id === editType)}
@@ -903,6 +914,7 @@ export function ScopeViewer({
           <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 max-w-[calc(100%-1.5rem)]">
             {saving ? (
               <TypeForm
+                products={products}
                 title="New room type"
                 sub={`${pending.length} room${pending.length === 1 ? '' : 's'} selected`}
                 types={types}
@@ -1362,7 +1374,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, suggest, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
+function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -1372,7 +1384,7 @@ function MarkPopover({ type, types, mark, readOnly, suggest, onRetype, onLabel, 
         <Badge color={b.color} text={b.initials} size={24} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[13px] truncate">{mark.label ? `Room ${mark.label}` : 'Tagged room'}</p>
-          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {type.sensors} sensor{type.sensors === 1 ? '' : 's'}</p>
+          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {sensorsPerRoom(type, products) || 'no'} sensor{sensorsPerRoom(type, products) === 1 ? '' : 's'}</p>
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>
@@ -1427,7 +1439,9 @@ function TypeForm({
   onAddTo,
   note,
   onNote,
+  products,
 }: {
+  products: CareProducts;
   title: string;
   sub?: string;
   initial?: RoomType;
@@ -1521,7 +1535,14 @@ function TypeForm({
         </div>
         <div>
           <label className={eyebrow} htmlFor="tf-sen">Sensors / room</label>
-          <NumInput id="tf-sen" value={sensors} onChange={(v) => setSensors(Math.max(1, v ?? 1))} min={1} max={20} aria-label="Sensors per room" />
+          {/* No resident monitoring in this care setting: no sensors (0, locked). */}
+          {products[bedKeyOf({ care })].monitoring ? (
+            <NumInput id="tf-sen" value={sensors} onChange={(v) => setSensors(Math.max(1, v ?? 1))} min={1} max={20} aria-label="Sensors per room" />
+          ) : (
+            <span title="This care setting doesn’t have Resident Monitoring, so its rooms get no sensors">
+              <NumInput id="tf-sen" value={0} onChange={() => {}} disabled aria-label="Sensors per room (none: no Resident Monitoring)" />
+            </span>
+          )}
         </div>
       </div>
       {clash && (

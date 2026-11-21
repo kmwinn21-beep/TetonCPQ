@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
-import type { RoomType } from '@/lib/quote/roomTypes';
+import type { CareProducts, RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 
 export function ScopeSummary({
@@ -19,6 +19,7 @@ export function ScopeSummary({
   notes,
   tagNotes,
   allowancePct,
+  products,
 }: {
   planId: number;
   planName: string;
@@ -27,18 +28,19 @@ export function ScopeSummary({
   notes: PlanNote[];
   tagNotes: TagNote[];
   allowancePct: number;
+  products: CareProducts;
 }) {
   const [withNotes, setWithNotes] = useState(true);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const box = useRef<HTMLDivElement>(null);
-  const key = JSON.stringify([planId, planName, communityName, types, withNotes ? notes : [], withNotes ? tagNotes : [], allowancePct]);
+  const key = JSON.stringify([planId, planName, communityName, types, withNotes ? notes : [], withNotes ? tagNotes : [], allowancePct, products]);
   useEffect(() => {
     let live = true;
     // Typing in a room type redraws once it settles.
     const t = setTimeout(async () => {
       try {
         const { scopeSummaryPdf } = await import('@/lib/client/scopePdf');
-        const blob = await scopeSummaryPdf({ planId, planName, communityName, types, notes: withNotes ? notes : [], tagNotes: withNotes ? tagNotes : [], allowancePct });
+        const blob = await scopeSummaryPdf({ planId, planName, communityName, types, notes: withNotes ? notes : [], tagNotes: withNotes ? tagNotes : [], allowancePct, products });
         const url = URL.createObjectURL(blob);
         try {
           const pdf = await openPdf(url);

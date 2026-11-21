@@ -121,7 +121,14 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               </div>
               <div>
                 <span className={eyebrow}>Sensors / rm</span>
-                <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
+                {/* No resident monitoring in this care setting: no sensors (0, locked). */}
+                {products[bedKeyOf(t)].monitoring ? (
+                  <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
+                ) : (
+                  <span title="This care setting doesn’t have Resident Monitoring, so its rooms get no sensors">
+                    <NumInput value={0} onChange={() => {}} disabled aria-label={`Community ${position} room type ${k + 1} sensors per room (none: no Resident Monitoring)`} />
+                  </span>
+                )}
               </div>
               <button
                 type="button"

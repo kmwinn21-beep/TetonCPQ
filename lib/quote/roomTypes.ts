@@ -9,7 +9,7 @@
  *   additional sensors    = total − rooms   (the first sensor in each room is in the base package)
  *   beds by care type     = Σ rooms of that care type
  */
-import { productsOf, type BedKey, type DraftCommunity } from './draft';
+import { productsOf, type BedKey, type BedProducts, type DraftCommunity } from './draft';
 
 export type CareType = 'il' | 'al' | 'mc' | 'snf' | 'custom';
 export const CARE_LABEL: Record<CareType, string> = { il: 'Independent living', al: 'Assisted living', mc: 'Memory care', snf: 'Skilled nursing', custom: 'Custom…' };
@@ -169,6 +169,13 @@ export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
 
 /** The care type a room type's beds count as (custom care types count as assisted living). */
 export const bedKeyOf = (t: Pick<RoomType, 'care'>): BedKey => (t.care === 'custom' ? 'al' : t.care);
+
+/** The products on each care type of a community (productsOf). */
+export type CareProducts = Record<BedKey, BedProducts>;
+/** Sensors in each room of this type: none when its care setting has no resident monitoring. */
+export const sensorsPerRoom = (t: Pick<RoomType, 'care' | 'sensors'>, p?: CareProducts | null) => (!p || p[bedKeyOf(t)].monitoring ? Math.max(1, Number(t.sensors) || 1) : 0);
+/** Whether this type's rooms are priced at all (its care setting has some product). */
+export const isPriced = (t: Pick<RoomType, 'care'>, p?: CareProducts | null) => !p || p[bedKeyOf(t)].monitoring || p[bedKeyOf(t)].ecall;
 
 /** The room types whose care type has resident monitoring: only they get Edge units and sensors. */
 export const monitoredTypes = (types: RoomType[], c: Partial<DraftCommunity> | null | undefined) => {

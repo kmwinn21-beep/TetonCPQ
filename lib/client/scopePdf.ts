@@ -6,7 +6,7 @@
  * summary page at the end. Images become one page each.
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
-import { badgeOf, CARE_LABEL, roomScope, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, CARE_LABEL, isPriced, roomScope, sensorsPerRoom, type CareProducts, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
 
@@ -22,6 +22,8 @@ interface Args {
   notes?: PlanNote[];
   /** Notes on tagged rooms: an amber dot on those badges, and a table of them on the summary page. */
   tagNotes?: TagNote[];
+  /** The community's products by care type: rooms without resident monitoring get no sensors, rooms without products aren't priced. */
+  products?: CareProducts;
 }
 
 const DOT = '#F0B429';
@@ -179,7 +181,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     // Lay out the legend items in rows to find the band's height.
     const pad = fs * 1.4;
     const items = used.map(({ t, b, marks }) => {
-      const sensors = marks.length * Math.max(1, Number(t.sensors) || 1);
+      const sensors = marks.length * sensorsPerRoom(t, a.products);
       return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
     });
     const rowsOf: (typeof items)[] = [[]];
@@ -215,7 +217,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     let y = s.h + band - pad - fs * 0.4;
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
-    const totS = used.reduce((t, u) => t + u.marks.length * Math.max(1, Number(u.t.sensors) || 1), 0);
+    const totS = used.reduce((t, u) => t + u.marks.length * sensorsPerRoom(u.t, a.products), 0);
     const nn = (a.notes ?? []).filter((x) => x.page === n).length;
     const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
@@ -279,6 +281,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   let all = 0;
   let priced = 0;
   let mismatch = false;
+  let noSensors = false;
   for (const { t, b } of types) {
     if (y < M + 80) {
       p = out.addPage([W, H]);
@@ -287,8 +290,11 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     }
     const onPlan = (t.marks ?? []).filter((m) => m.plan === a.planId).length;
     const total = (t.marks ?? []).length;
-    const rooms = Number(t.rooms) || 0;
-    const differs = rooms !== total && total > 0;
+    const entered = Number(t.rooms) || 0;
+    // Rooms in a care setting with no products aren't priced; without resident monitoring they get no sensors.
+    const rooms = isPriced(t, a.products) ? entered : 0;
+    const per = sensorsPerRoom(t, a.products);
+    const differs = entered !== total && total > 0;
     mismatch ||= differs;
     here += onPlan;
     all += total;
@@ -301,15 +307,16 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     text(t.care === 'custom' ? t.customCare || 'Custom' : CARE_LABEL[t.care], cols[1], 9);
     text(String(onPlan), cols[2], 10, reg, INK, 'r');
     text(String(total), cols[3], 10, reg, INK, 'r');
-    text(`${rooms}${differs ? '*' : ''}`, cols[4], 10, differs ? bold : reg, INK, 'r');
-    text(String(t.sensors), cols[5], 10, reg, INK, 'r');
-    text(String(rooms * (Number(t.sensors) || 1)), cols[6], 10, bold, INK, 'r');
+    text(`${rooms}${differs ? '*' : ''}`, cols[4], 10, differs ? bold : reg, rooms ? INK : MUTED, 'r');
+    text(String(per), cols[5], 10, reg, per ? INK : MUTED, 'r');
+    text(String(rooms * per), cols[6], 10, bold, rooms * per ? INK : MUTED, 'r');
+    noSensors ||= per === 0;
     y -= 10;
     p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
     y -= 16;
   }
   const s = roomScope(
-    types.map(({ t }) => t),
+    types.map(({ t }) => t).filter((t) => sensorsPerRoom(t, a.products) > 0),
     a.allowancePct,
   );
   y -= 2;
@@ -332,6 +339,10 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   if (mismatch) {
     y -= 13;
     text('* Entered by hand: differs from the number of rooms tagged.', M, 8.5, reg, MUTED);
+  }
+  if (noSensors) {
+    y -= 13;
+    text('Care settings without Resident Monitoring get no sensors; those with no products are not priced.', M, 8.5, reg, MUTED);
   }
 
   // Notes: every note (on the plan or not) with its room type, author and page.
