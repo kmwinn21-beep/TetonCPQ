@@ -333,15 +333,15 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             )}
           </div>
           <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
-            <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length}>View results</button>
+            <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length} aria-label="View results"><span className="sm:hidden">Results</span><span className="hidden sm:inline">View results</span></button>
             {/* Proposals are made from saved versions: the latest one. */}
             {activeVersion ? (
-              <Link href={`/proposal/${activeVersion.id}`} className="btn-secondary whitespace-nowrap" title={`The proposal for v${activeVersion.versionNo}, the active version`}>
-                View proposal
+              <Link href={`/proposal/${activeVersion.id}`} className="btn-secondary whitespace-nowrap flex-1 sm:flex-none text-center" title={`The proposal for v${activeVersion.versionNo}, the active version`}>
+                <span className="sm:hidden">Proposal</span><span className="hidden sm:inline">View proposal</span>
               </Link>
             ) : (
               <button type="button" className="btn-secondary whitespace-nowrap" disabled title="Save a version first: proposals are made from saved versions">
-                View proposal
+                <span className="sm:hidden">Proposal</span><span className="hidden sm:inline">View proposal</span>
               </button>
             )}
             {noteOpen ? (
@@ -357,7 +357,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                     View changes ({pending.length})
                   </button>
                 )}
-                {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length}>Save version</button>}
+                {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length} aria-label="Save version"><span className="sm:hidden">Save</span><span className="hidden sm:inline">Save version</span></button>}
               </>
             )}
           </div>

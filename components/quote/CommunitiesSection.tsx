@@ -341,16 +341,17 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
               .join(' · ')
       }
       aside={
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-secondary" onClick={() => setStaggering('all')} disabled={fields.length === 0}>
-            Stagger go-live dates
+        <div className="flex items-center gap-1.5">
+          <button type="button" className="btn-primary whitespace-nowrap" onClick={addCommunity}>
+            + Community
           </button>
-          <button type="button" className="btn-secondary" onClick={() => setPasting(true)}>
-            Paste from NIC
-          </button>
-          <button type="button" className="btn-primary" onClick={addCommunity}>
-            Add community
-          </button>
+          <MoreMenu
+            label="More community actions"
+            items={[
+              { label: 'Stagger go-live dates', onClick: () => setStaggering('all'), disabled: fields.length === 0 },
+              { label: 'Paste from NIC', onClick: () => setPasting(true) },
+            ]}
+          />
         </div>
       }
     >
@@ -493,5 +494,56 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
       {showErrors && <p className="text-sm mt-2 rounded bg-teton-red/30 px-2 py-1">{rootError}</p>}
 
     </Section>
+  );
+}
+
+/** A ⋮ button with a small menu of less-used actions (closes on a pick, a click elsewhere, or Esc). */
+function MoreMenu({ label, items }: { label: string; items: Array<{ label: string; onClick: () => void; disabled?: boolean }> }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        className="btn-secondary px-2.5 h-full min-h-[2.375rem]"
+        aria-label={label}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4" r="1.6" /><circle cx="10" cy="10" r="1.6" /><circle cx="10" cy="16" r="1.6" /></svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1 z-30 w-56 rounded-lg border border-teton-off-white bg-white p-1 text-sm shadow-lg drawer-in">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              disabled={it.disabled}
+              className="block w-full text-left rounded-md px-3 py-2 hover:bg-teton-almost-white disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => {
+                setOpen(false);
+                it.onClick();
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
