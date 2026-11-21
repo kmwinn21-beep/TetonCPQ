@@ -282,6 +282,14 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     }
   }
 
+  /** Back to the active version: the draft takes its inputs again (and autosaves). */
+  function discardChanges() {
+    if (!active.inputs) return;
+    setVersionError(null);
+    reset(normalizeDraft(active.inputs));
+    setChangesOpen(false);
+  }
+
   // Flush any unsaved edits before leaving, so results show exactly what's on screen.
   const router = useRouter();
   async function viewResults() {
@@ -492,7 +500,29 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               <CollaboratorsPanel />
               <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
-              <VersionsPanel versions={versions} quoteId={initial.quoteId} activeId={active.id} busy={activating} onMakeActive={makeActive} onDelete={removeVersion} readOnly={!access.inputs} />
+              <VersionsPanel
+                versions={versions}
+                quoteId={initial.quoteId}
+                activeId={active.id}
+                busy={activating}
+                onMakeActive={makeActive}
+                onDelete={removeVersion}
+                readOnly={!access.inputs}
+                unsaved={
+                  pending.length && active.inputs
+                    ? {
+                        draftNo,
+                        changes: pending,
+                        inv: computed.result?.kpis.totalInvestment12 ?? null,
+                        net: computed.result?.kpis.netBenefit12 ?? null,
+                        was: activeVersion ? { inv: activeVersion.totalInvestment12, net: activeVersion.netBenefit12 } : null,
+                        saving: savingVersion,
+                        onSave: () => void saveVersion(),
+                        onDiscard: discardChanges,
+                      }
+                    : null
+                }
+              />
             </div>
           </aside>
         </div>

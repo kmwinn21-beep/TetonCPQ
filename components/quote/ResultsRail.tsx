@@ -180,11 +180,77 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete, readOnl
   );
 }
 
+/** Unsaved changes to the draft, shown above the active version in Version History. */
+export interface UnsavedChanges {
+  draftNo: number;
+  changes: string[];
+  /** Year 1 figures for the draft as it stands, and for the active version (to show what moved). */
+  inv: number | null;
+  net: number | null;
+  was: { inv: number | null; net: number | null } | null;
+  saving: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+}
+
+/** The amber card for unsaved changes: what changed, the Year 1 figures now, Save (a new version) or Discard. */
+function UnsavedCard({ u, readOnly }: { u: UnsavedChanges; readOnly?: boolean }) {
+  const [open, setOpen] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const fig = (now: number | null, was: number | null | undefined) =>
+    now == null ? '–' : (
+      <>
+        {usd(now, { compact: true })}
+        {was != null && Math.round(was) !== Math.round(now) && <span className="text-[#8A5A00]/70"> (was {usd(was, { compact: true })})</span>}
+      </>
+    );
+  return (
+    <li className="rounded-lg border border-[#E9C46A] bg-[#FFF6DD] text-sm drawer-in" aria-label="Unsaved changes">
+      <button type="button" className="w-full flex items-start gap-2 px-3 py-2 text-left" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="mt-0.5"><Chevron open={open} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="font-medium truncate">Unsaved changes</span>
+            <span className="text-xs text-teton-ui-gray">v{u.draftNo}</span>
+            <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#F5DC93] text-[#7A5200]">{u.changes.length} unsaved</span>
+          </span>
+          <span className="block text-xs text-teton-ui-gray">Not saved as a version yet</span>
+        </span>
+      </button>
+      <Collapse open={open}>
+        <div className="px-3 pb-2.5 pl-9">
+          <ul className="list-disc pl-4 space-y-0.5 text-xs text-teton-dark-gray">
+            {u.changes.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+          <p className="text-xs text-teton-ui-gray tabular-nums mt-2">
+            Year 1 investment {fig(u.inv, u.was?.inv)} · net {fig(u.net, u.was?.net)}
+          </p>
+        </div>
+      </Collapse>
+      {!readOnly && (
+        <div className="flex items-center gap-2 px-3 pb-2 pl-9 text-xs">
+          <button type="button" className="btn-primary py-0.5 px-2.5 text-xs" disabled={u.saving} onClick={u.onSave}>{u.saving ? 'Saving…' : 'Save'}</button>
+          <button type="button" className="py-0.5 px-2 text-xs rounded-md text-teton-dark-gray hover:bg-teton-red/20 hover:text-teton-ink" disabled={u.saving} onClick={() => setConfirming(true)}>Discard</button>
+        </div>
+      )}
+      <Collapse open={confirming}>
+        <div className="mx-3 mb-2.5 rounded-md bg-teton-red/20 px-2.5 py-2 text-xs" role="alertdialog" aria-label="Discard the unsaved changes?">
+          <p>Discard {u.changes.length === 1 ? 'this change' : `all ${u.changes.length} changes`}? The deal goes back to the active version; this can’t be undone.</p>
+          <div className="flex gap-2 mt-1.5">
+            <button type="button" className="py-1 px-2.5 rounded-md bg-[#C2412D] text-white font-medium" onClick={() => { setConfirming(false); u.onDiscard(); }}>Discard changes</button>
+            <button type="button" className="py-1 px-2.5 rounded-md hover:bg-white/60" onClick={() => setConfirming(false)}>Cancel</button>
+          </div>
+        </div>
+      </Collapse>
+    </li>
+  );
+}
+
 /**
  * Version History: every saved version, the active one first. Collapsed to its
  * header (with the count and the active version) until opened.
  */
-export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean }) {
+export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false, unsaved }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean; unsaved?: UnsavedChanges | null }) {
   const [open, setOpen] = useState(false);
   const active = versions.find((v) => v.id === activeId) ?? null;
   const ordered = active ? [active, ...versions.filter((v) => v !== active)] : versions;
@@ -197,9 +263,15 @@ export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMak
           {versions.length} {versions.length === 1 ? 'version' : 'versions'}
           {active && ` · v${active.versionNo} active`}
         </span>
+        {unsaved && unsaved.changes.length > 0 && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FFF1CC] text-[#8A5A00] whitespace-nowrap drawer-in">{unsaved.changes.length} unsaved</span>}
       </button>
       <Collapse open={open} id="version-history">
         <div className="pt-3">
+          {unsaved && unsaved.changes.length > 0 && versions.length > 0 && (
+            <ul className="mb-2">
+              <UnsavedCard u={unsaved} readOnly={readOnly} />
+            </ul>
+          )}
           {versions.length === 0 ? (
             <p className="text-sm text-teton-ui-gray">None yet. “Save version” freezes exactly what you see — inputs and results — so you can always answer “what did we send them?”</p>
           ) : (
