@@ -238,6 +238,16 @@ export async function scopePdf(a: Args): Promise<Blob> {
   return new Blob([pdf.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
+/** Just the summary page(s), exactly as the download prints them (for the viewer's Summary tab). */
+export async function scopeSummaryPdf(a: Omit<Args, 'url' | 'mime'>): Promise<Blob> {
+  const out = await PDFDocument.create();
+  const bold = await out.embedFont(StandardFonts.HelveticaBold);
+  const reg = await out.embedFont(StandardFonts.Helvetica);
+  summary(out, bold, reg, { ...a, url: '', mime: '' }, a.types.map((t, k) => ({ t, b: badgeOf(t, k) })));
+  const pdf = await out.save();
+  return new Blob([pdf.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
+}
+
 function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: Array<{ t: RoomType; b: { color: string; initials: string } }>) {
   const W = 612;
   const H = 792;

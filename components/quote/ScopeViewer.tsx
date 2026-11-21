@@ -23,6 +23,7 @@ import { NoteEditor, NoteMarker, NoteOnPlan, NotesDrawer, nextNoteColor, usePlan
 import type { PlanNote } from '@/lib/data/planNotes';
 import { NOTE_DOT, TagCard, TagNoteSection, useTagNotes } from './TagNotes';
 import { BulkEditTags, type BulkResult } from './BulkEditTags';
+import { ScopeSummary } from './ScopeSummary';
 import { matchNumbers, type NumberMatch, type PlanLabels } from '@/lib/quote/roomNumbers';
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
@@ -143,6 +144,8 @@ export function ScopeViewer({
   const [selectTool, setSelectTool] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState(false);
+  // The Summary tab (next to the page tabs): the printed summary page instead of the plan.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   // The panel folded down to its header (a click on the plan does this, so nothing typed is lost).
   const [bulkMin, setBulkMin] = useState(false);
   const [rowHover, setRowHover] = useState<string | null>(null);
@@ -227,6 +230,7 @@ export function ScopeViewer({
     setPicked(new Set());
     setBulk(false);
     setFillMsg(null);
+    setSummaryOpen(false);
   }, [planId]);
   useEffect(() => {
     let live = true;
@@ -540,7 +544,7 @@ export function ScopeViewer({
         )}
 
         {/* Plans and pages */}
-        {(plans.length > 1 || pages > 1) && (
+        {(
           <div className="flex flex-wrap items-center gap-1 px-3 sm:px-4 pt-2 text-xs">
             {plans.length > 1 && (
               <select className="input-field py-1 text-xs w-auto max-w-[14rem] mr-2" value={plan.id} onChange={(e) => setPlanId(Number(e.target.value))} aria-label="Floor plan">
@@ -551,11 +555,25 @@ export function ScopeViewer({
               Array.from({ length: pages }, (_, k) => k + 1).map((n) => {
                 const tagged = types.reduce((s, t) => s + (t.marks ?? []).filter((m) => m.plan === plan.id && m.page === n).length, 0);
                 return (
-                  <button key={n} type="button" onClick={() => { setPage(n); setPop(null); }} aria-pressed={page === n} className={`px-2.5 py-1.5 rounded-t-lg transition-colors duration-200 ${page === n ? 'bg-teton-almost-white font-semibold text-teton-ink' : 'text-teton-ui-gray hover:text-teton-ink'}`}>
+                  <button key={n} type="button" onClick={() => { setPage(n); setPop(null); setSummaryOpen(false); }} aria-pressed={page === n && !summaryOpen} className={`px-2.5 py-1.5 rounded-t-lg transition-colors duration-200 ${page === n && !summaryOpen ? 'bg-teton-almost-white font-semibold text-teton-ink' : 'text-teton-ui-gray hover:text-teton-ink'}`}>
                     Page {n}{tagged ? <span className="ml-1 text-[10px] text-teton-ui-gray">· {tagged}</span> : null}
                   </button>
                 );
               })}
+            {pages <= 1 && (
+              <button type="button" onClick={() => setSummaryOpen(false)} aria-pressed={!summaryOpen} className={`px-2.5 py-1.5 rounded-t-lg transition-colors duration-200 ${!summaryOpen ? 'bg-teton-almost-white font-semibold text-teton-ink' : 'text-teton-ui-gray hover:text-teton-ink'}`}>
+                Plan
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setSummaryOpen(true); setPop(null); setHover(null); setBulkMin(true); }}
+              aria-pressed={summaryOpen}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg transition-colors duration-200 ${summaryOpen ? 'bg-teton-almost-white font-semibold text-teton-ink' : 'text-teton-ui-gray hover:text-teton-ink'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+              Summary
+            </button>
           </div>
         )}
 
@@ -578,6 +596,17 @@ export function ScopeViewer({
         )}
 
         <div className="relative flex-1 min-h-0 flex flex-col">
+        {summaryOpen && (
+          <ScopeSummary
+            planId={plan.id}
+            planName={plan.name}
+            communityName={community?.name || 'Community'}
+            types={types}
+            notes={notesApi.notes}
+            tagNotes={liveTagNotes}
+            allowancePct={normalizeAllowance(community?.sensorAllowancePct)}
+          />
+        )}
         <PlanStage
           url={url}
           mime={plan.mime}
