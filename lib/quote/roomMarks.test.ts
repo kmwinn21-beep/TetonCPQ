@@ -51,3 +51,20 @@ describe('room type names', () => {
     expect(communityProblems(c as never)).toContain('Two room types named “Studio” in assisted living');
   });
 });
+
+describe('duplicate room numbers', () => {
+  it('finds a number on two or more tags across room types, pages and plans', async () => {
+    const { duplicateRoomNumbers } = await import('./roomTypes');
+    const mk = (id: string, label: string | undefined, plan = 1, page = 1) => ({ id, plan, page, x: 0, y: 0, ...(label ? { label } : {}) });
+    const d = duplicateRoomNumbers([
+      { id: 'st', marks: [mk('a', '143'), mk('b', '145'), mk('c', ' 143 ', 1, 2), mk('n1', undefined), mk('n2', '')] },
+      { id: 'ob', marks: [mk('d', '12a', 2), mk('e', '12A', 1, 3), mk('f', '150'), mk('g', '143', 9)] },
+    ]);
+    expect(d.map((x) => [x.label, x.marks.map((m) => `${m.id}@${m.plan}.${m.page}`)])).toEqual([
+      ['143', ['a@1.1', 'c@1.2', 'g@9.1']],
+      ['12a', ['d@2.1', 'e@1.3']],
+    ]);
+    // Tags on removed plans don't count.
+    expect(duplicateRoomNumbers([{ id: 'st', marks: [mk('a', '143'), mk('g', '143', 9)] }], [1])).toEqual([]);
+  });
+});

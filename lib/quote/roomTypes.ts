@@ -196,3 +196,25 @@ export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
 }
 
 export const newRoomType = (): RoomType => ({ id: `rt-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', care: 'al', rooms: 0, sensors: 1 });
+
+/** A room number used by more than one tagged room. */
+export interface DuplicateNumber {
+  label: string;
+  marks: Array<{ id: string; plan: number; page: number; typeId: string }>;
+}
+/**
+ * Room numbers entered on two or more tagged rooms (ignoring case and spaces), in the order they first appear.
+ * Only tags on these plans count when the list of plans is given.
+ */
+export function duplicateRoomNumbers(types: Array<Pick<RoomType, 'id' | 'marks'>>, planIds?: number[]): DuplicateNumber[] {
+  const by = new Map<string, DuplicateNumber>();
+  for (const t of types)
+    for (const m of t.marks ?? []) {
+      const label = (m.label ?? '').replace(/\s+/g, '').toUpperCase();
+      if (!label || (planIds && !planIds.includes(m.plan))) continue;
+      const d = by.get(label) ?? { label: m.label!.trim(), marks: [] };
+      d.marks.push({ id: m.id, plan: m.plan, page: m.page, typeId: t.id });
+      by.set(label, d);
+    }
+  return [...by.values()].filter((d) => d.marks.length > 1);
+}

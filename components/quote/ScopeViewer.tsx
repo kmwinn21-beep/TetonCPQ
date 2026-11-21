@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, BADGE_COLORS, CARE_LABEL, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, BADGE_COLORS, CARE_LABEL, duplicateRoomNumbers, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -151,6 +151,10 @@ export function ScopeViewer({
   const [rowHover, setRowHover] = useState<string | null>(null);
   // A row picked in the Edit tags panel: its tag stays bright, every other tag dims.
   const [rowActive, setRowActive] = useState<string | null>(null);
+  // A duplicated room number picked out from the warning: only its tags stay bright.
+  const [dupFocus, setDupFocus] = useState<string | null>(null);
+  // The page to open when switching plans (to show a duplicate's tags there).
+  const openAtPage = useRef<number | null>(null);
   // ---- room numbers read from the plan (once someone runs "Fill numbers from plan") ----
   const [planLabels, setPlanLabels] = useState<PlanLabels | null>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -206,6 +210,7 @@ export function ScopeViewer({
       if (e.key !== 'Escape') return;
       if (confirmRemove) setConfirmRemove(false);
       else if (bulk && !bulkMin) setBulkMin(true);
+      else if (dupFocus) setDupFocus(null);
       else if (picked.size) setPicked(new Set());
       else if (noteDraft || noteMode) {
         setNoteDraft(null);
@@ -220,9 +225,10 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, bulkMin, picked]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, bulkMin, picked, dupFocus]);
   useEffect(() => {
-    setPage(1);
+    setPage(openAtPage.current ?? 1);
+    openAtPage.current = null;
     setConfirmRemove(false);
     setPop(null);
     setHover(null);
@@ -466,6 +472,35 @@ export function ScopeViewer({
     const m = types.find((t) => t.id === pop.typeId)?.marks?.find((x) => x.id === pop.markId);
     return m && !m.label ? numbersFor([m]).get(m.id)?.t : undefined;
   })() : undefined;
+  // The same room number on two or more tagged rooms (any of this community's plans).
+  const dups = useMemo(() => duplicateRoomNumbers(types, planIds), [types, planIds]);
+  const dupShown = dups.find((d) => d.label === dupFocus) ?? null;
+  const dupIds = dupShown ? new Set(dupShown.marks.map((m) => m.id)) : null;
+  /** Where a duplicate's tags are: "Page 1 and Page 3", with the plan's name when it's another plan. */
+  const whereDup = (d: (typeof dups)[number]) => {
+    const spots = [...new Set(d.marks.map((m) => `${m.plan}:${m.page}`))].map((k) => {
+      const [pl, pg] = k.split(':').map(Number);
+      const name = pl === plan?.id ? '' : `${plans.find((x) => x.id === pl)?.name ?? 'another plan'} · `;
+      return `${name}Page ${pg}`;
+    });
+    if (spots.length === 1) return `all on ${spots[0]}`;
+    return `on ${spots.slice(0, -1).join(', ')} and ${spots[spots.length - 1]}`;
+  };
+  const showDup = (label: string | null) => {
+    setDupFocus(label);
+    const d = dups.find((x) => x.label === label);
+    if (!d) return;
+    setLayer(true);
+    setSummaryOpen(false);
+    // Go to its tags when none are on the page showing.
+    if (!d.marks.some((m) => m.plan === plan?.id && m.page === page)) {
+      const m = d.marks.find((x) => x.plan === plan?.id) ?? d.marks[0];
+      if (m.plan !== plan?.id) {
+        openAtPage.current = m.page;
+        setPlanId(m.plan);
+      } else setPage(m.page);
+    }
+  };
   const lockToTagged = (typeId: string) => update((list) => list.map((t) => (t.id === typeId ? { ...t, roomsFromPlan: true } : t)));
 
   if (!plan) return null;
@@ -577,6 +612,25 @@ export function ScopeViewer({
           </div>
         )}
 
+        {/* The same room number on more than one tag */}
+        {dups.length > 0 && (
+          <div className="mx-3 sm:mx-4 mt-2 rounded-lg bg-[#FFF4DC] border border-[#F0C770] px-3 py-2 text-xs space-y-1 drawer-in" role="status" aria-label="Possible duplicate room numbers">
+            {dups.map((d) => {
+              const on = dupFocus === d.label;
+              return (
+                <p key={d.label} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[#6B4A00]">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#C98A00]" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fillRule="evenodd" d="M8.26 3.1c.77-1.33 2.7-1.33 3.47 0l6.28 10.9c.77 1.33-.2 3-1.73 3H3.72c-1.54 0-2.5-1.67-1.73-3l6.27-10.9zM10 7a1 1 0 00-1 1v3a1 1 0 102 0V8a1 1 0 00-1-1zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
+                  <span>
+                    <b>Possible duplicate:</b> room <b>{d.label}</b> is on {d.marks.length} tags, {whereDup(d)}.
+                  </span>
+                  <button type="button" aria-pressed={on} className={`rounded-md border px-2 py-0.5 font-medium transition-colors duration-200 ${on ? 'bg-[#6B4A00] border-[#6B4A00] text-white' : 'border-[#E0B04A] bg-white hover:bg-[#FFF8E6]'}`} onClick={() => showDup(on ? null : d.label)}>
+                    {on ? 'Show all tags' : 'Show them'}
+                  </button>
+                </p>
+              );
+            })}
+          </div>
+        )}
         {/* Typed-in room counts that don't match the tagged rooms */}
         {mismatches.length > 0 && (
           <div className="mx-3 sm:mx-4 mt-2 rounded-lg bg-teton-pale-yellow border border-[#E9D27A] px-3 py-2 text-xs space-y-1 drawer-in" role="status">
@@ -688,7 +742,7 @@ export function ScopeViewer({
                 color={m.color}
                 text={m.initials}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
-                faded={rowActive ? rowActive !== m.id : (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
+                faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
                 size={size}
                 dot={notedMarks.has(m.id)}
