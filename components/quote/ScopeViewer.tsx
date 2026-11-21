@@ -143,7 +143,11 @@ export function ScopeViewer({
   const [selectTool, setSelectTool] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState(false);
+  // The panel folded down to its header (a click on the plan does this, so nothing typed is lost).
+  const [bulkMin, setBulkMin] = useState(false);
   const [rowHover, setRowHover] = useState<string | null>(null);
+  // A row picked in the Edit tags panel: its tag stays bright, every other tag dims.
+  const [rowActive, setRowActive] = useState<string | null>(null);
   // ---- room numbers read from the plan (once someone runs "Fill numbers from plan") ----
   const [planLabels, setPlanLabels] = useState<PlanLabels | null>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -198,7 +202,7 @@ export function ScopeViewer({
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (confirmRemove) setConfirmRemove(false);
-      else if (bulk) setBulk(false);
+      else if (bulk && !bulkMin) setBulkMin(true);
       else if (picked.size) setPicked(new Set());
       else if (noteDraft || noteMode) {
         setNoteDraft(null);
@@ -213,7 +217,7 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, picked]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, bulkMin, picked]);
   useEffect(() => {
     setPage(1);
     setConfirmRemove(false);
@@ -585,10 +589,19 @@ export function ScopeViewer({
           scope={scope}
           modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
           marquee={selectTool && showSaved}
-          onBox={(b, add) => showSaved && pickBox(b, add)}
+          onBox={(b, add) => {
+            // The tags being edited stay as they are while the panel is open.
+            if (bulk) return setBulkMin(true);
+            if (showSaved) pickBox(b, add);
+          }}
           onTap={(x, y) => {
             if (noteDraft) return;
+            if (bulk && !bulkMin) {
+              setBulkMin(true);
+              return;
+            }
             if (selectTool) {
+              if (bulk) return;
               setPicked(new Set());
               return;
             }
@@ -646,7 +659,7 @@ export function ScopeViewer({
                 color={m.color}
                 text={m.initials}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
-                faded={(scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
+                faded={rowActive ? rowActive !== m.id : (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
                 size={size}
                 dot={notedMarks.has(m.id)}
@@ -656,8 +669,12 @@ export function ScopeViewer({
                   setHover((h) => (on ? m.id : h === m.id ? null : h));
                 }}
                 onClick={(touch, shift) => {
-                  // Select tool or Shift-click: add it to (or take it out of) the selection.
-                  if (selectTool || shift) {
+                  if (bulk && !bulkMin) {
+                    setBulkMin(true);
+                    return;
+                  }
+                  // Select tool or Shift-click: add it to (or take it out of) the selection (not while editing it).
+                  if ((selectTool || shift) && !bulk) {
                     setPicked((p) => {
                       const n = new Set(p);
                       if (n.has(m.id)) n.delete(m.id);
@@ -773,7 +790,7 @@ export function ScopeViewer({
             <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-2 py-2 text-xs shadow-xl whitespace-nowrap drawer-in">
               <b>{count(picked.size)} tag{picked.size === 1 ? '' : 's'} selected</b>
               <button type="button" className="rounded-md border border-white/30 px-2 py-1 hover:bg-white/10" onClick={() => setPicked(new Set())}>Clear</button>
-              <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium hover:brightness-110" onClick={() => { setBulk(true); setPop(null); setHover(null); }}>Edit {count(picked.size)} tag{picked.size === 1 ? '' : 's'}…</button>
+              <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium hover:brightness-110" onClick={() => { setBulk(true); setBulkMin(false); setPop(null); setHover(null); }}>Edit {count(picked.size)} tag{picked.size === 1 ? '' : 's'}…</button>
             </div>
           </div>
         )}
@@ -786,8 +803,17 @@ export function ScopeViewer({
             busy={reading}
             onFromPlan={fromPlanFor}
             onHover={setRowHover}
+            active={rowActive}
+            onActive={(id) => {
+              setRowActive(id);
+              // Its tag may be on another page of the plan.
+              const m = id ? pickedRows.find((r) => r.mark.id === id)?.mark : null;
+              if (m && m.page !== page) setPage(m.page);
+            }}
             onSave={applyBulk}
-            onClose={() => { setBulk(false); setRowHover(null); }}
+            onClose={() => { setBulk(false); setBulkMin(false); setRowHover(null); setRowActive(null); }}
+            minimized={bulkMin}
+            onMinimize={setBulkMin}
           />
         )}
         {scope && !noteMode && !noteDraft && !picked.size && !bulk && (

@@ -4,9 +4,12 @@
  * Edit many tagged rooms at once: one row per tag (room type, room number, notes), an "Apply to all" row for
  * the ticked rows, numbering in order, numbers from the plan, and removing tags. Nothing changes until Save.
  * Without Edit Scope only the notes can be changed (notes follow the usual rules: you edit your own).
+ * It minimizes to its header (the – button, or a click on the plan) so nothing typed is lost; closing with
+ * unsaved changes asks to save, discard or go back.
  */
 import { useMemo, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
+import { Collapse } from '@/components/form/fields';
 import { badgeOf, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import type { NumberMatch } from '@/lib/quote/roomNumbers';
 import { AuthorPill } from './PlanNotes';
@@ -44,8 +47,12 @@ export function BulkEditTags({
   busy,
   onFromPlan,
   onHover,
+  active,
+  onActive,
   onSave,
   onClose,
+  minimized,
+  onMinimize,
 }: {
   rows: BulkRow[];
   types: RoomType[];
@@ -56,9 +63,15 @@ export function BulkEditTags({
   /** Numbers from the plan for these tags (reads the plan the first time). */
   onFromPlan: (ids: string[]) => Promise<Map<string, NumberMatch> | null>;
   onHover: (id: string | null) => void;
+  /** The row picked out (its tag stays bright on the plan, the others dim), or null. */
+  active: string | null;
+  onActive: (id: string | null) => void;
   onSave: (r: BulkResult) => Promise<void> | void;
   onClose: () => void;
+  minimized: boolean;
+  onMinimize: (v: boolean) => void;
 }) {
+  const [asking, setAsking] = useState(false);
   const mineOf = (id: string) => notes.of(id).find((n) => n.mine);
   const initial = useMemo(
     () =>
@@ -115,7 +128,9 @@ export function BulkEditTags({
     const none = want.length - m.size;
     setMsg(`${filled} filled from the plan${check ? ` · ${check} to check` : ''}${none ? ` · ${none} not found` : ''}`);
   };
+  const tryClose = () => (changes ? (onMinimize(false), setAsking(true)) : onClose());
   const save = async () => {
+    setAsking(false);
     setSaving(true);
     try {
       // Notes: changes to your own notes (for all the rooms on a note, or one room), then new notes, one per text.
@@ -153,13 +168,34 @@ export function BulkEditTags({
 
   const cell = 'input-field py-1 text-xs disabled:opacity-60';
   return (
-    <div className="fixed sm:absolute inset-x-0 bottom-0 z-[70] sm:z-30 flex max-h-[85dvh] sm:max-h-[68%] flex-col rounded-t-xl border-t border-teton-off-white bg-white shadow-[0_-12px_36px_rgba(0,0,0,.18)] drawer-in" role="dialog" aria-label="Edit tags" data-plan-ui onPointerDown={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-teton-off-white">
-        <p className="font-semibold text-sm">Edit {rows.length} tag{rows.length === 1 ? '' : 's'}</p>
-        {!canScope && <span className="text-[11px] text-teton-ui-gray">🔒 Notes only: room types and numbers need Edit Scope</span>}
-        <button type="button" className="ml-auto text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
+    <div className="fixed sm:absolute inset-x-0 bottom-0 z-[70] sm:z-30 flex flex-col rounded-t-xl border-t border-teton-off-white bg-white shadow-[0_-12px_36px_rgba(0,0,0,.18)] drawer-in" role="dialog" aria-label="Edit tags" data-plan-ui onPointerDown={(e) => e.stopPropagation()}>
+      <div className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 ${minimized ? '' : 'border-b border-teton-off-white'}`}>
+        <button type="button" className="flex items-center gap-2 min-w-0 text-left" onClick={() => onMinimize(!minimized)} aria-expanded={!minimized}>
+          <span className="font-semibold text-sm">Edit {rows.length} tag{rows.length === 1 ? '' : 's'}</span>
+          {minimized && changes > 0 && <span className="rounded-full bg-[#E8F1FD] px-2 py-px text-[11px] font-semibold text-[#1F5FB5] drawer-in">{changes} unsaved change{changes === 1 ? '' : 's'}</span>}
+        </button>
+        {!canScope && !minimized && <span className="text-[11px] text-teton-ui-gray truncate">🔒 Notes only: room types and numbers need Edit Scope</span>}
+        <span className="ml-auto flex items-center gap-1">
+          <button type="button" className="w-7 h-7 rounded-md text-teton-ui-gray hover:bg-teton-almost-white hover:text-teton-ink" aria-label={minimized ? 'Expand' : 'Minimize'} title={minimized ? 'Expand' : 'Minimize'} onClick={() => onMinimize(!minimized)}>
+            {minimized ? (
+              <svg className="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+            ) : (
+              <span className="block text-lg leading-none -mt-0.5" aria-hidden="true">–</span>
+            )}
+          </button>
+          <button type="button" className="w-7 h-7 rounded-md text-teton-ui-gray hover:bg-teton-almost-white hover:text-teton-ink" aria-label="Close" title="Close" onClick={tryClose}>✕</button>
+        </span>
       </div>
-      <div className="overflow-y-auto">
+      {asking && (
+        <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2.5 bg-[#FFF8E6] border-b border-[#F3DC9A] text-xs drawer-in" role="alertdialog" aria-label="Unsaved changes">
+          <span className="mr-auto"><b>{changes} unsaved change{changes === 1 ? '' : 's'}.</b> Save them before closing?</span>
+          <button type="button" className="btn-ghost py-1 text-xs" onClick={() => setAsking(false)}>Cancel</button>
+          <button type="button" className="btn-secondary py-1 text-xs text-[#B23A26]" onClick={onClose}>Discard changes</button>
+          <button type="button" className="btn-primary py-1 text-xs" disabled={saving} onClick={() => void save()}>Save changes</button>
+        </div>
+      )}
+      <Collapse open={!minimized}>
+      <div className="overflow-y-auto max-h-[52dvh] sm:max-h-[min(46vh,520px)]">
         {/* Apply to the ticked rows */}
         <div className="grid gap-2 px-3 sm:px-4 py-2.5 bg-[#F3F7FD] border-b border-[#D6E4F7] text-xs sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.4fr)] items-center">
           <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#1F5FB5]">Apply to {ticked.length}</span>
@@ -214,7 +250,13 @@ export function BulkEditTags({
             return (
               <li
                 key={r.id}
-                className={`grid grid-cols-[1.25rem_1.75rem_minmax(0,1fr)_6.5rem] sm:grid-cols-[1.25rem_1.75rem_11rem_8.5rem_minmax(0,1fr)] gap-x-2.5 gap-y-1.5 items-start px-3 sm:px-4 py-2 border-b border-teton-off-white transition-opacity duration-200 hover:bg-teton-almost-white ${r.checked ? '' : 'opacity-45'}`}
+                aria-current={active === r.id ? true : undefined}
+                // Click a row (or into its fields) to pick out its tag on the plan; click it again to let go.
+                onClick={(e) => {
+                  const field = (e.target as HTMLElement).closest('input, select, textarea, button');
+                  onActive(field ? r.id : active === r.id ? null : r.id);
+                }}
+                className={`relative grid grid-cols-[1.25rem_1.75rem_minmax(0,1fr)_6.5rem] sm:grid-cols-[1.25rem_1.75rem_11rem_8.5rem_minmax(0,1fr)] gap-x-2.5 gap-y-1.5 items-start px-3 sm:px-4 py-2 border-b border-teton-off-white cursor-pointer transition-[opacity,background-color] duration-200 before:absolute before:left-0 before:inset-y-0 before:w-[3px] before:transition-colors before:duration-200 ${active === r.id ? 'bg-[#EEF5FE] before:bg-[#3F8CEA]' : 'hover:bg-teton-almost-white before:bg-transparent'} ${r.checked ? '' : 'opacity-45'}`}
                 onPointerEnter={() => onHover(r.id)}
                 onPointerLeave={() => onHover(null)}
               >
@@ -264,9 +306,10 @@ export function BulkEditTags({
             Remove {ticked.length} tag{ticked.length === 1 ? '' : 's'}
           </button>
         )}
-        <button type="button" className="btn-ghost py-1 text-xs" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn-ghost py-1 text-xs" onClick={tryClose}>Cancel</button>
         <button type="button" className="btn-primary py-1 text-xs disabled:opacity-40" disabled={!changes || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save changes'}</button>
       </div>
+      </Collapse>
     </div>
   );
 }
