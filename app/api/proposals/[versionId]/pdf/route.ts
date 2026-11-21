@@ -41,7 +41,11 @@ export async function GET(req: Request, { params }: { params: { versionId: strin
       },
     });
   } catch (e) {
-    return jsonError(e);
+    // Access and not-found errors go back as they are; anything else (the browser failing) is logged, with a plain message.
+    const status = (e as { status?: number })?.status;
+    if (status && status < 500) return jsonError(e);
+    console.error('[proposal pdf]', e);
+    return Response.json({ error: 'Couldn’t make the PDF just now. Please try again in a moment.' }, { status: 500 });
   } finally {
     await browser?.close().catch(() => {});
   }
