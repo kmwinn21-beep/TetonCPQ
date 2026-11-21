@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, BADGE_COLORS, CARE_LABEL, duplicateRoomNumbers, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, BADGE_COLORS, CARE_LABEL, careLabel, duplicateRoomNumbers, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -1372,7 +1372,7 @@ function MarkPopover({ type, types, mark, readOnly, suggest, onRetype, onLabel, 
         <Badge color={b.color} text={b.initials} size={24} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[13px] truncate">{mark.label ? `Room ${mark.label}` : 'Tagged room'}</p>
-          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {CARE_LABEL[type.care] ?? 'Custom'} · {type.sensors} sensor{type.sensors === 1 ? '' : 's'}</p>
+          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {type.sensors} sensor{type.sensors === 1 ? '' : 's'}</p>
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>
@@ -1443,16 +1443,18 @@ function TypeForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [initials, setInitials] = useState(initial?.initials ?? '');
-  const [care, setCare] = useState<CareType>(initial?.care && initial.care !== 'custom' ? initial.care : initial?.care === 'custom' ? 'custom' : 'al');
+  const [care, setCare] = useState<CareType>(initial?.care ?? 'al');
+  // A care setting of the rep's own (counts as assisted living beds), as in the community drawer.
+  const [customCare, setCustomCare] = useState(initial?.customCare ?? '');
   const [sensors, setSensors] = useState<number>(initial?.sensors ?? 1);
   const [color, setColor] = useState(initial ? badgeOf(initial, index).color : nextBadgeColor(types));
   const [addTo, setAddTo] = useState('');
   const auto = initialsOf(name || 'Room type');
   // A room type's name must be unique within its care setting (ignoring case and extra spaces); the same name
   // in another care setting is fine.
-  const key = roomTypeKey({ name, care, customCare: initial?.customCare });
+  const key = roomTypeKey({ name, care, customCare });
   const clash = name.trim() ? types.find((t) => t.id !== initial?.id && roomTypeKey(t) === key) : undefined;
-  const ok = name.trim().length > 0 && !clash;
+  const ok = name.trim().length > 0 && !clash && (care !== 'custom' || customCare.trim().length > 0);
   return (
     <form
       className={`${card} w-[19rem] max-w-full`}
@@ -1467,7 +1469,7 @@ function TypeForm({
           sensors: Math.max(1, Math.min(20, Math.round(sensors) || 1)),
           color,
           ...(initials.trim() ? { initials: initials.trim().toUpperCase().slice(0, 3) } : { initials: undefined }),
-          ...(care === 'custom' ? { customCare: initial?.customCare } : {}),
+          customCare: care === 'custom' ? customCare.replace(/\s+/g, ' ').trim().slice(0, 40) : undefined,
           ...(initial?.roomsFromPlan != null ? { roomsFromPlan: initial.roomsFromPlan } : {}),
         });
       }}
@@ -1505,10 +1507,17 @@ function TypeForm({
         </div>
         <div>
           <label className={eyebrow} htmlFor="tf-care">Care setting</label>
-          <select id="tf-care" className="input-field py-1.5 text-xs" value={care} onChange={(e) => setCare(e.target.value as CareType)}>
-            {CARES.map((c) => <option key={c} value={c}>{CARE_LABEL[c]}</option>)}
-            {care === 'custom' && <option value="custom">{initial?.customCare || 'Custom'}</option>}
-          </select>
+          {care === 'custom' ? (
+            <span className="flex items-center gap-1 drawer-in">
+              <input id="tf-care" className="input-field py-1.5 px-1.5 text-xs min-w-0" value={customCare} placeholder="Care type" maxLength={40} autoFocus={!customCare} aria-label="Custom care setting" onChange={(e) => setCustomCare(e.target.value)} />
+              <button type="button" className="text-[11px] text-teton-ui-gray underline flex-shrink-0" title="Choose from the list" onClick={() => setCare('al')}>List</button>
+            </span>
+          ) : (
+            <select id="tf-care" className="input-field py-1.5 text-xs" value={care} onChange={(e) => setCare(e.target.value as CareType)}>
+              {CARES.map((c) => <option key={c} value={c}>{CARE_LABEL[c]}</option>)}
+              <option value="custom">{CARE_LABEL.custom}</option>
+            </select>
+          )}
         </div>
         <div>
           <label className={eyebrow} htmlFor="tf-sen">Sensors / room</label>
@@ -1517,7 +1526,7 @@ function TypeForm({
       </div>
       {clash && (
         <p id="tf-clash" role="alert" className="mt-2 rounded bg-teton-red/25 px-2 py-1 text-[11px] text-[#9A2E1C] drawer-in">
-          “{clash.name}” already exists in {care === 'custom' ? initial?.customCare || 'this care setting' : CARE_LABEL[care]}. Use a different name or care setting{onAddTo ? ', or add these rooms to it with Add To above' : ''}.
+          “{clash.name}” already exists in {care === 'custom' ? customCare.trim() || 'this care setting' : CARE_LABEL[care]}. Use a different name or care setting{onAddTo ? ', or add these rooms to it with Add To above' : ''}.
         </p>
       )}
       <span className={eyebrow}>Color</span>
