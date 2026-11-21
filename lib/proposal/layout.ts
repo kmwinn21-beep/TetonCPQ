@@ -75,6 +75,8 @@ export interface ProposalLayout {
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
   bcSiteRows?: 'full';
+  /** Business case tables shown with compact rows (table id → true); full rows otherwise. */
+  bcCompact?: Record<string, true>;
   /** Business case, paid pilot: the monthly fees row shows the total over the pilot instead of per month. */
   bcPilotFees?: 'total';
   /** Table rows the rep removed (row key → its name, to list it for adding back). Both formats. */
@@ -194,6 +196,13 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcInvCards: raw.bcInvCards === 'units' ? 'units' : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,
+    bcCompact: (() => {
+      const v = raw.bcCompact;
+      if (!v || typeof v !== 'object') return undefined;
+      const out: Record<string, true> = {};
+      for (const k of Object.keys(v as object).slice(0, 100)) if ((v as Record<string, unknown>)[k] === true) out[k.slice(0, 80)] = true;
+      return Object.keys(out).length ? out : undefined;
+    })(),
     bcPilotFees: raw.bcPilotFees === 'total' ? 'total' : undefined,
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;

@@ -257,6 +257,13 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 /* tables */
 .bc-tbl { margin-top: 24px; overflow: hidden; }
 .bc-tbl table { width: 100%; border-collapse: collapse; }
+/* Compact rows (the hover switch on each business case table): tighter rows, smaller big figures. */
+.bc-tbl { position: relative; }
+.bc-tbl table > caption { position: static; height: 0; padding: 0; }
+.bc-tbl table[data-compact] th { padding-top: 7px; padding-bottom: 6px; }
+.bc-tbl table[data-compact] td { padding-top: 5px; padding-bottom: 5px; }
+.bc-tbl table[data-compact] td.bc-big, .bc-tbl table[data-compact] td.bc-cmp-v { font-size: 15px; }
+.bc-tbl table[data-compact] td small { margin-top: 0; }
 .bc-tbl th { font-size: 9.5px; letter-spacing: 2px; color: var(--bc-muted); font-weight: 700; text-align: left; padding: 14px 16px 12px; text-transform: uppercase; }
 .bc-tbl td { padding: 11px 16px; border-top: 1px solid var(--bc-line); font-size: 12.5px; vertical-align: top; color: var(--bc-body); }
 .bc-tbl td.bc-m { font-weight: 700; color: var(--bc-ink); font-size: 13px; }
