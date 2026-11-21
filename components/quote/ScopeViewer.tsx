@@ -22,6 +22,8 @@ import { useAccess } from './AccessContext';
 import { NoteEditor, NoteMarker, NoteOnPlan, NotesDrawer, nextNoteColor, usePlanNotes, type NoteDraft } from './PlanNotes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import { NOTE_DOT, TagCard, TagNoteSection, useTagNotes } from './TagNotes';
+import { BulkEditTags, type BulkResult } from './BulkEditTags';
+import { matchNumbers, type NumberMatch, type PlanLabels } from '@/lib/quote/roomNumbers';
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
 const CARES = (Object.keys(CARE_LABEL) as CareType[]).filter((c) => c !== 'custom');
@@ -137,6 +139,15 @@ export function ScopeViewer({
   const [noteFilter, setNoteFilter] = useState(false);
   // The card was opened by a tap (phones): it takes taps and has an Edit button.
   const hoverTouch = useRef(false);
+  // ---- selecting many tags (box or Shift-click) and editing them together ----
+  const [selectTool, setSelectTool] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState(false);
+  const [rowHover, setRowHover] = useState<string | null>(null);
+  // ---- room numbers read from the plan (once someone runs "Fill numbers from plan") ----
+  const [planLabels, setPlanLabels] = useState<PlanLabels | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
+  const [fillMsg, setFillMsg] = useState<string | null>(null);
   // Arriving from a notification: go to the note's page and open it in the drawer.
   const focused = useRef(false);
   useEffect(() => {
@@ -187,6 +198,8 @@ export function ScopeViewer({
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (confirmRemove) setConfirmRemove(false);
+      else if (bulk) setBulk(false);
+      else if (picked.size) setPicked(new Set());
       else if (noteDraft || noteMode) {
         setNoteDraft(null);
         setNoteMode(false);
@@ -200,14 +213,29 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, picked]);
   useEffect(() => {
     setPage(1);
     setConfirmRemove(false);
     setPop(null);
     setHover(null);
     setNoteDraft(null);
+    setPicked(new Set());
+    setBulk(false);
+    setFillMsg(null);
   }, [planId]);
+  useEffect(() => {
+    let live = true;
+    setPlanLabels(null);
+    if (!plan?.id) return;
+    void fetch(`/api/quotes/${quoteId}/floorplans/${plan.id}/labels`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => live && setPlanLabels(b?.labels ?? null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [quoteId, plan?.id]);
 
   // Badges on this page.
   const placed: Placed[] = useMemo(
@@ -243,7 +271,10 @@ export function ScopeViewer({
   const toMarks = (ps: Pending[]): RoomMark[] => {
     const at = new Date().toISOString().slice(0, 10);
     const by = notesApi.me?.name;
-    return ps.map((p) => ({ id: uid('mk'), plan: p.plan, page: p.page, x: p.x, y: p.y, at, ...(by ? { by } : {}) }));
+    const marks: RoomMark[] = ps.map((p) => ({ id: uid('mk'), plan: p.plan, page: p.page, x: p.x, y: p.y, at, ...(by ? { by } : {}) }));
+    // Once the plan's numbers have been read, new tags take theirs (only clear, unambiguous ones).
+    const m = numbersFor(marks);
+    return marks.map((x) => (m.get(x.id)?.sure ? { ...x, label: m.get(x.id)!.t } : x));
   };
   // One note for every room just tagged (optional).
   const noteOnNew = (marks: RoomMark[]) => {
@@ -324,6 +355,7 @@ export function ScopeViewer({
     return { t, b: badgeOf(t, k), tagged: marks.filter((m) => planIds.includes(m.plan)).length, here: marks.filter((m) => m.plan === plan?.id).length };
   });
   const taggedTotal = rows.reduce((s, r) => s + r.tagged, 0);
+  const taggedHere = rows.reduce((s, r) => s + r.here, 0);
   const sensorsTagged = rows.reduce((s, r) => s + r.tagged * Math.max(1, Number(r.t.sensors) || 1), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
   const mismatches = rows.filter((r) => r.tagged > 0 && !r.t.roomsFromPlan && (Number(r.t.rooms) || 0) !== r.tagged);
@@ -337,6 +369,95 @@ export function ScopeViewer({
   const liveTagNotes = tagApi.notes.map((n) => ({ ...n, markIds: n.markIds.filter((id) => markInfo.has(id)) })).filter((n) => n.markIds.length);
   const notedMarks = new Set(liveTagNotes.flatMap((n) => n.markIds));
   const notesOfMark = (id: string) => liveTagNotes.filter((n) => n.markIds.includes(id));
+
+  // ---- room numbers from the plan ----
+  /** The number each of these tags (on this plan, without a number) would take from what was read. */
+  function numbersFor(marks: RoomMark[], labels: PlanLabels | null = planLabels): Map<string, NumberMatch> {
+    const out = new Map<string, NumberMatch>();
+    if (!labels || !plan) return out;
+    const all = current().flatMap((t) => t.marks ?? []).filter((m) => m.plan === plan.id);
+    const taken = new Set(all.map((m) => m.label?.trim()).filter(Boolean) as string[]);
+    const want = marks.filter((m) => m.plan === plan.id && !m.label?.trim());
+    for (const pg of new Set(want.map((m) => m.page))) {
+      const lp = labels.pages[String(pg)];
+      if (!lp) continue;
+      for (const [k, v] of matchNumbers(want.filter((m) => m.page === pg), lp, taken)) out.set(k, v);
+    }
+    return out;
+  }
+  /** Read the plan's numbers (the first time) and save them with the plan. */
+  const ensureLabels = async (): Promise<PlanLabels | null> => {
+    if (planLabels) return planLabels;
+    try {
+      const { readRoomNumbers } = await import('@/lib/client/readRoomNumbers');
+      setReading('Loading the number reader…');
+      const labels = await readRoomNumbers({ url, mime: plan.mime, pages, onProgress: (p, n) => setReading(`Reading room numbers · page ${p} of ${n}…`) });
+      const r = await fetch(`/api/quotes/${quoteId}/floorplans/${plan.id}/labels`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(labels) });
+      const saved = r.ok ? ((await r.json()).labels as PlanLabels) : labels;
+      setPlanLabels(saved);
+      return saved;
+    } catch {
+      setFillMsg('Couldn’t read the numbers on this plan');
+      return null;
+    } finally {
+      setReading(null);
+    }
+  };
+  const fromPlanFor = async (ids: string[]): Promise<Map<string, NumberMatch> | null> => {
+    const labels = await ensureLabels();
+    if (!labels) return null;
+    const set = new Set(ids);
+    return numbersFor(current().flatMap((t) => t.marks ?? []).filter((m) => set.has(m.id)), labels);
+  };
+  /** Fill every tag on this plan that has no number with a clear match; the rest are left for the rep. */
+  const fillFromPlan = async () => {
+    setFillMsg(null);
+    const marks = current().flatMap((t) => t.marks ?? []).filter((m) => m.plan === plan.id && !m.label?.trim());
+    if (!marks.length) return setFillMsg('Every tagged room on this plan already has a number.');
+    const m = await fromPlanFor(marks.map((x) => x.id));
+    if (!m) return;
+    const sure = new Map([...m].filter(([, v]) => v.sure).map(([k, v]) => [k, v.t]));
+    if (sure.size) update((list) => list.map((t) => ({ ...t, marks: t.marks?.map((x) => (sure.has(x.id) ? { ...x, label: sure.get(x.id) } : x)) })));
+    const check = m.size - sure.size;
+    const none = marks.length - m.size;
+    setFillMsg(`${count(sure.size)} filled from the plan${check ? ` · ${count(check)} to check (click a tag to see)` : ''}${none ? ` · ${count(none)} not found` : ''}`);
+  };
+
+  // ---- many tags at once ----
+  const pickBox = (b: { x0: number; y0: number; x1: number; y1: number; rx: number; ry: number }, add: boolean) => {
+    const hit = placed.filter((m) => !(focusType && focusType !== m.typeId) && m.x + b.rx >= b.x0 && m.x - b.rx <= b.x1 && m.y + b.ry >= b.y0 && m.y - b.ry <= b.y1).map((m) => m.id);
+    setPicked((p) => new Set(add ? [...p, ...hit] : hit));
+    setPop(null);
+    setHover(null);
+  };
+  const applyBulk = (r: BulkResult) => {
+    const gone = new Set(r.remove.map((x) => x.id));
+    const ch = new Map(r.marks.map((x) => [x.id, x]));
+    update((list) => {
+      const moving: Array<{ to: string; mark: RoomMark }> = [];
+      const kept = list.map((t) => ({
+        ...t,
+        marks: (t.marks ?? []).flatMap((m) => {
+          if (gone.has(m.id)) return [];
+          const c = ch.get(m.id);
+          if (!c) return [m];
+          const next = { ...m, label: c.label || undefined };
+          if (c.typeId !== t.id) {
+            moving.push({ to: c.typeId, mark: next });
+            return [];
+          }
+          return [next];
+        }),
+      }));
+      return kept.map((t) => ({ ...t, marks: [...(t.marks ?? []), ...moving.filter((x) => x.to === t.id).map((x) => x.mark)] }));
+    });
+    if (gone.size) setPicked(new Set());
+  };
+  const pickedRows = types.flatMap((t) => (t.marks ?? []).filter((m) => picked.has(m.id)).map((mark) => ({ mark, typeId: t.id }))).sort((a, b) => a.mark.page - b.mark.page || a.mark.y - b.mark.y || a.mark.x - b.mark.x);
+  const popSuggest = pop && !bulk ? (() => {
+    const m = types.find((t) => t.id === pop.typeId)?.marks?.find((x) => x.id === pop.markId);
+    return m && !m.label ? numbersFor([m]).get(m.id)?.t : undefined;
+  })() : undefined;
   const lockToTagged = (typeId: string) => update((list) => list.map((t) => (t.id === typeId ? { ...t, roomsFromPlan: true } : t)));
 
   if (!plan) return null;
@@ -353,6 +474,18 @@ export function ScopeViewer({
             {community?.name || 'Community'} <span className="font-normal text-teton-ui-gray">· {plan.name} · {kb(plan.size)}</span>
           </p>
           <Toggle on={layer} onChange={setLayer} label="Room types" />
+          {showSaved && (
+            <button
+              type="button"
+              aria-pressed={selectTool}
+              title="Drag a box over tags to edit them together (or hold Shift and drag)"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors duration-200 drawer-in ${selectTool ? 'bg-[#E8F1FD] border-[#3F8CEA] text-[#1F5FB5]' : 'border-teton-pale-gray bg-white hover:bg-teton-almost-white'}`}
+              onClick={() => { setSelectTool((v) => !v); setNoteMode(false); setPop(null); }}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray="2.5 2" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5" /></svg>
+              Select
+            </button>
+          )}
           {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); } }} label="Scope Mode" accent />}
           {/* Notes: with Scope Mode on, or always for people who can't use Scope Mode (anyone can add notes). */}
           {(scope || !acc.scope) && (
@@ -451,8 +584,14 @@ export function ScopeViewer({
           onPages={setPages}
           scope={scope}
           modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
+          marquee={selectTool && showSaved}
+          onBox={(b, add) => showSaved && pickBox(b, add)}
           onTap={(x, y) => {
             if (noteDraft) return;
+            if (selectTool) {
+              setPicked(new Set());
+              return;
+            }
             if (hover && hoverTouch.current) {
               setHover(null);
               return;
@@ -511,11 +650,24 @@ export function ScopeViewer({
                 selected={pop?.markId === m.id}
                 size={size}
                 dot={notedMarks.has(m.id)}
+                picked={picked.has(m.id) || rowHover === m.id}
                 onHover={(on) => {
                   hoverTouch.current = false;
                   setHover((h) => (on ? m.id : h === m.id ? null : h));
                 }}
-                onClick={(touch) => {
+                onClick={(touch, shift) => {
+                  // Select tool or Shift-click: add it to (or take it out of) the selection.
+                  if (selectTool || shift) {
+                    setPicked((p) => {
+                      const n = new Set(p);
+                      if (n.has(m.id)) n.delete(m.id);
+                      else n.add(m.id);
+                      return n;
+                    });
+                    setPop(null);
+                    setHover(null);
+                    return;
+                  }
                   // On a phone the first tap shows the details card; its Edit button opens the popover.
                   if (touch && hover !== m.id && pop?.markId !== m.id) {
                     hoverTouch.current = true;
@@ -557,6 +709,7 @@ export function ScopeViewer({
                 onRemove={() => removeMark(popType.id, popMark.id)}
                 onEdit={() => setEditType(popType.id)}
                 onClose={() => setPop(null)}
+                suggest={popSuggest}
               >
                 <TagNoteSection api={tagApi} markId={popMark.id} me={notesApi.me} labelOf={labelOf} />
               </MarkPopover>
@@ -614,7 +767,30 @@ export function ScopeViewer({
             setTimeout(() => setFlash(null), 1800);
           }}
         />
-        {scope && !noteMode && !noteDraft && (
+        {/* Tags picked with the box or Shift-click */}
+        {picked.size > 0 && !bulk && (
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 max-w-[calc(100%-1.5rem)]">
+            <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-2 py-2 text-xs shadow-xl whitespace-nowrap drawer-in">
+              <b>{count(picked.size)} tag{picked.size === 1 ? '' : 's'} selected</b>
+              <button type="button" className="rounded-md border border-white/30 px-2 py-1 hover:bg-white/10" onClick={() => setPicked(new Set())}>Clear</button>
+              <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium hover:brightness-110" onClick={() => { setBulk(true); setPop(null); setHover(null); }}>Edit {count(picked.size)} tag{picked.size === 1 ? '' : 's'}…</button>
+            </div>
+          </div>
+        )}
+        {bulk && pickedRows.length > 0 && (
+          <BulkEditTags
+            rows={pickedRows}
+            types={types}
+            notes={tagApi}
+            canScope={acc.scope}
+            busy={reading}
+            onFromPlan={fromPlanFor}
+            onHover={setRowHover}
+            onSave={applyBulk}
+            onClose={() => { setBulk(false); setRowHover(null); }}
+          />
+        )}
+        {scope && !noteMode && !noteDraft && !picked.size && !bulk && (
           <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 max-w-[calc(100%-1.5rem)]">
             {saving ? (
               <TypeForm
@@ -638,7 +814,15 @@ export function ScopeViewer({
                     <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium hover:brightness-110" onClick={() => setSaving(true)}>Save as room type…</button>
                   </>
                 ) : (
-                  <span>Click anywhere on the plan to tag a room · drag to move around</span>
+                  <>
+                    <span className="truncate">{reading ?? fillMsg ?? 'Click anywhere on the plan to tag a room · drag to move around'}</span>
+                    {fillMsg && !reading && <button type="button" className="text-white/60 hover:text-white" aria-label="Dismiss" onClick={() => setFillMsg(null)}>✕</button>}
+                    {!reading && !fillMsg && taggedHere > 0 && (
+                      <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium hover:brightness-110" onClick={() => void fillFromPlan()} title="Read the room numbers printed on this plan and give them to tagged rooms without a number">
+                        Fill numbers from plan
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -697,6 +881,8 @@ function PlanStage({
   onPages,
   scope,
   modeLabel,
+  marquee,
+  onBox,
   onTap,
   children,
 }: {
@@ -711,9 +897,19 @@ function PlanStage({
   /** Replaces the "Scope Mode · click to tag" label (e.g. while placing a note). */
   modeLabel?: string;
   onTap: (x: number, y: number) => void;
+  /** Dragging draws a selection box (the Select tool; Shift + drag does it any time). */
+  marquee?: boolean;
+  /** The box (0–1 of the page) and how far a badge reaches (rx, ry); add: Shift held (add to the selection). */
+  onBox?: (b: { x0: number; y0: number; x1: number; y1: number; rx: number; ry: number }, add: boolean) => void;
   children: React.ReactNode;
 }) {
   const stage = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const boxing = useRef<{ x: number; y: number; id: number; add: boolean } | null>(null);
+  const frac = (e: React.PointerEvent) => {
+    const r = inner.current!.getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
   const inner = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -806,10 +1002,23 @@ function PlanStage({
   const drag = useRef<{ x: number; y: number; sl: number; st: number; moved: boolean; id: number } | null>(null);
   const down = (e: React.PointerEvent) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('[data-plan-ui]')) return;
+    if (onBox && state === 'ready' && (marquee || e.shiftKey)) {
+      const f = frac(e);
+      boxing.current = { ...f, id: e.pointerId, add: e.shiftKey };
+      stage.current!.setPointerCapture(e.pointerId);
+      setBox({ x0: f.x, y0: f.y, x1: f.x, y1: f.y });
+      return;
+    }
     const s = stage.current!;
     drag.current = { x: e.clientX, y: e.clientY, sl: s.scrollLeft, st: s.scrollTop, moved: false, id: e.pointerId };
   };
   const move = (e: React.PointerEvent) => {
+    const b = boxing.current;
+    if (b && b.id === e.pointerId) {
+      const f = frac(e);
+      setBox({ x0: Math.min(b.x, f.x), y0: Math.min(b.y, f.y), x1: Math.max(b.x, f.x), y1: Math.max(b.y, f.y) });
+      return;
+    }
     const d = drag.current;
     if (!d || d.id !== e.pointerId) return;
     const dx = e.clientX - d.x;
@@ -821,6 +1030,22 @@ function PlanStage({
     stage.current!.scrollTop = d.st - dy;
   };
   const up = (e: React.PointerEvent) => {
+    const b = boxing.current;
+    if (b && b.id === e.pointerId) {
+      boxing.current = null;
+      const f = frac(e);
+      const bx = { x0: Math.min(b.x, f.x), y0: Math.min(b.y, f.y), x1: Math.max(b.x, f.x), y1: Math.max(b.y, f.y) };
+      setBox(null);
+      const r = inner.current!.getBoundingClientRect();
+      // A click without a drag: a tap (clears the selection) unless Shift was held.
+      if ((bx.x1 - bx.x0) * r.width < 4 && (bx.y1 - bx.y0) * r.height < 4) {
+        if (!b.add) onTap(f.x, f.y);
+        return;
+      }
+      // A badge counts when the box touches it (its radius, about 11 px).
+      onBox?.({ ...bx, rx: 11 / r.width, ry: 11 / r.height }, b.add);
+      return;
+    }
     const d = drag.current;
     drag.current = null;
     if (!d || d.moved || d.id !== e.pointerId || state !== 'ready') return;
@@ -834,11 +1059,16 @@ function PlanStage({
     <div className="relative flex-1 min-h-0 bg-teton-almost-white">
       <div
         ref={stage}
-        className={`absolute inset-0 overflow-auto overscroll-contain ${scope ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
+        className={`absolute inset-0 overflow-auto overscroll-contain ${scope || marquee ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
-        onPointerCancel={() => (drag.current = null)}
+        onPointerCancel={() => {
+          drag.current = null;
+          boxing.current = null;
+          setBox(null);
+        }}
+        style={marquee ? { touchAction: 'pinch-zoom' } : undefined}
       >
         <div className="p-3 sm:p-4 w-max min-w-full">
           <div ref={inner} className="relative mx-auto bg-white shadow-sm" style={{ width: fitW ? fitW * zoom : '100%', aspectRatio: `1 / ${aspect}` }}>
@@ -860,13 +1090,21 @@ function PlanStage({
               />
             )}
             {state === 'ready' && children}
+            {box && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute z-30 rounded border-2 border-dashed border-[#3F8CEA] bg-[#3F8CEA]/10"
+                style={{ left: `${box.x0 * 100}%`, top: `${box.y0 * 100}%`, width: `${(box.x1 - box.x0) * 100}%`, height: `${(box.y1 - box.y0) * 100}%` }}
+              />
+            )}
           </div>
         </div>
       </div>
       {state !== 'ready' && (
         <p className="absolute inset-x-0 top-1/3 text-center text-sm text-teton-ui-gray pointer-events-none">{state === 'error' ? 'This file can’t be shown here. Download it to view it.' : 'Loading the floor plan…'}</p>
       )}
-      {scope && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
+      {marquee && <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white bg-[#3F8CEA] drawer-in">Select · drag a box over tags</span>}
+      {scope && !marquee && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
       <div data-plan-ui className="absolute right-3 top-3 flex flex-col rounded-lg border border-teton-off-white bg-white text-sm shadow-sm">
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white rounded-t-lg" aria-label="Zoom in" onClick={() => zoomAt(-2)}>+</button>
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white" aria-label="Zoom out" onClick={() => zoomAt(-1)}>−</button>
@@ -888,6 +1126,7 @@ function PlacedBadge({
   selected,
   size = 22,
   dot,
+  picked,
   onHover,
   onClick,
   onMove,
@@ -903,9 +1142,11 @@ function PlacedBadge({
   size?: number;
   /** Has a note: a small amber dot on the badge. */
   dot?: boolean;
+  /** In the selection (a blue ring). */
+  picked?: boolean;
   onHover?: (on: boolean) => void;
-  /** touch: the tap came from a finger (no hover on phones). */
-  onClick: (touch: boolean) => void;
+  /** touch: the tap came from a finger (no hover on phones); shift: Shift was held. */
+  onClick: (touch: boolean, shift: boolean) => void;
   onMove: (x: number, y: number) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -927,7 +1168,7 @@ function PlacedBadge({
       onPointerLeave={(e) => e.pointerType === 'mouse' && onHover?.(false)}
       onFocus={() => onHover?.(true)}
       onBlur={() => onHover?.(false)}
-      className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 rounded-full touch-none transition-opacity duration-200 motion-reduce:transition-none ${faded ? 'opacity-35' : ''} ${selected ? 'ring-[3px] ring-teton-near-black/85 ring-offset-1' : ''}`}
+      className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 rounded-full touch-none transition-opacity duration-200 motion-reduce:transition-none ${faded ? 'opacity-35' : ''} ${selected ? 'ring-[3px] ring-teton-near-black/85 ring-offset-1' : picked ? 'ring-[3px] ring-[#3F8CEA] ring-offset-1' : ''}`}
       style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -949,7 +1190,7 @@ function PlacedBadge({
           const p = posFrom(e);
           setLive(null);
           onMove(p.x, p.y);
-        } else onClick(e.pointerType !== 'mouse');
+        } else onClick(e.pointerType !== 'mouse', e.shiftKey);
       }}
       onPointerCancel={() => {
         d.current = null;
@@ -1012,7 +1253,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
+function MarkPopover({ type, types, mark, readOnly, suggest, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -1034,6 +1275,19 @@ function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove,
       </select>
       <label className={eyebrow} htmlFor={`rn-${mark.id}`}>Room number (optional)</label>
       <input id={`rn-${mark.id}`} className="input-field py-1.5 text-xs" value={label} placeholder="e.g. 143" maxLength={16} onChange={(e) => setLabel(e.target.value)} onBlur={() => onLabel(label.trim())} onKeyDown={(e) => e.key === 'Enter' && onLabel(label.trim())} />
+      {suggest && !label.trim() && (
+        <button
+          type="button"
+          className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#FFF1DC] px-2 py-0.5 text-[11px] font-semibold text-[#8A5A00] drawer-in"
+          title="Read from the floor plan, but not certain"
+          onClick={() => {
+            setLabel(suggest);
+            onLabel(suggest);
+          }}
+        >
+          From the plan: use {suggest}?
+        </button>
+      )}
       {children}
       <div className="flex items-center justify-between gap-2 mt-3">
         <button type="button" className="text-[11.5px] text-[#B23A26] underline" onClick={onRemove}>Remove this room</button>

@@ -17,3 +17,6 @@ tools/oracle/.work/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# OCR engine files, copied from node_modules by scripts/copy-ocr.mjs
+public/ocr/

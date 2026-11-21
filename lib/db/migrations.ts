@@ -312,4 +312,12 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_tag_notes_quote ON tag_notes(quote_id)`,
     ],
   },
+  {
+    id: 12,
+    name: 'room numbers read from floor plans',
+    sql: [
+      // What "Fill numbers from plan" read from the file (JSON: numbers and where they sit, by page), saved so it's read once.
+      `ALTER TABLE floor_plans ADD COLUMN labels TEXT`,
+    ],
+  },
 ];

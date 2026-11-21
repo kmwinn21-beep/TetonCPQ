@@ -5,6 +5,7 @@
  */
 import type { Client } from '@libsql/client';
 import { deletePlanNotesFor } from './planNotes';
+import type { PlanLabel, PlanLabels } from '@/lib/quote/roomNumbers';
 
 export const FLOOR_PLAN_CHUNK = 3 * 1024 * 1024;
 export const FLOOR_PLAN_MAX = 40 * 1024 * 1024;
@@ -91,4 +92,46 @@ export async function deleteFloorPlan(db: Client, quoteId: number, id: number): 
   await deletePlanNotesFor(db, id);
   await db.execute({ sql: 'DELETE FROM floor_plan_chunks WHERE floor_plan_id = ?', args: [id] });
   await db.execute({ sql: 'DELETE FROM floor_plans WHERE id = ?', args: [id] });
+}
+
+/** Room numbers read from a plan, cleaned: up to 500 pages, 2000 numbers a page. */
+export function normalizePlanLabels(v: unknown): PlanLabels | null {
+  if (!v || typeof v !== 'object') return null;
+  const pages = (v as { pages?: unknown }).pages;
+  if (!pages || typeof pages !== 'object') return null;
+  const out: PlanLabels = { pages: {}, readAt: new Date().toISOString() };
+  const n01 = (x: unknown) => Math.min(1, Math.max(0, Number(x) || 0));
+  for (const [k, p] of Object.entries(pages as Record<string, unknown>).slice(0, 500)) {
+    const n = Math.round(Number(k));
+    if (!Number.isFinite(n) || n < 1 || !p || typeof p !== 'object') continue;
+    const q = p as { aspect?: unknown; labels?: unknown };
+    const labels = (Array.isArray(q.labels) ? q.labels : []).slice(0, 2000).flatMap((l) => {
+      const x = l as Partial<PlanLabel>;
+      const t = String(x?.t ?? '').replace(/\D/g, '').slice(0, 6);
+      return t ? [{ t, x: n01(x.x), y: n01(x.y), sure: x.sure === true }] : [];
+    });
+    out.pages[String(n)] = { aspect: Math.min(10, Math.max(0.1, Number(q.aspect) || 1.3)), labels };
+  }
+  return out;
+}
+
+export async function getPlanLabels(db: Client, quoteId: number, id: number): Promise<PlanLabels | null> {
+  const r = await db.execute({ sql: 'SELECT labels FROM floor_plans WHERE id = ? AND quote_id = ? AND complete = 1', args: [id, quoteId] });
+  if (!r.rows.length) throw notFound();
+  if (r.rows[0].labels == null) return null;
+  try {
+    const v = JSON.parse(String(r.rows[0].labels));
+    const l = normalizePlanLabels(v);
+    return l && { ...l, readAt: String(v.readAt ?? l.readAt) };
+  } catch {
+    return null;
+  }
+}
+
+export async function savePlanLabels(db: Client, quoteId: number, id: number, v: unknown): Promise<PlanLabels> {
+  const labels = normalizePlanLabels(v);
+  if (!labels) throw Object.assign(new Error('Nothing to save'), { status: 400 });
+  const r = await db.execute({ sql: 'UPDATE floor_plans SET labels = ? WHERE id = ? AND quote_id = ? AND complete = 1', args: [JSON.stringify(labels), id, quoteId] });
+  if (!r.rowsAffected) throw notFound();
+  return labels;
 }
