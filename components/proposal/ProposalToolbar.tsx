@@ -60,6 +60,48 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const whatIf = useWhatIf();
   const locked = !!whatIf?.dirty;
   const lockedWhy = 'Save or discard the input changes first, so what you print or send matches a saved version';
+  // A real PDF file made on the server (no browser print margins or headers): shared on phones, downloaded elsewhere.
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const textState = useRef(text.state);
+  textState.current = text.state;
+  async function downloadPdf() {
+    setPdfBusy(true);
+    setError(null);
+    try {
+      // Wording and layout edits still being saved go first, so the file matches the screen.
+      if (textState.current !== 'saved') {
+        text.saveNow();
+        for (let i = 0; i < 40 && (textState.current as string) !== 'saved'; i++) await new Promise((r) => setTimeout(r, 100));
+      }
+      const res = await fetch(`/api/proposals/${versionId}/pdf`, { cache: 'no-store' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Couldn’t make the PDF');
+      const blob = await res.blob();
+      const m = /filename\*=UTF-8''([^;]+)/.exec(res.headers.get('content-disposition') ?? '');
+      const name = m ? decodeURIComponent(m[1]) : `Teton proposal v${versionNo}.pdf`;
+      const file = new File([blob], name, { type: 'application/pdf' });
+      // Phones and tablets: the share sheet (Print, AirDrop, Mail, Save to Files).
+      const touch = window.matchMedia('(pointer: coarse)').matches;
+      if (touch && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: name });
+          return;
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
+        }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Couldn’t make the PDF');
+    } finally {
+      setPdfBusy(false);
+    }
+  }
   // Panels below the toolbar start where it ends.
   // --proposal-chrome-h: bottom of the whole sticky area (bar + banner); --proposal-header-h: bottom of the black bar.
   const rootRef = useRef<HTMLDivElement>(null);
@@ -164,7 +206,23 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-[#FFE08A]" title="Ask the deal's owner for Edit Deliverables to change this proposal">🔒 View only</span>
               )}
-              <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF"><span className="sm:hidden">PDF</span><span className="hidden sm:inline">Print / Save as PDF</span></button>
+              {/* Desktop keeps the browser's print; the PDF file works everywhere (and is the main button on phones). */}
+              <button type="button" className="hidden sm:inline-flex px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF">Print / Save as PDF</button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={locked || pdfBusy}
+                title={locked ? lockedWhy : 'A PDF file with no print margins: download it, or share and print it from a phone'}
+                onClick={() => void downloadPdf()}
+                aria-label="Download PDF"
+              >
+                {pdfBusy ? (
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-teton-ink/30 border-t-teton-ink animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
+                )}
+                {pdfBusy ? 'Making PDF…' : 'Download PDF'}
+              </button>
             </>
           )}
         </div>
