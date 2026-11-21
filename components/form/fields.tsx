@@ -205,6 +205,7 @@ export function Section({
         </button>
         {aside && !readOnly && (
           <div
+            className="max-sm:w-full"
             onClick={() => {
               // Actions in the header (e.g. "Add community") act on the contents, so show them.
               if (!open) setOpen(id, true);

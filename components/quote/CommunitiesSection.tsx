@@ -341,7 +341,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
               .join(' · ')
       }
       aside={
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-end gap-1.5">
           <button type="button" className="btn-primary whitespace-nowrap" onClick={addCommunity}>
             + Community
           </button>
