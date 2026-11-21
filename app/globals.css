@@ -405,6 +405,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   input.text-xs, input.text-sm, select.text-xs, select.text-sm, textarea.text-xs, textarea.text-sm { font-size: 16px; }
 }
 
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes panelIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes fadeScale { from { transform: scale(.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }

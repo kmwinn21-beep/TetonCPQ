@@ -809,15 +809,22 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* ------------------------------------------------------------------ */
 
 /** `bothPricing`: the proposal shows both pricing options, so the comparison's optional rows can be added from here. */
-export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } = {}) {
+export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { bothPricing?: boolean; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   // The tables on the page now (checked after each render).
   const [presentTables, setPresentTables] = useState<string[]>([]);
+  const onCountRef = useRef(onCount);
+  onCountRef.current = onCount;
   useEffect(() => {
     const ids = Array.from(document.querySelectorAll<HTMLElement>('table[data-rtable]')).map((t) => t.dataset.rtable ?? '').sort();
     if (ids.join() !== presentTables.join()) setPresentTables(ids);
   }, [layout, edits, presentTables]);
+  // (Counted after render; reported to the phone's Removed button.)
+  const totalRef = useRef(0);
+  useEffect(() => {
+    onCountRef.current?.(totalRef.current);
+  });
   if (!editable) return null;
   const businessCase = layout.format === 'businessCase';
   // The business-case format arranges pages instead of sections.
@@ -836,7 +843,9 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
   const rows = Object.entries(layout.hiddenRows ?? {});
   // Columns that start out removed are listed only when their table is on the page.
   const cols = Object.entries(hiddenColsOf(layout)).filter(([k]) => !(k in DEFAULT_HIDDEN_COLS) || presentTables.includes(k.split('.')[0]));
-  if (!sections.length && !values.length && !pages.length && !blocks.length && !optional.length && !rows.length && !cols.length) return null;
+  const total = sections.length + values.length + pages.length + blocks.length + optional.length + rows.length + cols.length;
+  totalRef.current = total;
+  if (!total) return bare ? <p className="px-2 py-6 text-center text-sm text-teton-ui-gray">Nothing has been removed from this proposal.</p> : null;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -848,8 +857,8 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
     </li>
   );
   return (
-    <aside data-edit-ui className="no-print rounded-xl border border-teton-pale-gray bg-white p-3 shadow-sm" aria-label="Removed from this proposal">
-      <p className="text-xs font-semibold uppercase tracking-wider text-teton-ui-gray px-2 mb-1">Removed</p>
+    <aside data-edit-ui className={bare ? 'no-print' : 'no-print rounded-xl border border-teton-pale-gray bg-white p-3 shadow-sm'} aria-label="Removed from this proposal">
+      {!bare && <p className="text-xs font-semibold uppercase tracking-wider text-teton-ui-gray px-2 mb-1">Removed</p>}
       {sections.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Sections</p>
@@ -938,5 +947,63 @@ export function RemovedPanel({ bothPricing = false }: { bothPricing?: boolean } 
         </>
       )}
     </aside>
+  );
+}
+
+/**
+ * Phones: a Removed button for the toolbar; it opens a sheet from the bottom with everything removed from the
+ * proposal, to add back (the side panel is hidden on phones).
+ */
+export function RemovedSheetButton({ bothPricing = false }: { bothPricing?: boolean }) {
+  const { editable } = useProposalText();
+  const [count, setCount] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const close = () => {
+    setClosing(true);
+    setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 200);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [open]);
+  if (!editable) return null;
+  return (
+    <>
+      {/* Counts what's removed even while closed (renders nothing visible). */}
+      {!open && (
+        <div className="hidden" aria-hidden="true">
+          <RemovedPanel bothPricing={bothPricing} bare onCount={(n) => n !== count && setCount(n)} />
+        </div>
+      )}
+      <button type="button" className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+        Removed
+        {count > 0 && <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-white text-teton-ink text-[10.5px] font-bold">{count}</span>}
+      </button>
+      {open && (
+        <div className="sm:hidden fixed inset-0 z-[80] no-print" role="dialog" aria-modal="true" aria-label="Removed from this proposal">
+          <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 motion-reduce:transition-none ${closing ? 'opacity-0' : 'opacity-100 [animation:fadeIn_.2s_ease-out]'}`} onClick={close} />
+          <div
+            className="absolute inset-x-0 bottom-0 max-h-[80dvh] flex flex-col rounded-t-2xl bg-white text-teton-ink shadow-[0_-12px_36px_rgba(0,0,0,.25)] transition-transform duration-200 ease-in motion-reduce:transition-none [animation:sheetUp_.25s_ease-out] motion-reduce:[animation:none]"
+            style={closing ? { transform: 'translateY(100%)' } : undefined}
+          >
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-teton-pale-gray" aria-hidden="true" />
+            <div className="flex items-center gap-2 px-4 pt-2 pb-2 border-b border-teton-off-white">
+              <p className="font-semibold">Removed</p>
+              <span className="text-xs text-teton-ui-gray">Tap one to add it back</span>
+              <button type="button" className="ml-auto w-8 h-8 rounded-md text-teton-ui-gray hover:bg-teton-almost-white" aria-label="Close" onClick={close}>✕</button>
+            </div>
+            <div className="overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <RemovedPanel bothPricing={bothPricing} bare onCount={(n) => n !== count && setCount(n)} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

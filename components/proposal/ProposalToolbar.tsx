@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PagePlanner } from './PagePlanner';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
+import { RemovedSheetButton } from './ProposalSections';
 import { useWhatIf } from './WhatIf';
 import { layoutChanges } from '@/lib/proposal/layout';
 
@@ -49,7 +50,7 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
-export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode }) {
+export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner, bothPricing = false }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode; /** Both pricing options shown (for the Removed list). */ bothPricing?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
@@ -201,6 +202,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                   ▤ Pages{text.layout.pageStarts ? ' · custom' : ''}
                 </button>
               )}
+              <RemovedSheetButton bothPricing={bothPricing} />
               {text.editable ? (
                 <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>
               ) : (
