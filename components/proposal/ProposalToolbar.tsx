@@ -54,6 +54,8 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  // Phones: the bar's buttons are folded away until opened.
+  const [barOpen, setBarOpen] = useState(false);
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,10 +148,21 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
     <div ref={rootRef} className="no-print sticky top-0 z-30">
     <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
       <div className="max-w-[8.5in] xl:max-w-[1120px] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-sm text-sidebar-font/70">
-          Proposal v{versionNo}
-          {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
-        </span>
+        {/* Phones: this line folds the buttons away (collapsed to start); desktop always shows them. */}
+        <button type="button" className="flex min-w-0 flex-1 sm:flex-none items-center gap-2 text-left text-sm text-sidebar-font/70 sm:pointer-events-none" aria-expanded={barOpen} aria-controls="proposal-bar-tools" onClick={() => setBarOpen((o) => !o)}>
+          <span className="min-w-0 truncate sm:whitespace-normal">
+            Proposal v{versionNo}
+            {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
+          </span>
+          {text.state !== 'saved' && <span className="sm:hidden text-[11px] text-sidebar-font/60">· {text.state === 'saving' ? 'Saving…' : 'Not saved'}</span>}
+          <svg className={`sm:hidden ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-300 motion-reduce:transition-none ${barOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        </button>
+        <div
+          id="proposal-bar-tools"
+          className={`w-full grid transition-[grid-template-rows,opacity,visibility] duration-300 ease-out motion-reduce:transition-none sm:contents ${barOpen || open ? 'grid-rows-[1fr] opacity-100' : 'max-sm:grid-rows-[0fr] max-sm:opacity-0 max-sm:invisible max-sm:-mt-2'}`}
+        >
+        <div className="min-h-0 overflow-hidden sm:contents">
+        <div className="space-y-2 sm:contents">
         <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
           {open ? (
             <>
@@ -249,6 +262,9 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           </span>
         </p>
         )}
+        </div>
+        </div>
+        </div>
         {text.error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{text.error}</p>}
         {error && <p className="w-full text-sm bg-teton-red text-teton-ink rounded px-2 py-1">{error}</p>}
         {pendingChanges > 0 && (
