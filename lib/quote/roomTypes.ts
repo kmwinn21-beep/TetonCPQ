@@ -46,6 +46,9 @@ export interface RoomMark {
   y: number;
   /** Room number, e.g. "143" (optional). */
   label?: string;
+  /** Who tagged it and when (ISO date), for the hover card. */
+  by?: string;
+  at?: string;
 }
 
 const normName = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -106,7 +109,9 @@ function normalizeMarks(v: unknown): RoomMark[] | undefined {
     const plan = Math.round(Number(m.plan));
     if (!Number.isFinite(plan) || plan <= 0) return [];
     const label = String(m.label ?? '').replace(/\s+/g, ' ').trim().slice(0, 16);
-    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}) }];
+    const by = String(m.by ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const at = /^\d{4}-\d{2}-\d{2}/.test(String(m.at ?? '')) ? String(m.at).slice(0, 10) : '';
+    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}), ...(by ? { by } : {}), ...(at ? { at } : {}) }];
   });
   return out.length ? out : undefined;
 }

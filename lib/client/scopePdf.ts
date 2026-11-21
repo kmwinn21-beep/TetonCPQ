@@ -8,6 +8,7 @@
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
 import { badgeOf, CARE_LABEL, roomScope, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
+import type { TagNote } from '@/lib/data/tagNotes';
 
 interface Args {
   url: string;
@@ -19,7 +20,11 @@ interface Args {
   allowancePct: number;
   /** The plan's notes: those shown on the plan print on their page; every note is listed on the summary page. */
   notes?: PlanNote[];
+  /** Notes on tagged rooms: an amber dot on those badges, and a table of them on the summary page. */
+  tagNotes?: TagNote[];
 }
+
+const DOT = '#F0B429';
 
 const hex = (h: string) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 const INK = rgb(0.086, 0.094, 0.114);
@@ -195,7 +200,12 @@ export async function scopePdf(a: Args): Promise<Blob> {
     s.draw(p, 0);
     p.drawRectangle({ x: 0, y: s.h, width: s.w, height: band, color: rgb(1, 1, 1) });
     p.drawLine({ start: { x: 0, y: s.h }, end: { x: s.w, y: s.h }, thickness: 0.6, color: LINE });
-    for (const { b, marks } of here) for (const m of marks) badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
+    const noted = new Set((a.tagNotes ?? []).flatMap((t) => t.markIds));
+    for (const { b, marks } of here)
+      for (const m of marks) {
+        badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
+        if (noted.has(m.id)) p.drawCircle({ x: m.x * s.w + r * 0.72, y: (1 - m.y) * s.h + r * 0.72, size: r * 0.4, color: hex(DOT), borderColor: rgb(1, 1, 1), borderWidth: Math.max(0.5, r * 0.1) });
+      }
     // Every note's triangle on its spot; the box (where it was placed) only for notes shown on the plan.
     const notesHere = (a.notes ?? []).filter((x) => x.page === n);
     for (const note of notesHere) {
@@ -316,7 +326,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
 
   // Notes: every note (on the plan or not) with its room type, author and page.
   const notes = a.notes ?? [];
-  if (!notes.length) return;
+  if (notes.length) {
   y -= 34;
   const NC = { tri: M, note: M + 24, type: 392, author: 476, page: W - M };
   const noteW = NC.type - NC.note - 14;
@@ -354,6 +364,70 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     text(n.author.initials, NC.author + 4.5, 8, bold, rgb(0.17, 0.36, 0.71));
     // Notes hidden on the plan still have their triangle there.
     text(n.onPlan ? String(n.page) : `${n.page} (tag only)`, NC.page, 9, reg, n.onPlan ? INK : MUTED, 'r');
+    y -= rowH - 12.5 + 8;
+    p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
+    y -= 16;
+  }
+  }
+
+  // Room notes: each note on tagged rooms of this plan, with the rooms it's on.
+  const markOf = new Map<string, { t: RoomType; b: { color: string; initials: string }; label?: string }>();
+  for (const x of types) for (const m of x.t.marks ?? []) if (m.plan === a.planId) markOf.set(m.id, { ...x, label: m.label });
+  const tagNotes = (a.tagNotes ?? []).map((n) => ({ n, rooms: n.markIds.map((id) => markOf.get(id)).filter((v): v is NonNullable<typeof v> => !!v) })).filter((x) => x.rooms.length);
+  if (!tagNotes.length) return;
+  y -= notes.length ? 18 : 34;
+  const TC = { note: M + 16, rooms: 330, author: W - M - 30 };
+  const tagHead = () => {
+    text('ROOM NOTES', M, 9, bold, MUTED);
+    y -= 18;
+    text('NOTE', TC.note, 7.5, bold, MUTED);
+    text('ROOMS', TC.rooms, 7.5, bold, MUTED);
+    text('BY', TC.author, 7.5, bold, MUTED);
+    y -= 8;
+    p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.8, color: INK });
+    y -= 16;
+  };
+  if (y < M + 120) {
+    p = out.addPage([W, H]);
+    y = H - M;
+  }
+  tagHead();
+  for (const { n, rooms } of tagNotes) {
+    const lines = wrap(reg, n.body, 9.5, TC.rooms - TC.note - 14);
+    // Room chips ("ST 137"), wrapped to the column.
+    const chips = rooms.map((x) => safe(reg, `${x.b.initials}${x.label ? ` ${x.label}` : ''}`));
+    const chipRows: string[][] = [[]];
+    let cx = 0;
+    const maxW = TC.author - TC.rooms - 12;
+    for (const c of chips) {
+      const w = reg.widthOfTextAtSize(c, 8.5) + 16;
+      if (cx + w > maxW && chipRows[chipRows.length - 1].length) {
+        chipRows.push([]);
+        cx = 0;
+      }
+      chipRows[chipRows.length - 1].push(c);
+      cx += w;
+    }
+    const rowH = Math.max(lines.length, chipRows.length) * 12.5;
+    if (y - rowH < M + 20) {
+      p = out.addPage([W, H]);
+      y = H - M;
+      tagHead();
+    }
+    p.drawCircle({ x: M + 4, y: y + 3, size: 3.5, color: hex(DOT) });
+    lines.forEach((l, k) => p.drawText(l, { x: TC.note, y: y - k * 12.5, size: 9.5, font: reg, color: INK }));
+    chipRows.forEach((row, k) => {
+      let x = TC.rooms;
+      for (const c of row) {
+        const w = reg.widthOfTextAtSize(c, 8.5);
+        p.drawRectangle({ x, y: y - k * 12.5 - 3, width: w + 8, height: 11.5, color: rgb(0.945, 0.95, 0.955) });
+        p.drawText(c, { x: x + 4, y: y - k * 12.5, size: 8.5, font: reg, color: INK });
+        x += w + 16;
+      }
+    });
+    const ini = safe(bold, n.author.initials);
+    p.drawRectangle({ x: TC.author, y: y - 3, width: bold.widthOfTextAtSize(ini, 8) + 9, height: 12.5, color: rgb(0.9, 0.93, 0.99) });
+    text(n.author.initials, TC.author + 4.5, 8, bold, rgb(0.17, 0.36, 0.71));
     y -= rowH - 12.5 + 8;
     p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
     y -= 16;

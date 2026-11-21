@@ -21,6 +21,7 @@ import { useFloorPlans } from './FloorPlans';
 import { useAccess } from './AccessContext';
 import { NoteEditor, NoteMarker, NoteOnPlan, NotesDrawer, nextNoteColor, usePlanNotes, type NoteDraft } from './PlanNotes';
 import type { PlanNote } from '@/lib/data/planNotes';
+import { NOTE_DOT, TagCard, TagNoteSection, useTagNotes } from './TagNotes';
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
 const CARES = (Object.keys(CARE_LABEL) as CareType[]).filter((c) => c !== 'custom');
@@ -129,6 +130,13 @@ export function ScopeViewer({
   const [noteSaving, setNoteSaving] = useState(false);
   const [drawerFocus, setDrawerFocus] = useState<{ noteId: number | null; commentId?: number; key: number } | null>(null);
   const [flash, setFlash] = useState<number | null>(null);
+  // ---- notes on tagged rooms, and the hover card ----
+  const tagApi = useTagNotes(quoteId);
+  const [pendingNote, setPendingNote] = useState('');
+  const [hover, setHover] = useState<string | null>(null);
+  const [noteFilter, setNoteFilter] = useState(false);
+  // The card was opened by a tap (phones): it takes taps and has an Edit button.
+  const hoverTouch = useRef(false);
   // Arriving from a notification: go to the note's page and open it in the drawer.
   const focused = useRef(false);
   useEffect(() => {
@@ -182,8 +190,9 @@ export function ScopeViewer({
       else if (noteDraft || noteMode) {
         setNoteDraft(null);
         setNoteMode(false);
-      } else if (pop || editType || saving || menu) {
+      } else if (pop || editType || saving || menu || hover) {
         setPop(null);
+        setHover(null);
         setEditType(null);
         setSaving(false);
         setMenu(false);
@@ -191,11 +200,12 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover]);
   useEffect(() => {
     setPage(1);
     setConfirmRemove(false);
     setPop(null);
+    setHover(null);
     setNoteDraft(null);
   }, [planId]);
 
@@ -230,10 +240,21 @@ export function ScopeViewer({
   };
   const labelMark = (typeId: string, markId: string, label: string) =>
     update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: (t.marks ?? []).map((m) => (m.id === markId ? { ...m, label: label.slice(0, 16) || undefined } : m)) } : t)));
-  const toMarks = (ps: Pending[]): RoomMark[] => ps.map((p) => ({ id: uid('mk'), plan: p.plan, page: p.page, x: p.x, y: p.y }));
+  const toMarks = (ps: Pending[]): RoomMark[] => {
+    const at = new Date().toISOString().slice(0, 10);
+    const by = notesApi.me?.name;
+    return ps.map((p) => ({ id: uid('mk'), plan: p.plan, page: p.page, x: p.x, y: p.y, at, ...(by ? { by } : {}) }));
+  };
+  // One note for every room just tagged (optional).
+  const noteOnNew = (marks: RoomMark[]) => {
+    const body = pendingNote.trim();
+    setPendingNote('');
+    if (body && marks.length) void tagApi.create(marks.map((m) => m.id), body).catch(() => {});
+  };
   const saveNew = (t: Omit<RoomType, 'id' | 'rooms' | 'marks'>) => {
     const marks = toMarks(pending);
     update((list) => [...list, { ...t, id: uid('rt'), rooms: marks.length, marks, roomsFromPlan: true }]);
+    noteOnNew(marks);
     setPending([]);
     setSaving(false);
     setLayer(true);
@@ -241,6 +262,7 @@ export function ScopeViewer({
   const addToType = (typeId: string) => {
     const marks = toMarks(pending);
     update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: [...(t.marks ?? []), ...marks] } : t)));
+    noteOnNew(marks);
     setPending([]);
     setSaving(false);
     setLayer(true);
@@ -280,6 +302,7 @@ export function ScopeViewer({
         communityName: community?.name || 'Community',
         types: current(),
         notes: withNotes ? notesApi.notes : [],
+        tagNotes: withNotes ? liveTagNotes : [],
         allowancePct: normalizeAllowance(getValues(`communities.${index}.sensorAllowancePct`)),
       });
       const a = document.createElement('a');
@@ -304,6 +327,16 @@ export function ScopeViewer({
   const sensorsTagged = rows.reduce((s, r) => s + r.tagged * Math.max(1, Number(r.t.sensors) || 1), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
   const mismatches = rows.filter((r) => r.tagged > 0 && !r.t.roomsFromPlan && (Number(r.t.rooms) || 0) !== r.tagged);
+  // Tagged rooms' numbers (for "also 126, 128"), and the notes on rooms that still exist.
+  const markInfo = useMemo(() => {
+    const m = new Map<string, { label: string | null; typeId: string }>();
+    for (const t of types) for (const x of t.marks ?? []) m.set(x.id, { label: x.label ?? null, typeId: t.id });
+    return m;
+  }, [types]);
+  const labelOf = useCallback((id: string) => markInfo.get(id)?.label ?? null, [markInfo]);
+  const liveTagNotes = tagApi.notes.map((n) => ({ ...n, markIds: n.markIds.filter((id) => markInfo.has(id)) })).filter((n) => n.markIds.length);
+  const notedMarks = new Set(liveTagNotes.flatMap((n) => n.markIds));
+  const notesOfMark = (id: string) => liveTagNotes.filter((n) => n.markIds.includes(id));
   const lockToTagged = (typeId: string) => update((list) => list.map((t) => (t.id === typeId ? { ...t, roomsFromPlan: true } : t)));
 
   if (!plan) return null;
@@ -420,6 +453,10 @@ export function ScopeViewer({
           modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
           onTap={(x, y) => {
             if (noteDraft) return;
+            if (hover && hoverTouch.current) {
+              setHover(null);
+              return;
+            }
             if (noteMode) return startNote(x, y);
             if (pop || editType || menu) {
               setPop(null);
@@ -470,10 +507,27 @@ export function ScopeViewer({
                 color={m.color}
                 text={m.initials}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
-                faded={(scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId)}
+                faded={(scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
                 size={size}
-                onClick={() => { setPop({ typeId: m.typeId, markId: m.id }); setEditType(null); setMenu(false); }}
+                dot={notedMarks.has(m.id)}
+                onHover={(on) => {
+                  hoverTouch.current = false;
+                  setHover((h) => (on ? m.id : h === m.id ? null : h));
+                }}
+                onClick={(touch) => {
+                  // On a phone the first tap shows the details card; its Edit button opens the popover.
+                  if (touch && hover !== m.id && pop?.markId !== m.id) {
+                    hoverTouch.current = true;
+                    setPop(null);
+                    setHover(m.id);
+                    return;
+                  }
+                  setHover(null);
+                  setPop({ typeId: m.typeId, markId: m.id });
+                  setEditType(null);
+                  setMenu(false);
+                }}
                 onMove={(x, y) => acc.scope && moveMark(m.typeId, m.id, x, y)}
               />
             ))}
@@ -503,9 +557,31 @@ export function ScopeViewer({
                 onRemove={() => removeMark(popType.id, popMark.id)}
                 onEdit={() => setEditType(popType.id)}
                 onClose={() => setPop(null)}
-              />
+              >
+                <TagNoteSection api={tagApi} markId={popMark.id} me={notesApi.me} labelOf={labelOf} />
+              </MarkPopover>
             </Anchored>
           )}
+          {showSaved && hover && hover !== pop?.markId && !editType && (() => {
+            const m = placed.find((x) => x.id === hover);
+            const k = m ? types.findIndex((t) => t.id === m.typeId) : -1;
+            if (!m || k < 0) return null;
+            const t = types[k];
+            return (
+              <Anchored x={m.x} y={m.y} passive={!hoverTouch.current}>
+                <TagCard
+                  type={t}
+                  index={k}
+                  mark={m}
+                  community={community}
+                  taggedOfType={(t.marks ?? []).filter((x) => planIds.includes(x.plan)).length}
+                  notes={notesOfMark(m.id)}
+                  labelOf={labelOf}
+                  onEdit={hoverTouch.current ? () => { setHover(null); setPop({ typeId: m.typeId, markId: m.id }); } : undefined}
+                />
+              </Anchored>
+            );
+          })()}
           {editType && popMark && (
             <Anchored x={popMark.x} y={popMark.y}>
               <TypeForm
@@ -550,6 +626,8 @@ export function ScopeViewer({
                 onCancel={() => setSaving(false)}
                 onSave={saveNew}
                 onAddTo={types.length ? addToType : undefined}
+                note={pendingNote}
+                onNote={setPendingNote}
               />
             ) : (
               <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-2 py-2 text-xs shadow-xl whitespace-nowrap drawer-in">
@@ -584,6 +662,18 @@ export function ScopeViewer({
               <span>{t.name || 'Room type'} · {count(here)}{tagged !== here ? <span className="text-teton-ui-gray"> ({count(tagged)} in all)</span> : null}</span>
             </button>
           ))}
+          {liveTagNotes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setNoteFilter((f) => !f)}
+              aria-pressed={noteFilter}
+              title={noteFilter ? 'Show every room' : 'Pick out the rooms with notes'}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[#8A6A12] transition-colors duration-200 ${noteFilter ? 'bg-[#FFF1CC]' : 'hover:bg-[#FFF8E6]'}`}
+            >
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: NOTE_DOT }} />
+              {count(liveTagNotes.length)} room note{liveTagNotes.length === 1 ? '' : 's'} · {count(notedMarks.size)} room{notedMarks.size === 1 ? '' : 's'}
+            </button>
+          )}
           {taggedTotal > 0 && <span className="ml-auto font-semibold">{count(taggedTotal)} rooms tagged · {count(sensorsTagged)} sensors</span>}
           {exporting && <span className={`w-full text-[11px] ${exporting.startsWith('Couldn') ? 'text-[#9A2E1C]' : 'text-teton-ui-gray'}`}>{exporting}</span>}
         </div>
@@ -797,6 +887,8 @@ function PlacedBadge({
   faded,
   selected,
   size = 22,
+  dot,
+  onHover,
   onClick,
   onMove,
 }: {
@@ -809,7 +901,11 @@ function PlacedBadge({
   faded?: boolean;
   selected?: boolean;
   size?: number;
-  onClick: () => void;
+  /** Has a note: a small amber dot on the badge. */
+  dot?: boolean;
+  onHover?: (on: boolean) => void;
+  /** touch: the tap came from a finger (no hover on phones). */
+  onClick: (touch: boolean) => void;
   onMove: (x: number, y: number) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -825,8 +921,12 @@ function PlacedBadge({
       ref={ref}
       type="button"
       data-plan-ui
-      title={title}
+      title={onHover ? undefined : title}
       aria-label={title}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && onHover?.(true)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && onHover?.(false)}
+      onFocus={() => onHover?.(true)}
+      onBlur={() => onHover?.(false)}
       className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 rounded-full touch-none transition-opacity duration-200 motion-reduce:transition-none ${faded ? 'opacity-35' : ''} ${selected ? 'ring-[3px] ring-teton-near-black/85 ring-offset-1' : ''}`}
       style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
       onPointerDown={(e) => {
@@ -849,7 +949,7 @@ function PlacedBadge({
           const p = posFrom(e);
           setLive(null);
           onMove(p.x, p.y);
-        } else onClick();
+        } else onClick(e.pointerType !== 'mouse');
       }}
       onPointerCancel={() => {
         d.current = null;
@@ -866,29 +966,40 @@ function PlacedBadge({
       ) : (
         <Badge color={color} text={text} size={size} />
       )}
+      {dot && (
+        <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 rounded-full border-[1.5px] border-white" style={{ background: NOTE_DOT, width: Math.max(8, Math.round(size * 0.42)), height: Math.max(8, Math.round(size * 0.42)) }} />
+      )}
     </button>
   );
 }
 
 /** A popover pinned beside a point on the plan (left of it on the right half), kept inside the plan. */
-function Anchored({ x, y, children }: { x: number; y: number; children: React.ReactNode }) {
+function Anchored({ x, y, passive, children }: { x: number; y: number; passive?: boolean; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [shift, setShift] = useState(0);
+  const [shift, setShift] = useState({ x: 0, y: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
     const box = el?.parentElement?.getBoundingClientRect();
     if (!el || !box) return;
     const r = el.getBoundingClientRect();
-    const over = r.bottom - Math.min(box.bottom, window.innerHeight - 12);
-    setShift(over > 0 ? -over : 0);
+    const sx = shift.x;
+    const sy = shift.y;
+    // Keep it on screen: up from the bottom of the plan, and in from the sides of the window (phones).
+    const over = r.bottom - sy - Math.min(box.bottom, window.innerHeight - 12);
+    const right = r.right - sx - (window.innerWidth - 8);
+    const left = 8 - (r.left - sx);
+    const nx = right > 0 ? -right : left > 0 ? left : 0;
+    const ny = over > 0 ? -over : 0;
+    if (nx !== sx || ny !== sy) setShift({ x: nx, y: ny });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [x, y]);
   const right = x > 0.55;
   return (
     <div
       ref={ref}
       data-plan-ui
-      className="absolute z-20 w-[17rem] max-w-[80vw] cursor-auto drawer-in"
-      style={{ top: `calc(${y * 100}% - 18px + ${shift}px)`, ...(right ? { right: `calc(${(1 - x) * 100}% + 18px)` } : { left: `calc(${x * 100}% + 18px)` }) }}
+      className={`absolute z-20 w-[17rem] max-w-[calc(100vw-16px)] cursor-auto drawer-in ${passive ? 'pointer-events-none' : ''}`}
+      style={{ top: `calc(${y * 100}% - 18px + ${shift.y}px)`, ...(right ? { right: `calc(${(1 - x) * 100}% + 18px - ${shift.x}px)` } : { left: `calc(${x * 100}% + 18px + ${shift.x}px)` }) }}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
     >
@@ -901,7 +1012,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove, onEdit, onClose }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void }) {
+function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -923,13 +1034,19 @@ function MarkPopover({ type, types, mark, readOnly, onRetype, onLabel, onRemove,
       </select>
       <label className={eyebrow} htmlFor={`rn-${mark.id}`}>Room number (optional)</label>
       <input id={`rn-${mark.id}`} className="input-field py-1.5 text-xs" value={label} placeholder="e.g. 143" maxLength={16} onChange={(e) => setLabel(e.target.value)} onBlur={() => onLabel(label.trim())} onKeyDown={(e) => e.key === 'Enter' && onLabel(label.trim())} />
+      {children}
       <div className="flex items-center justify-between gap-2 mt-3">
         <button type="button" className="text-[11.5px] text-[#B23A26] underline" onClick={onRemove}>Remove this room</button>
         <button type="button" className="btn-secondary py-1 text-xs truncate max-w-[60%]" onClick={onEdit}>Edit “{type.name || 'Room type'}”…</button>
       </div>
       </>
       )}
-      {readOnly && <p className="mt-2 text-[10.5px] text-teton-ui-gray">🔒 Changing room types needs Edit Scope.</p>}
+      {readOnly && (
+        <>
+          {children}
+          <p className="mt-2 text-[10.5px] text-teton-ui-gray">🔒 Changing room types needs Edit Scope.</p>
+        </>
+      )}
     </div>
   );
 }
@@ -945,6 +1062,8 @@ function TypeForm({
   onSave,
   onCancel,
   onAddTo,
+  note,
+  onNote,
 }: {
   title: string;
   sub?: string;
@@ -955,6 +1074,9 @@ function TypeForm({
   onSave: (v: Omit<RoomType, 'id' | 'rooms' | 'marks'>) => void;
   onCancel: () => void;
   onAddTo?: (typeId: string) => void;
+  /** A note for the selected rooms (only when tagging a selection). */
+  note?: string;
+  onNote?: (v: string) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [initials, setInitials] = useState(initial?.initials ?? '');
@@ -996,6 +1118,12 @@ function TypeForm({
             {types.map((t) => <option key={t.id} value={t.id}>{t.name || 'Room type'}</option>)}
           </select>
           <button type="button" className="btn-secondary py-1 text-xs disabled:opacity-40" disabled={!addTo} onClick={() => addTo && onAddTo(addTo)}>Add</button>
+        </div>
+      )}
+      {onNote && (
+        <div className="mb-2.5 pb-2.5 border-b border-teton-off-white">
+          <label className={`${eyebrow} !mt-0`} htmlFor="tf-note">Note for {sub ? 'these rooms' : 'this room'} (optional)</label>
+          <textarea id="tf-note" className="input-field py-1.5 text-xs min-h-[2.75rem] resize-y" value={note ?? ''} maxLength={2000} placeholder="Shows on every room you’re tagging" onChange={(e) => onNote(e.target.value)} />
         </div>
       )}
       <p className="font-semibold text-[13px]">{title}</p>

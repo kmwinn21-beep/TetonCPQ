@@ -295,4 +295,21 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `UPDATE deals SET owner_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) WHERE owner_id IS NULL`,
     ],
   },
+  {
+    id: 11,
+    name: 'notes on tagged rooms',
+    sql: [
+      // A note on one or more tagged rooms (Scope Mode badges, by their mark ids in the draft's room types).
+      `CREATE TABLE tag_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_id INTEGER NOT NULL REFERENCES quotes(id),
+        mark_ids TEXT NOT NULL,
+        body TEXT NOT NULL,
+        author_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_tag_notes_quote ON tag_notes(quote_id)`,
+    ],
+  },
 ];
