@@ -207,7 +207,7 @@ export function Section({
             <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
             {open
               ? description && <span className="block text-sm text-teton-ui-gray mt-0.5">{description}</span>
-              : summary && <span className="block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
+              : summary && <span className="max-sm:hidden block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
           </span>
         </button>
         {/* Header actions, then the comment button furthest right (on the same row). */}
@@ -290,7 +290,8 @@ export function SectionGroup({ id, title, summary, children }: { id: string; tit
         </svg>
         <span className="min-w-0">
           <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
-          {summary && <span className="block text-sm text-teton-dark-gray mt-0.5">{summary}</span>}
+          {/* Phones: the summary only shows while open, to save room. */}
+          {summary && <span className={`block text-sm text-teton-dark-gray mt-0.5 ${open ? '' : 'max-sm:hidden'}`}>{summary}</span>}
         </span>
       </button>
       <Collapse open={open} id={bodyId}>
