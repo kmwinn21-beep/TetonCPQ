@@ -28,6 +28,7 @@ import { carryScope, describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { NotificationsPanel } from './NotificationsPanel';
 import { InputCommentsButton, InputCommentsProvider } from './InputComments';
 import { TasksPanel } from './TasksPanel';
+import { ScrollRow } from '@/components/form/ScrollRow';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
 import { FloorPlansPanel } from './FloorPlansPanel';
@@ -358,12 +359,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               </div>
             )}
           </div>
-          <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+          {/* Phones: the buttons scroll sideways (with ‹ › when there are more) instead of widening the page. */}
+          <ScrollRow className="w-full sm:w-auto" label="Deal actions">
             <InputCommentsButton />
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length} aria-label="View results"><span className="sm:hidden">Results</span><span className="hidden sm:inline">View results</span></button>
             {/* Proposals are made from saved versions: the latest one. */}
             {activeVersion ? (
-              <Link href={`/proposal/${activeVersion.id}`} className="btn-secondary whitespace-nowrap flex-1 sm:flex-none text-center" title={`The proposal for v${activeVersion.versionNo}, the active version`}>
+              <Link href={`/proposal/${activeVersion.id}`} className="btn-secondary whitespace-nowrap text-center" title={`The proposal for v${activeVersion.versionNo}, the active version`}>
                 <span className="sm:hidden">Proposal</span><span className="hidden sm:inline">View proposal</span>
               </Link>
             ) : (
@@ -371,13 +373,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 <span className="sm:hidden">Proposal</span><span className="hidden sm:inline">View proposal</span>
               </button>
             )}
-            {noteOpen ? (
-              <div className="flex flex-1 sm:flex-none flex-wrap items-start gap-2">
-                <input autoFocus className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
-                <button type="button" className="btn-primary" onClick={() => void saveVersion()} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
-                <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
-              </div>
-            ) : (
+            {!noteOpen && (
               <>
                 {pending.length > 0 && (
                   <button type="button" className="btn-secondary whitespace-nowrap" aria-expanded={changesOpen} aria-controls="pending-changes" onClick={() => setChangesOpen(!changesOpen)}>
@@ -387,7 +383,14 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length} aria-label="Save version"><span className="sm:hidden">Save</span><span className="hidden sm:inline">Save version</span></button>}
               </>
             )}
-          </div>
+          </ScrollRow>
+          {noteOpen && (
+            <div className="flex w-full sm:w-auto flex-wrap items-start gap-2 drawer-in">
+              <input autoFocus className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
+              <button type="button" className="btn-primary" onClick={() => void saveVersion()} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
+              <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
+            </div>
+          )}
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
           {!access.inputs && (
             <div className="w-full flex items-center gap-2 rounded-lg bg-teton-pale-yellow border border-[#F0D58A] px-3 py-2 text-sm" role="status">

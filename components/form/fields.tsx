@@ -190,7 +190,7 @@ export function Section({
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <button
           type="button"
-          className="flex items-start gap-3 text-left flex-1 min-w-[14rem] group"
+          className="flex items-start gap-3 text-left flex-1 min-w-0 sm:min-w-[14rem] group"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setOpen(id, !open)}
@@ -204,7 +204,7 @@ export function Section({
             <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
           </svg>
           <span className="min-w-0">
-            <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
+            <span className="block text-base font-semibold group-hover:underline underline-offset-2 break-words">{title}</span>
             {open
               ? description && <span className="block text-sm text-teton-ui-gray mt-0.5">{description}</span>
               : summary && <span className="max-sm:hidden block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
@@ -212,10 +212,9 @@ export function Section({
         </button>
         {/* Header actions, then the comment button furthest right (on the same row). */}
         {((aside && !readOnly) || extra) && (
-          <div className={`flex items-stretch justify-end gap-1.5 ${aside && !readOnly ? 'max-sm:w-full' : ''}`}>
+          <div className="flex items-stretch justify-end gap-1.5 flex-shrink-0">
             {aside && !readOnly && (
               <div
-                className="max-sm:flex-1"
                 onClick={() => {
                   // Actions in the header (e.g. "Add community") act on the contents, so show them.
                   if (!open) setOpen(id, true);

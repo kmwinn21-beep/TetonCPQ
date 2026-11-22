@@ -342,8 +342,9 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
       }
       aside={
         <div className="flex items-center justify-end gap-1.5">
-          <button type="button" className="btn-primary whitespace-nowrap" onClick={addCommunity}>
-            + Community
+          <button type="button" className="btn-primary whitespace-nowrap max-sm:px-0 max-sm:w-[2.375rem] max-sm:h-[2.375rem] max-sm:text-lg max-sm:leading-none" onClick={addCommunity} aria-label="Add a community">
+            <span className="sm:hidden" aria-hidden="true">+</span>
+            <span className="hidden sm:inline">+ Community</span>
           </button>
           <MoreMenu
             label="More community actions"
