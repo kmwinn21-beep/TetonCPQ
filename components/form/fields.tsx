@@ -166,6 +166,7 @@ export function Section({
   summary,
   children,
   aside,
+  reset,
   interactive = false,
 }: {
   id: string;
@@ -174,6 +175,8 @@ export function Section({
   summary?: React.ReactNode;
   children: React.ReactNode;
   aside?: React.ReactNode;
+  /** A "Reset to Defaults" control: shown under the description while the section is open (editors only). */
+  reset?: React.ReactNode;
   /** The section handles view-only mode itself (e.g. rows that open read-only details). */
   interactive?: boolean;
 }) {
@@ -185,10 +188,9 @@ export function Section({
   return (
     <section id={id} className="card scroll-mt-4 p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <div className="flex items-start gap-2 flex-1 min-w-[16rem]">
         <button
           type="button"
-          className="flex items-start gap-3 text-left flex-1 min-w-0 group"
+          className="flex items-start gap-3 text-left flex-1 min-w-[14rem] group"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setOpen(id, !open)}
@@ -208,17 +210,21 @@ export function Section({
               : summary && <span className="block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
           </span>
         </button>
-        {extra?.(id, title)}
-        </div>
-        {aside && !readOnly && (
-          <div
-            className="max-sm:w-full"
-            onClick={() => {
-              // Actions in the header (e.g. "Add community") act on the contents, so show them.
-              if (!open) setOpen(id, true);
-            }}
-          >
-            {aside}
+        {/* Header actions, then the comment button furthest right (on the same row). */}
+        {((aside && !readOnly) || extra) && (
+          <div className={`flex items-stretch justify-end gap-1.5 ${aside && !readOnly ? 'max-sm:w-full' : ''}`}>
+            {aside && !readOnly && (
+              <div
+                className="max-sm:flex-1"
+                onClick={() => {
+                  // Actions in the header (e.g. "Add community") act on the contents, so show them.
+                  if (!open) setOpen(id, true);
+                }}
+              >
+                {aside}
+              </div>
+            )}
+            {extra?.(id, title)}
           </div>
         )}
       </div>
@@ -226,7 +232,10 @@ export function Section({
         {readOnly && !interactive ? (
           <fieldset disabled className="px-5 pb-5 min-w-0">{children}</fieldset>
         ) : (
-          <div className="px-5 pb-5">{children}</div>
+          <div className="px-5 pb-5">
+            {reset && <div className="-mt-3 mb-3 pl-7">{reset}</div>}
+            {children}
+          </div>
         )}
       </Collapse>
     </section>
@@ -288,5 +297,18 @@ export function SectionGroup({ id, title, summary, children }: { id: string; tit
         <div className="space-y-4 pt-4">{children}</div>
       </Collapse>
     </div>
+  );
+}
+
+/** The "Reset to Defaults" control under an open section's description. */
+export function ResetDefaults({ onClick, title }: { onClick: () => void; title?: string }) {
+  return (
+    <button type="button" className="inline-flex items-center gap-1.5 -ml-2 px-2 py-1 rounded-md text-[13px] font-medium text-teton-dark-gray hover:bg-teton-off-white transition-colors" onClick={onClick} title={title}>
+      <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 8a5 5 0 1 0 1.5-3.6" />
+        <path d="M3 2.5v2.8h2.8" />
+      </svg>
+      Reset to Defaults
+    </button>
   );
 }

@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { addTerm, editTerm, isStandardTerms, itemLabel, moveTerm, removedTerms, removeTerm, resolveTerms, restoreTerm, type ListKind, type TermsSetting } from '@/lib/quote/terms';
-import { Section } from '@/components/form/fields';
+import { ResetDefaults, Section } from '@/components/form/fields';
 import { TemplateInput } from '@/components/form/TemplateInput';
 import type { SectionProps } from './sections';
 
@@ -30,19 +30,15 @@ export function TermsSection(_props: SectionProps) {
       title="Terms / Notes"
       description="The bullet points under Terms on the proposal, and the Next Steps on the business case. Reword, remove, reorder or add your own. Grey figures come from the deal and stay up to date."
       summary={`${terms.length} ${terms.length === 1 ? 'term' : 'terms'} · ${steps.length} next ${steps.length === 1 ? 'step' : 'steps'} · ${standard ? 'standard' : 'customized'}`}
-      aside={
+      reset={
         !standard ? (
-          <button
-            type="button"
-            className="btn-ghost"
+          <ResetDefaults
             onClick={() => {
-              if (!window.confirm('Put the terms and next steps back to the standard ones? Your notes and wording changes will be removed.')) return;
+              if (!window.confirm('Put the terms and next steps back to the defaults? Your notes and wording changes will be removed.')) return;
               setValue('terms', null, { shouldDirty: true });
               setValue('nextSteps', null, { shouldDirty: true });
             }}
-          >
-            Reset to standard
-          </button>
+          />
         ) : undefined
       }
     >

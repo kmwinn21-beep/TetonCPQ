@@ -131,12 +131,13 @@ function SectionCommentButton({ id, title }: { id: string; title: string }) {
     <CommentHoverCard threads={active ? [] : here}>
     <button
       type="button"
-      className={`flex-shrink-0 inline-flex items-center gap-1 h-7 min-w-[28px] justify-center px-1.5 rounded-lg border text-[11px] font-bold transition-colors duration-200 ${active ? 'bg-[#3F8CEA] border-[#3F8CEA] text-white' : n ? 'border-[#9cc0f0] bg-[#F5F9FF] text-[#1F5FB5] hover:bg-[#E9F2FE]' : 'border-teton-pale-gray bg-white text-teton-ui-gray hover:text-teton-ink hover:bg-teton-almost-white'}`}
+      // The same size as the header's ⋮ menu button (Communities).
+      className={`flex-shrink-0 self-start inline-flex items-center justify-center gap-1 h-[2.375rem] min-w-[2.375rem] px-2.5 rounded-lg border text-xs font-bold transition-colors duration-200 ${active ? 'bg-[#3F8CEA] border-[#3F8CEA] text-white' : n ? 'border-[#9cc0f0] bg-[#F5F9FF] text-[#1F5FB5] hover:bg-[#E9F2FE]' : 'border-teton-pale-gray bg-white text-teton-dark-gray hover:bg-teton-off-white'}`}
       onClick={() => c.open({ section: { id, title } })}
       aria-label={n ? `${n} open comment${n === 1 ? '' : 's'} on ${title}; add a comment` : `Comment on ${title}`}
       title={n ? undefined : `Comment on ${title}`}
     >
-      <BubbleIcon className="w-3.5 h-3.5" />
+      <BubbleIcon className="w-4 h-4" />
       {n > 0 && <span className="tabular-nums">{n}</span>}
     </button>
     </CommentHoverCard>

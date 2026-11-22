@@ -6,7 +6,7 @@ import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { pricedBedsOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityRates } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, pct, usd } from '@/lib/format';
-import { DerivedField, Grid, MoneyField, NumberField, PercentField, Section, SegmentedField, ToggleField } from '@/components/form/fields';
+import { DerivedField, Grid, MoneyField, NumberField, PercentField, ResetDefaults, Section, SegmentedField, ToggleField } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SegGroup } from '@/components/form/SegGroup';
 
@@ -460,10 +460,8 @@ export function MetricsSection({ inputs }: SectionProps) {
           m && `${CASE_LABEL[roiCase]}: falls −${pct(m.fallReduction, 0)}, move-ins +${pct(m.moveInUplift, 0)}, staffing ${pct(m.staffingAlignment, 0)}, tech ${pct(m.techReplacement, 0)}`,
         );
       })()}
-      aside={
-        <button type="button" className="btn-ghost" onClick={() => setValue('caseMetrics', structuredClone(STANDARD_CASE_METRICS), { shouldDirty: true })}>
-          Reset to standard
-        </button>
+      reset={
+        <ResetDefaults onClick={() => setValue('caseMetrics', structuredClone(STANDARD_CASE_METRICS), { shouldDirty: true })} />
       }
     >
       <div className="mb-4">

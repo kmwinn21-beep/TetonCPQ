@@ -10,7 +10,7 @@ import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { earliestGoLive, isDefaultPlan, normalizePlan, resetToStandard, weeksToGoLive } from '@/lib/quote/implementationPlan';
 import { pilotPlan } from '@/lib/quote/pilotGoLives';
-import { Section } from '@/components/form/fields';
+import { ResetDefaults, Section } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { longDate } from '@/components/implementation/ImplementationGantt';
 import { StagesEditor } from '@/components/implementation/StagesEditor';
@@ -49,12 +49,9 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
       ]
         .filter(Boolean)
         .join(' · ')}
-      aside={
+      reset={
         changed ? (
-          <button type="button" className="btn-ghost" onClick={() => setValue('implementationPlan', resetToStandard(plan), { shouldDirty: true })}
-            title="Standard stages, lengths and overlaps; stage names you've changed are kept">
-            Reset to standard
-          </button>
+          <ResetDefaults onClick={() => setValue('implementationPlan', resetToStandard(plan), { shouldDirty: true })} title="Default stages, lengths and overlaps; stage names you've changed are kept" />
         ) : undefined
       }
     >
