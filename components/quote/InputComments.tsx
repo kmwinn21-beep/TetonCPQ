@@ -11,7 +11,7 @@ import { Collapse, SectionExtraContext } from '@/components/form/fields';
 import { SegGroup } from '@/components/form/SegGroup';
 import type { CommentThread } from '@/lib/data/proposalComments';
 import type { Person } from '@/lib/data/planNotes';
-import { BubbleIcon, CommentHoverCard, Composer, mentionsIn, Thread, type CommentTarget, type ThreadOps } from '@/components/proposal/Comments';
+import { BubbleIcon, CommentHoverCard, Composer, mentionsIn, SectionFilter, Thread, type FilterOption, type CommentTarget, type ThreadOps } from '@/components/proposal/Comments';
 
 type View = 'inputs' | 'deliverable' | 'all';
 type Filter = 'open' | 'resolved' | 'all';
@@ -30,6 +30,11 @@ export const useInputComments = () => useContext(InputCommentsContext);
 
 /** Mentions read here or elsewhere on the page (the Notifications panel listens). */
 export const MENTIONS_READ = 'teton:mentions-read';
+
+/** A section's filter key: the group it's in (the Assumptions sections count as one), or the section itself. */
+function groupOf(id: string) {
+  return document.getElementById(id)?.closest<HTMLElement>('[data-group]')?.dataset.group ?? id;
+}
 
 function showSection(id: string) {
   const el = document.getElementById(id);
@@ -150,13 +155,21 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
   const [view, setView] = useState<View>('inputs');
   const [filter, setFilter] = useState<Filter>('open');
   const [focus, setFocus] = useState<number | null>(null);
+  // Filters (input sections; business case pages): kept while on this page, reset by leaving or reloading it.
+  const [pickedInputs, setPickedInputs] = useState<string[]>([]);
+  const [pickedPages, setPickedPages] = useState<string[]>([]);
   const list = useRef<HTMLDivElement>(null);
   // Keep showing the last content while the drawer leaves.
   useEffect(() => {
     if (state) {
       setShown(state);
       setClosing(false);
-      if (state.section) setView('inputs');
+      if (state.section) {
+        setView('inputs');
+        // Commenting on a section that's filtered out adds it to the filter, so the new comment shows.
+        const k = groupOf(state.section.id);
+        setPickedInputs((p) => (p.length && !p.includes(k) ? [...p, k] : p));
+      }
     } else if (shown) {
       setClosing(true);
       const t = setTimeout(() => {
@@ -203,7 +216,22 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
   const target = (state ?? shown).section;
   const matches = (t: CommentThread) => (filter === 'all' ? true : filter === 'open' ? !t.resolvedAt : !!t.resolvedAt);
   const count = (v: View) => threads.filter((t) => (v === 'all' || t.area === v) && matches(t)).length;
-  const visible = threads.filter((t) => inView(t) && matches(t));
+  // A thread's filter key: its section (the Assumptions sections count as one), its business case page, or '' (whole).
+  const inputKey = (t: CommentThread) => (t.page == null ? '' : groupOf(t.page));
+  const passes = (t: CommentThread) =>
+    t.area === 'inputs' ? !pickedInputs.length || pickedInputs.includes(inputKey(t)) : view === 'all' ? !pickedInputs.length : !pickedPages.length || pickedPages.includes(t.page ?? '');
+  const visible = threads.filter((t) => inView(t) && matches(t) && passes(t));
+  const hiddenDeliverable = view === 'all' && pickedInputs.length > 0 && threads.some((t) => t.area === 'deliverable' && matches(t));
+  const inStatus = threads.filter(matches);
+  const inputOptions: FilterOption[] = [{ key: '', label: 'Whole deal', count: inStatus.filter((t) => t.area === 'inputs' && t.page == null).length }];
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('form section[id]'))) {
+    const key = groupOf(el.id);
+    if (inputOptions.some((o) => o.key === key)) continue;
+    const label = key === el.id ? el.dataset.title || el.id : document.querySelector<HTMLElement>(`[data-group="${CSS.escape(key)}"]`)?.dataset.title || key;
+    inputOptions.push({ key, label, count: inStatus.filter((t) => t.area === 'inputs' && t.page != null && groupOf(t.page) === key).length });
+  }
+  const pageOptions: FilterOption[] = [{ key: '', label: 'Whole proposal', count: inStatus.filter((t) => t.area === 'deliverable' && t.page == null).length }];
+  for (const t of threads) if (t.area === 'deliverable' && t.page && !pageOptions.some((o) => o.key === t.page)) pageOptions.push({ key: t.page, label: t.label.split(' · ')[0], count: inStatus.filter((x) => x.area === 'deliverable' && x.page === t.page).length });
   const statusCounts = { open: threads.filter((t) => inView(t) && !t.resolvedAt).length, resolved: threads.filter((t) => inView(t) && t.resolvedAt).length, all: threads.filter(inView).length };
 
   // Inputs: grouped by section in page order (the whole deal first). Deliverable: by business case page. All: newest first.
@@ -281,6 +309,11 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
               </button>
             ))}
           </SegGroup>
+          {view === 'deliverable' ? (
+            <SectionFilter title="Filter by page" allLabel="All pages" options={pageOptions} picked={pickedPages} onChange={setPickedPages} />
+          ) : (
+            <SectionFilter title="Filter by section" allLabel="All sections" options={inputOptions} picked={pickedInputs} onChange={setPickedInputs} />
+          )}
         </div>
         {error && <p className="mx-4 mt-2 rounded-md bg-teton-red/30 px-2.5 py-1.5 text-xs text-[#9A2E1C]" role="alert">{error}</p>}
         <Collapse open={!!target}>
@@ -307,9 +340,11 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
           )}
         </Collapse>
         <div ref={list} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          {!visible.length && (
+          {!visible.length && !hiddenDeliverable && (
             <p className="px-4 py-8 text-center text-sm text-teton-ui-gray">
-              {filter === 'resolved' ? 'Nothing resolved yet.' : view === 'deliverable' ? 'No open comments on the business case.' : threads.some((t) => inView(t)) ? 'No open comments.' : 'No comments yet. Click 💬 on a section, or comment on the whole deal below.'}
+              {(view === 'deliverable' ? pickedPages : pickedInputs).length
+                ? `No comments on the picked ${view === 'deliverable' ? 'pages' : 'sections'}.`
+                : filter === 'resolved' ? 'Nothing resolved yet.' : view === 'deliverable' ? 'No open comments on the business case.' : threads.some((t) => inView(t)) ? 'No open comments.' : 'No comments yet. Click 💬 on a section, or comment on the whole deal below.'}
             </p>
           )}
           {groups.map((g) => (
@@ -319,6 +354,14 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
                 {g.items.map((t) => (
                   <Thread key={t.id} t={t} p={t.area === 'inputs' ? inputOps : deliverableOps} focused={focus === t.id} onFocus={() => setFocus(t.id)} />
                 ))}
+          {hiddenDeliverable && (
+            <p className="px-4 py-5 text-center text-xs text-teton-ui-gray">
+              Business case comments aren’t shown while a section filter is on.{' '}
+              <button type="button" className="font-semibold text-[#1F5FB5] hover:underline" onClick={() => setPickedInputs([])}>
+                Clear filter
+              </button>
+            </p>
+          )}
               </ul>
             </section>
           ))}

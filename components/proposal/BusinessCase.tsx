@@ -392,7 +392,7 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
   return (
     <CommentPageContext.Provider value={slotCtx}>
       <AddPageZone at={id} />
-      <div className={`bc-slot group/bcp ${index === order.length - 1 ? 'bc-last' : ''}`} data-bc-page={id}>
+      <div className={`bc-slot group/bcp ${index === order.length - 1 ? 'bc-last' : ''}`} data-bc-page={id} data-bc-title={title}>
         <CommentPin page={id} block={null} kind="page" />
         {!editable && comments.enabled && (
           <div data-edit-ui className="no-print bc-controls opacity-0 group-hover/bcp:opacity-100 focus-within:opacity-100 transition-opacity">

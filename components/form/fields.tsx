@@ -186,7 +186,7 @@ export function Section({
   const open = isOpen(id);
   const bodyId = `${id}-body`;
   return (
-    <section id={id} className="card scroll-mt-4 p-0">
+    <section id={id} data-title={title} className="card scroll-mt-4 p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <button
           type="button"
@@ -277,7 +277,7 @@ export function SectionGroup({ id, title, summary, children }: { id: string; tit
   const open = isOpen(id);
   const bodyId = `${id}-group`;
   return (
-    <div data-group={id}>
+    <div data-group={id} data-title={title}>
       <button
         type="button"
         className="w-full flex items-start gap-3 text-left rounded-xl border border-dashed border-teton-pale-gray bg-teton-almost-white px-5 py-4 group hover:border-teton-light-gray transition-colors"

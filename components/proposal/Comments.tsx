@@ -233,7 +233,14 @@ function CommentsDrawer(p: DrawerProps) {
   const [closing, setClosing] = useState(false);
   const [filter, setFilter] = useState<Filter>('open');
   const [focus, setFocus] = useState<number | null>(null);
+  // Pages picked in the filter: kept while on this page (closing the drawer keeps it; leaving or reloading resets it).
+  const [picked, setPicked] = useState<string[]>([]);
   const list = useRef<HTMLDivElement>(null);
+  // Commenting on a page that's filtered out adds it to the filter, so the new comment shows.
+  const tKey = p.state?.target ? p.state.target.page ?? '' : null;
+  useEffect(() => {
+    if (tKey != null) setPicked((k) => (k.length && !k.includes(tKey) ? [...k, tKey] : k));
+  }, [tKey]);
   // Keep showing the last content while the drawer leaves.
   useEffect(() => {
     if (p.state) {
@@ -278,9 +285,18 @@ function CommentsDrawer(p: DrawerProps) {
   if (!shown) return null;
 
   const target = (p.state ?? shown).target;
-  const visible = p.threads.filter((t) => (filter === 'all' ? true : filter === 'open' ? !t.resolvedAt : !!t.resolvedAt));
+  const matches = (t: CommentThread) => (filter === 'all' ? true : filter === 'open' ? !t.resolvedAt : !!t.resolvedAt);
+  const visible = p.threads.filter((t) => matches(t) && (!picked.length || picked.includes(t.page ?? '')));
   // Grouped by page in document order; general comments first.
-  const pageOrder = Array.from(document.querySelectorAll<HTMLElement>('[data-bc-page]')).map((el) => el.dataset.bcPage!);
+  const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-bc-page]'));
+  const pageOrder = slots.map((el) => el.dataset.bcPage!);
+  const inStatus = p.threads.filter(matches);
+  const pageOptions: FilterOption[] = [
+    { key: '', label: 'Whole proposal', count: inStatus.filter((t) => t.page == null).length },
+    ...slots.map((el) => ({ key: el.dataset.bcPage!, label: el.dataset.bcTitle || el.dataset.bcPage!, count: inStatus.filter((t) => t.page === el.dataset.bcPage).length })),
+  ];
+  // Pages no longer in the document (removed) that still have comments.
+  for (const t of p.threads) if (t.page && !pageOptions.some((o) => o.key === t.page)) pageOptions.push({ key: t.page, label: t.label.split(' · ')[0], count: inStatus.filter((x) => x.page === t.page).length });
   const groups = new Map<string, CommentThread[]>();
   for (const t of visible) {
     const k = t.page ?? '';
@@ -313,6 +329,7 @@ function CommentsDrawer(p: DrawerProps) {
               </button>
             ))}
           </SegGroup>
+          <SectionFilter title="Filter by page" allLabel="All pages" options={pageOptions} picked={picked} onChange={setPicked} />
         </div>
         {p.error && <p className="mx-4 mt-2 rounded-md bg-teton-red/30 px-2.5 py-1.5 text-xs text-[#9A2E1C]" role="alert">{p.error}</p>}
         <Collapse open={!!target}>
@@ -344,7 +361,7 @@ function CommentsDrawer(p: DrawerProps) {
         <div ref={list} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {!visible.length && (
             <p className="px-4 py-8 text-center text-sm text-teton-ui-gray">
-              {filter === 'resolved' ? 'Nothing resolved yet.' : p.threads.length ? 'No open comments.' : 'No comments yet. Hover a page or section and click 💬, or comment on the whole proposal below.'}
+              {picked.length ? 'No comments on the picked pages.' : filter === 'resolved' ? 'Nothing resolved yet.' : p.threads.length ? 'No open comments.' : 'No comments yet. Hover a page or section and click 💬, or comment on the whole proposal below.'}
             </p>
           )}
           {keys.map((k) => (
@@ -748,6 +765,84 @@ function HoverComment({ c }: { c: ProposalComment }) {
         {c.draft ? <span className="flex-shrink-0 rounded bg-teton-almost-white px-1 text-[9px] font-semibold">draft</span> : c.versionNo != null && <span className="flex-shrink-0 rounded bg-teton-almost-white px-1 text-[9px] font-semibold">on v{c.versionNo}</span>}
       </div>
       <p className="mt-0.5 text-[12.5px] leading-snug whitespace-pre-wrap break-words line-clamp-6">{c.body}</p>
+    </div>
+  );
+}
+
+export interface FilterOption {
+  key: string;
+  label: string;
+  count: number;
+}
+/**
+ * "Filter by section" under the drawer's toggles: a row that opens a list of checkboxes (several can be picked),
+ * with counts, Select all / With open comments and Clear. Closed with a filter on, chips name what's picked.
+ */
+export function SectionFilter({ title, allLabel, options, picked, onChange }: { title: string; allLabel: string; options: FilterOption[]; picked: string[]; onChange: (keys: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const has = options.filter((o) => o.count > 0);
+  // Options with comments first (in their order), then the rest, greyed.
+  const sorted = [...has, ...options.filter((o) => o.count === 0)];
+  const label = (k: string) => options.find((o) => o.key === k)?.label ?? k;
+  const toggle = (k: string) => onChange(picked.includes(k) ? picked.filter((x) => x !== k) : [...picked, k]);
+  return (
+    <div className="mt-2">
+      <div className={`flex items-center gap-2 border border-teton-off-white bg-teton-almost-white px-2 py-1.5 text-xs font-semibold text-teton-dark-gray transition-[border-radius] duration-200 ${open ? 'rounded-t-lg' : 'rounded-lg'}`}>
+        <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <svg className={`w-3 h-3 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+          </svg>
+          {title}
+          {picked.length > 0 ? (
+            <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-[#3F8CEA] text-white text-[10px] font-bold leading-none">{picked.length}</span>
+          ) : (
+            <span className="ml-auto font-medium text-teton-ui-gray">{allLabel}</span>
+          )}
+        </button>
+        {picked.length > 0 && (
+          <button type="button" className="ml-auto text-[11px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => onChange([])}>
+            Clear
+          </button>
+        )}
+      </div>
+      <Collapse open={open}>
+        <div className="rounded-b-lg border border-t-0 border-teton-off-white bg-teton-almost-white px-2.5 pb-2 pt-1">
+          <div className="flex gap-3 border-b border-teton-off-white pb-1.5 mb-1 text-[11px] font-semibold text-[#1F5FB5]">
+            <button type="button" className="hover:underline" onClick={() => onChange(options.map((o) => o.key))}>
+              Select all
+            </button>
+            <button type="button" className="hover:underline disabled:opacity-40 disabled:no-underline" disabled={!has.length} onClick={() => onChange(has.map((o) => o.key))}>
+              With comments
+            </button>
+          </div>
+          <ul className="max-h-56 overflow-y-auto overscroll-contain">
+            {sorted.map((o) => {
+              const on = picked.includes(o.key);
+              return (
+                <li key={o.key || '_whole'}>
+                  <label className={`flex items-center gap-2 py-1.5 px-0.5 text-[12.5px] cursor-pointer rounded hover:bg-white ${o.count ? 'text-teton-ink' : 'text-teton-light-gray'}`}>
+                    <input type="checkbox" className="w-3.5 h-3.5 accent-teton-ink" checked={on} onChange={() => toggle(o.key)} />
+                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                    <span className="tabular-nums text-[11px] text-teton-ui-gray">{o.count}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </Collapse>
+      {!open && picked.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {picked.map((k) => (
+            <span key={k || '_whole'} className="inline-flex items-center gap-1 rounded-full bg-[#E5EEFC] pl-2 pr-1 py-0.5 text-[11px] font-semibold text-[#1F5FB5] [animation:fadeIn_.15s_ease-out] motion-reduce:[animation:none]">
+              <span className="max-w-[12rem] truncate">{label(k)}</span>
+              <button type="button" className="w-4 h-4 rounded-full hover:bg-white/70 leading-none" aria-label={`Stop filtering by ${label(k)}`} onClick={() => toggle(k)}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
