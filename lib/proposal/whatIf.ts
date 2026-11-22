@@ -38,7 +38,7 @@ const F = (path: string, label: string, group: string, where: string, kind: Fiel
 const BENEFITS = 'Benefits included';
 const BENEFITS_AT = 'ROI Case Setup';
 const PRICING = 'Pricing';
-const PRICING_AT = 'Pricing & products';
+const PRICING_AT = 'Products & Pricing';
 const CLIENT = 'Client';
 const CLIENT_AT = 'Assumptions · Client';
 const TIMELINE = 'ROI Timeline / Ramp';
@@ -276,7 +276,7 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k.startsWith('finish.')) return { formula: 'Rooms × (concealed price − standard installation credit), low to high, pending the site survey', fields: ['commercial.finish.concealed', 'commercial.finish.low', 'commercial.finish.high', 'commercial.finish.credit'] };
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };
   if (k === 'scope.total') return pricing('Installation + pilot fees + monthly fees over the service term');
-  if (k.startsWith('rate.')) return pricing('The rate per bed, from Pricing & products');
+  if (k.startsWith('rate.')) return pricing('The rate per bed, from Products & Pricing');
   if (k.startsWith('capex.base.') || k === 'capex.price.value') return { formula: 'Beds × base package price (the E-Call price for beds with E-Call) + additional sensors × sensor price', fields: ['presentation', 'commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.inovonicsBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.conversionCredit'] };
   if (k.startsWith('capex.sensors')) return { formula: 'Additional sensors × sensor price (equipment purchase), less the conversion credit at pilot communities', fields: ['presentation', 'commercial.capex.sensorPrice', 'commercial.capex.conversionCredit'] };
   if (k.startsWith('capex.software')) return { formula: 'Beds × software & services rate, per month', fields: ['presentation', 'commercial.capex.softwareRate'] };

@@ -142,7 +142,7 @@ export function CommunityEditor({
 
       {/* Site switches and its floor plans, above the name. */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span title={withPilot ? undefined : 'The deal has no pilot (Pricing & products)'}>
+        <span title={withPilot ? undefined : 'The deal has no pilot (Products & Pricing)'}>
           <Controller
             control={control}
             name={`communities.${i}.pilot`}
@@ -233,7 +233,7 @@ export function CommunityEditor({
             ? 'Bed counts come from the room types. Tick products per care type here; each room type follows its care setting.'
             : 'Tick the products priced on each care type’s beds. Beds with neither are left out of the pricing.'}
           {scope.monitored === 0 && scope.priced > 0 && ' E-Call only: no resident monitoring subscription, Edge units or sensors, and no ROI benefits.'}
-          {!ecallOn && ' The deal has no E-Call add-on (Pricing & products).'}
+          {!ecallOn && ' The deal has no E-Call add-on (Products & Pricing).'}
         </p>
         {problems.length > 0 && <p className="text-xs mt-1.5 rounded bg-teton-red/30 px-2 py-1">{problems.join(' · ')}</p>}
         </fieldset>

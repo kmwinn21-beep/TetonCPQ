@@ -40,7 +40,7 @@ import { usePersistedOpen } from '@/components/Sidebar';
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
 const NAV = [
-  ['pricing', 'Pricing & products'],
+  ['pricing', 'Products & Pricing'],
   ['communities', 'Communities'],
   ['implplan', 'Implementation'],
   ['resources', 'Resource allocation'],
@@ -515,10 +515,11 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </SectionGroup>
           </div>
 
-          <aside className="space-y-4 xl:sticky xl:top-[calc(var(--hdr-h,0px)+8px)] xl:self-start xl:max-h-[calc(100dvh-var(--hdr-h,0px)-4rem)] xl:overflow-y-auto no-scrollbar">
-            {/* Same height as the "Expand all" row over the form, so the panel's top lines up with the first section. */}
+          <aside className="space-y-4 min-w-0">
+            {/* The panel scrolls with the page. This spacer is the "Expand all" row over the form (same element and size),
+                so Collaborators' top edge lines up with the first section's. */}
             <div className="hidden xl:flex justify-end -mb-1 invisible" aria-hidden="true">
-              <span className="btn-ghost">Expand all</span>
+              <button type="button" tabIndex={-1} className="btn-ghost">Expand all</button>
             </div>
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />

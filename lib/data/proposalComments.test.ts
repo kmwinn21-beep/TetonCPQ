@@ -95,7 +95,7 @@ describe('business case comments', () => {
   });
 
   it('keeps inputs comments apart from the business case', async () => {
-    const draft = await addInputComment(db, quoteId, { page: 'pricing', label: 'Pricing & products', body: 'Hold 8%?', draft: true, mentions: [users.kw.id] }, users.js);
+    const draft = await addInputComment(db, quoteId, { page: 'pricing', label: 'Products & Pricing', body: 'Hold 8%?', draft: true, mentions: [users.kw.id] }, users.js);
     const saved = await addInputComment(db, quoteId, { body: 'Whole deal note' }, users.mo);
     const all = await listDealComments(db, quoteId, users.kw);
     const d = all.find((t) => t.id === draft)!;

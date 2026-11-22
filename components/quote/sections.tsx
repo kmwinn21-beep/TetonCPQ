@@ -223,7 +223,7 @@ export function PricingSection({ book }: SectionProps) {
   return (
     <Section
       id="pricing"
-      title="Pricing & products"
+      title="Products & Pricing"
       description={`US rate card: $${listPlatform}/bed/month, $${listInstall}/bed install. Guardrails update on the right as you type.`}
       summary={dot(
         `${money(k.platformRate)}/bed`,

@@ -16,6 +16,49 @@ const fmtDate = (iso: string) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDate
 const daysTo = (iso: string) => (iso ? Math.round((new Date(`${iso}T00:00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000) : null);
 const geoText = (d: DealDetails) => (d.geography === 'Other' ? d.geographyOther || 'Other' : d.geography);
 const initials = (s: Signatory) => `${s.first[0] ?? ''}${s.last[0] ?? ''}`.toUpperCase() || '?';
+const eyebrow = 'block text-[9.5px] font-extrabold uppercase tracking-[1px] text-teton-ui-gray mb-0.5';
+/** Close date colours: green, amber within 14 days, red once passed. */
+const dateTone = (days: number) => (days < 0 ? 'bg-teton-red/30 text-[#9A2E1C]' : days <= 14 ? 'bg-[#FFF1DC] text-[#8A5A00]' : 'bg-teton-pale-green text-[#256B41]');
+const icon = (path: React.ReactNode) => (
+  <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {path}
+  </svg>
+);
+const ICONS = {
+  entity: icon(<><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16" /><path d="M16 9h2a2 2 0 0 1 2 2v10" /><path d="M3 21h18" /><path d="M8 7h4M8 11h4M8 15h4" /></>),
+  geo: icon(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" /></>),
+  signor: icon(<><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" /><path d="M3 22c3-1 5-1 7 0s5 1 8-1" /></>),
+  close: icon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>),
+  done: (
+    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  ),
+};
+
+/** Entity · Geo · Signor(s) · Close Date: ✓ and green when done, the field's icon in dashed amber when outstanding. */
+function StatusPills({ d, days }: { d: DealDetails; days: number | null }) {
+  const items: Array<{ key: keyof typeof ICONS; label: string; done: boolean; value: string; tone?: string }> = [
+    { key: 'entity', label: 'Entity', done: !!d.legalEntity.trim(), value: d.legalEntity },
+    { key: 'geo', label: 'Geo', done: !!d.geography && (d.geography !== 'Other' || !!d.geographyOther.trim()), value: geoText(d) },
+    { key: 'signor', label: 'Signor(s)', done: d.signatories.length > 0, value: d.signatories.map((x) => [x.first, x.last].filter(Boolean).join(' ')).join(', ') },
+    { key: 'close', label: 'Close Date', done: !!d.closeDate, value: d.closeDate ? `${fmtDate(d.closeDate)}${days == null ? '' : days < 0 ? ` · ${-days} days ago` : ` · in ${days} days`}` : '', tone: days == null ? undefined : dateTone(days) },
+  ];
+  return (
+    <>
+      {items.map((it) => (
+        <span
+          key={it.key}
+          className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors duration-200 ${it.done ? `px-2 py-0.5 ${it.tone ?? 'bg-teton-pale-green text-[#256B41]'}` : 'px-[7px] py-px border border-dashed border-[#E0B04A] bg-white text-[#8A5A00]'}`}
+          title={it.done ? `${it.label}: ${it.value}` : `${it.label}: still needed`}
+        >
+          {it.done ? ICONS.done : ICONS[it.key]}
+          {it.label}
+        </span>
+      ))}
+    </>
+  );
+}
 const label = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2.5 mb-1';
 
 export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
@@ -54,19 +97,28 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
   const days = d ? daysTo(d.closeDate) : null;
   return (
     <section className="card" aria-label="Deal details">
-      <button type="button" className="w-full flex items-center gap-2 text-left" aria-expanded={open} aria-controls="deal-details" onClick={() => setOpen((o) => !o)}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <button type="button" className="flex flex-1 sm:flex-none min-w-0 items-center gap-2 text-left" aria-expanded={open} aria-controls="deal-details" onClick={() => setOpen((o) => !o)}>
         <svg className={`w-4 h-4 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
         </svg>
-        <h2 className="text-sm font-semibold">Deal Details</h2>
-        {d ? (
-          <span className="ml-auto min-w-0 truncate text-xs text-teton-ui-gray">
-            {[d.legalEntity, d.closeDate && `close ${fmtDate(d.closeDate).replace(/, \d{4}$/, '')}`].filter(Boolean).join(' · ')}
-          </span>
-        ) : (
-          <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FFF1DC] text-[#8A5A00] whitespace-nowrap">Not filled in</span>
-        )}
+        <h2 className="text-sm font-semibold whitespace-nowrap">Deal Details</h2>
       </button>
+      {/* Edit (while open): beside the title on phones, at the end of the pill row otherwise. */}
+      {open && d && canEdit && !editing && (
+        <button type="button" className="sm:order-last flex-shrink-0 btn-secondary py-0.5 px-2 text-xs [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" onClick={() => setEditing(true)}>
+          ✎ Edit
+        </button>
+      )}
+      {/* What's done and what's outstanding (display only). Phones: one line under the title that swipes sideways. */}
+      {/* Desktop: right of the title, dropping under it (right-aligned) when the panel is too narrow for one row. */}
+      <div className="relative max-sm:w-full sm:ml-auto min-w-0">
+        <div className="flex items-center gap-1 max-sm:overflow-x-auto no-scrollbar max-sm:pr-6 sm:flex-wrap sm:justify-end" aria-label="Deal details status">
+          {d ? <StatusPills d={d} days={days} /> : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FFF1DC] text-[#8A5A00] whitespace-nowrap">All Details Needed</span>}
+        </div>
+        <span className="sm:hidden pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white" aria-hidden="true" />
+      </div>
+      </div>
       <Collapse open={open} id="deal-details">
         <div className="pt-2">
           {!d && !canEdit ? (
@@ -86,37 +138,38 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
             />
           ) : (
             <>
-              {canEdit && (
-                <div className="flex justify-end -mt-1 mb-1">
-                  <button type="button" className="btn-secondary py-0.5 px-2 text-xs" onClick={() => setEditing(true)}>✎ Edit</button>
+              <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,.8fr)_minmax(0,.9fr)] gap-x-4 gap-y-3 text-[13px] items-start pt-1">
+                <div className="col-span-2 sm:col-span-1 min-w-0">
+                  <span className={eyebrow}>Legal entity</span>
+                  <Inline canEdit={canEdit} value={d.legalEntity} display={d.legalEntity || <span className="text-teton-ui-gray italic">Add the legal entity</span>} onSave={(v) => save({ ...d, legalEntity: v })} />
                 </div>
-              )}
-              <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-2.5 gap-y-2 text-[13px] items-start">
-                <dt className="text-xs text-teton-ui-gray pt-1">Legal entity</dt>
-                <dd>
-                  <Inline canEdit={canEdit} value={d.legalEntity} display={d.legalEntity || <span className="text-teton-ui-gray">Add the legal entity</span>} onSave={(v) => save({ ...d, legalEntity: v })} />
-                </dd>
-                <dt className="text-xs text-teton-ui-gray pt-1">Geography</dt>
-                <dd>
+                <div className="min-w-0">
+                  <span className={eyebrow}>Geography</span>
                   <InlineGeo canEdit={canEdit} d={d} onSave={(g, other) => save({ ...d, geography: g, geographyOther: other })} />
-                </dd>
-                <dt className="text-xs text-teton-ui-gray pt-1">HubSpot</dt>
-                <dd>
+                </div>
+                <div className="min-w-0">
+                  <span className={eyebrow}>HubSpot</span>
                   <Inline
                     canEdit={canEdit}
                     value={d.hubspotUrl}
                     validate={(v) => (!v.trim() ? 'The HubSpot deal link is required' : !isHubspotUrl(v) ? 'Use the full address, starting with https://' : null)}
                     display={
-                      <a href={d.hubspotUrl} target="_blank" rel="noreferrer" className="text-[#1F5FB5] underline" onClick={(e) => e.stopPropagation()}>
-                        Open deal in HubSpot ↗
+                      <a href={d.hubspotUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold text-[#1F5FB5] hover:underline whitespace-nowrap" onClick={(e) => e.stopPropagation()} title="Open the deal in HubSpot (new tab)">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+                          <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+                        </svg>
+                        Open Deal
                       </a>
                     }
                     onSave={(v) => save({ ...d, hubspotUrl: v })}
                   />
-                </dd>
-                <dt className="text-xs text-teton-ui-gray pt-1">Signatories</dt>
-                <dd className="space-y-1.5">
-                  {d.signatories.length === 0 && <p className="text-teton-ui-gray text-[12.5px] pt-0.5">None yet</p>}
+                </div>
+              </div>
+              <div className="mt-3.5">
+                <span className={eyebrow}>Signatories</span>
+                {d.signatories.length === 0 && <p className="text-teton-ui-gray italic text-[12.5px]">None yet</p>}
+                <div className="divide-y divide-teton-off-white">
                   {d.signatories.map((s, i) => (
                     <InlineSignatory
                       key={i}
@@ -126,18 +179,20 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
                       onRemove={() => save({ ...d, signatories: d.signatories.filter((_, j) => j !== i) })}
                     />
                   ))}
-                  {canEdit && <AddSignatory onAdd={(s) => save({ ...d, signatories: [...d.signatories, s] })} />}
-                </dd>
-                <dt className="text-xs text-teton-ui-gray pt-1">Close date</dt>
-                <dd className="flex flex-wrap items-center gap-1.5">
-                  <Inline canEdit={canEdit} type="date" value={d.closeDate} display={fmtDate(d.closeDate) || <span className="text-teton-ui-gray">Add a date</span>} onSave={(v) => save({ ...d, closeDate: v })} />
+                </div>
+                {canEdit && <div className="mt-1.5"><AddSignatory onAdd={(s) => save({ ...d, signatories: [...d.signatories, s] })} /></div>}
+              </div>
+              <div className="mt-3.5 text-[13px]">
+                <span className={eyebrow}>Close date</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Inline canEdit={canEdit} type="date" value={d.closeDate} display={fmtDate(d.closeDate) || <span className="text-teton-ui-gray italic">Not set</span>} onSave={(v) => save({ ...d, closeDate: v })} />
                   {days != null && (
-                    <span className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full ${days < 0 ? 'bg-teton-red/30 text-[#9A2E1C]' : days <= 14 ? 'bg-[#FFF1DC] text-[#8A5A00]' : 'bg-teton-pale-green text-[#256B41]'}`}>
+                    <span className={`text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full ${dateTone(days)}`}>
                       {days < 0 ? `${-days} day${days === -1 ? '' : 's'} ago` : days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}
                     </span>
                   )}
-                </dd>
-              </dl>
+                </div>
+              </div>
               {error && <p className="mt-2 text-xs text-[#9A2E1C] drawer-in" role="alert">{error}</p>}
             </>
           )}
@@ -366,20 +421,19 @@ function InlineSignatory({ canEdit, s, onSave, onRemove }: { canEdit: boolean; s
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState(s);
   const [bad, setBad] = useState(false);
+  // One line: initials, name, title as a pill, email (truncates when long).
   const person = (
-    <span className="flex items-start gap-2 min-w-0">
-      <span className="w-6 h-6 flex-shrink-0 rounded-full bg-[#E5EEFC] text-[#2B5BB5] text-[9.5px] font-bold flex items-center justify-center">{initials(s)}</span>
-      <span className="min-w-0">
-        <b className="block text-[13px] font-semibold truncate">{[s.first, s.last].filter(Boolean).join(' ') || 'Unnamed'}</b>
-        {s.title && <span className="block text-[11.5px] text-teton-ui-gray truncate">{s.title}</span>}
-        {s.email && <a href={`mailto:${s.email}`} className="block text-[11.5px] text-[#1F5FB5] underline truncate" onClick={(e) => e.stopPropagation()}>{s.email}</a>}
-      </span>
+    <span className="flex items-center gap-2 min-w-0 py-1.5 text-[12.5px] whitespace-nowrap">
+      <span className="w-[22px] h-[22px] flex-shrink-0 rounded-full bg-[#E5EEFC] text-[#2B5BB5] text-[9px] font-bold flex items-center justify-center">{initials(s)}</span>
+      <b className="font-semibold flex-shrink-0">{[s.first, s.last].filter(Boolean).join(' ') || 'Unnamed'}</b>
+      {s.title && <span className="flex-shrink-0 max-w-[45%] truncate rounded-full bg-[#F1E9FB] px-2 py-px text-[10.5px] font-bold text-[#6A3FB0]">{s.title}</span>}
+      {s.email && <a href={`mailto:${s.email}`} className="min-w-0 truncate text-[#1F5FB5] underline" onClick={(e) => e.stopPropagation()}>{s.email}</a>}
     </span>
   );
   if (!canEdit) return person;
   if (!edit)
     return (
-      <div role="button" tabIndex={0} className="rounded-md px-1 -mx-1 py-0.5 cursor-pointer hover:bg-[#FFF8E0] hover:outline hover:outline-1 hover:outline-dashed hover:outline-[#E0B04A]" onClick={() => { setV(s); setBad(false); setEdit(true); }} onKeyDown={(e) => e.key === 'Enter' && setEdit(true)} title="Click to edit">
+      <div role="button" tabIndex={0} className="rounded-md px-1 -mx-1 cursor-pointer hover:bg-[#FFF8E0] hover:outline hover:outline-1 hover:outline-dashed hover:outline-[#E0B04A]" onClick={() => { setV(s); setBad(false); setEdit(true); }} onKeyDown={(e) => e.key === 'Enter' && setEdit(true)} title="Click to edit">
         {person}
       </div>
     );
