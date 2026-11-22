@@ -30,6 +30,9 @@ export interface DealSummary {
   beds: number;
   ownerName: string | null;
   ownerId: number | null;
+  /** Open tasks on the deal, and how many of them are past due. */
+  openTasks: number;
+  overdueTasks: number;
   /** For the user asking: their collaborator permissions on it (null when they aren't one). */
   myPerms: { inputs: boolean; scope: boolean; deliverables: boolean } | null;
 }
@@ -92,7 +95,9 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
            c.can_inputs, c.can_scope, c.can_deliverables, c.user_id AS collab,
            (SELECT COUNT(*) FROM quote_versions v WHERE v.quote_id = q.id AND v.status <> 'draft') AS saved_versions,
            (SELECT inputs_json FROM quote_versions v WHERE v.quote_id = q.id AND v.status = 'draft') AS draft_json,
-           (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name
+           (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name,
+           (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL) AS open_tasks,
+           (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < date('now')) AS overdue_tasks
     FROM deals d JOIN quotes q ON q.deal_id = d.id
     LEFT JOIN deal_collaborators c ON c.deal_id = d.id AND c.user_id = ?
     WHERE q.id = (SELECT MIN(id) FROM quotes WHERE deal_id = d.id)
@@ -112,6 +117,8 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
       beds: draft?.communities.reduce((s, c) => s + bedsOf(c), 0) ?? 0,
       ownerName: r.owner_name ? String(r.owner_name) : null,
       ownerId: r.owner_id == null ? null : Number(r.owner_id),
+      openTasks: Number(r.open_tasks ?? 0),
+      overdueTasks: Number(r.overdue_tasks ?? 0),
       myPerms: r.collab == null ? null : { inputs: Number(r.can_inputs) === 1, scope: Number(r.can_scope) === 1, deliverables: Number(r.can_deliverables) === 1 },
     };
   });

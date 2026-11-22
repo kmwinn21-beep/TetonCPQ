@@ -23,6 +23,20 @@ function Perms({ d }: { d: DealSummary }) {
   );
 }
 
+/** A deal's open tasks: a round count (blue when there are some, red when any is overdue, grey at 0). */
+function TaskCount({ d }: { d: DealSummary }) {
+  const tone = d.overdueTasks > 0 ? 'bg-[#E5553B] text-white' : d.openTasks > 0 ? 'bg-[#3F8CEA] text-white' : 'bg-teton-off-white text-teton-ui-gray';
+  return (
+    <span
+      className={`inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-full text-xs font-bold tabular-nums ${tone}`}
+      title={d.openTasks ? `${d.openTasks} open task${d.openTasks === 1 ? '' : 's'}${d.overdueTasks ? `, ${d.overdueTasks} overdue` : ''}` : 'No open tasks'}
+    >
+      {d.openTasks}
+    </span>
+  );
+}
+const eyebrow = 'text-[9.5px] font-extrabold uppercase tracking-[1px] text-teton-ui-gray';
+
 /** One group of deals: cards on phones, a table on wider screens. */
 function DealGroup({ title, note, deals, empty }: { title: string; note?: string; deals: DealSummary[]; empty?: string }) {
   return (
@@ -39,7 +53,8 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
           <ul className="sm:hidden space-y-2">
             {deals.map((d) => (
               <li key={d.dealId}>
-                <Link href={`/quotes/${d.quoteId}`} className="block rounded-xl border border-teton-off-white bg-white px-4 py-3 shadow-sm active:bg-teton-almost-white">
+                <Link href={`/quotes/${d.quoteId}`} className="flex items-center gap-3 rounded-xl border border-teton-off-white bg-white px-4 py-3 shadow-sm active:bg-teton-almost-white">
+                  <span className="block min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="font-semibold text-base leading-snug">{d.customerName}</span>
                     <span className="text-xs text-teton-ui-gray whitespace-nowrap">{dateLabel(d.updatedAt)}</span>
@@ -49,6 +64,11 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
                   </span>
                   {d.ownerName && <span className="block text-xs text-teton-ui-gray mt-0.5">{d.ownerName}</span>}
                   <Perms d={d} />
+                  </span>
+                  <span className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <span className={`${eyebrow} whitespace-nowrap`}>Open Tasks</span>
+                    <TaskCount d={d} />
+                  </span>
                 </Link>
               </li>
             ))}
@@ -57,12 +77,13 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
             <table className="w-full text-sm table-fixed">
               <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium w-[34%]">Customer</th>
+                  <th className="px-4 py-2.5 font-medium w-[28%]">Customer</th>
                   <th className="px-4 py-2.5 font-medium">Owner</th>
                   <th className="px-4 py-2.5 font-medium text-right">Communities</th>
                   <th className="px-4 py-2.5 font-medium text-right">Beds</th>
                   <th className="px-4 py-2.5 font-medium text-right">Saved versions</th>
-                  <th className="px-4 py-2.5 font-medium">Last change</th>
+                  <th className="px-4 py-2.5 font-medium w-32">Last change</th>
+                  <th className={`px-4 py-2.5 w-28 text-center ${eyebrow}`}>Open Tasks</th>
                 </tr>
               </thead>
               <tbody>
@@ -79,6 +100,9 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
                     <td className="px-4 py-3 text-right tabular-nums">{count(d.beds)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{d.savedVersions}</td>
                     <td className="px-4 py-3 text-teton-ui-gray">{dateLabel(d.updatedAt)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <TaskCount d={d} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
