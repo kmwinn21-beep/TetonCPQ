@@ -23,6 +23,7 @@ import { BulkBar, type BulkPatch } from './BulkBar';
 import { useRailSlot } from './RailSlot';
 import { useSections } from '@/components/form/SectionsContext';
 import { BottomSheet } from '@/components/form/BottomSheet';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const CHIP_CLASS: Record<Chip['tone'], string> = {
   green: 'badge-green',
@@ -191,7 +192,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     const el = document.getElementById(`ce-${focusName.current}-name`);
     if (el) {
       focusName.current = null;
-      el.focus();
+      if (canAutoFocus()) el.focus();
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   });

@@ -12,6 +12,7 @@ import { Collapse } from '@/components/form/fields';
 import { badgeOf, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanComment, PlanNote, Person } from '@/lib/data/planNotes';
 import { useFloorPlans } from './FloorPlans';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export const NOTE_COLORS = ['#E0A21B', '#D64B7A', '#1F9BB0', '#7A5BD6', '#2E9E6B', '#E0782B', '#3F6FD8', '#5B6472'] as const;
 export interface Box {
@@ -282,7 +283,7 @@ export function NoteEditor({
         className="flex-1 min-w-0 h-full resize-none bg-transparent text-[12px] leading-snug outline-none cursor-text"
         placeholder="Write the note…"
         value={draft.body}
-        autoFocus
+        autoFocus={canAutoFocus()}
         onChange={(e) => onChange({ ...draft, body: e.target.value })}
         aria-label="Note text"
       />

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export function NewDealButton() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export function NewDealButton() {
     <form onSubmit={create} className="flex flex-wrap items-start gap-2">
       <div>
         <input
-          autoFocus
+          autoFocus={canAutoFocus()}
           className="input-field w-64"
           placeholder="Customer name"
           value={name}

@@ -12,6 +12,7 @@ import { addTerm, editTerm, isStandardTerms, itemLabel, moveTerm, removedTerms, 
 import { ResetDefaults, Section } from '@/components/form/fields';
 import { TemplateInput } from '@/components/form/TemplateInput';
 import type { SectionProps } from './sections';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const iconBtn = 'w-7 h-7 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink disabled:opacity-30 disabled:hover:bg-transparent';
 
@@ -71,7 +72,7 @@ function ItemList({ kind }: { kind: ListKind }) {
                 vars={t.vars}
                 ariaLabel={t.custom ? `${kind === 'terms' ? 'Note' : 'Step'} ${i + 1}` : `${itemLabel(kind, t.id)} ${noun}`}
                 placeholder={kind === 'terms' ? 'Type a note for the proposal' : 'Type a next step'}
-                autoFocus={focusId === t.id}
+                autoFocus={focusId === t.id && canAutoFocus()}
                 onCommit={(next) => {
                   setFocusId(null);
                   set(editTerm(getValues(), t.id, next, kind));

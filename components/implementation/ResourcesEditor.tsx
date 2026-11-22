@@ -24,6 +24,7 @@ import {
 } from '@/lib/quote/resources';
 import { NumInput } from '@/components/form/NumInput';
 import { stageColor } from './ImplementationGantt';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const iconBtn = 'w-7 h-7 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink disabled:opacity-30 disabled:hover:bg-transparent';
 const CUSTOM = '__custom__';
@@ -48,7 +49,7 @@ export function ResourcesEditor({
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!focus) return;
-    rootRef.current?.querySelector<HTMLElement>(`[data-role-card="${focus}"] select, [data-role-card="${focus}"] input`)?.focus();
+    if (canAutoFocus()) rootRef.current?.querySelector<HTMLElement>(`[data-role-card="${focus}"] select, [data-role-card="${focus}"] input`)?.focus();
     setFocus(null);
   }, [focus]);
 
@@ -79,7 +80,7 @@ export function ResourcesEditor({
                       value={isTyping ? typing[r.id] : r.role}
                       placeholder="Type a role or department"
                       aria-label={`Role ${i + 1} name`}
-                      autoFocus={isTyping}
+                      autoFocus={isTyping && canAutoFocus()}
                       onChange={(e) => setTyping((t) => ({ ...t, [r.id]: e.target.value }))}
                       onFocus={() => !isTyping && setTyping((t) => ({ ...t, [r.id]: r.role }))}
                       onBlur={() => {

@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fillTemplate, tidy } from '@/lib/proposal/text';
 import { serialize } from '@/components/proposal/EditableText';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export function TemplateInput({
   template,
@@ -30,7 +31,7 @@ export function TemplateInput({
   const [rev, setRev] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    if (!autoFocus || !ref.current) return;
+    if (!autoFocus || !ref.current || !canAutoFocus()) return;
     ref.current.focus();
     const r = document.createRange();
     r.selectNodeContents(ref.current);

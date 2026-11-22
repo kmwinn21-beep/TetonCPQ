@@ -14,6 +14,7 @@ import { looksLikeNicCopy, parseNicCopy, type CareType } from '@/lib/quote/nic';
 import { parsePaste, pastedTotal, type ColumnMap, type PastedCommunity } from '@/lib/quote/paste';
 import { count } from '@/lib/format';
 import { NumInput } from '@/components/form/NumInput';
+import { canAutoFocus } from '@/lib/client/focus';
 
 interface ReviewRow extends PastedCommunity {
   key: number;
@@ -52,7 +53,7 @@ export function PasteDialog({
     setCols({});
     setRows([]);
     setMode('append');
-    setTimeout(() => textRef.current?.focus(), 0);
+    if (canAutoFocus()) setTimeout(() => textRef.current?.focus(), 0);
   }, [open]);
 
   useEffect(() => {

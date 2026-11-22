@@ -16,6 +16,7 @@ import { RemovedSheetButton } from './ProposalSections';
 import { CommentsButton } from './Comments';
 import { useWhatIf } from './WhatIf';
 import { layoutChanges } from '@/lib/proposal/layout';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export interface SentRecord {
   id: number;
@@ -167,7 +168,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
         <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
           {open ? (
             <>
-              <input autoFocus className="input-field flex-1 min-w-0 sm:flex-none sm:w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />
+              <input autoFocus={canAutoFocus()} className="input-field flex-1 min-w-0 sm:flex-none sm:w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />
               <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-50" disabled={busy || !to.trim()} onClick={record}>
                 {busy ? 'Saving…' : 'Record'}
               </button>

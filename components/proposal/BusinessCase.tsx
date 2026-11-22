@@ -44,6 +44,7 @@ import { ViewSwitch } from './ViewSwitch';
 import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
 import { ImplementationWeeks } from './ImplementationWeeks';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -287,6 +288,7 @@ function AddPageZone({ at }: { at: string | null }) {
             const el = document.querySelector<HTMLElement>(`[data-custom-title="${id}"]`);
             if (!el) return;
             el.scrollIntoView({ block: 'center' });
+            if (!canAutoFocus()) return;
             el.focus();
             const r = document.createRange();
             r.selectNodeContents(el);

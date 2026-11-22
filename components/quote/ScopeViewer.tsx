@@ -26,6 +26,7 @@ import { NOTE_DOT, TagCard, TagNoteSection, useTagNotes } from './TagNotes';
 import { BulkEditTags, type BulkResult } from './BulkEditTags';
 import { ScopeSummary } from './ScopeSummary';
 import { matchNumbers, type NumberMatch, type PlanLabels } from '@/lib/quote/roomNumbers';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
 const CARES = (Object.keys(CARE_LABEL) as CareType[]).filter((c) => c !== 'custom');
@@ -1524,7 +1525,7 @@ function TypeForm({
       <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
         <div>
           <label className={eyebrow} htmlFor="tf-name">Room type / name</label>
-          <input id="tf-name" className={`input-field py-1.5 text-xs ${clash ? 'ring-2 ring-teton-red border-transparent' : ''}`} aria-invalid={!!clash || undefined} aria-describedby={clash ? 'tf-clash' : undefined} value={name} placeholder="e.g. Studio" autoFocus onChange={(e) => setName(e.target.value)} />
+          <input id="tf-name" className={`input-field py-1.5 text-xs ${clash ? 'ring-2 ring-teton-red border-transparent' : ''}`} aria-invalid={!!clash || undefined} aria-describedby={clash ? 'tf-clash' : undefined} value={name} placeholder="e.g. Studio" autoFocus={canAutoFocus()} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
           <label className={eyebrow} htmlFor="tf-ini">Badge</label>
@@ -1537,7 +1538,7 @@ function TypeForm({
           <label className={eyebrow} htmlFor="tf-care">Care setting</label>
           {care === 'custom' ? (
             <span className="flex items-center gap-1 drawer-in">
-              <input id="tf-care" className="input-field py-1.5 px-1.5 text-xs min-w-0" value={customCare} placeholder="Care type" maxLength={40} autoFocus={!customCare} aria-label="Custom care setting" onChange={(e) => setCustomCare(e.target.value)} />
+              <input id="tf-care" className="input-field py-1.5 px-1.5 text-xs min-w-0" value={customCare} placeholder="Care type" maxLength={40} autoFocus={!customCare && canAutoFocus()} aria-label="Custom care setting" onChange={(e) => setCustomCare(e.target.value)} />
               <button type="button" className="text-[11px] text-teton-ui-gray underline flex-shrink-0" title="Choose from the list" onClick={() => setCare('al')}>List</button>
             </span>
           ) : (

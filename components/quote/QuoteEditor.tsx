@@ -38,6 +38,7 @@ import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSec
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
 import { Collapse, ReadOnlyContext, SectionGroup } from '@/components/form/fields';
 import { usePersistedOpen } from '@/components/Sidebar';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
@@ -386,7 +387,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </ScrollRow>
           {noteOpen && (
             <div className="flex w-full sm:w-auto flex-wrap items-start gap-2 drawer-in">
-              <input autoFocus className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
+              <input autoFocus={canAutoFocus()} className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
               <button type="button" className="btn-primary" onClick={() => void saveVersion()} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
               <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
             </div>

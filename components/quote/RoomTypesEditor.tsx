@@ -14,6 +14,7 @@ import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const iconBtn = 'w-7 h-9 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink';
 const eyebrow = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1 truncate';
@@ -84,7 +85,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                     className="input-field px-1.5 text-xs min-w-0"
                     value={t.customCare ?? ''}
                     placeholder="Care type"
-                    autoFocus={!t.customCare}
+                    autoFocus={!t.customCare && canAutoFocus()}
                     aria-label={`Community ${position} room type ${k + 1} custom care type`}
                     onChange={(e) => patch(t.id, { customCare: e.target.value })}
                   />

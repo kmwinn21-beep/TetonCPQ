@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
 import { defaultCloseDate, EMAIL, GEOGRAPHIES, isHubspotUrl, type DealDetails, type Geography, type Signatory } from '@/lib/data/dealDetails';
 import { useAccess } from './AccessContext';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const blankSig = (): Signatory => ({ first: '', last: '', title: '', email: '' });
 const fresh = (): DealDetails => ({ legalEntity: '', geography: '', geographyOther: '', hubspotUrl: '', signatories: [], closeDate: defaultCloseDate() });
@@ -238,7 +239,7 @@ function DetailsForm({ initial, canCancel, error, onCancel, onSave }: { initial:
         {GEOGRAPHIES.map((g) => <option key={g} value={g}>{g === 'Other' ? 'Other…' : g}</option>)}
       </select>
       {f.geography === 'Other' && (
-        <input className="input-field text-sm mt-1.5 drawer-in" value={f.geographyOther} maxLength={60} placeholder="Geography" aria-label="Other geography" autoFocus onChange={(e) => set({ geographyOther: e.target.value })} />
+        <input className="input-field text-sm mt-1.5 drawer-in" value={f.geographyOther} maxLength={60} placeholder="Geography" aria-label="Other geography" autoFocus={canAutoFocus()} onChange={(e) => set({ geographyOther: e.target.value })} />
       )}
       <label className={label} htmlFor="dd-hub">HubSpot link <span className="text-[#9A2E1C]">*</span></label>
       <input

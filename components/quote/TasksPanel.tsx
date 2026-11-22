@@ -14,6 +14,7 @@ import type { Priority, Task } from '@/lib/data/tasks';
 import { AuthorPill } from './PlanNotes';
 import { BubbleIcon, CommentHoverCard } from '@/components/proposal/Comments';
 import { SHOW_TASK, useInputComments } from './InputComments';
+import { canAutoFocus } from '@/lib/client/focus';
 
 /** Local today, yyyy-mm-dd. */
 export const localToday = () => {
@@ -304,6 +305,7 @@ function TaskForm({ task, people, me, onCancel, onSave, onDelete }: { task: Task
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (!canAutoFocus()) return;
     const t = setTimeout(() => titleRef.current?.focus(), 80);
     return () => clearTimeout(t);
   }, []);

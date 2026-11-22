@@ -25,6 +25,7 @@ import {
 import { NumInput } from '@/components/form/NumInput';
 import { Collapse } from '@/components/form/fields';
 import { stageColor } from './ImplementationGantt';
+import { canAutoFocus } from '@/lib/client/focus';
 
 const iconBtn = 'w-7 h-7 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink disabled:opacity-30 disabled:hover:bg-transparent';
 
@@ -55,8 +56,10 @@ export function StagesEditor({ plan: rawPlan, onChange, compact = false }: { pla
     if (!focusId) return;
     const el = rootRef.current?.querySelector<HTMLInputElement>(`[data-stage="${focusId}"] input`);
     if (el) {
-      el.focus();
-      el.select();
+      if (canAutoFocus()) {
+        el.focus();
+        el.select();
+      }
       el.scrollIntoView({ block: 'nearest' });
     }
     setFocusId(null);

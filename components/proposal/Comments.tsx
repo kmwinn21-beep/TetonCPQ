@@ -16,6 +16,7 @@ import type { CommentThread, ProposalComment } from '@/lib/data/proposalComments
 import type { Person } from '@/lib/data/planNotes';
 import { AuthorPill } from '@/components/quote/PlanNotes';
 import { useProposalText } from './EditableText';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export interface CommentTarget {
   page: string | null;
@@ -568,7 +569,7 @@ export function Composer({ people, me, initial = '', placeholder, submitLabel, a
   const [hi, setHi] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    if (!autoFocus) return;
+    if (!autoFocus || !canAutoFocus()) return;
     const t = setTimeout(() => {
       ref.current?.focus();
       ref.current?.setSelectionRange(initial.length, initial.length);

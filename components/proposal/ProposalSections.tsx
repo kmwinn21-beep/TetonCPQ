@@ -14,6 +14,7 @@ import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/
 import { DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
+import { canAutoFocus } from '@/lib/client/focus';
 
 /* ------------------------------------------------------------------ */
 /* Labels of figures, so removed ones can be listed and added back.    */
@@ -632,7 +633,7 @@ function AddZone({ at }: { at: number }) {
           // Put the cursor in the new heading once it renders.
           setTimeout(() => {
             const el = document.querySelector<HTMLElement>(`[data-custom-title="${id}"]`);
-            if (!el) return;
+            if (!el || !canAutoFocus()) return;
             el.focus();
             const r = document.createRange();
             r.selectNodeContents(el);

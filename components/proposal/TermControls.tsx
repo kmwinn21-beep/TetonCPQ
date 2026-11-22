@@ -11,6 +11,7 @@ import { renderText } from '@/lib/proposal/text';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { TemplateInput } from '@/components/form/TemplateInput';
 import { useWhatIf } from './WhatIf';
+import { canAutoFocus } from '@/lib/client/focus';
 
 export function TermsList({ draft, kind = 'terms' }: { draft: QuoteDraft; kind?: ListKind }) {
   const w = useWhatIf();
@@ -30,7 +31,7 @@ export function TermsList({ draft, kind = 'terms' }: { draft: QuoteDraft; kind?:
                   vars={t.vars}
                   ariaLabel={`Term ${i + 1}`}
                   placeholder="Type a note"
-                  autoFocus={t.custom && !t.template.trim()}
+                  autoFocus={t.custom && !t.template.trim() && canAutoFocus()}
                   onCommit={(next) => w!.setChange(kind, editTerm(draft, t.id, next, kind))}
                 />
                 <button
