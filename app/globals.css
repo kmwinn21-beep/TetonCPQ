@@ -221,8 +221,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-req-tight .bc-req-row { padding: 6px 0; }
 /* Compact rows (hover switch on the free pilot's cost table). */
 .bc-req-compact .bc-req-row { padding: 6px 0; }
-.bc-req-compact .bc-req-amt { font-size: 17px; }
-.bc-req-compact .bc-req-total .bc-req-amt { font-size: 19px; }
+.bc-req-compact .bc-req-amt, .bc-req-compact .bc-req-total .bc-req-amt { font-size: 12.5px; font-weight: 700; }
 .bc-req-compact .bc-req-pct { padding-top: 3px; }
 .bc-req-tight + .bc-split { margin-top: 6px; }
 .bc-req-tight + .bc-split > div { padding-top: 6px; padding-bottom: 6px; }
@@ -267,7 +266,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-tbl table > caption { position: static; height: 0; padding: 0; }
 .bc-tbl table[data-compact] th { padding-top: 7px; padding-bottom: 6px; }
 .bc-tbl table[data-compact] td { padding-top: 5px; padding-bottom: 5px; }
-.bc-tbl table[data-compact] td.bc-big, .bc-tbl table[data-compact] td.bc-cmp-v { font-size: 15px; }
+.bc-tbl table[data-compact] td.bc-big, .bc-tbl table[data-compact] td.bc-cmp-v,
+[data-bc-page] .bc-tbl table[data-compact] td.bc-big { font-size: 12.5px; font-weight: 700; line-height: inherit; }
 .bc-tbl table[data-compact] td small { margin-top: 0; }
 .bc-tbl th { font-size: 9.5px; letter-spacing: 2px; color: var(--bc-muted); font-weight: 700; text-align: left; padding: 14px 16px 12px; text-transform: uppercase; }
 .bc-tbl td { padding: 11px 16px; border-top: 1px solid var(--bc-line); font-size: 12.5px; vertical-align: top; color: var(--bc-body); }
@@ -756,7 +756,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) { margin-top: 6px; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) th { padding-top: 7px; padding-bottom: 6px; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td { padding-top: 5px; padding-bottom: 5px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td.bc-big { font-size: 15px; }
+[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td.bc-big { font-size: 12.5px; font-weight: 700; }
 [data-bc-page="sitescope"]:has(.bc-hw) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }
 
 /* Rooms by type: an E-Call-only community, one line across the table. */
