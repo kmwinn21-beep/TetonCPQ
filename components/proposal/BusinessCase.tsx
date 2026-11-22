@@ -743,8 +743,25 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
         <Blocks page="pilot">
         <B id="costs" label="Pilot costs">
         {pilotTotal <= 0 ? (
-          // A free pilot: what's included, and that nothing is billed.
-          <div className="bc-card bc-req">
+          // A free pilot: what's included, and that nothing is billed. Rows full or compact (hover switch), like the tables.
+          <div className={`bc-card bc-req relative group/tbl ${layout.bcCompact?.pilotfree ? 'bc-req-compact' : ''}`}>
+            {editable && (
+              <ViewSwitch
+                position="absolute right-2 top-1.5"
+                hover="group-hover/tbl:opacity-100"
+                label="Table rows"
+                options={[['full', 'Full rows'], ['compact', 'Compact rows']] as const}
+                value={layout.bcCompact?.pilotfree ? 'compact' : 'full'}
+                onChange={(v) =>
+                  setLayout((l) => {
+                    const next = { ...(l.bcCompact ?? {}) };
+                    if (v === 'compact') next.pilotfree = true;
+                    else delete next.pilotfree;
+                    return { ...l, bcCompact: Object.keys(next).length ? next : undefined };
+                  })
+                }
+              />
+            )}
             <ScopeRow ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} />
             <CostRow
               name={<T k="bc.pilot.install" d="Installation" />}

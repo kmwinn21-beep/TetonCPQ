@@ -219,6 +219,11 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-req-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 130px 48px; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--bc-line); align-items: start; }
 .bc-req-row:last-child { border-bottom: 0; }
 .bc-req-tight .bc-req-row { padding: 6px 0; }
+/* Compact rows (hover switch on the free pilot's cost table). */
+.bc-req-compact .bc-req-row { padding: 6px 0; }
+.bc-req-compact .bc-req-amt { font-size: 17px; }
+.bc-req-compact .bc-req-total .bc-req-amt { font-size: 19px; }
+.bc-req-compact .bc-req-pct { padding-top: 3px; }
 .bc-req-tight + .bc-split { margin-top: 6px; }
 .bc-req-tight + .bc-split > div { padding-top: 6px; padding-bottom: 6px; }
 .bc-pilot-tbl th { padding-top: 9px; padding-bottom: 8px; }
