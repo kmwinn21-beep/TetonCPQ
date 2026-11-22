@@ -100,6 +100,20 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .proposal-rich blockquote { margin: 0 0 0 2em; }
 .proposal-rich p, .proposal-rich div { min-height: 1em; }
 /* While a piece of wording is being edited, show which parts are locked calculated values. */
+/*
+ * Wording deleted down to nothing (subtext under a row's main text, the intro under a page heading): its line
+ * takes no room. On screen an "Add text" hint shows on hover, over the spot, so it can be typed back; in
+ * print and the PDF the empty line and its spacing are gone. (Read-only viewers get empty elements.)
+ */
+:is(small, p, div, .bc-req-sub) > .proposal-editable:empty:only-child { display: block; height: 10px; margin: -5px 0; min-width: 0; overflow: visible; position: relative; cursor: text; }
+:is(small, p, div, .bc-req-sub) > .proposal-editable:empty:only-child::before { position: absolute; left: 0; top: -1px; white-space: nowrap; font-size: 11px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+:is(small, p, div, .bc-req-sub):hover > .proposal-editable:empty:only-child::before,
+:is(small, p, div, .bc-req-sub) > .proposal-editable:empty:only-child:focus::before { opacity: 1; }
+:is(small, p, div, .bc-req-sub):has(> .proposal-editable:empty:only-child) { margin-top: 0 !important; margin-bottom: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+.bc-page small:empty, .bc-page .bc-lede:empty, .bc-page .bc-req-sub:empty { display: none; }
+@media print {
+  :is(small, p, div, .bc-req-sub):has(> .proposal-editable:empty:only-child) { display: none; }
+}
 .proposal-editable:focus .proposal-value {
   background: rgb(var(--teton-off-white-rgb));
   box-shadow: 0 0 0 1px rgb(var(--teton-pale-gray-rgb));
