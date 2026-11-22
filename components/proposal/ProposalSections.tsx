@@ -816,6 +816,37 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
   const [presentTables, setPresentTables] = useState<string[]>([]);
   const onCountRef = useRef(onCount);
   onCountRef.current = onCount;
+  // Desktop: the page (and table) under the pointer narrows the list to what can be added back there. Moving
+  // onto the panel keeps it; resting on the background for a moment shows everything again.
+  const [focus, setFocus] = useState<{ page: string | null; table: string | null } | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (bare || typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    let clear: ReturnType<typeof setTimeout> | null = null;
+    const over = (e: PointerEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || panelRef.current?.contains(el)) {
+        if (clear) clearTimeout(clear);
+        return;
+      }
+      const page = el.closest<HTMLElement>('[data-bc-page]')?.dataset.bcPage ?? null;
+      const table = el.closest<HTMLElement>('table[data-rtable]')?.dataset.rtable ?? null;
+      if (page || table) {
+        if (clear) clearTimeout(clear);
+        setFocus((f) => (f?.page === page && f?.table === table ? f : { page, table }));
+      } else if (!clear) {
+        clear = setTimeout(() => {
+          clear = null;
+          setFocus(null);
+        }, 700);
+      }
+    };
+    document.addEventListener('pointerover', over);
+    return () => {
+      document.removeEventListener('pointerover', over);
+      if (clear) clearTimeout(clear);
+    };
+  }, [bare]);
   useEffect(() => {
     const ids = Array.from(document.querySelectorAll<HTMLElement>('table[data-rtable]')).map((t) => t.dataset.rtable ?? '').sort();
     if (ids.join() !== presentTables.join()) setPresentTables(ids);
@@ -845,7 +876,39 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
   const cols = Object.entries(hiddenColsOf(layout)).filter(([k]) => !(k in DEFAULT_HIDDEN_COLS) || presentTables.includes(k.split('.')[0]));
   const total = sections.length + values.length + pages.length + blocks.length + optional.length + rows.length + cols.length;
   totalRef.current = total;
+  // What belongs to the hovered table, or else the hovered page (rows and columns go with their table's page).
+  const pageOfTable = (key: string) => {
+    if (typeof document === 'undefined') return null;
+    const t = document.querySelector<HTMLElement>(`table[data-rtable="${CSS.escape(key.split('.')[0])}"]`);
+    return t?.closest<HTMLElement>('[data-bc-page]')?.dataset.bcPage ?? null;
+  };
+  const filtered = (() => {
+    if (!focus || bare) return null;
+    const inTable = (k: string) => !!focus.table && k.split('.')[0] === focus.table;
+    const onPage = (k: string) => !!focus.page && pageOfTable(k) === focus.page;
+    let r = rows.filter(([k]) => inTable(k));
+    let c = cols.filter(([k]) => inTable(k));
+    let b: typeof blocks = [];
+    let o: typeof optional = [];
+    let where = focus.table ? 'this table' : '';
+    if (!r.length && !c.length) {
+      r = rows.filter(([k]) => onPage(k));
+      c = cols.filter(([k]) => onPage(k));
+      b = blocks.filter((x) => (PAGE_OF[x.page] ?? x.page) === focus.page);
+      o = optional.filter(() => focus.page === 'scope');
+      where = focus.page ? (BC_PAGE_TITLES as Record<string, string>)[focus.page] ?? 'this page' : '';
+    }
+    if (!r.length && !c.length && !b.length && !o.length) return null;
+    return { rows: r, cols: c, blocks: b, optional: o, where };
+  })();
   if (!total) return bare ? <p className="px-2 py-6 text-center text-sm text-teton-ui-gray">Nothing has been removed from this proposal.</p> : null;
+  const showSections = filtered ? [] : sections;
+  const showPages = filtered ? [] : pages;
+  const showValues = filtered ? [] : values;
+  const showBlocks = filtered ? filtered.blocks : blocks;
+  const showOptional = filtered ? filtered.optional : optional;
+  const showRows = filtered ? filtered.rows : rows;
+  const showCols = filtered ? filtered.cols : cols;
   const item = (key: string, label: string, onClick: () => void) => (
     <li key={key}>
       <button type="button" onClick={onClick} className="w-full flex items-start gap-2 text-left rounded-md px-2 py-1.5 text-[13px] hover:bg-teton-off-white" title="Add back to the proposal">
@@ -857,31 +920,39 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
     </li>
   );
   return (
-    <aside data-edit-ui className={bare ? 'no-print' : 'no-print rounded-xl border border-teton-pale-gray bg-white p-3 shadow-sm'} aria-label="Removed from this proposal">
-      {!bare && <p className="text-xs font-semibold uppercase tracking-wider text-teton-ui-gray px-2 mb-1">Removed</p>}
-      {sections.length > 0 && (
+    <aside ref={panelRef} data-edit-ui className={bare ? 'no-print' : 'no-print rounded-xl border border-teton-pale-gray bg-white p-3 shadow-sm'} aria-label="Removed from this proposal">
+      {!bare && (
+        <p className="flex items-baseline gap-1.5 text-xs font-semibold uppercase tracking-wider text-teton-ui-gray px-2 mb-1">
+          Removed
+          {filtered && (
+            <span key={filtered.where} className="normal-case tracking-normal font-medium text-[11px] text-[#1F5FB5] truncate drawer-in">· {filtered.where}</span>
+          )}
+        </p>
+      )}
+      <div key={filtered ? `f:${filtered.where}` : 'all'} className="[animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]">
+      {showSections.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Sections</p>
           <ul>
-            {sections.map((id) =>
+            {showSections.map((id) =>
               item(id, renderText(edits[SECTION_TITLES[id].key] ?? SECTION_TITLES[id].title).replace(/\{\w+\}\s*/g, ''), () => setLayout((l) => ({ ...l, hiddenSections: l.hiddenSections.filter((x) => x !== id) }))),
             )}
           </ul>
         </>
       )}
-      {pages.length > 0 && (
+      {showPages.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Pages</p>
           <ul>
-            {pages.map((id) => item(`page-${id}`, BC_PAGE_TITLES[id], () => setLayout((l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }))))}
+            {showPages.map((id) => item(`page-${id}`, BC_PAGE_TITLES[id], () => setLayout((l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }))))}
           </ul>
         </>
       )}
-      {blocks.length > 0 && (
+      {showBlocks.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Page sections</p>
           <ul>
-            {blocks.map((b) =>
+            {showBlocks.map((b) =>
               item(`block-${b.page}-${b.id}`, `${b.label} · ${b.where}`, () =>
                 setLayout((l) => {
                   const all = { ...(l.bcHiddenBlocks ?? {}) };
@@ -896,17 +967,17 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
           </ul>
         </>
       )}
-      {optional.length > 0 && (
+      {showOptional.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Optional rows</p>
-          <ul>{optional.map((o) => item(o.key, o.label, () => setLayout((l) => ({ ...l, bcFourYears: true }))))}</ul>
+          <ul>{showOptional.map((o) => item(o.key, o.label, () => setLayout((l) => ({ ...l, bcFourYears: true }))))}</ul>
         </>
       )}
-      {rows.length > 0 && (
+      {showRows.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table rows</p>
           <ul>
-            {rows.map(([k, label]) =>
+            {showRows.map(([k, label]) =>
               item(`row-${k}`, label, () =>
                 setLayout((l) => {
                   const m = { ...(l.hiddenRows ?? {}) };
@@ -918,11 +989,11 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
           </ul>
         </>
       )}
-      {cols.length > 0 && (
+      {showCols.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table columns</p>
           <ul>
-            {cols.map(([k, label]) =>
+            {showCols.map(([k, label]) =>
               item(`col-${k}`, label, () =>
                 setLayout((l) => {
                   if (k in DEFAULT_HIDDEN_COLS) return { ...l, shownCols: Array.from(new Set([...(l.shownCols ?? []), k])) };
@@ -938,14 +1009,15 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
           </ul>
         </>
       )}
-      {values.length > 0 && (
+      {showValues.length > 0 && (
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Figures</p>
           <ul>
-            {values.map((k) => item(k, labels[k] ?? k, () => setLayout((l) => ({ ...l, hiddenValues: l.hiddenValues.filter((x) => x !== k) }))))}
+            {showValues.map((k) => item(k, labels[k] ?? k, () => setLayout((l) => ({ ...l, hiddenValues: l.hiddenValues.filter((x) => x !== k) }))))}
           </ul>
         </>
       )}
+      </div>
     </aside>
   );
 }
