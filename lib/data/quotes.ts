@@ -352,6 +352,8 @@ export async function deleteVersion(db: Client, quoteId: number, versionId: numb
       await tx.execute({ sql: `DELETE FROM ${t} WHERE quote_version_id = ?`, args: [versionId] });
     }
     await tx.execute({ sql: 'UPDATE quote_versions SET parent_version_id = NULL WHERE parent_version_id = ?', args: [versionId] });
+    // Comments stay with the deal (they keep the version number they were made on).
+    await tx.execute({ sql: 'UPDATE proposal_comments SET version_id = NULL WHERE version_id = ?', args: [versionId] });
     await tx.execute({
       sql: `UPDATE quotes SET active_version_id = (SELECT id FROM quote_versions WHERE quote_id = ? AND status <> 'draft' AND id <> ? ORDER BY version_no DESC LIMIT 1)
             WHERE id = ? AND active_version_id = ?`,

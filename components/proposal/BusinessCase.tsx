@@ -11,7 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
-import { Children, Fragment, isValidElement, useEffect, useRef, useState, type ReactElement } from 'react';
+import { Children, Fragment, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows, conversionCreditOf, grossBaseRows, partsOf, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
@@ -28,6 +28,7 @@ import { bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, no
 import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
+import { CommentHere, CommentPageContext, CommentPin, useComments } from './Comments';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { BC_GAP_STEP, MAX_BC_GAP, type ProposalLayout } from '@/lib/proposal/layout';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
@@ -110,6 +111,8 @@ function B(_props: BProps): null {
  */
 function Blocks({ page, children }: { page: string; children: React.ReactNode }) {
   const { editable, layout, setLayout, set } = useProposalText();
+  const slot = useContext(CommentPageContext);
+  const comments = useComments();
   const items = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
   const ids = items.map((c) => c.props.id);
   const hidden = layout.bcHiddenBlocks?.[page] ?? {};
@@ -165,8 +168,15 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
             style={gap ? { paddingTop: gap } : undefined}
           >
             {editable && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
+            {slot && <CommentPin page={slot.id} block={id} kind="block" />}
+            {!editable && comments.enabled && slot && (
+              <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
+                <CommentHere className={btn} target={{ page: slot.id, block: id, label: `${slot.title} · ${c.props.label}` }} />
+              </div>
+            )}
             {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
+                {slot && <CommentHere className={btn} target={{ page: slot.id, block: id, label: `${slot.title} · ${c.props.label}` }} />}
                 {c.props.onAdd && (
                   <button type="button" className={`${btn} text-[15px]`} onClick={c.props.onAdd} aria-label={c.props.addLabel ?? 'Add'} title={c.props.addLabel ?? 'Add'}>
                     +
@@ -377,15 +387,27 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
       setLayout((l) => resetLayoutParts(l, again));
     }, 150);
   };
+  const comments = useComments();
+  const slotCtx = useMemo(() => ({ id, title }), [id, title]);
   return (
-    <>
+    <CommentPageContext.Provider value={slotCtx}>
       <AddPageZone at={id} />
       <div className={`bc-slot group/bcp ${index === order.length - 1 ? 'bc-last' : ''}`} data-bc-page={id}>
+        <CommentPin page={id} block={null} kind="page" />
+        {!editable && comments.enabled && (
+          <div data-edit-ui className="no-print bc-controls opacity-0 group-hover/bcp:opacity-100 focus-within:opacity-100 transition-opacity">
+            <span className="px-2 text-[11px] font-medium">
+              Page {index + 1} · {title}
+            </span>
+            <CommentHere className={btn} target={{ page: id, block: null, label: title }} />
+          </div>
+        )}
         {editable && (
           <div data-edit-ui className="no-print bc-controls opacity-0 group-hover/bcp:opacity-100 focus-within:opacity-100 transition-opacity">
             <span className="px-2 text-[11px] font-medium">
               Page {index + 1} · {title}
             </span>
+            <CommentHere className={btn} target={{ page: id, block: null, label: title }} />
             <button type="button" className={btn} disabled={index === 0} onClick={() => move(-1)} aria-label={`Move ${title} earlier`} title="Move earlier">
               ↑
             </button>
@@ -404,7 +426,7 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
         )}
         {children}
       </div>
-    </>
+    </CommentPageContext.Provider>
   );
 }
 

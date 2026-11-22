@@ -779,3 +779,17 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 /* Scrolls without showing a scrollbar (the inputs page's right panel). */
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Business case comments (screen only): pins on pages and sections with open threads, and a flash on what a thread is on. */
+.bc-pin { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 3px; background: #fff; border: 1.5px solid #3F8CEA; border-radius: 99px 99px 99px 3px; padding: 2px 6px 2px 2px; box-shadow: 0 2px 6px rgba(0,0,0,.15); font: 700 10px/1 Inter, system-ui, sans-serif; color: #1F5FB5; cursor: pointer; transition: transform .15s; }
+.bc-pin:hover { transform: translateY(-1px); }
+.bc-pin-page { top: 18px; left: 14px; }
+.bc-pin-block { top: -10px; right: -14px; }
+@keyframes bcFlash { 0%, 100% { box-shadow: 0 0 0 0 rgba(63,140,234,0); } 30% { box-shadow: 0 0 0 4px rgba(63,140,234,.45); } }
+.bc-flash { animation: bcFlash 1.5s ease-in-out; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .bc-pin { transition: none; } .bc-flash { animation: none; outline: 2px solid rgba(63,140,234,.5); } }
+@media screen and (max-width: 860px) { .bc-pin-page { top: 12px; left: 8px; } .bc-pin-block { right: auto; left: -6px; top: -8px; } }
+@media print { .bc-pin { display: none !important; } }
+.proposal-doc { left: 0; transition: left .3s ease; }
+@media screen and (min-width: 1280px) { body.comments-open .proposal-doc { left: -190px; } }
+@media (prefers-reduced-motion: reduce) { .proposal-doc { transition: none; } }

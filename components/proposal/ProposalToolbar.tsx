@@ -13,6 +13,7 @@ import { PagePlanner } from './PagePlanner';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
 import { RemovedSheetButton } from './ProposalSections';
+import { CommentsButton } from './Comments';
 import { useWhatIf } from './WhatIf';
 import { layoutChanges } from '@/lib/proposal/layout';
 
@@ -216,6 +217,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                 </button>
               )}
               <RemovedSheetButton bothPricing={bothPricing} />
+              <CommentsButton />
               {text.editable ? (
                 <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>
               ) : (

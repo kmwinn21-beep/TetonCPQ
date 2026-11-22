@@ -328,4 +328,37 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE deals ADD COLUMN details TEXT`,
     ],
   },
+  {
+    id: 14,
+    name: 'proposal comments',
+    sql: [
+      // Comments on a business case: on a page, a section of a page, or general (page null). Kept with the deal; the
+      // version they were made on is noted. Replies point at their thread (parent_id).
+      `CREATE TABLE proposal_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        version_id INTEGER REFERENCES quote_versions(id),
+        version_no INTEGER,
+        parent_id INTEGER REFERENCES proposal_comments(id),
+        page TEXT,
+        block TEXT,
+        target_label TEXT,
+        body TEXT NOT NULL,
+        mentions TEXT NOT NULL DEFAULT '[]',
+        author_id INTEGER NOT NULL REFERENCES users(id),
+        resolved_at TEXT,
+        resolved_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_proposal_comments_deal ON proposal_comments(deal_id, parent_id)`,
+      // Mentions a user has read (for the Notifications panel).
+      `CREATE TABLE comment_reads (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        comment_id INTEGER NOT NULL,
+        read_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, comment_id)
+      )`,
+    ],
+  },
 ];
