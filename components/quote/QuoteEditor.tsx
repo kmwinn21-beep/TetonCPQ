@@ -29,6 +29,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
 import { FloorPlansPanel } from './FloorPlansPanel';
+import { DealDetailsPanel } from './DealDetailsPanel';
 import type { DealAccess } from '@/lib/data/access';
 import { CaseSetupSection, CfoSection, ClientSection, MetricsSection, PricingSection, ScheduleSection, ValuationSection } from './sections';
 import { revealInvalidSections, SectionsProvider, useSections } from '@/components/form/SectionsContext';
@@ -520,6 +521,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <CollaboratorsPanel />
+              <DealDetailsPanel quoteId={initial.quoteId} />
               <FloorPlansPanel />
               <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />

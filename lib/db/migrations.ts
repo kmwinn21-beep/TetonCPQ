@@ -320,4 +320,12 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE floor_plans ADD COLUMN labels TEXT`,
     ],
   },
+  {
+    id: 13,
+    name: 'deal details',
+    sql: [
+      // The deal's details (legal entity, geography, HubSpot link, signatories, projected close date) as JSON.
+      `ALTER TABLE deals ADD COLUMN details TEXT`,
+    ],
+  },
 ];
