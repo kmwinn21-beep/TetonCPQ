@@ -29,7 +29,7 @@ import { T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
-import { BC_GAP_STEP, MAX_BC_GAP } from '@/lib/proposal/layout';
+import { BC_GAP_STEP, MAX_BC_GAP, type ProposalLayout } from '@/lib/proposal/layout';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { resolveTerms } from '@/lib/quote/terms';
@@ -109,7 +109,7 @@ function B(_props: BProps): null {
  * default order). Hover a section for ↑ / ↓ to move it within the page.
  */
 function Blocks({ page, children }: { page: string; children: React.ReactNode }) {
-  const { editable, layout, setLayout } = useProposalText();
+  const { editable, layout, setLayout, set } = useProposalText();
   const items = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
   const ids = items.map((c) => c.props.id);
   const hidden = layout.bcHiddenBlocks?.[page] ?? {};
@@ -183,6 +183,22 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                     ⇔
                   </button>
                 )}
+                <button
+                  type="button"
+                  className={btn}
+                  onClick={(e) => {
+                    const el = e.currentTarget.closest<HTMLElement>('[data-bc-block]');
+                    if (!el || !window.confirm(`Reset ${c.props.label} to its standard wording and layout?`)) return;
+                    const parts = customisedIn(el);
+                    for (const k of parts.edits) set(k, null);
+                    setLayout((l) => resetLayoutParts(l, parts));
+                    setGap(id, 0);
+                  }}
+                  aria-label={`Reset ${c.props.label}`}
+                  title={`Reset ${c.props.label} to its standard wording and layout`}
+                >
+                  <ResetIcon />
+                </button>
                 <button type="button" className={btn} onClick={() => remove(id, c.props.label)} aria-label={`Remove ${c.props.label}`} title={`Remove ${c.props.label} (you can add it back)`}>
                   ✕
                 </button>
@@ -276,7 +292,56 @@ function AddPageZone({ at }: { at: string | null }) {
   );
 }
 
-/** A page with its screen-only controls: move earlier / later, remove. */
+
+/** Section-layout keys of a page (Blocks) that belong to a page slot (data-bc-page). */
+const BLOCKS_PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
+
+/** What's been customised inside an element: edited wording, its tables, removed figures, view switches. */
+function customisedIn(el: HTMLElement) {
+  const q = (sel: string, attr: string) => Array.from(el.querySelectorAll<HTMLElement>(sel)).map((e) => e.getAttribute(attr) ?? '').filter(Boolean);
+  return { edits: q('[data-edit-key]', 'data-edit-key'), tables: q('table[data-rtable]', 'data-rtable'), figs: q('[data-fig-hidden]', 'data-fig-hidden'), fields: q('[data-layout-field]', 'data-layout-field') };
+}
+
+/** The layout with those parts back to standard: table rows, columns (order, widths, shown), compact rows, figures, switches. */
+function resetLayoutParts(l: ProposalLayout, p: ReturnType<typeof customisedIn>): ProposalLayout {
+  const tables = new Set(p.tables);
+  const inTable = (k: string) => tables.has(k.split('.')[0]);
+  const keep = <V,>(m: Record<string, V> | undefined) => {
+    if (!m) return m;
+    const n = Object.fromEntries(Object.entries(m).filter(([k]) => !inTable(k)));
+    return Object.keys(n).length ? n : undefined;
+  };
+  const n: ProposalLayout = {
+    ...l,
+    hiddenRows: keep(l.hiddenRows),
+    hiddenCols: keep(l.hiddenCols),
+    colWidths: keep(l.colWidths),
+    colOrder: keep(l.colOrder),
+    bcCompact: keep(l.bcCompact) as ProposalLayout['bcCompact'],
+    shownCols: l.shownCols?.filter((k) => !inTable(k)),
+    hiddenValues: l.hiddenValues.filter((k) => !p.figs.includes(k)),
+  };
+  const rec = n as unknown as Record<string, unknown>;
+  for (const f of p.fields) {
+    const [a, b] = f.split('.');
+    if (!b) delete rec[a];
+    else if (rec[a] && typeof rec[a] === 'object') {
+      const m = { ...(rec[a] as Record<string, unknown>) };
+      delete m[b];
+      rec[a] = Object.keys(m).length ? m : undefined;
+    }
+  }
+  return n;
+}
+
+const ResetIcon = () => (
+  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 8a5 5 0 1 0 1.5-3.6" />
+    <path d="M3 2.5v2.8h2.8" />
+  </svg>
+);
+
+/** A page with its screen-only controls: move earlier / later, reset, remove. */
 function PageSlot({ id, index, order, children }: { id: string; index: number; order: string[]; children: React.ReactNode }) {
   const { editable, layout, setLayout } = useProposalText();
   const custom = layout.bcCustom?.[id];
@@ -291,6 +356,27 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
     });
   };
   const btn = 'w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent';
+  const { set } = useProposalText();
+  // Back to standard: the page's wording, tables, figures and switches, and its sections (removed, order, spacing).
+  const reset = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const el = e.currentTarget.closest<HTMLElement>('[data-bc-page]');
+    if (!el || !window.confirm(`Reset “${title}” to its standard wording and layout?`)) return;
+    const parts = customisedIn(el);
+    for (const k of parts.edits) set(k, null);
+    const mine = (k: string) => (BLOCKS_PAGE_OF[k] ?? k) === id;
+    const keep = <V,>(m: Record<string, V> | undefined) => {
+      if (!m) return m;
+      const n = Object.fromEntries(Object.entries(m).filter(([k]) => !mine(k)));
+      return Object.keys(n).length ? n : undefined;
+    };
+    setLayout((l) => ({ ...resetLayoutParts(l, parts), bcHiddenBlocks: keep(l.bcHiddenBlocks) ?? {}, bcBlocks: keep(l.bcBlocks), bcGaps: keep(l.bcGaps) }));
+    // Sections that were removed are back now: reset what's inside them too (their wording, tables and switches).
+    setTimeout(() => {
+      const again = customisedIn(el);
+      for (const k of again.edits) set(k, null);
+      setLayout((l) => resetLayoutParts(l, again));
+    }, 150);
+  };
   return (
     <>
       <AddPageZone at={id} />
@@ -306,6 +392,11 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
             <button type="button" className={btn} disabled={index === order.length - 1} onClick={() => move(1)} aria-label={`Move ${title} later`} title="Move later">
               ↓
             </button>
+            {!custom && (
+              <button type="button" className={btn} onClick={reset} aria-label={`Reset ${title}`} title="Reset this page to its standard wording and layout">
+                <ResetIcon />
+              </button>
+            )}
             <button type="button" className={btn} onClick={remove} aria-label={`Remove page ${title}`} title={custom ? 'Delete this page' : 'Remove this page (you can add it back)'}>
               ✕
             </button>
@@ -600,6 +691,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             {/* With the scope cards removed there's room for full-height rows: a hover switch picks them. */}
             {editable && siteCardsHidden && (
               <ViewSwitch
+                field="bcSiteRows"
                 position="absolute right-0 -top-1"
                 label="Table rows"
                 options={[['compact', 'Compact rows'], ['full', 'Full rows']] as const}
@@ -747,6 +839,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           <div className={`bc-card bc-req relative group/tbl ${layout.bcCompact?.pilotfree ? 'bc-req-compact' : ''}`}>
             {editable && (
               <ViewSwitch
+                field="bcCompact.pilotfree"
                 position="absolute right-2 top-1.5"
                 hover="group-hover/tbl:opacity-100"
                 label="Table rows"
@@ -845,6 +938,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                         <div className="relative group/view">
                           {editable && (
                             <ViewSwitch
+                field="bcPilotFees"
                               position="absolute right-0 bottom-full mb-1"
                               label="Monthly fees shown as"
                               options={[['monthly', 'Monthly'], ['total', 'Total']] as const}
@@ -1043,6 +1137,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="relative group/view">
               {editable && (
                 <ViewSwitch
+                field="bcInvCards"
                   position="absolute right-0 -top-1"
                   label="Overview cards"
                   options={[['overview', 'Overview'], ['units', 'Unit prices']] as const}
@@ -1202,6 +1297,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="relative group/view">
             {editable && (
               <ViewSwitch
+                field="bcOpexCards"
                 position="absolute right-0 -top-1"
                 label="Overview cards"
                 options={[['overview', 'Overview'], ['units', 'Unit prices']] as const}
@@ -1356,6 +1452,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             // Screen only: asset value (default) or fall risk; saved with the proposal.
             <div className="no-print absolute right-3 top-3 z-[5] flex gap-1.5">
               <ViewSwitch
+                field="bcRoiCallout"
                 position="relative"
                 label="Callout"
                 options={[['asset', 'Asset Value'], ['fall', 'Fall Risk']] as const}
@@ -1363,6 +1460,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 onChange={(v) => setLayout((l) => ({ ...l, bcRoiCallout: v === 'fall' ? 'fall' : undefined }))}
               />
               <ViewSwitch
+                field="bcRoiQuote"
                 position="relative"
                 label="Quote"
                 options={[['off', 'No quote'], ['on', 'Quote']] as const}
@@ -1621,6 +1719,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
           {editable && (
             // Screen only: pick the chart style; saved with the proposal.
             <ViewSwitch
+                field="bcChart"
               label="Chart style"
               options={[['bar', 'Standard Bar'], ['stacked', 'Stacked Bar']] as const}
               value={layout.bcChart ?? 'bar'}
@@ -1790,6 +1889,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="no-print absolute right-3 top-3 z-[5] flex gap-1.5">
               {waves.length > 0 && layout.bcImpl !== 'gantt' && (
                 <ViewSwitch
+                field="bcImplWaves"
                   position="relative"
                   label="Wave dates"
                   options={[['dates', 'Dates in cards'], ['schedule', 'Schedule table']] as const}
@@ -1798,6 +1898,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
                 />
               )}
               <ViewSwitch
+                field="bcImpl"
                 position="relative"
                 label="Stages view"
                 options={[['cards', 'Cards'], ['gantt', 'Gantt']] as const}
@@ -2328,6 +2429,7 @@ export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt
             <div className="bc-card bc-chart relative group/view">
               {editable && (
                 <ViewSwitch
+                field="bcCompareChart"
                   label="Chart style"
                   options={[['line', 'Line'], ['bar', 'Bar']] as const}
                   value={layout.bcCompareChart ?? 'bar'}

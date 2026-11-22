@@ -53,7 +53,8 @@ export function V({ k, label, children, block = false }: { k: string; label: str
   const { register } = useContext(LabelsCtx);
   const fig = useFigure(k, label);
   useEffect(() => register(k, label), [k, label, register]);
-  if (layout.hiddenValues.includes(k)) return null;
+  // Removed: a hidden marker while editing, so resetting the page or section around it can find it.
+  if (layout.hiddenValues.includes(k)) return editable ? <span hidden data-fig-hidden={k} /> : null;
   if (!editable && !fig.clickable) return <>{children}</>;
   const Tag = block ? 'div' : 'span';
   const open = fig.clickable ? fig.open : undefined;
