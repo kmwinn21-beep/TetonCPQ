@@ -77,6 +77,12 @@ function CommunityRow({ id, name, place, plans, tagged, canUpload }: { id: strin
         <span className={`ml-auto flex-shrink-0 text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${plans.length ? 'bg-teton-pale-green text-[#256B41]' : 'bg-teton-red/30 text-[#9A2E1C]'}`}>
           {plans.length ? `${plans.length} plan${plans.length === 1 ? '' : 's'}` : 'Missing'}
         </span>
+        {/* With a plan already: add another from this row (the same size as the pill). */}
+        {plans.length > 0 && canUpload && (
+          <button type="button" className="flex-shrink-0 self-center rounded-full border border-teton-pale-gray bg-white px-2 py-0.5 text-[10.5px] font-semibold text-teton-dark-gray hover:bg-teton-almost-white" onClick={pick} aria-label={`Add a floor plan to ${name}`}>
+            + Floor plan
+          </button>
+        )}
       </div>
       <input
         ref={input}
@@ -116,9 +122,7 @@ function CommunityRow({ id, name, place, plans, tagged, canUpload }: { id: strin
           )}
         </div>
       ))}
-      {plans.length > 0 ? (
-        <div className="mt-1.5 flex justify-end">{addBtn(false)}</div>
-      ) : (
+      {plans.length === 0 &&
         !busy.length && (
           <div
             className={`mt-1.5 flex items-center gap-2 rounded-lg border border-dashed px-2.5 py-2 transition-colors duration-200 ${over ? 'border-[#3F8CEA] bg-[#F5F9FF]' : 'border-[#F0C2B5] bg-[#FFF8F5]'}`}
@@ -139,8 +143,7 @@ function CommunityRow({ id, name, place, plans, tagged, canUpload }: { id: strin
             </span>
             {addBtn(true)}
           </div>
-        )
-      )}
+        )}
     </li>
   );
 }
