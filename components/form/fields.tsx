@@ -156,6 +156,9 @@ export function DerivedField({ label, value, formula }: { label: string; value: 
 /** True when the form is view only: sections still open and close, but their fields are disabled. */
 export const ReadOnlyContext = createContext(false);
 
+/** Something to show at the end of every section's title row (e.g. the deal page's comment button), when provided. */
+export const SectionExtraContext = createContext<((id: string, title: string) => React.ReactNode) | null>(null);
+
 export function Section({
   id,
   title,
@@ -176,14 +179,16 @@ export function Section({
 }) {
   const { isOpen, setOpen } = useSections();
   const readOnly = useContext(ReadOnlyContext);
+  const extra = useContext(SectionExtraContext);
   const open = isOpen(id);
   const bodyId = `${id}-body`;
   return (
     <section id={id} className="card scroll-mt-4 p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div className="flex items-start gap-2 flex-1 min-w-[16rem]">
         <button
           type="button"
-          className="flex items-start gap-3 text-left flex-1 min-w-[16rem] group"
+          className="flex items-start gap-3 text-left flex-1 min-w-0 group"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => setOpen(id, !open)}
@@ -203,6 +208,8 @@ export function Section({
               : summary && <span className="block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
           </span>
         </button>
+        {extra?.(id, title)}
+        </div>
         {aside && !readOnly && (
           <div
             className="max-sm:w-full"

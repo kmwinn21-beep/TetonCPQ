@@ -26,6 +26,7 @@ import { FloorPlansProvider } from './FloorPlans';
 import { KpiPreview, VersionsPanel } from './ResultsRail';
 import { carryScope, describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { NotificationsPanel } from './NotificationsPanel';
+import { InputCommentsButton, InputCommentsProvider } from './InputComments';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
 import { FloorPlansPanel } from './FloorPlansPanel';
@@ -331,6 +332,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     <FormProvider {...methods}>
       <FloorPlansProvider quoteId={initial.quoteId} onScopeChange={(t) => canEdit && setScopePrompt(t)}>
       <ReadOnlyContext.Provider value={!access.inputs}>
+      <InputCommentsProvider quoteId={initial.quoteId} activeVersionId={activeVersion?.id ?? null} activeVersionNo={activeVersion?.versionNo ?? null} draft={!activeVersion || pending.length > 0}>
       <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto [&_section[id]]:scroll-mt-[calc(var(--hdr-h,0px)+16px)]" noValidate>
         {/* Always in view: the page scrolls behind it. Its height feeds --hdr-h, so the menus and panel stick below it. */}
         <header
@@ -356,6 +358,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             )}
           </div>
           <div className="flex w-full sm:w-auto items-start gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+            <InputCommentsButton />
             <button type="button" className="btn-secondary" onClick={viewResults} disabled={!values.communities?.length} aria-label="View results"><span className="sm:hidden">Results</span><span className="hidden sm:inline">View results</span></button>
             {/* Proposals are made from saved versions: the latest one. */}
             {activeVersion ? (
@@ -554,6 +557,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </aside>
         </div>
       </form>
+      </InputCommentsProvider>
       {/* After scoping: save it as a version so the proposal includes it. */}
       {scopePrompt && pending.length > 0 && (
         <div className="fixed inset-x-3 bottom-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(640px,calc(100vw-2rem))] z-40 rounded-xl bg-teton-near-black text-white shadow-xl px-4 py-3 text-sm drawer-in" role="status">

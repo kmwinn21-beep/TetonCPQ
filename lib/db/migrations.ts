@@ -361,4 +361,13 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 15,
+    name: 'inputs comments',
+    sql: [
+      // 'deliverable' (the business case) or 'inputs' (the deal page; page = the input section's id). An inputs comment
+      // made on unsaved changes has no version (shown as "draft").
+      `ALTER TABLE proposal_comments ADD COLUMN area TEXT NOT NULL DEFAULT 'deliverable'`,
+    ],
+  },
 ];

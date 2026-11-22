@@ -8,7 +8,8 @@
  * 💬 in a page's or section's hover controls opens the drawer with a box for that spot; pins on the page show
  * open threads. The toolbar's Comments button opens the drawer (a bottom sheet on phones).
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Collapse } from '@/components/form/fields';
 import { SegGroup } from '@/components/form/SegGroup';
 import type { CommentThread, ProposalComment } from '@/lib/data/proposalComments';
@@ -34,7 +35,7 @@ export const useComments = () => useContext(CommentsContext);
 /** The page a section belongs to (set by the business case's page slot), for comment targets and pins. */
 export const CommentPageContext = createContext<{ id: string; title: string } | null>(null);
 
-const ago = (iso: string) => {
+export const ago = (iso: string) => {
   const t = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
   if (Number.isNaN(t)) return '';
   const m = Math.round((Date.now() - t) / 60000);
@@ -45,7 +46,7 @@ const ago = (iso: string) => {
   return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const mentionsIn = (text: string, people: Person[]) => people.filter((p) => text.includes(`@${p.name}`)).map((p) => p.id);
+export const mentionsIn = (text: string, people: Person[]) => people.filter((p) => text.includes(`@${p.name}`)).map((p) => p.id);
 const sameSpot = (t: { page: string | null; block: string | null }, page: string | null, block: string | null) => t.page === page && (t.block ?? null) === block;
 
 /** Scrolls the document to what a thread is on and flashes it. */
@@ -138,7 +139,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, children }: { 
 
 // ---------------------------------------------------------------- toolbar button, 💬 buttons and pins
 
-const BubbleIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
+export const BubbleIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
   </svg>
@@ -177,22 +178,41 @@ export function CommentPin({ page, block, kind }: { page: string; block: string 
   if (!here.length) return null;
   const first = here[here.length - 1];
   return (
-    <button
-      type="button"
-      data-edit-ui
-      className={`no-print bc-pin bc-pin-${kind} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`}
-      onClick={() => open({ threadId: first.id })}
-      aria-label={`${here.length} comment${here.length === 1 ? '' : 's'} on this ${kind === 'page' ? 'page' : 'section'}`}
-      title={here.map((t) => `${t.author.name}: ${t.body.slice(0, 80)}`).join('\n')}
-    >
-      <AuthorPill person={first.author} />
-      {here.length > 1 && <span>{here.length}</span>}
-    </button>
+    <CommentHoverCard threads={here}>
+      <button
+        type="button"
+        data-edit-ui
+        className={`no-print bc-pin bc-pin-${kind} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`}
+        onClick={() => open({ threadId: first.id })}
+        aria-label={`${here.length} comment${here.length === 1 ? '' : 's'} on this ${kind === 'page' ? 'page' : 'section'}`}
+      >
+        <AuthorPill person={first.author} />
+        {here.length > 1 && <span>{here.length}</span>}
+      </button>
+    </CommentHoverCard>
   );
 }
 
 // ---------------------------------------------------------------- the drawer
 
+/** What a thread needs to show and change itself (shared by the business case and the inputs drawer). */
+export interface ThreadOps {
+  people: Person[];
+  me: number | null;
+  /** The version being viewed (or the active one): comments on another are tagged amber. */
+  versionNo: number | null;
+  onAdd: (body: string, target: CommentTarget | undefined, parentId?: number) => Promise<number | null>;
+  onEdit: (id: number, body: string) => Promise<boolean>;
+  onResolve: (id: number, resolved: boolean) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+  /** Read-only: no reply, resolve, edit or delete; a link instead. */
+  readOnly?: { href: (t: CommentThread) => string; label: string };
+  /** What the thread is on, as a link that shows it (null: nothing to show). */
+  spot?: (t: CommentThread) => string | null;
+  onShow?: (t: CommentThread) => void;
+  /** A small tag at the start of the thread (e.g. "Inputs"). */
+  tag?: (t: CommentThread) => React.ReactNode;
+}
 interface DrawerProps {
   state: { target?: CommentTarget; threadId?: number } | null;
   onClose: () => void;
@@ -360,20 +380,27 @@ function CommentsDrawer(p: DrawerProps) {
   );
 }
 
-function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: DrawerProps; focused: boolean; onFocus: () => void }) {
+export function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: ThreadOps; focused: boolean; onFocus: () => void }) {
   const [replying, setReplying] = useState(false);
-  const spot = t.label.includes(' · ') ? t.label.split(' · ').slice(1).join(' · ') : t.page ? 'Whole page' : null;
+  const spot = p.spot ? p.spot(t) : t.label.includes(' · ') ? t.label.split(' · ').slice(1).join(' · ') : t.page ? 'Whole page' : null;
+  const ro = p.readOnly;
   return (
     <li data-thread={t.id} className={`mx-2 mb-2 rounded-xl border px-3 py-2.5 transition-colors duration-300 ${focused ? 'border-[#9cc0f0] bg-[#F5F9FF]' : 'border-teton-off-white bg-white'} ${t.resolvedAt ? 'opacity-75' : ''}`} onClick={onFocus}>
       <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+        {p.tag?.(t)}
         {spot && (
-          <button type="button" className="min-w-0 truncate text-[11px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => showTarget(t.page, t.block)} title="Show it in the document">
+          <button type="button" className="min-w-0 truncate text-[11px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => (p.onShow ? p.onShow(t) : showTarget(t.page, t.block))} title="Show where it is">
             {spot}
           </button>
         )}
         {t.resolvedAt && <span className="flex-shrink-0 rounded-full bg-teton-pale-green px-1.5 py-px text-[10px] font-semibold text-[#256B41]">✓ Resolved{t.resolvedBy ? ` by ${t.resolvedBy.name.split(' ')[0]}` : ''}</span>}
         <span className="ml-auto" />
-        {t.canResolve && (
+        {ro && (
+          <a href={ro.href(t)} className="flex-shrink-0 text-[11px] font-semibold text-[#1F5FB5] hover:underline whitespace-nowrap">
+            {ro.label}
+          </a>
+        )}
+        {!ro && t.canResolve && (
           <button type="button" className="flex-shrink-0 rounded-md border border-teton-pale-gray px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-teton-almost-white" onClick={() => void p.onResolve(t.id, !t.resolvedAt)}>
             {t.resolvedAt ? 'Reopen' : '✓ Resolve'}
           </button>
@@ -409,7 +436,7 @@ function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: DrawerProps; 
           )}
         </div>
       </Collapse>
-      {!replying && (
+      {!replying && !ro && (
         <button type="button" className="mt-1.5 text-[11.5px] font-medium text-teton-ui-gray hover:text-teton-ink" onClick={() => setReplying(true)}>
           Reply
         </button>
@@ -418,7 +445,7 @@ function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: DrawerProps; 
   );
 }
 
-function CommentBody({ c, p }: { c: ProposalComment; p: DrawerProps }) {
+function CommentBody({ c, p }: { c: ProposalComment; p: ThreadOps }) {
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
   const other = c.versionNo != null && c.versionNo !== p.versionNo;
@@ -433,8 +460,13 @@ function CommentBody({ c, p }: { c: ProposalComment; p: DrawerProps }) {
             on v{c.versionNo}
           </span>
         )}
+        {c.draft && (
+          <span className="flex-shrink-0 rounded px-1 py-px text-[9.5px] font-semibold bg-teton-almost-white text-teton-ui-gray" title="Made on unsaved changes">
+            draft
+          </span>
+        )}
         {c.updatedAt !== c.createdAt && <span className="flex-shrink-0 italic">edited</span>}
-        {(c.mine || c.canDelete) && (
+        {!p.readOnly && (c.mine || c.canDelete) && (
           <span className="relative ml-auto">
             <button type="button" className="w-6 h-6 rounded-md text-teton-ui-gray hover:bg-teton-almost-white sm:opacity-0 sm:group-hover/cm:opacity-100 focus:opacity-100 transition-opacity" aria-label="Comment options" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               ⋯
@@ -489,7 +521,7 @@ function CommentBody({ c, p }: { c: ProposalComment; p: DrawerProps }) {
   );
 }
 
-function WithMentions({ text, people, me }: { text: string; people: Person[]; me: number | null }) {
+export function WithMentions({ text, people, me }: { text: string; people: Person[]; me: number | null }) {
   const names = [...people].sort((a, b) => b.name.length - a.name.length);
   if (!names.length) return <>{text}</>;
   const re = new RegExp(`@(${names.map((n) => esc(n.name)).join('|')})`, 'g');
@@ -510,7 +542,7 @@ function WithMentions({ text, people, me }: { text: string; people: Person[]; me
 }
 
 /** A comment box: type @ for a list of people to tag. Ctrl/⌘+Enter sends; Esc cancels. */
-function Composer({ people, me, initial = '', placeholder, submitLabel, autoFocus, compact, onSubmit, onCancel }: { people: Person[]; me: number | null; initial?: string; placeholder?: string; submitLabel: string; autoFocus?: boolean; compact?: boolean; onSubmit: (body: string) => Promise<boolean>; onCancel?: () => void }) {
+export function Composer({ people, me, initial = '', placeholder, submitLabel, autoFocus, compact, onSubmit, onCancel }: { people: Person[]; me: number | null; initial?: string; placeholder?: string; submitLabel: string; autoFocus?: boolean; compact?: boolean; onSubmit: (body: string) => Promise<boolean>; onCancel?: () => void }) {
   const [text, setText] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState<{ q: string; at: number } | null>(null);
@@ -623,6 +655,99 @@ function Composer({ people, me, initial = '', placeholder, submitLabel, autoFocu
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Hover (or keyboard focus) on a comment bubble: a card with every open comment there, oldest first, with replies.
+ * Clicking the bubble still opens the drawer. Mouse only: touch goes straight to the drawer.
+ */
+export function CommentHoverCard({ threads, children }: { threads: CommentThread[]; children: React.ReactElement }) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number; up: boolean } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const enter = (e: React.PointerEvent | React.FocusEvent) => {
+    if ('pointerType' in e && e.pointerType === 'touch') return;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShow(true), 180);
+  };
+  const leave = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShow(false), 160);
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useLayoutEffect(() => {
+    if (!show || !anchor.current) return setPos(null);
+    // The wrapper is display: contents (no box of its own): measure the bubble inside it.
+    const r = (anchor.current.firstElementChild ?? anchor.current).getBoundingClientRect();
+    const w = Math.min(320, window.innerWidth - 16);
+    const h = card.current?.offsetHeight ?? 200;
+    const up = r.bottom + 8 + h > window.innerHeight && r.top - 8 - h > 0;
+    const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8, Math.max(r.left, 8)));
+    setPos({ left, top: up ? r.top - 8 - h : r.bottom + 8, up });
+  }, [show, threads.length]);
+  useEffect(() => {
+    if (!show) return;
+    const hide = () => setShow(false);
+    window.addEventListener('scroll', hide, true);
+    return () => window.removeEventListener('scroll', hide, true);
+  }, [show]);
+  const ordered = [...threads].reverse();
+  return (
+    <>
+      <span ref={anchor} className="contents" onPointerEnter={enter} onPointerLeave={leave} onFocus={enter} onBlur={leave} onClick={() => setShow(false)}>
+        {children}
+      </span>
+      {show &&
+        threads.length > 0 &&
+        createPortal(
+          <div
+            ref={card}
+            role="tooltip"
+            className="no-print fixed z-[90] w-[min(320px,calc(100vw-16px))] max-h-[min(360px,60vh)] overflow-y-auto overscroll-contain rounded-xl border border-teton-off-white bg-white text-teton-ink shadow-[0_12px_32px_rgba(0,0,0,.18)] [animation:fadeScale_.15s_ease-out] motion-reduce:[animation:none] text-left font-sans"
+            style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: 0 }}
+            onPointerEnter={() => clearTimeout(timer.current)}
+            onPointerLeave={leave}
+          >
+            <p className="sticky top-0 bg-white/95 backdrop-blur px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-[.7px] text-teton-ui-gray border-b border-teton-off-white">
+              {threads.length} open comment{threads.length === 1 ? '' : 's'} · click to open
+            </p>
+            <ul className="divide-y divide-teton-off-white">
+              {ordered.map((t) => (
+                <li key={t.id} className="px-3 py-2">
+                  <HoverComment c={t} />
+                  {t.replies.length > 0 && (
+                    <ul className="mt-1.5 ml-2 pl-2.5 border-l-2 border-teton-off-white space-y-1.5">
+                      {t.replies.map((r) => (
+                        <li key={r.id}>
+                          <HoverComment c={r} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+function HoverComment({ c }: { c: ProposalComment }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-[10.5px] text-teton-ui-gray">
+        <AuthorPill person={c.author} />
+        <b className="font-semibold text-teton-ink truncate">{c.author.name}</b>
+        <span className="flex-shrink-0">{ago(c.createdAt)}</span>
+        {c.draft ? <span className="flex-shrink-0 rounded bg-teton-almost-white px-1 text-[9px] font-semibold">draft</span> : c.versionNo != null && <span className="flex-shrink-0 rounded bg-teton-almost-white px-1 text-[9px] font-semibold">on v{c.versionNo}</span>}
+      </div>
+      <p className="mt-0.5 text-[12.5px] leading-snug whitespace-pre-wrap break-words line-clamp-6">{c.body}</p>
     </div>
   );
 }

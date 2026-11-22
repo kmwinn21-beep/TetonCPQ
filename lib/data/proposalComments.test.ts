@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { createDeal, deleteVersion, saveVersion } from './quotes';
 import type { Viewer } from './planNotes';
-import { addComment, deleteComment, editComment, listComments, markMentionsRead, mentionable, resolveThread, unreadMentions } from './proposalComments';
+import { addComment, addInputComment, deleteComment, editComment, listComments, listDealComments, markMentionsRead, mentionable, resolveThread, unreadMentions } from './proposalComments';
 
 let db: Client;
 let dir: string;
@@ -92,5 +92,27 @@ describe('business case comments', () => {
     await deleteVersion(db, quoteId, v1);
     const t = (await listComments(db, v2, users.js)).find((x) => x.id === id)!;
     expect(t).toMatchObject({ versionId: null, versionNo: 1 });
+  });
+
+  it('keeps inputs comments apart from the business case', async () => {
+    const draft = await addInputComment(db, quoteId, { page: 'pricing', label: 'Pricing & products', body: 'Hold 8%?', draft: true, mentions: [users.kw.id] }, users.js);
+    const saved = await addInputComment(db, quoteId, { body: 'Whole deal note' }, users.mo);
+    const all = await listDealComments(db, quoteId, users.kw);
+    const d = all.find((t) => t.id === draft)!;
+    expect(d).toMatchObject({ area: 'inputs', page: 'pricing', block: null, draft: true, versionNo: null, canResolve: true });
+    expect(all.find((t) => t.id === saved)).toMatchObject({ area: 'inputs', label: 'Whole deal', draft: false, versionNo: 2 });
+    expect(all.some((t) => t.area === 'deliverable')).toBe(true);
+    // The business case doesn't list them; the deal page can't change business case comments.
+    expect((await listComments(db, v2, users.kw)).some((t) => t.id === draft)).toBe(false);
+    const bc = all.find((t) => t.area === 'deliverable')!;
+    await expect(resolveThread(db, { quoteId }, bc.id, true, users.kw)).rejects.toThrow(/not found/);
+    await expect(resolveThread(db, v2, draft, true, users.kw)).rejects.toThrow(/not found/);
+    await resolveThread(db, { quoteId }, draft, true, users.kw);
+    await expect(addComment(db, v2, { parentId: draft, body: 'x' }, users.kw)).rejects.toThrow(/Thread not found/);
+    const r = await addInputComment(db, quoteId, { parentId: draft, body: 'Yes' }, users.kw);
+    expect((await listDealComments(db, quoteId, users.js)).find((t) => t.id === draft)!.replies.map((x) => x.id)).toEqual([r]);
+    expect((await unreadMentions(db, quoteId, users.kw)).find((m) => m.id === draft)?.area).toBe('inputs');
+    await editComment(db, { quoteId }, draft, { body: 'Hold 8% to Q1?' }, users.js);
+    await deleteComment(db, { quoteId }, saved, users.mo);
   });
 });

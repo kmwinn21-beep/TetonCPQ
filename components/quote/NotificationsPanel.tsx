@@ -13,6 +13,7 @@ import type { UnreadItem } from '@/lib/data/planNotes';
 import type { MentionItem } from '@/lib/data/proposalComments';
 import { useFloorPlans } from './FloorPlans';
 import { AuthorPill, Triangle } from './PlanNotes';
+import { MENTIONS_READ, useInputComments } from './InputComments';
 
 const ago = (iso: string) => {
   const t = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
@@ -44,6 +45,16 @@ export function NotificationsPanel() {
       live = false;
     };
   }, [quoteId]);
+  // Mentions read in the comments drawer drop off here.
+  useEffect(() => {
+    const drop = (e: Event) => {
+      const ids = (e as CustomEvent<number[]>).detail ?? [];
+      setMentions((m) => m.filter((x) => !ids.includes(x.id)));
+    };
+    window.addEventListener(MENTIONS_READ, drop);
+    return () => window.removeEventListener(MENTIONS_READ, drop);
+  }, []);
+  const comments = useInputComments();
   const readMentions = useCallback(
     async (ids: number[] | 'all') => {
       setMentions((m) => (ids === 'all' ? [] : m.filter((x) => !ids.includes(x.id))));
@@ -55,6 +66,12 @@ export function NotificationsPanel() {
   const total = plan.length + mentions.length;
   if (!fp || !total) return null;
   const openMention = (m: MentionItem) => {
+    // Inputs comments open in this page's drawer; business case ones open the proposal.
+    if (m.area === 'inputs' && comments) {
+      comments.open({ threadId: m.threadId });
+      void readMentions([m.id]);
+      return;
+    }
     void readMentions([m.id]).finally(() => {
       if (m.versionId) window.location.href = `/proposal/${m.versionId}?comment=${m.threadId}`;
     });
@@ -78,7 +95,7 @@ export function NotificationsPanel() {
           <ul className="max-h-[22rem] overflow-y-auto divide-y divide-teton-off-white">
             {mentions.map((m) => (
               <li key={`mention-${m.id}`} className="flex items-start gap-2 px-4 py-2.5 hover:bg-teton-almost-white transition-colors">
-                <button type="button" className="flex flex-1 min-w-0 items-start gap-2 text-left" onClick={() => openMention(m)} title="Open the comment in the business case">
+                <button type="button" className="flex flex-1 min-w-0 items-start gap-2 text-left" onClick={() => openMention(m)} title={m.area === 'inputs' ? 'Open the comment' : 'Open the comment in the business case'}>
                   <span className="mt-0.5 text-[#3F8CEA] text-[13px] font-bold leading-4 w-4 text-center" aria-hidden="true">@</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-[11px] text-teton-ui-gray">
@@ -86,7 +103,7 @@ export function NotificationsPanel() {
                       <span className="truncate">mentioned you · {ago(m.createdAt)}</span>
                     </span>
                     <span className="block mt-0.5 text-xs text-teton-ink line-clamp-2 break-words">{m.preview}</span>
-                    <span className="block mt-0.5 text-[10.5px] text-teton-ui-gray truncate">Business case · {m.label}{m.versionNo != null ? ` · on v${m.versionNo}` : ''}</span>
+                    <span className="block mt-0.5 text-[10.5px] text-teton-ui-gray truncate">{m.area === 'inputs' ? 'Inputs' : 'Business case'} · {m.label}{m.versionNo != null ? ` · on v${m.versionNo}` : ''}</span>
                   </span>
                 </button>
                 <button type="button" className="flex-shrink-0 rounded-md border border-teton-pale-gray px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-white" onClick={() => void readMentions([m.id])}>
