@@ -21,7 +21,8 @@ export interface ProposalComment {
   mine: boolean;
   canDelete: boolean;
 }
-export type CommentArea = 'deliverable' | 'inputs';
+export type CommentArea = 'deliverable' | 'inputs' | 'task';
+const areaOf = (v: unknown): CommentArea => (v === 'inputs' || v === 'task' ? v : 'deliverable');
 export interface CommentThread extends ProposalComment {
   area: CommentArea;
   /** Business case page id (null: a general comment), and the section within it (null: the whole page). */
@@ -101,7 +102,8 @@ export async function listDealComments(db: Client, quoteId: number, v: Viewer): 
 
 async function threadsOf(db: Client, { dealId, ownerId }: DealCtx, v: Viewer): Promise<CommentThread[]> {
   const r = await db.execute({
-    sql: `SELECT c.*, u.name AS author_name, rb.name AS resolved_by_name FROM proposal_comments c JOIN users u ON u.id = c.author_id LEFT JOIN users rb ON rb.id = c.resolved_by
+    sql: `SELECT c.*, u.name AS author_name, rb.name AS resolved_by_name, tk.title AS task_title FROM proposal_comments c JOIN users u ON u.id = c.author_id LEFT JOIN users rb ON rb.id = c.resolved_by
+          LEFT JOIN deal_tasks tk ON c.area = 'task' AND tk.id = CAST(c.page AS INTEGER)
           WHERE c.deal_id = ? ORDER BY c.id`,
     args: [dealId],
   });
@@ -114,10 +116,10 @@ async function threadsOf(db: Client, { dealId, ownerId }: DealCtx, v: Viewer): P
       const mentioned = [root, ...reps].some((c) => c.mentions.includes(v.id));
       return {
         ...root,
-        area: x.area === 'inputs' ? ('inputs' as const) : ('deliverable' as const),
+        area: areaOf(x.area),
         page: x.page == null ? null : String(x.page),
         block: x.block == null ? null : String(x.block),
-        label: String(x.target_label ?? (x.page == null ? (x.area === 'inputs' ? 'Whole deal' : 'General') : 'Page')),
+        label: x.task_title != null ? String(x.task_title) : String(x.target_label ?? (x.page == null ? (x.area === 'inputs' ? 'Whole deal' : 'General') : 'Page')),
         versionId: x.version_id == null ? null : Number(x.version_id),
         resolvedAt: x.resolved_at == null ? null : String(x.resolved_at),
         resolvedBy: x.resolved_by == null ? null : person(x.resolved_by, x.resolved_by_name),
@@ -147,8 +149,25 @@ export async function addComment(db: Client, versionId: number, input: NewCommen
  * A comment on the deal's inputs: on an input section (page = its id) or the whole deal, or a reply to one. Made on
  * unsaved changes (draft), it notes no version; otherwise the active version.
  */
-export async function addInputComment(db: Client, quoteId: number, input: NewComment & { draft?: boolean }, v: Viewer): Promise<number> {
+export async function addInputComment(db: Client, quoteId: number, input: NewComment & { draft?: boolean; area?: 'inputs' | 'task' }, v: Viewer): Promise<number> {
   const d = await dealOfQuote(db, quoteId);
+  // A reply goes where its thread is.
+  if (input.parentId != null) {
+    const p = await db.execute({ sql: "SELECT area FROM proposal_comments WHERE id = ? AND deal_id = ? AND area IN ('inputs', 'task')", args: [Number(input.parentId), d.dealId] });
+    if (!p.rows.length) throw httpError('Thread not found', 404);
+    input = { ...input, area: p.rows[0].area === 'task' ? 'task' : 'inputs' };
+  }
+  if (input.area === 'task') {
+    // A task's thread: page = the task's id. Not tied to a version.
+    let page = input.page ?? null;
+    if (input.parentId == null) {
+      const t = await db.execute({ sql: 'SELECT id, title FROM deal_tasks WHERE id = ? AND deal_id = ?', args: [Number(page), d.dealId] });
+      if (!t.rows.length) throw httpError('Task not found', 404);
+      page = String(t.rows[0].id);
+      input = { ...input, label: String(t.rows[0].title) };
+    }
+    return insertComment(db, { dealId: d.dealId, versionId: null, versionNo: null, area: 'task' }, { ...input, page, block: null }, v);
+  }
   const onVersion = !input.draft && d.activeId != null;
   return insertComment(db, { dealId: d.dealId, versionId: onVersion ? d.activeId : null, versionNo: onVersion ? d.activeNo : null, area: 'inputs' }, { ...input, block: null }, v);
 }
@@ -183,8 +202,10 @@ export type CommentScope = { versionId: number } | { quoteId: number };
 async function commentRow(db: Client, scope: CommentScope | number, id: number) {
   const sc: CommentScope = typeof scope === 'number' ? { versionId: scope } : scope;
   const { dealId, ownerId } = 'versionId' in sc ? await dealOfVersion(db, sc.versionId) : await dealOfQuote(db, sc.quoteId);
-  const area: CommentArea = 'versionId' in sc ? 'deliverable' : 'inputs';
-  const r = await db.execute({ sql: 'SELECT * FROM proposal_comments WHERE id = ? AND deal_id = ? AND area = ?', args: [id, dealId, area] });
+  const r = await db.execute({
+    sql: `SELECT * FROM proposal_comments WHERE id = ? AND deal_id = ? AND ${'versionId' in sc ? "area = 'deliverable'" : "area IN ('inputs', 'task')"}`,
+    args: [id, dealId],
+  });
   if (!r.rows.length) throw httpError('Comment not found', 404);
   return { row: r.rows[0], ownerId, dealId };
 }
@@ -230,7 +251,7 @@ export async function unreadMentions(db: Client, quoteId: number, v: Viewer): Pr
   });
   return r.rows.map((x) => ({
     id: Number(x.id),
-    area: x.area === 'inputs' ? ('inputs' as const) : ('deliverable' as const),
+    area: areaOf(x.area),
     threadId: x.parent_id == null ? Number(x.id) : Number(x.parent_id),
     versionId: x.open_version == null ? null : Number(x.open_version),
     versionNo: x.version_no == null ? null : Number(x.version_no),

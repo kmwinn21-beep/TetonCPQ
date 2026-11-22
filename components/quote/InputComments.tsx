@@ -13,16 +13,18 @@ import type { CommentThread } from '@/lib/data/proposalComments';
 import type { Person } from '@/lib/data/planNotes';
 import { BubbleIcon, CommentHoverCard, Composer, mentionsIn, SectionFilter, Thread, type FilterOption, type CommentTarget, type ThreadOps } from '@/components/proposal/Comments';
 
-type View = 'inputs' | 'deliverable' | 'all';
+type View = 'inputs' | 'tasks' | 'deliverable' | 'all';
 type Filter = 'open' | 'resolved' | 'all';
 interface OpenOpts {
   section?: { id: string; title: string };
+  /** A task's thread (from its 💬 button on the Tasks card). */
+  task?: { id: number; title: string };
   threadId?: number;
 }
 interface Ctx {
   threads: CommentThread[];
   open: (o?: OpenOpts) => void;
-  /** The section whose new-comment box is open. */
+  /** The section (its id) or task ("task:<id>") whose new-comment box is open. */
   composing: string | null;
 }
 const InputCommentsContext = createContext<Ctx | null>(null);
@@ -30,6 +32,8 @@ export const useInputComments = () => useContext(InputCommentsContext);
 
 /** Mentions read here or elsewhere on the page (the Notifications panel listens). */
 export const MENTIONS_READ = 'teton:mentions-read';
+/** Show a task on the Tasks card (open the card, scroll to it, flash it). detail: the task's id. */
+export const SHOW_TASK = 'teton:show-task';
 
 /** A section's filter key: the group it's in (the Assumptions sections count as one), or the section itself. */
 function groupOf(id: string) {
@@ -79,9 +83,9 @@ export function InputCommentsProvider({ quoteId, activeVersionId, activeVersionN
   const open = useCallback((o: OpenOpts = {}) => {
     setState(o);
     // Refresh when opening (someone may have commented since).
-    if (!o.section) void call('');
+    if (!o.section && !o.task) void call('');
   }, [call]);
-  const value = useMemo(() => ({ threads, open, composing: state?.section?.id ?? null }), [threads, open, state]);
+  const value = useMemo(() => ({ threads, open, composing: state?.section?.id ?? (state?.task ? `task:${state.task.id}` : null) }), [threads, open, state]);
   const sectionButton = useCallback((id: string, title: string) => <SectionCommentButton id={id} title={title} />, []);
   return (
     <InputCommentsContext.Provider value={value}>
@@ -99,7 +103,7 @@ export function InputCommentsProvider({ quoteId, activeVersionId, activeVersionN
           me,
           versionNo: activeVersionNo,
           onAdd: async (body, target, parentId) => {
-            const j = await call('', { method: 'POST', body: JSON.stringify({ body, mentions: mentionsIn(body, people), parentId, page: target?.page ?? null, label: target?.label, draft }) });
+            const j = await call('', { method: 'POST', body: JSON.stringify({ body, mentions: mentionsIn(body, people), parentId, page: target?.page ?? null, label: target?.label, draft, area: target?.area }) });
             return j?.id ?? null;
           },
           onEdit: async (id, body) => !!(await call(`/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mentions: mentionsIn(body, people) }) })),
@@ -158,6 +162,7 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
   // Filters (input sections; business case pages): kept while on this page, reset by leaving or reloading it.
   const [pickedInputs, setPickedInputs] = useState<string[]>([]);
   const [pickedPages, setPickedPages] = useState<string[]>([]);
+  const [pickedTasks, setPickedTasks] = useState<string[]>([]);
   const list = useRef<HTMLDivElement>(null);
   // Keep showing the last content while the drawer leaves.
   useEffect(() => {
@@ -169,6 +174,11 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
         // Commenting on a section that's filtered out adds it to the filter, so the new comment shows.
         const k = groupOf(state.section.id);
         setPickedInputs((p) => (p.length && !p.includes(k) ? [...p, k] : p));
+      }
+      if (state.task) {
+        setView('tasks');
+        const k = String(state.task.id);
+        setPickedTasks((p) => (p.length && !p.includes(k) ? [...p, k] : p));
       }
     } else if (shown) {
       setClosing(true);
@@ -186,7 +196,7 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
     const id = state?.threadId;
     const t = id ? threads.find((x) => x.id === id) : null;
     if (!t) return;
-    setView(t.area === 'inputs' ? 'inputs' : 'deliverable');
+    setView(t.area === 'inputs' ? 'inputs' : t.area === 'task' ? 'tasks' : 'deliverable');
     if (t.resolvedAt) setFilter('all');
     setFocus(t.id);
     setTimeout(() => list.current?.querySelector(`[data-thread="${t.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 120);
@@ -199,7 +209,8 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
     return () => window.removeEventListener('keydown', k);
   }, [state, onClose]);
 
-  const inView = (t: CommentThread) => view === 'all' || t.area === view;
+  const areaOfView = (v: View) => (v === 'tasks' ? 'task' : v);
+  const inView = (t: CommentThread) => view === 'all' || t.area === areaOfView(view);
   // Reading the drawer reads your mentions in what it shows.
   const sent = useRef(new Set<number>());
   useEffect(() => {
@@ -213,15 +224,23 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
   }, [state, threads, ops.me, view, quoteId]);
 
   if (!shown) return null;
-  const target = (state ?? shown).section;
+  const sec = (state ?? shown).section;
+  const tsk = (state ?? shown).task;
+  const target = sec ? { id: sec.id, title: sec.title, area: 'inputs' as const } : tsk ? { id: String(tsk.id), title: tsk.title, area: 'task' as const } : null;
   const matches = (t: CommentThread) => (filter === 'all' ? true : filter === 'open' ? !t.resolvedAt : !!t.resolvedAt);
-  const count = (v: View) => threads.filter((t) => (v === 'all' || t.area === v) && matches(t)).length;
+  const count = (v: View) => threads.filter((t) => (v === 'all' || t.area === areaOfView(v)) && matches(t)).length;
   // A thread's filter key: its section (the Assumptions sections count as one), its business case page, or '' (whole).
   const inputKey = (t: CommentThread) => (t.page == null ? '' : groupOf(t.page));
   const passes = (t: CommentThread) =>
-    t.area === 'inputs' ? !pickedInputs.length || pickedInputs.includes(inputKey(t)) : view === 'all' ? !pickedInputs.length : !pickedPages.length || pickedPages.includes(t.page ?? '');
+    t.area === 'inputs'
+      ? !pickedInputs.length || pickedInputs.includes(inputKey(t))
+      : view === 'all'
+        ? !pickedInputs.length
+        : t.area === 'task'
+          ? !pickedTasks.length || pickedTasks.includes(t.page ?? '')
+          : !pickedPages.length || pickedPages.includes(t.page ?? '');
   const visible = threads.filter((t) => inView(t) && matches(t) && passes(t));
-  const hiddenDeliverable = view === 'all' && pickedInputs.length > 0 && threads.some((t) => t.area === 'deliverable' && matches(t));
+  const hiddenDeliverable = view === 'all' && pickedInputs.length > 0 && threads.some((t) => t.area !== 'inputs' && matches(t));
   const inStatus = threads.filter(matches);
   const inputOptions: FilterOption[] = [{ key: '', label: 'Whole deal', count: inStatus.filter((t) => t.area === 'inputs' && t.page == null).length }];
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('form section[id]'))) {
@@ -232,6 +251,8 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
   }
   const pageOptions: FilterOption[] = [{ key: '', label: 'Whole proposal', count: inStatus.filter((t) => t.area === 'deliverable' && t.page == null).length }];
   for (const t of threads) if (t.area === 'deliverable' && t.page && !pageOptions.some((o) => o.key === t.page)) pageOptions.push({ key: t.page, label: t.label.split(' · ')[0], count: inStatus.filter((x) => x.area === 'deliverable' && x.page === t.page).length });
+  const taskOptions: FilterOption[] = [];
+  for (const t of threads) if (t.area === 'task' && t.page && !taskOptions.some((o) => o.key === t.page)) taskOptions.push({ key: t.page, label: t.label, count: inStatus.filter((x) => x.area === 'task' && x.page === t.page).length });
   const statusCounts = { open: threads.filter((t) => inView(t) && !t.resolvedAt).length, resolved: threads.filter((t) => inView(t) && t.resolvedAt).length, all: threads.filter(inView).length };
 
   // Inputs: grouped by section in page order (the whole deal first). Deliverable: by business case page. All: newest first.
@@ -244,7 +265,7 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
     const keys = [...by.keys()].sort((a, b) => (a === '' ? -1 : b === '' ? 1 : view === 'inputs' ? (sectionOrder.indexOf(a) + 1 || 999) - (sectionOrder.indexOf(b) + 1 || 999) : 0));
     for (const k of keys) {
       const first = by.get(k)![0];
-      const title = k === '' ? (view === 'inputs' ? 'Whole deal' : 'Whole proposal') : view === 'inputs' ? first.label : first.label.split(' · ')[0];
+      const title = k === '' ? (view === 'inputs' ? 'Whole deal' : 'Whole proposal') : view === 'deliverable' ? first.label.split(' · ')[0] : first.label;
       groups.push({ key: k || 'general', title, items: by.get(k)! });
     }
   }
@@ -262,11 +283,17 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
     onShow: (t) => t.page && showSection(t.page),
     tag: view === 'all' ? () => <span className="flex-shrink-0 rounded px-1.5 py-px text-[9.5px] font-bold bg-teton-pale-green text-[#256B41]">Inputs</span> : undefined,
   };
+  const taskOps: ThreadOps = {
+    ...ops,
+    spot: (t) => (view === 'all' ? t.label : null),
+    onShow: (t) => window.dispatchEvent(new CustomEvent(SHOW_TASK, { detail: Number(t.page) })),
+    tag: view === 'all' ? () => <span className="flex-shrink-0 rounded px-1.5 py-px text-[9.5px] font-bold bg-[#E5EEFC] text-[#1F5FB5]">Task</span> : undefined,
+  };
   const addOn = async (body: string, t: CommentTarget) => {
     const id = await ops.onAdd(body, t);
     if (id == null) return false;
     if (filter === 'resolved') setFilter('open');
-    if (view === 'deliverable') setView('inputs');
+    if (view === 'deliverable' || (view === 'tasks' && t.area !== 'task')) setView('inputs');
     setFocus(id);
     setTimeout(() => list.current?.querySelector(`[data-thread="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 80);
     return true;
@@ -291,11 +318,12 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
             {(
               [
                 ['inputs', 'Inputs'],
+                ['tasks', 'Tasks'],
                 ['deliverable', 'Deliverable'],
                 ['all', 'All'],
               ] as const
             ).map(([v, label]) => (
-              <button key={v} type="button" aria-pressed={view === v} className={`flex-1 px-2 py-1.5 rounded-md font-semibold transition-colors duration-200 ${view === v ? 'text-white' : 'text-teton-ui-gray hover:text-teton-ink'}`} onClick={() => setView(v)}>
+              <button key={v} type="button" aria-pressed={view === v} className={`flex-1 px-1 py-1.5 rounded-md font-semibold whitespace-nowrap transition-colors duration-200 ${view === v ? 'text-white' : 'text-teton-ui-gray hover:text-teton-ink'}`} onClick={() => setView(v)}>
                 {label} <span className="tabular-nums opacity-75">{count(v)}</span>
               </button>
             ))}
@@ -311,6 +339,8 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
           </SegGroup>
           {view === 'deliverable' ? (
             <SectionFilter title="Filter by page" allLabel="All pages" options={pageOptions} picked={pickedPages} onChange={setPickedPages} />
+          ) : view === 'tasks' ? (
+            <SectionFilter title="Filter by task" allLabel="All tasks" options={taskOptions} picked={pickedTasks} onChange={setPickedTasks} />
           ) : (
             <SectionFilter title="Filter by section" allLabel="All sections" options={inputOptions} picked={pickedInputs} onChange={setPickedInputs} />
           )}
@@ -320,10 +350,10 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
           {target && (
             <div className="px-4 py-3 border-b border-teton-off-white bg-[#F5F9FF]">
               <p className="text-[11px] text-teton-ui-gray mb-1.5">
-                New comment on <b className="text-teton-ink font-semibold">{target.title}</b>
+                New comment on {target.area === 'task' ? 'task ' : ''}<b className="text-teton-ink font-semibold">{target.title}</b>
               </p>
               <Composer
-                key={target.id}
+                key={`${target.area}-${target.id}`}
                 people={ops.people}
                 me={ops.me}
                 autoFocus
@@ -331,7 +361,7 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
                 submitLabel="Comment"
                 onCancel={clearTarget}
                 onSubmit={async (body) => {
-                  const ok = await addOn(body, { page: target.id, block: null, label: target.title });
+                  const ok = await addOn(body, { page: target.id, block: null, label: target.title, area: target.area });
                   if (ok) clearTarget();
                   return ok;
                 }}
@@ -342,9 +372,9 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
         <div ref={list} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {!visible.length && !hiddenDeliverable && (
             <p className="px-4 py-8 text-center text-sm text-teton-ui-gray">
-              {(view === 'deliverable' ? pickedPages : pickedInputs).length
-                ? `No comments on the picked ${view === 'deliverable' ? 'pages' : 'sections'}.`
-                : filter === 'resolved' ? 'Nothing resolved yet.' : view === 'deliverable' ? 'No open comments on the business case.' : threads.some((t) => inView(t)) ? 'No open comments.' : 'No comments yet. Click 💬 on a section, or comment on the whole deal below.'}
+              {(view === 'deliverable' ? pickedPages : view === 'tasks' ? pickedTasks : pickedInputs).length
+                ? `No comments on the picked ${view === 'deliverable' ? 'pages' : view === 'tasks' ? 'tasks' : 'sections'}.`
+                : filter === 'resolved' ? 'Nothing resolved yet.' : view === 'deliverable' ? 'No open comments on the business case.' : view === 'tasks' ? 'No task comments yet. Click 💬 on a task in the Tasks card.' : threads.some((t) => inView(t)) ? 'No open comments.' : 'No comments yet. Click 💬 on a section, or comment on the whole deal below.'}
             </p>
           )}
           {groups.map((g) => (
@@ -352,19 +382,19 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
               {g.title && <h3 className="px-4 pb-1 text-[10px] font-bold uppercase tracking-[.7px] text-teton-ui-gray">{g.title}</h3>}
               <ul>
                 {g.items.map((t) => (
-                  <Thread key={t.id} t={t} p={t.area === 'inputs' ? inputOps : deliverableOps} focused={focus === t.id} onFocus={() => setFocus(t.id)} />
+                  <Thread key={t.id} t={t} p={t.area === 'inputs' ? inputOps : t.area === 'task' ? taskOps : deliverableOps} focused={focus === t.id} onFocus={() => setFocus(t.id)} />
                 ))}
+              </ul>
+            </section>
+          ))}
           {hiddenDeliverable && (
             <p className="px-4 py-5 text-center text-xs text-teton-ui-gray">
-              Business case comments aren’t shown while a section filter is on.{' '}
+              Task and business case comments aren’t shown while a section filter is on.{' '}
               <button type="button" className="font-semibold text-[#1F5FB5] hover:underline" onClick={() => setPickedInputs([])}>
                 Clear filter
               </button>
             </p>
           )}
-              </ul>
-            </section>
-          ))}
         </div>
         <div className="border-t border-teton-off-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-teton-almost-white">
           {view === 'deliverable' ? (
@@ -376,6 +406,8 @@ function InputCommentsDrawer({ state, onClose, clearTarget, threads, error, ops,
                 </a>
               )}
             </p>
+          ) : view === 'tasks' ? (
+            <p className="text-xs text-teton-ui-gray">Comment on a task with its 💬 button on the Tasks card.</p>
           ) : (
             <Composer people={ops.people} me={ops.me} compact placeholder="Comment on the whole deal…" submitLabel="Comment" onSubmit={(body) => addOn(body, { page: null, block: null, label: 'Whole deal' })} />
           )}

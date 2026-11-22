@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { TetonMark } from './AppShell';
+import { BELL, CountBubble, TASKS_ICON, useInbox, type InboxKind } from './Inbox';
 
 export interface ShellUser {
   name: string;
@@ -39,6 +40,34 @@ export function Sidebar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = usePersistedOpen('teton.sidebar.open');
+  const inbox = useInbox();
+  // The sidebar drawers start at its right edge.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', open ? '240px' : '68px');
+  }, [open]);
+  const inboxItem = (k: InboxKind, label: string, icon: string, n: number, red = false) => {
+    const on = inbox?.open === k;
+    return (
+      <button
+        key={k}
+        type="button"
+        onClick={() => inbox?.toggle(k)}
+        aria-expanded={on}
+        aria-label={`${label}${n ? ` (${n})` : ''}`}
+        title={open ? undefined : label}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${on ? 'bg-white/10 text-sidebar-font font-medium' : 'text-sidebar-font/70 hover:text-sidebar-font hover:bg-white/5'}`}
+      >
+        <span className="relative flex-shrink-0">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
+          </svg>
+          {!open && <CountBubble n={n} red={red} onIcon />}
+        </span>
+        <span className={fold}>{label}</span>
+        {open && <CountBubble n={n} red={red} />}
+      </button>
+    );
+  };
   // Text that fades and folds away when the sidebar collapses to icons.
   const fold = `whitespace-nowrap overflow-hidden transition-[opacity,max-width] duration-300 ${open ? 'opacity-100 max-w-[12rem]' : 'opacity-0 max-w-0'}`;
   const linkClass = (href: string) =>
@@ -63,16 +92,35 @@ export function Sidebar({ user }: { user: ShellUser }) {
   );
   return (
     <aside className={`bg-brand-primary flex flex-col flex-shrink-0 h-full transition-[width] duration-300 ease-out motion-reduce:transition-none ${open ? 'w-60' : 'w-[68px]'}`}>
-      <div className="px-[18px] border-b border-white/15 min-h-[76px] flex items-center gap-3 text-sidebar-font">
-        <TetonMark light className="w-6 h-6 flex-shrink-0" />
-        <div className={fold}>
-          <p className="font-semibold leading-tight">Teton</p>
-          <p className="text-sidebar-font/60 text-xs">Proposal Generator</p>
+      <div className="border-b border-white/15 text-sidebar-font pt-4 pb-2">
+        <div className="px-[18px] min-h-[40px] flex items-center gap-3">
+          <TetonMark light className="w-6 h-6 flex-shrink-0" />
+          <div className={fold}>
+            <p className="font-semibold leading-tight">Teton</p>
+            <p className="text-sidebar-font/60 text-xs">Proposal Generator</p>
+          </div>
+        </div>
+        {/* Collapse / expand: the row under the title. */}
+        <div className="px-3 mt-1.5">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-label={open ? 'Collapse the sidebar' : 'Expand the sidebar'}
+            title={open ? 'Collapse' : 'Expand'}
+            className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs text-sidebar-font/70 hover:text-sidebar-font hover:bg-white/5"
+          >
+            <svg className={`w-4 h-4 flex-shrink-0 ml-0.5 transition-transform duration-300 ${open ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
+            <span className={fold}>Collapse</span>
+          </button>
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-1">
         {heading('Sales')}
         {NAV.map(item)}
+        {heading('You')}
+        {inboxItem('notifications', 'Notifications', BELL, inbox?.counts.notifications ?? 0)}
+        {inboxItem('tasks', 'Open Tasks', TASKS_ICON, inbox?.counts.tasks ?? 0, (inbox?.counts.overdue ?? 0) > 0)}
         {user.role === 'admin' && (
           <>
             {heading('Admin')}
@@ -93,17 +141,6 @@ export function Sidebar({ user }: { user: ShellUser }) {
         <button type="button" onClick={signOut} title="Sign out" className="mt-1 w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs text-sidebar-font/70 hover:text-sidebar-font hover:bg-white/5">
           <svg className="w-4 h-4 flex-shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H3m0 0l4-4m-4 4l4 4m6-12h4a2 2 0 012 2v12a2 2 0 01-2 2h-4" /></svg>
           <span className={fold}>Sign out</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          aria-expanded={open}
-          aria-label={open ? 'Collapse the sidebar' : 'Expand the sidebar'}
-          title={open ? 'Collapse' : 'Expand'}
-          className="mt-1 w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs text-sidebar-font/70 hover:text-sidebar-font hover:bg-white/5"
-        >
-          <svg className={`w-4 h-4 flex-shrink-0 ml-0.5 transition-transform duration-300 ${open ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
-          <span className={fold}>Collapse</span>
         </button>
       </div>
     </aside>

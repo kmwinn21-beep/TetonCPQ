@@ -7,6 +7,7 @@
 import { usePathname } from 'next/navigation';
 import { Sidebar, type ShellUser } from './Sidebar';
 import { MobileMenu } from './MobileMenu';
+import { InboxProvider } from './Inbox';
 
 const BARE = ['/proposal', '/login', '/setup'];
 
@@ -15,6 +16,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
   const pathname = usePathname();
   if (!user || BARE.some((p) => pathname.startsWith(p))) return <>{children}</>;
   return (
+    <InboxProvider>
     <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden">
       <div className="hidden lg:flex">
         <Sidebar user={user} />
@@ -31,6 +33,7 @@ export function AppShell({ children, user }: { children: React.ReactNode; user: 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
+    </InboxProvider>
   );
 }
 

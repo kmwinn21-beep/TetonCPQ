@@ -793,3 +793,5 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .proposal-doc { left: 0; transition: left .3s ease; }
 @media screen and (min-width: 1280px) { body.comments-open .proposal-doc { left: -190px; } }
 @media (prefers-reduced-motion: reduce) { .proposal-doc { transition: none; } }
+/* Sidebar drawers (Notifications, Open Tasks): slide out from the sidebar's edge. */
+@keyframes slideFromLeft { from { transform: translateX(-100%); } to { transform: none; } }

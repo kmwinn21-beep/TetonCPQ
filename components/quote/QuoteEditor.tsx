@@ -27,6 +27,7 @@ import { KpiPreview, VersionsPanel } from './ResultsRail';
 import { carryScope, describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { NotificationsPanel } from './NotificationsPanel';
 import { InputCommentsButton, InputCommentsProvider } from './InputComments';
+import { TasksPanel } from './TasksPanel';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
 import { FloorPlansPanel } from './FloorPlansPanel';
@@ -526,6 +527,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <CollaboratorsPanel />
               <DealDetailsPanel quoteId={initial.quoteId} />
+              <TasksPanel quoteId={initial.quoteId} />
               <FloorPlansPanel />
               <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />

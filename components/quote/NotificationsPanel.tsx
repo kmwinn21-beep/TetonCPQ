@@ -13,7 +13,9 @@ import type { UnreadItem } from '@/lib/data/planNotes';
 import type { MentionItem } from '@/lib/data/proposalComments';
 import { useFloorPlans } from './FloorPlans';
 import { AuthorPill, Triangle } from './PlanNotes';
-import { MENTIONS_READ, useInputComments } from './InputComments';
+import { MENTIONS_READ, SHOW_TASK, useInputComments } from './InputComments';
+import type { TaskNotification } from '@/lib/data/tasks';
+import { TASKS_CHANGED } from './TasksPanel';
 
 const ago = (iso: string) => {
   const t = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
@@ -45,6 +47,31 @@ export function NotificationsPanel() {
       live = false;
     };
   }, [quoteId]);
+  // Task notifications on this deal (assigned to you, overdue); refreshed when tasks change.
+  const [taskItems, setTaskItems] = useState<TaskNotification[]>([]);
+  useEffect(() => {
+    if (!quoteId) return;
+    let live = true;
+    const load = () =>
+      fetch(`/api/quotes/${quoteId}/task-notifications`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((j: { items?: TaskNotification[] }) => live && setTaskItems(j.items ?? []))
+        .catch(() => {});
+    void load();
+    window.addEventListener(TASKS_CHANGED, load);
+    return () => {
+      live = false;
+      window.removeEventListener(TASKS_CHANGED, load);
+    };
+  }, [quoteId]);
+  const readTasks = useCallback(
+    async (ids: number[] | 'all') => {
+      setTaskItems((m) => (ids === 'all' ? [] : m.filter((x) => !ids.includes(x.id))));
+      await fetch(`/api/quotes/${quoteId}/task-notifications`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ids === 'all' ? { all: true } : { ids }) }).catch(() => {});
+      window.dispatchEvent(new Event('teton:notifications-changed'));
+    },
+    [quoteId],
+  );
   // Mentions read in the comments drawer drop off here.
   useEffect(() => {
     const drop = (e: Event) => {
@@ -59,11 +86,12 @@ export function NotificationsPanel() {
     async (ids: number[] | 'all') => {
       setMentions((m) => (ids === 'all' ? [] : m.filter((x) => !ids.includes(x.id))));
       await fetch(`/api/quotes/${quoteId}/mentions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ids === 'all' ? { all: true } : { ids }) }).catch(() => {});
+      window.dispatchEvent(new Event('teton:notifications-changed'));
     },
     [quoteId],
   );
   const items = plan;
-  const total = plan.length + mentions.length;
+  const total = plan.length + mentions.length + taskItems.length;
   if (!fp || !total) return null;
   const openMention = (m: MentionItem) => {
     // Inputs comments open in this page's drawer; business case ones open the proposal.
@@ -86,13 +114,41 @@ export function NotificationsPanel() {
         <button type="button" className="flex flex-1 items-center gap-2 text-left min-w-0" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <h2 className="text-sm font-semibold">Notifications</h2>
           <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-[#3F8CEA] text-white text-[10px] font-bold leading-none">{total}</span>
-          <span className="text-xs text-teton-ui-gray truncate">{!plan.length ? 'you were mentioned' : mentions.length ? 'mentions and floor plan notes' : 'new on the floor plans'}</span>
+          <span className="text-xs text-teton-ui-gray truncate">{!plan.length && !taskItems.length ? 'you were mentioned' : !plan.length && !mentions.length ? 'tasks' : mentions.length || taskItems.length ? 'tasks, mentions and notes' : 'new on the floor plans'}</span>
           <svg className={`ml-auto w-3.5 h-3.5 text-teton-ui-gray transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
         </button>
       </div>
       <Collapse open={open}>
         <div className="border-t border-teton-off-white">
           <ul className="max-h-[22rem] overflow-y-auto divide-y divide-teton-off-white">
+            {taskItems.map((n) => (
+              <li key={`task-${n.id}`} className="flex items-start gap-2 px-4 py-2.5 hover:bg-teton-almost-white transition-colors">
+                <button
+                  type="button"
+                  className="flex flex-1 min-w-0 items-start gap-2 text-left"
+                  title="Show the task"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent(SHOW_TASK, { detail: n.taskId }));
+                    void readTasks([n.id]);
+                  }}
+                >
+                  <span className={`mt-0.5 w-4 h-4 flex-shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold ${n.kind === 'task_overdue' ? 'bg-[#FCE3DD] text-[#B23A26]' : 'bg-[#E5EEFC] text-[#1F5FB5]'}`} aria-hidden="true">
+                    {n.kind === 'task_overdue' ? '!' : '✓'}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 text-[11px] text-teton-ui-gray">
+                      {n.actor && <AuthorPill person={n.actor} />}
+                      <span className="truncate">{n.kind === 'task_overdue' ? `Task ${n.days} days overdue` : 'assigned you a task'} · {ago(n.createdAt)}</span>
+                    </span>
+                    <span className="block mt-0.5 text-xs text-teton-ink line-clamp-2 break-words">{n.taskTitle}</span>
+                    <span className="block mt-0.5 text-[10.5px] text-teton-ui-gray truncate">Tasks</span>
+                  </span>
+                </button>
+                <button type="button" className="flex-shrink-0 rounded-md border border-teton-pale-gray px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-white" onClick={() => void readTasks([n.id])}>
+                  Read
+                </button>
+              </li>
+            ))}
             {mentions.map((m) => (
               <li key={`mention-${m.id}`} className="flex items-start gap-2 px-4 py-2.5 hover:bg-teton-almost-white transition-colors">
                 <button type="button" className="flex flex-1 min-w-0 items-start gap-2 text-left" onClick={() => openMention(m)} title={m.area === 'inputs' ? 'Open the comment' : 'Open the comment in the business case'}>
@@ -144,6 +200,7 @@ export function NotificationsPanel() {
                 const n = total;
                 if (plan.length) void fp.markRead('all');
                 if (mentions.length) void readMentions('all');
+                if (taskItems.length) void readTasks('all');
                 fp.toast(`Marked ${n} notification${n === 1 ? '' : 's'} as read`);
               }}
             >

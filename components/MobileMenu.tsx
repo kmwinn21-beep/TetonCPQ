@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ADMIN_NAV, NAV, type ShellUser } from './Sidebar';
+import { BELL, CountBubble, TASKS_ICON, useInbox } from './Inbox';
 
 export function MobileMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
@@ -35,16 +36,19 @@ export function MobileMenu({ user }: { user: ShellUser }) {
   }
 
   const items = [...NAV, ...(user.role === 'admin' ? ADMIN_NAV : [])];
+  const inbox = useInbox();
+  const total = (inbox?.counts.notifications ?? 0) + (inbox?.counts.tasks ?? 0);
   const active = (href: string) => pathname === href || pathname.startsWith(href + '/');
   return (
     <>
       <button
         type="button"
-        className={`-mr-2 w-11 h-11 flex items-center justify-center rounded-lg ${open ? 'bg-white text-brand-primary' : 'text-sidebar-font'}`}
+        className={`relative -mr-2 w-11 h-11 flex items-center justify-center rounded-lg ${open ? 'bg-white text-brand-primary' : 'text-sidebar-font'}`}
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? 'Close menu' : 'Open menu'}
         aria-expanded={open}
       >
+        {!open && total > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-[#3F8CEA] ring-2 ring-brand-primary" aria-hidden="true" />}
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           {open ? <path strokeLinecap="round" strokeWidth={2} d="M6 6l12 12M18 6L6 18" /> : <path strokeLinecap="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />}
         </svg>
@@ -64,6 +68,32 @@ export function MobileMenu({ user }: { user: ShellUser }) {
                       </svg>
                       {n.label}
                     </Link>
+                  </li>
+                ))}
+              </ul>
+              {/* Notifications and Open Tasks open as drawers from the left. */}
+              <ul className="px-2">
+                {(
+                  [
+                    ['notifications', 'Notifications', BELL, inbox?.counts.notifications ?? 0, false],
+                    ['tasks', 'Open Tasks', TASKS_ICON, inbox?.counts.tasks ?? 0, (inbox?.counts.overdue ?? 0) > 0],
+                  ] as const
+                ).map(([k, label, icon, n, red]) => (
+                  <li key={k}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 h-12 px-3 rounded-lg text-base text-left"
+                      onClick={() => {
+                        setOpen(false);
+                        inbox?.toggle(k);
+                      }}
+                    >
+                      <svg className="w-5 h-5 text-teton-dark-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
+                      </svg>
+                      {label}
+                      <CountBubble n={n} red={red} />
+                    </button>
                   </li>
                 ))}
               </ul>

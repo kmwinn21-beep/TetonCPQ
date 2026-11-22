@@ -21,6 +21,8 @@ export interface CommentTarget {
   page: string | null;
   block: string | null;
   label: string;
+  /** Deal page: an inputs section (default) or a task's thread. */
+  area?: 'inputs' | 'task';
 }
 type Filter = 'open' | 'resolved' | 'all';
 interface Ctx {

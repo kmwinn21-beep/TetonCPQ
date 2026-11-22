@@ -370,4 +370,40 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE proposal_comments ADD COLUMN area TEXT NOT NULL DEFAULT 'deliverable'`,
     ],
   },
+  {
+    id: 16,
+    name: 'deal tasks and notifications',
+    sql: [
+      // Tasks on a deal: any number of assignees (or none), optional due date (no time) and priority.
+      `CREATE TABLE deal_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        title TEXT NOT NULL,
+        assignees TEXT NOT NULL DEFAULT '[]',
+        priority TEXT CHECK (priority IN ('low','medium','high')),
+        due_date TEXT,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        completed_at TEXT,
+        completed_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_deal_tasks_deal ON deal_tasks(deal_id)`,
+      // A user's notifications that aren't comments or plan notes: a task assigned to them, a task overdue
+      // (step = 1, 2, 3 … for 3, 6, 9 … days past due).
+      `CREATE TABLE user_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        kind TEXT NOT NULL,
+        task_id INTEGER,
+        step INTEGER NOT NULL DEFAULT 0,
+        actor_id INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        read_at TEXT,
+        UNIQUE (user_id, kind, task_id, step)
+      )`,
+      `CREATE INDEX idx_user_notifications_user ON user_notifications(user_id, read_at)`,
+    ],
+  },
 ];
