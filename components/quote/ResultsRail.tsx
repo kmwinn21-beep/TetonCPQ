@@ -191,6 +191,9 @@ export interface UnsavedChanges {
   saving: boolean;
   onSave: () => void;
   onDiscard: () => void;
+  /** Scope work the discard would throw away, in words; and a discard that keeps it. */
+  scopeLost?: string[];
+  onDiscardKeepScope?: () => void;
 }
 
 /** The amber card for unsaved changes: what changed, the Year 1 figures now, Save (a new version) or Discard. */
@@ -236,8 +239,17 @@ function UnsavedCard({ u, readOnly }: { u: UnsavedChanges; readOnly?: boolean })
       <Collapse open={confirming}>
         <div className="mx-3 mb-2.5 rounded-md bg-teton-red/20 px-2.5 py-2 text-xs" role="alertdialog" aria-label="Discard the unsaved changes?">
           <p>Discard {u.changes.length === 1 ? 'this change' : `all ${u.changes.length} changes`}? The deal goes back to the active version; this can’t be undone.</p>
-          <div className="flex gap-2 mt-1.5">
-            <button type="button" className="py-1 px-2.5 rounded-md bg-[#C2412D] text-white font-medium" onClick={() => { setConfirming(false); u.onDiscard(); }}>Discard changes</button>
+          {!!u.scopeLost?.length && (
+            <div className="mt-1.5">
+              <p className="font-medium">That includes scope work:</p>
+              <ul className="list-disc pl-4">{u.scopeLost.map((t) => <li key={t}>{t}</li>)}</ul>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {!!u.scopeLost?.length && u.onDiscardKeepScope && (
+              <button type="button" className="py-1 px-2.5 rounded-md bg-white font-medium border border-teton-pale-gray" onClick={() => { setConfirming(false); u.onDiscardKeepScope!(); }}>Keep scope, discard the rest</button>
+            )}
+            <button type="button" className="py-1 px-2.5 rounded-md bg-[#C2412D] text-white font-medium" onClick={() => { setConfirming(false); u.onDiscard(); }}>{u.scopeLost?.length ? 'Discard everything' : 'Discard changes'}</button>
             <button type="button" className="py-1 px-2.5 rounded-md hover:bg-white/60" onClick={() => setConfirming(false)}>Cancel</button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
@@ -78,8 +79,9 @@ export function ScopeViewer({
   highlightType,
   initialNotes = false,
   focusNote,
-  onClose,
+  onClose: closeViewer,
   onRemovePlan,
+  onScopeChange,
 }: {
   quoteId: number;
   communityId: string;
@@ -95,12 +97,24 @@ export function ScopeViewer({
   focusNote?: { noteId: number | null; commentId?: number };
   onClose: () => void;
   onRemovePlan: (id: number) => Promise<void>;
+  /** Closing after scope counts changed: what changed, in words (to offer saving a version). */
+  onScopeChange?: (text: string) => void;
 }) {
   const { control, getValues, setValue } = useFormContext<QuoteDraft>();
   const communities = useWatch({ control, name: 'communities' });
   const index = (communities ?? []).findIndex((c) => c?.id === communityId);
   const community = index >= 0 ? communities[index] : null;
   const { types, write, current } = useRoomTypes(index);
+  // The community's scope when the viewer opened: closing after counts changed offers to save a version.
+  // (A copy: the form edits its values in place.)
+  const [openedCopy] = useState(() => (community ? (JSON.parse(JSON.stringify(community)) as typeof community) : null));
+  const opened = useRef(openedCopy);
+  const onClose = useCallback(() => {
+    const now = index >= 0 ? getValues(`communities.${index}`) : null;
+    const ch = opened.current && now ? scopeChanges({ communities: [opened.current] } as QuoteDraft, { communities: [now] } as QuoteDraft)[0] : undefined;
+    if (ch) onScopeChange?.(describeScope(ch));
+    closeViewer();
+  }, [index, getValues, onScopeChange, closeViewer]);
   // Products by care setting: rooms without resident monitoring get no sensors.
   // (E-Call counts only when the deal offers it.)
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';

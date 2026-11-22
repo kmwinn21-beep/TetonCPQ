@@ -24,6 +24,7 @@ import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
 import { FloorPlansProvider } from './FloorPlans';
 import { KpiPreview, VersionsPanel } from './ResultsRail';
+import { carryScope, describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { NotificationsPanel } from './NotificationsPanel';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
@@ -224,8 +225,21 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       setActivating(false);
     }
   }
-  async function makeActive(v: VersionSummary) {
-    if (pending.length && !window.confirm(`Make ${v.changeNote || `v${v.versionNo}`} active? Your ${pending.length} unsaved ${pending.length === 1 ? 'change' : 'changes'} will be discarded.`)) return;
+  // Scope work in the draft that isn't in the active version (rooms tagged, rooms, sensors), in words.
+  const scopeLost = useMemo(() => {
+    if (!active.inputs) return [];
+    try {
+      return scopeChanges(normalizeDraft(active.inputs), normalizeDraft(deferred)).map(describeScope);
+    } catch {
+      return [];
+    }
+  }, [active.inputs, deferred]);
+  // Make Active with unsaved changes asks first (and offers to keep the scope work).
+  const [activateAsk, setActivateAsk] = useState<VersionSummary | null>(null);
+  async function makeActive(v: VersionSummary, confirmed?: 'all' | 'keepScope') {
+    if (pending.length && !confirmed) return setActivateAsk(v);
+    setActivateAsk(null);
+    const before = getValues();
     setActivating(true);
     setVersionError(null);
     try {
@@ -233,6 +247,8 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       adopt(body.editor, true);
+      // Keep the scope work: the newly active version's inputs with this draft's room types (autosaves).
+      if (confirmed === 'keepScope') reset(carryScope(normalizeDraft(body.editor.draft), normalizeDraft(before)));
       setChangesOpen(false);
     } catch (e) {
       setVersionError(e instanceof Error ? e.message : 'Could not make that version active');
@@ -246,7 +262,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const [versionError, setVersionError] = useState<string | null>(null);
   const [savingVersion, setSavingVersion] = useState(false);
 
-  async function saveVersion() {
+  async function saveVersion(noteOverride?: string) {
     setVersionError(null);
     if (!(await trigger())) {
       setVersionError('Fix the highlighted fields first.');
@@ -261,7 +277,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       const res = await fetch(`/api/quotes/${initial.quoteId}/versions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ note, draft, baseUpdatedAt: baseRev.current }),
+        body: JSON.stringify({ note: noteOverride ?? note, draft, baseUpdatedAt: baseRev.current }),
       });
       const body = await res.json();
       if (res.status === 409) {
@@ -275,6 +291,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       adopt(body.editor, false);
       setNote('');
       setNoteOpen(false);
+      setScopePrompt(null);
       setChangesOpen(false);
     } catch (e) {
       setVersionError(e instanceof Error ? e.message : 'Could not save the version');
@@ -284,12 +301,16 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   }
 
   /** Back to the active version: the draft takes its inputs again (and autosaves). */
-  function discardChanges() {
+  function discardChanges(keepScope = false) {
     if (!active.inputs) return;
     setVersionError(null);
-    reset(normalizeDraft(active.inputs));
+    const base = normalizeDraft(active.inputs);
+    reset(keepScope ? carryScope(base, normalizeDraft(getValues())) : base);
     setChangesOpen(false);
+    if (!keepScope) setScopePrompt(null);
   }
+  // Closing the floor plan viewer after scope counts changed: offer to save a version (until saved or dismissed).
+  const [scopePrompt, setScopePrompt] = useState<string | null>(null);
 
   // Flush any unsaved edits before leaving, so results show exactly what's on screen.
   const router = useRouter();
@@ -307,7 +328,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
   return (
     <FormProvider {...methods}>
-      <FloorPlansProvider quoteId={initial.quoteId}>
+      <FloorPlansProvider quoteId={initial.quoteId} onScopeChange={(t) => canEdit && setScopePrompt(t)}>
       <ReadOnlyContext.Provider value={!access.inputs}>
       <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto [&_section[id]]:scroll-mt-[calc(var(--hdr-h,0px)+16px)]" noValidate>
         {/* Always in view: the page scrolls behind it. Its height feeds --hdr-h, so the menus and panel stick below it. */}
@@ -348,7 +369,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {noteOpen ? (
               <div className="flex flex-1 sm:flex-none flex-wrap items-start gap-2">
                 <input autoFocus className="input-field w-full sm:w-72" placeholder={`Proposal name (optional) — v${draftNo}`} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Proposal name" maxLength={80} />
-                <button type="button" className="btn-primary" onClick={saveVersion} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
+                <button type="button" className="btn-primary" onClick={() => void saveVersion()} disabled={savingVersion}>{savingVersion ? 'Saving…' : `Save v${draftNo}`}</button>
                 <button type="button" className="btn-ghost py-2" onClick={() => setNoteOpen(false)}>Cancel</button>
               </div>
             ) : (
@@ -507,7 +528,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 quoteId={initial.quoteId}
                 activeId={active.id}
                 busy={activating}
-                onMakeActive={makeActive}
+                onMakeActive={(v) => void makeActive(v)}
                 onDelete={removeVersion}
                 readOnly={!access.inputs}
                 unsaved={
@@ -520,7 +541,9 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                         was: activeVersion ? { inv: activeVersion.totalInvestment12, net: activeVersion.netBenefit12 } : null,
                         saving: savingVersion,
                         onSave: () => void saveVersion(),
-                        onDiscard: discardChanges,
+                        onDiscard: () => discardChanges(false),
+                        scopeLost,
+                        onDiscardKeepScope: () => discardChanges(true),
                       }
                     : null
                 }
@@ -529,6 +552,48 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </aside>
         </div>
       </form>
+      {/* After scoping: save it as a version so the proposal includes it. */}
+      {scopePrompt && pending.length > 0 && (
+        <div className="fixed inset-x-3 bottom-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(640px,calc(100vw-2rem))] z-40 rounded-xl bg-teton-near-black text-white shadow-xl px-4 py-3 text-sm drawer-in" role="status">
+          <p>
+            <b>Scope updated:</b> {scopePrompt}. Save it as v{draftNo} so the proposal includes it?
+          </p>
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <button type="button" className="rounded-md border border-white/30 px-3 py-1.5 text-xs hover:bg-white/10" onClick={() => setScopePrompt(null)}>Later</button>
+            <button type="button" className="rounded-md bg-white text-teton-ink px-3 py-1.5 text-xs font-semibold disabled:opacity-50" disabled={savingVersion} onClick={() => void saveVersion('Scope update')}>
+              {savingVersion ? 'Saving…' : `Save as v${draftNo}`}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Make Active with unsaved changes: name what goes, and offer to keep the scope work. */}
+      {activateAsk && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true" aria-label="Make active" onClick={() => setActivateAsk(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl [animation:fadeScale_.2s_ease-out] motion-reduce:[animation:none]" onClick={(e) => e.stopPropagation()}>
+            <p className="font-semibold">Make {activateAsk.changeNote || `v${activateAsk.versionNo}`} active?</p>
+            <p className="mt-1 text-sm text-teton-dark-gray">
+              Your {pending.length} unsaved {pending.length === 1 ? 'change' : 'changes'} will be discarded.
+            </p>
+            {scopeLost.length > 0 && (
+              <div className="mt-2 rounded-lg bg-[#FFF6DD] border border-[#E9C46A] px-3 py-2 text-sm">
+                <p className="font-medium text-[#7A5200]">That includes scope work:</p>
+                <ul className="list-disc pl-5 text-[13px] text-teton-dark-gray">
+                  {scopeLost.map((t) => <li key={t}>{t}</li>)}
+                </ul>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              <button type="button" className="btn-ghost py-1.5 text-sm" onClick={() => setActivateAsk(null)}>Cancel</button>
+              {scopeLost.length > 0 && (
+                <button type="button" className="btn-secondary py-1.5 text-sm" onClick={() => void makeActive(activateAsk, 'keepScope')}>Keep scope work</button>
+              )}
+              <button type="button" className="py-1.5 px-3 rounded-md bg-[#C2412D] text-white text-sm font-medium" onClick={() => void makeActive(activateAsk, 'all')}>
+                {scopeLost.length ? 'Discard everything' : 'Make active'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </ReadOnlyContext.Provider>
       </FloorPlansProvider>
     </FormProvider>

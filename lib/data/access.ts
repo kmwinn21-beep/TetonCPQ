@@ -5,6 +5,7 @@
  * and/or edit the deliverables (the proposal's wording and layout). Everyone
  * else can view, and add floor plan notes and comments.
  */
+import { SCOPE_FIELDS } from '@/lib/quote/scopeWork';
 import type { Client } from '@libsql/client';
 import { normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { initialsOf } from './planNotes';
@@ -89,8 +90,7 @@ export function need(a: DealAccess, ...perms: Array<Permission | 'manage'>): voi
 
 // ---------------------------------------------------------------- scope-only edits
 
-/** The parts of a community that Scope Mode (and the drawer's room type cards) change. */
-const SCOPE_FIELDS = ['roomTypes', 'sensorAllowancePct', 'ilBeds', 'alBeds', 'mcBeds', 'snfBeds', 'additionalSensors'] as const;
+
 const stable = (v: unknown): string =>
   Array.isArray(v) ? `[${v.map(stable).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v as object).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(',')}}` : JSON.stringify(v ?? null);
 const withoutScope = (d: QuoteDraft) => ({

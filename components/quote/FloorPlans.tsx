@@ -57,7 +57,7 @@ const OK = /^(application\/pdf|image\/(png|jpe?g|gif|webp|heic|heif))$/;
 const FloorPlansCtx = createContext<Ctx | null>(null);
 export const useFloorPlans = () => useContext(FloorPlansCtx);
 
-export function FloorPlansProvider({ quoteId, children }: { quoteId: number; children: React.ReactNode }) {
+export function FloorPlansProvider({ quoteId, children, onScopeChange }: { quoteId: number; children: React.ReactNode; /** The viewer closed after changing a community's scope counts (rooms tagged, rooms, sensors). */ onScopeChange?: (text: string) => void }) {
   const [plans, setPlans] = useState<FloorPlanItem[]>([]);
   const [uploading, setUploading] = useState<Uploading[]>([]);
   useEffect(() => {
@@ -173,6 +173,7 @@ export function FloorPlansProvider({ quoteId, children }: { quoteId: number; chi
           initialNotes={viewer.notes}
           focusNote={viewer.noteId !== undefined ? { noteId: viewer.noteId, commentId: viewer.commentId } : undefined}
           onClose={() => setViewer(null)}
+          onScopeChange={onScopeChange}
           onRemovePlan={async (id) => {
             await remove(id);
             if (viewerPlans.length <= 1) setViewer(null);
