@@ -7,7 +7,6 @@
  * Everything here is screen-only chrome (data-edit-ui): it never prints and
  * is stripped from the copy kept when a proposal is recorded as sent.
  */
-import { ViewSwitch } from './ViewSwitch';
 import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
@@ -319,25 +318,7 @@ export function RTable({ className, children }: { className?: string; children: 
   const compact = compactable && !!layout.bcCompact?.[id];
   return (
     <table className={`${className ?? ''} ${compactable ? 'group/tbl' : ''}`} data-rtable={id} data-compact={compact ? '' : undefined}>
-      {compactable && editable && (
-        <caption className="no-print">
-          <ViewSwitch
-            position="absolute right-2 top-1.5"
-            hover="group-hover/tbl:opacity-100"
-            label="Table rows"
-            options={[['full', 'Full rows'], ['compact', 'Compact rows']] as const}
-            value={compact ? 'compact' : 'full'}
-            onChange={(v) =>
-              setLayout((l) => {
-                const next = { ...(l.bcCompact ?? {}) };
-                if (v === 'compact') next[id] = true;
-                else delete next[id];
-                return { ...l, bcCompact: Object.keys(next).length ? next : undefined };
-              })
-            }
-          />
-        </caption>
-      )}
+      {/* Compact / full rows: a button in the section's hover controls (business case). */}
       {fixed}
     </table>
   );

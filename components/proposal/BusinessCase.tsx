@@ -11,7 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
-import { Children, Fragment, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { Children, Fragment, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows, conversionCreditOf, grossBaseRows, partsOf, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
@@ -190,6 +190,7 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                 <button type="button" className={btn} disabled={i === order.length - 1} onClick={() => move(id, 1)} aria-label={`Move ${c.props.label} down`} title={`Move ${c.props.label} down`}>
                   ↓
                 </button>
+                <CompactRowsButton className={btn} />
                 {c.props.onWide && (
                   <button type="button" className={`${btn} ${c.props.wide ? 'bg-white/20' : ''}`} onClick={c.props.onWide} aria-pressed={!!c.props.wide} aria-label={`${c.props.wide ? 'Narrow' : 'Widen'} ${c.props.label}`} title={c.props.wide ? 'One column' : 'Span both columns'}>
                     ⇔
@@ -345,6 +346,53 @@ function resetLayoutParts(l: ProposalLayout, p: ReturnType<typeof customisedIn>)
     }
   }
   return n;
+}
+
+/**
+ * In a section's hover controls: compact or full rows for the tables in that section (it shows only when the section
+ * has one). Here rather than on the table, where it covered the column headings' buttons.
+ */
+function CompactRowsButton({ className }: { className: string }) {
+  const { layout, setLayout } = useProposalText();
+  const ref = useRef<HTMLButtonElement>(null);
+  const [ids, setIds] = useState<string[]>([]);
+  // After every render (the section's tables can change); the equality check below stops it looping.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const block = ref.current?.closest('[data-bc-block]');
+    const found = block ? Array.from(block.querySelectorAll('table[data-rtable]')).map((t) => t.getAttribute('data-rtable')!).filter((id) => id && id !== 'site') : [];
+    setIds((prev) => (prev.join() === found.join() ? prev : found));
+  });
+  const on = ids.length > 0 && ids.every((id) => layout.bcCompact?.[id]);
+  return (
+    <button
+      ref={ref}
+      type="button"
+      hidden={!ids.length}
+      aria-pressed={on}
+      className={`${className} ${on ? 'bg-white/20' : ''}`}
+      title={on ? 'Full rows' : 'Compact rows'}
+      aria-label={on ? 'Show full table rows' : 'Show compact table rows'}
+      onClick={() =>
+        setLayout((l) => {
+          const next = { ...(l.bcCompact ?? {}) };
+          for (const id of ids) {
+            if (on) delete next[id];
+            else next[id] = true;
+          }
+          return { ...l, bcCompact: Object.keys(next).length ? next : undefined };
+        })
+      }
+    >
+      <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
+        {on ? (
+          <path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11" />
+        ) : (
+          <path d="M2.5 5h11M2.5 7.5h11M2.5 10h11M2.5 12.5h11" />
+        )}
+      </svg>
+    </button>
+  );
 }
 
 const ResetIcon = () => (
@@ -844,7 +892,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   // The pilot in brief, for the Executive Summary.
   let execPilot: { name: string; beds: number; total: number; months: number } | null = null;
   /** The pilot communities table (beds by care type, pilot per month, pilot cost). Each place has its own id, so columns are removed separately. */
-  let pilotCommunityTable: ((id: string, name: string) => React.ReactNode) | null = null;
+  let pilotCommunityTable: ((id: string, name: string, heading?: React.ReactNode) => React.ReactNode) | null = null;
   if (pilotSites.length) {
     const pos = new Set(pilotSites.map((x) => x.i));
     const siteLines = lines.filter((l) => l.communityPosition != null && pos.has(l.communityPosition));
@@ -861,8 +909,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
     execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months };
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
-    pilotCommunityTable = (id: string, name: string) => (
-          <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
+    pilotCommunityTable = (id: string, name: string, heading?: React.ReactNode) => (
+          <div className={`bc-card bc-tbl bc-hrs bc-pilot-tbl ${heading ? 'bc-tbl-headed' : ''}`}>
+            {heading && <div className="bc-tbl-head">{heading}</div>}
             <RTable>
               <thead>
                 <tr>
@@ -2587,10 +2636,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             {pilotCommunityTable && (
               // Full width by default (its ⇔ makes it one column).
               <B id="pilotSites" label="Pilot communities" wide={!wide.has('pilotSites')} onWide={editable ? toggleWide('pilotSites') : undefined}>
-                <div className="bc-exec-sites">
-                  {head('bc.exec.sites', pilotSites.length === 1 ? 'The pilot community' : 'Pilot communities', 'pilot')}
-                  {pilotCommunityTable('expilot', 'Executive summary · pilot communities')}
-                </div>
+                {/* Its label and page number inside the card, like the other cards. */}
+                {pilotCommunityTable('expilot', 'Executive summary · pilot communities', head('bc.exec.sites', pilotSites.length === 1 ? 'The pilot community' : 'Pilot communities', 'pilot'))}
               </B>
             )}
             <B id="investment" label="The investment" {...card('investment')}>

@@ -795,3 +795,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @media (prefers-reduced-motion: reduce) { .proposal-doc { transition: none; } }
 /* Sidebar drawers (Notifications, Open Tasks): slide out from the sidebar's edge. */
 @keyframes slideFromLeft { from { transform: translateX(-100%); } to { transform: none; } }
+/* A table card with its label inside (Executive summary): the label row, then the table. */
+.bc-tbl-headed { margin-top: 0; }
+.bc-tbl-head { padding: 12px 16px 0; }
+.bc-tbl-head .bc-exec-lbl { margin-bottom: 0; }
