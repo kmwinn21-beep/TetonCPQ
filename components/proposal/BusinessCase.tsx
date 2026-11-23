@@ -1694,7 +1694,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     };
     const cmp = { ble: sysCalc('ble'), inov: sysCalc('inov') };
     // Systems shown, and their order, follow the cost table's columns (removed or moved there, or as cards).
-    const COL_KEY = { ble: 'cmpcost.bluetooth', inov: 'cmpcost.inovonics' } as const;
+    // (The table's column keys: its headers are the editable system names, keyed by their text keys.)
+    const COL_KEY = { ble: 'cmpcost.bc.cmp.sys.ble', inov: 'cmpcost.bc.cmp.sys.inov' } as const;
     const hiddenCmpCols = hiddenColsOf(layout);
     const cmpOrder: Array<'ble' | 'inov'> = layout.colOrder?.cmpcost?.[0] === COL_KEY.inov ? ['inov', 'ble'] : ['ble', 'inov'];
     const cmpVisible = cmpOrder.filter((x) => !(COL_KEY[x] in hiddenCmpCols));
@@ -1710,7 +1711,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const cmpAreas = sum(ecMonthlyLines.filter((l) => l.description.includes('common areas')).map((l) => l.qty));
     const cmpInstallQty = sum(lines.filter((l) => l.billing === 'one_time' && l.unitNet > 0).map((l) => l.qty));
     const sysHead = (sys: 'ble' | 'inov') => (
-      <span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span>
+      <span className={`bc-sys bc-sys-${sys}`}><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></span>
     );
     // E-Call only: an example of the E-Call dashboard (off by default; added from Removed). Light or dark.
     const ecDashBlock = () =>
@@ -1750,8 +1751,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <div className={`bc-cmp-vals ${cmpShown.length === 1 ? 'bc-cmp-one' : ''}`}>
                     {cmpShown.map((sys) => (
                       <div key={sys} className={`bc-cmp-v-${sys}`}>
-                        <i>{SYS_NAME[sys]}</i>
-                        <b>{val(sys)}</b>
+                        <i><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></i>
+                        <b><CallOut k={`cmp.unit.${k}.${sys}`}>{val(sys)}</CallOut></b>
                       </div>
                     ))}
                   </div>
@@ -1781,7 +1782,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   const c = cmp[sys];
                   const rowsDef: Array<[string, React.ReactNode, React.ReactNode, React.ReactNode]> = [
                     ['install', <T key="l" k="bc.cmp.install" d="Installation" />, <T key="s" k="bc.inv.oneTime" d="One-time" />, usd(c.oneTime)],
-                    ['monthly', <T key="l" k="bc.cmp.monthly" d="Monthly subscription" />, `${count(cmpBeds)} beds${cmpAreas ? ` + ${count(cmpAreas)} areas` : ''}`, `${money(c.rate)} / bed / mo`],
+                    ['monthly', <T key="l" k="bc.cmp.monthly" d="Monthly subscription" />, <T key="s" k="bc.cmp.monthlyQty" d="{beds} beds{areas}" v={{ beds: count(cmpBeds), areas: cmpAreas ? ` + ${count(cmpAreas)} areas` : '' }} />, `${money(c.rate)} / bed / mo`],
                     ['y1', <T key="l" k="bc.cmp.year1" d="Total Year 1 Investment" />, <T key="s" k="bc.cmp.year1Short" d="One-time + first 12 months" />, usd(c.y1)],
                     ['term', <T key="l" k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} />, null, usd(c.termTotal)],
                   ];
@@ -1793,10 +1794,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           <button type="button" onClick={() => removeSys(sys)} title={`Remove ${SYS_NAME[sys]} (you can add it back)`} aria-label={`Remove ${SYS_NAME[sys]}`}>✕</button>
                         </div>
                       )}
-                      <div className="bc-cmpc-hd"><span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span></div>
+                      <div className="bc-cmpc-hd">{sysHead(sys)}</div>
                       <div className="bc-cmpc-hero">
                         <span className="bc-cmpc-lbl"><T k="bc.cmp.heroLbl" d="Monthly cost after the pilot" /></span>
-                        <b>{usd(c.monthly)} / mo</b>
+                        <b><CallOut k={`cmp.${sys}.hero`}>{usd(c.monthly)} / mo</CallOut></b>
                       </div>
                       {rowsDef
                         .filter(([k]) => !cmpRowHidden(k))
@@ -1818,7 +1819,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                               {label}
                               {sub && <small>{sub}</small>}
                             </span>
-                            <b>{value}</b>
+                            <b><CallOut k={`cmp.${sys}.${k}`}>{value}</CallOut></b>
                           </div>
                         ))}
                     </div>
@@ -1832,7 +1833,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <tr>
                       <th>{`${count(cmpBeds)} beds${cmpAreas ? ` + ${count(cmpAreas)} common areas` : ''}`}</th>
                       {(['ble', 'inov'] as const).map((sys) => (
-                        <th key={sys} className={`bc-r bc-cmp-${sys}`}><span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span></th>
+                        <th key={sys} className={`bc-r bc-cmp-${sys}`}>{sysHead(sys)}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1840,7 +1841,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <tr key="install">
                       <td className="bc-m"><T k="bc.cmp.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
                       {(['ble', 'inov'] as const).map((sys) => (
-                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].oneTime)}<small>{money(Number(draft.commercial.ecallInstallRate) || 0)} per bed</small></td>
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}><CallOut k={`cmp.${sys}.install`}>{usd(cmp[sys].oneTime)}</CallOut><small>{money(Number(draft.commercial.ecallInstallRate) || 0)} per bed</small></td>
                       ))}
                     </tr>
                     <tr key="monthly">
@@ -1849,19 +1850,19 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
                       </td>
                       {(['ble', 'inov'] as const).map((sys) => (
-                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].monthly)} / mo<small>{money(cmp[sys].rate)} per bed</small></td>
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}><CallOut k={`cmp.${sys}.monthlyTotal`}>{`${usd(cmp[sys].monthly)} / mo`}</CallOut><small>{money(cmp[sys].rate)} per bed</small></td>
                       ))}
                     </tr>
                     <tr key="y1" className="bc-tot">
                       <td className="bc-m"><T k="bc.cmp.year1" d="Total Year 1 Investment" /></td>
                       {(['ble', 'inov'] as const).map((sys) => (
-                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].y1)}</td>
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}><CallOut k={`cmp.${sys}.y1`}>{usd(cmp[sys].y1)}</CallOut></td>
                       ))}
                     </tr>
                     <tr key="term">
                       <td className="bc-m"><T k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} /></td>
                       {(['ble', 'inov'] as const).map((sys) => (
-                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].termTotal)}</td>
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}><CallOut k={`cmp.${sys}.term`}>{usd(cmp[sys].termTotal)}</CallOut></td>
                       ))}
                     </tr>
                   </RTbody>
