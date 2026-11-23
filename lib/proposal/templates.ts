@@ -49,7 +49,7 @@ const PAGE_KEYS = ['bcPages', 'bcCustom', 'bcBlocks', 'bcHiddenBlocks', 'bcGaps'
 /** Layout parts for tables, figures and view switches. */
 const TABLE_KEYS = [
   'hiddenRows', 'hiddenCols', 'shownCols', 'colWidths', 'colOrder', 'hiddenValues', 'bcCompact',
-  'bcChart', 'bcImpl', 'bcImplWaves', 'bcRoiCallout', 'bcRoiQuote', 'bcFourYears', 'bcCompareChart', 'bcInvCards', 'bcExecInv', 'bcExecHardware', 'bcSiteCare', 'bcSiteAreas', 'bcSiteCards', 'bcHwLayout', 'bcExecComm', 'bcExecSystem', 'bcExecUnitsFor', 'bcExecNoPageRefs', 'bcCompareShow', 'bcOpexCards', 'bcSiteRows', 'bcPilotFees',
+  'bcChart', 'bcImpl', 'bcImplWaves', 'bcRoiCallout', 'bcRoiQuote', 'bcFourYears', 'bcCompareChart', 'bcInvCards', 'bcExecInv', 'bcExecHardware', 'bcSiteCare', 'bcSiteAreas', 'bcSiteCards', 'bcHwLayout', 'bcExecComm', 'bcExecSystem', 'bcExecUnitsFor', 'bcExecNoPageRefs', 'bcCompareCosts', 'bcOpexCards', 'bcSiteRows', 'bcPilotFees',
 ] as const;
 export const TEMPLATE_LAYOUT_KEYS = [...PAGE_KEYS, ...TABLE_KEYS] as const;
 

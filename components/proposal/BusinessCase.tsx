@@ -27,6 +27,7 @@ import { buildCashFlow } from '@/lib/model';
 import { AREA_KINDS, bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
 import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
+import { hiddenColsOf } from '@/lib/proposal/layout';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { dealVars } from '@/lib/proposal/templates';
 import { CommentHere, CommentPageContext, CommentPin, useComments } from './Comments';
@@ -1598,6 +1599,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     // The deal is priced with its chosen system; the other uses its comparison rate (or list). Each system's figures
     // come from the deal's price lines with the E-Call fee swapped, so both columns add up the same way.
     const compareOn = ecCompare && !capexShown;
+    const SYS_NAME = { ble: 'Bluetooth', inov: 'Inovonics' } as const;
     const chosenSys: 'ble' | 'inov' = inov ? 'inov' : 'ble';
     const listEcall = (sys: 'ble' | 'inov') => SEED_PRODUCTS.find((x) => x.sku === (sys === 'ble' ? SKU.ecallBle : SKU.ecallInovonics))?.list ?? (sys === 'ble' ? 10 : 15);
     const rateFor = (sys: 'ble' | 'inov') => (sys === chosenSys ? draft.commercial.ecallRate : draft.commercial.ecallCompareRate ?? listEcall(sys));
@@ -1631,8 +1633,18 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       return { sys, rate, oneTime, y1, termTotal, monthly, per };
     };
     const cmp = { ble: sysCalc('ble'), inov: sysCalc('inov') };
-    const cmpShown: Array<'ble' | 'inov'> = layout.bcCompareShow ? [layout.bcCompareShow] : ['ble', 'inov'];
-    const SYS_NAME = { ble: 'Bluetooth', inov: 'Inovonics' } as const;
+    // Systems shown, and their order, follow the cost table's columns (removed or moved there, or as cards).
+    const COL_KEY = { ble: 'cmpcost.bluetooth', inov: 'cmpcost.inovonics' } as const;
+    const hiddenCmpCols = hiddenColsOf(layout);
+    const cmpOrder: Array<'ble' | 'inov'> = layout.colOrder?.cmpcost?.[0] === COL_KEY.inov ? ['inov', 'ble'] : ['ble', 'inov'];
+    const cmpVisible = cmpOrder.filter((x) => !(COL_KEY[x] in hiddenCmpCols));
+    const cmpShown: Array<'ble' | 'inov'> = cmpVisible.length ? cmpVisible : [chosenSys];
+    const removeSys = (sys: 'ble' | 'inov') => setLayout((l) => ({ ...l, hiddenCols: { ...(l.hiddenCols ?? {}), [COL_KEY[sys]]: `${SYS_NAME[sys]} column · Costs, both systems` } }));
+    const swapSys = () => setLayout((l) => ({ ...l, colOrder: { ...(l.colOrder ?? {}), cmpcost: cmpOrder[0] === 'ble' ? [COL_KEY.inov, COL_KEY.ble] : [COL_KEY.ble, COL_KEY.inov] } }));
+    // Rows: removable in either view (the same keys as the table's rows).
+    const cmpRowHidden = (k: string) => `cmpcost.${k}` in (layout.hiddenRows ?? {});
+    const removeCmpRow = (k: string, label: string) => setLayout((l) => ({ ...l, hiddenRows: { ...(l.hiddenRows ?? {}), [`cmpcost.${k}`]: `${label} · Costs, both systems` } }));
+    const cardsView = layout.bcCompareCosts !== 'table';
     const ecMonthlyLines = lines.filter((l) => isEcLine(l) && !isPilotish(l));
     const cmpBeds = sum(ecMonthlyLines.filter((l) => !l.description.includes('common areas')).map((l) => l.qty));
     const cmpAreas = sum(ecMonthlyLines.filter((l) => l.description.includes('common areas')).map((l) => l.qty));
@@ -1644,16 +1656,6 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       <Blocks page="scope-compare">
         <B id="overview" label="Unit prices">
           <div className="relative group/view">
-            {editable && (
-              <ViewSwitch
-                field="bcCompareShow"
-                position="absolute right-0 -top-1"
-                label="Systems shown"
-                options={[['both', 'Compare both'], ['ble', 'Bluetooth'], ['inov', 'Inovonics']] as const}
-                value={layout.bcCompareShow ?? 'both'}
-                onChange={(v) => setLayout((l) => ({ ...l, bcCompareShow: v === 'both' ? undefined : v }))}
-              />
-            )}
             <p className="bc-eyebrow bc-gray"><T k="bc.scope.unitPrices" d="Unit prices" /></p>
             <div className="bc-cmp-cards">
               {(
@@ -1680,77 +1682,112 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           </div>
         </B>
         <B id="costs" label="Costs, both systems">
-          <div>
+          <div className="relative group/view">
+            {editable && (
+              <ViewSwitch
+                field="bcCompareCosts"
+                position="absolute right-0 -top-1"
+                label="Costs shown as"
+                options={[['cards', 'Cards'], ['table', 'Table']] as const}
+                value={cardsView ? 'cards' : 'table'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcCompareCosts: v === 'table' ? 'table' : undefined }))}
+              />
+            )}
             <p className="bc-eyebrow bc-gray"><T k="bc.cmp.costs" d="Costs" /></p>
-            <div className="bc-card bc-tbl bc-cmp-tbl">
-              <table>
-                <thead>
-                  <tr>
-                    <th rowSpan={2}>Item</th>
-                    <th rowSpan={2} className="bc-r">Quantity</th>
-                    {cmpShown.map((sys) => (
-                      <th key={sys} colSpan={2} className={`bc-cmp-grp bc-cmp-${sys}`}>{sysHead(sys)}</th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {cmpShown.map((sys) => (
-                      <Fragment key={sys}>
-                        <th className={`bc-r bc-cmp-${sys}`}>Unit price</th>
-                        <th className={`bc-r bc-cmp-${sys}`}>Total</th>
-                      </Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="bc-m"><T k="bc.cmp.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
-                    <td className="bc-r">{count(cmpInstallQty)} beds</td>
-                    {cmpShown.map((sys) => (
-                      <Fragment key={sys}>
-                        <td className={`bc-r bc-cmp-${sys}`}>{money(Number(draft.commercial.ecallInstallRate) || 0)} / bed</td>
-                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].oneTime)}</td>
-                      </Fragment>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="bc-m">
-                      <T k="bc.cmp.monthly" d="Monthly subscription" />
-                      <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
-                    </td>
-                    <td className="bc-r">{count(cmpBeds)} beds{cmpAreas ? ` + ${count(cmpAreas)} areas` : ''}</td>
-                    {cmpShown.map((sys) => (
-                      <Fragment key={sys}>
-                        <td className={`bc-r bc-cmp-${sys}`}>{money(cmp[sys].rate)} / mo</td>
-                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].monthly)} / mo</td>
-                      </Fragment>
-                    ))}
-                  </tr>
-                  <tr className="bc-tot">
-                    <td className="bc-m">
-                      <T k="bc.cmp.year1" d="Total Year 1 Investment" />
-                      <small><T k="bc.cmp.year1Note" d="One-time + monthly fees in the first 12 months" /></small>
-                    </td>
-                    <td />
-                    {cmpShown.map((sys) => (
-                      <Fragment key={sys}>
-                        <td className={`bc-cmp-${sys}`} />
-                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].y1)}</td>
-                      </Fragment>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="bc-m"><T k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} /></td>
-                    <td />
-                    {cmpShown.map((sys) => (
-                      <Fragment key={sys}>
-                        <td className={`bc-cmp-${sys}`} />
-                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].termTotal)}</td>
-                      </Fragment>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {cardsView ? (
+              // One card per system: the monthly cost up top, then the same rows on each.
+              <div className={`bc-cmpc-pair ${cmpShown.length === 1 ? 'bc-cmpc-one' : ''}`}>
+                {cmpShown.map((sys) => {
+                  const c = cmp[sys];
+                  const rowsDef: Array<[string, React.ReactNode, React.ReactNode, React.ReactNode]> = [
+                    ['install', <T key="l" k="bc.cmp.install" d="Installation" />, <T key="s" k="bc.inv.oneTime" d="One-time" />, usd(c.oneTime)],
+                    ['monthly', <T key="l" k="bc.cmp.monthly" d="Monthly subscription" />, `${count(cmpBeds)} beds${cmpAreas ? ` + ${count(cmpAreas)} areas` : ''}`, `${money(c.rate)} / bed / mo`],
+                    ['y1', <T key="l" k="bc.cmp.year1" d="Total Year 1 Investment" />, <T key="s" k="bc.cmp.year1Short" d="One-time + first 12 months" />, usd(c.y1)],
+                    ['term', <T key="l" k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} />, null, usd(c.termTotal)],
+                  ];
+                  return (
+                    <div key={sys} className={`bc-cmpc bc-cmpc-${sys} ${editable ? 'group/cmpc relative' : ''}`}>
+                      {editable && cmpShown.length > 1 && (
+                        <div data-edit-ui className="no-print bc-cmpc-ctl opacity-0 group-hover/cmpc:opacity-100 focus-within:opacity-100 transition-opacity motion-reduce:transition-none">
+                          <button type="button" onClick={swapSys} title="Swap the two systems" aria-label={`Move ${SYS_NAME[sys]} ${cmpShown[0] === sys ? 'right' : 'left'}`}>{cmpShown[0] === sys ? '→' : '←'}</button>
+                          <button type="button" onClick={() => removeSys(sys)} title={`Remove ${SYS_NAME[sys]} (you can add it back)`} aria-label={`Remove ${SYS_NAME[sys]}`}>✕</button>
+                        </div>
+                      )}
+                      <div className="bc-cmpc-hd"><span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span></div>
+                      <div className="bc-cmpc-hero">
+                        <span className="bc-cmpc-lbl"><T k="bc.cmp.heroLbl" d="Monthly cost after the pilot" /></span>
+                        <b>{usd(c.monthly)} / mo</b>
+                      </div>
+                      {rowsDef
+                        .filter(([k]) => !cmpRowHidden(k))
+                        .map(([k, label, sub, value]) => (
+                          <div key={k} className={`bc-cmpc-row ${editable ? 'group/row relative' : ''}`}>
+                            {editable && (
+                              <button
+                                type="button"
+                                data-edit-ui
+                                className="no-print absolute -left-2 top-1/2 -translate-y-1/2 hidden group-hover/row:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teton-near-black text-white shadow text-[10px] leading-none"
+                                title="Remove this row (from both systems)"
+                                aria-label="Remove this row"
+                                onClick={(e) => removeCmpRow(k, ((e.currentTarget.parentElement?.querySelector('.bc-cmpc-name') as HTMLElement | null)?.innerText ?? k).split('\n')[0])}
+                              >
+                                −
+                              </button>
+                            )}
+                            <span className="bc-cmpc-name">
+                              {label}
+                              {sub && <small>{sub}</small>}
+                            </span>
+                            <b>{value}</b>
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bc-card bc-tbl bc-cmp-tbl">
+                <RTable>
+                  <thead>
+                    <tr>
+                      <th>{`${count(cmpBeds)} beds${cmpAreas ? ` + ${count(cmpAreas)} common areas` : ''}`}</th>
+                      {(['ble', 'inov'] as const).map((sys) => (
+                        <th key={sys} className={`bc-r bc-cmp-${sys}`}><span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <RTbody id="cmpcost" name="Costs, both systems">
+                    <tr key="install">
+                      <td className="bc-m"><T k="bc.cmp.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                      {(['ble', 'inov'] as const).map((sys) => (
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].oneTime)}<small>{money(Number(draft.commercial.ecallInstallRate) || 0)} per bed</small></td>
+                      ))}
+                    </tr>
+                    <tr key="monthly">
+                      <td className="bc-m">
+                        <T k="bc.cmp.monthly" d="Monthly subscription" />
+                        <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
+                      </td>
+                      {(['ble', 'inov'] as const).map((sys) => (
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].monthly)} / mo<small>{money(cmp[sys].rate)} per bed</small></td>
+                      ))}
+                    </tr>
+                    <tr key="y1" className="bc-tot">
+                      <td className="bc-m"><T k="bc.cmp.year1" d="Total Year 1 Investment" /></td>
+                      {(['ble', 'inov'] as const).map((sys) => (
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].y1)}</td>
+                      ))}
+                    </tr>
+                    <tr key="term">
+                      <td className="bc-m"><T k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} /></td>
+                      {(['ble', 'inov'] as const).map((sys) => (
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].termTotal)}</td>
+                      ))}
+                    </tr>
+                  </RTbody>
+                </RTable>
+              </div>
+            )}
           </div>
         </B>
         <B id="communities" label="Communities" onAdd={addCommunity?.(false)} addLabel="Add a community">
