@@ -843,6 +843,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     .filter((x) => x.row?.pilot);
   // The pilot in brief, for the Executive Summary.
   let execPilot: { name: string; beds: number; total: number; months: number } | null = null;
+  /** The pilot communities table (beds by care type, pilot per month, pilot cost). Each place has its own id, so columns are removed separately. */
+  let pilotCommunityTable: ((id: string, name: string) => React.ReactNode) | null = null;
   if (pilotSites.length) {
     const pos = new Set(pilotSites.map((x) => x.i));
     const siteLines = lines.filter((l) => l.communityPosition != null && pos.has(l.communityPosition));
@@ -859,6 +861,51 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
     execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months };
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
+    pilotCommunityTable = (id: string, name: string) => (
+          <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
+            <RTable>
+              <thead>
+                <tr>
+                  <th>Community</th>
+                  <th>AL beds</th>
+                  <th>MC beds</th>
+                  <th>SNF beds</th>
+                  <th>Pilot / month</th>
+                  <th className="bc-hl">Pilot cost</th>
+                </tr>
+              </thead>
+              <RTbody id={id} name={name}>
+                {pilotSites.map(({ dc, i }) => {
+                  const b = beds(dc);
+                  const ls = siteLines.filter((l) => l.communityPosition === i);
+                  const fees = ls.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot'));
+                  const cost = sum(fees.map(lineTotal)) + sum(ls.filter((l) => l.billing === 'one_time').map(lineTotal));
+                  return (
+                    <tr key={dc.id}>
+                      <td className="bc-m">
+                        <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
+                        <span className="bc-csub">{d.perCommunity[i].detail && <small>{d.perCommunity[i].detail}</small>}<MissingPlanPill communityId={dc.id} name={d.perCommunity[i].name} /></span>
+                      </td>
+                      <td>{count(b.al)}</td>
+                      <td>{count(b.mc)}</td>
+                      <td>{count(b.snf)}</td>
+                      <td>{usd(sum(fees.map((l) => l.qty * l.unitNet)))}</td>
+                      <td className="bc-hl bc-big">{usd(cost)}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bc-tot">
+                  <td className="bc-m">{pilotSites.length === 1 ? 'Total' : `${pilotSites.length} communities`}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).al)))}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).mc)))}</td>
+                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).snf)))}</td>
+                  <td>{usd(pilotMonthlyTotal)}</td>
+                  <td className="bc-hl bc-big">{usd(pilotTotal)}</td>
+                </tr>
+              </RTbody>
+            </RTable>
+          </div>
+    );
     defs.pilot = (no) => (
       <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
         <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
@@ -1010,49 +1057,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         <B id="communities" label="Pilot communities" onAdd={addCommunity?.(true)} addLabel="Add a pilot community">
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
-          <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
-            <RTable>
-              <thead>
-                <tr>
-                  <th>Community</th>
-                  <th>AL beds</th>
-                  <th>MC beds</th>
-                  <th>SNF beds</th>
-                  <th>Pilot / month</th>
-                  <th className="bc-hl">Pilot cost</th>
-                </tr>
-              </thead>
-              <RTbody id="pilot" name="The pilot">
-                {pilotSites.map(({ dc, i }) => {
-                  const b = beds(dc);
-                  const ls = siteLines.filter((l) => l.communityPosition === i);
-                  const fees = ls.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot'));
-                  const cost = sum(fees.map(lineTotal)) + sum(ls.filter((l) => l.billing === 'one_time').map(lineTotal));
-                  return (
-                    <tr key={dc.id}>
-                      <td className="bc-m">
-                        <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
-                        <span className="bc-csub">{d.perCommunity[i].detail && <small>{d.perCommunity[i].detail}</small>}<MissingPlanPill communityId={dc.id} name={d.perCommunity[i].name} /></span>
-                      </td>
-                      <td>{count(b.al)}</td>
-                      <td>{count(b.mc)}</td>
-                      <td>{count(b.snf)}</td>
-                      <td>{usd(sum(fees.map((l) => l.qty * l.unitNet)))}</td>
-                      <td className="bc-hl bc-big">{usd(cost)}</td>
-                    </tr>
-                  );
-                })}
-                <tr className="bc-tot">
-                  <td className="bc-m">{pilotSites.length === 1 ? 'Total' : `${pilotSites.length} communities`}</td>
-                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).al)))}</td>
-                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).mc)))}</td>
-                  <td>{count(sum(pilotSites.map((x) => beds(x.dc).snf)))}</td>
-                  <td>{usd(pilotMonthlyTotal)}</td>
-                  <td className="bc-hl bc-big">{usd(pilotTotal)}</td>
-                </tr>
-              </RTbody>
-            </RTable>
-          </div>
+          {pilotCommunityTable!('pilot', 'The pilot')}
         </B>
         </Blocks>
       </Page>
@@ -2576,6 +2581,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     {pilots[0] && <div><b>{longDate(pilots[0].goLive).replace(/, \d{4}$/, '')}</b><span>go-live</span></div>}
                     <div><b>{execPilot.months} mo</b><span>pilot</span></div>
                   </div>
+                </div>
+              </B>
+            )}
+            {pilotCommunityTable && (
+              // Full width by default (its ⇔ makes it one column).
+              <B id="pilotSites" label="Pilot communities" wide={!wide.has('pilotSites')} onWide={editable ? toggleWide('pilotSites') : undefined}>
+                <div className="bc-exec-sites">
+                  {head('bc.exec.sites', pilotSites.length === 1 ? 'The pilot community' : 'Pilot communities', 'pilot')}
+                  {pilotCommunityTable('expilot', 'Executive summary · pilot communities')}
                 </div>
               </B>
             )}
