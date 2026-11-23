@@ -25,9 +25,10 @@ import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
 import { bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
-import { T, useProposalText } from './EditableText';
+import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
+import { dealVars } from '@/lib/proposal/templates';
 import { CommentHere, CommentPageContext, CommentPin, useComments } from './Comments';
 import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { BC_GAP_STEP, MAX_BC_GAP, type ProposalLayout } from '@/lib/proposal/layout';
@@ -587,7 +588,18 @@ function ContentsList() {
   );
 }
 
-export function BusinessCaseDocument({ draft, outputs, lines, versionNo, savedAt }: { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null }) {
+type BcProps = { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; versionNo: number; savedAt: string | null };
+/** The business case; wording placeholders from templates ({customer}, {communities}, {beds}) show this deal's values. */
+export function BusinessCaseDocument(props: BcProps) {
+  const vars = useMemo(() => dealVars(props.draft), [props.draft]);
+  return (
+    <DealVarsContext.Provider value={vars}>
+      <BusinessCaseBody {...props} />
+    </DealVarsContext.Provider>
+  );
+}
+
+function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps) {
   const { layout, editable, setLayout } = useProposalText();
   const whatIf = useWhatIf();
   // "+" on the community tables: add a community in the drawer (a pilot site from the pilot table).

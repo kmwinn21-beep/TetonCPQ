@@ -14,6 +14,7 @@ import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
 import { RemovedSheetButton } from './ProposalSections';
 import { CommentsButton } from './Comments';
+import { TemplateMenu } from './TemplateMenu';
 import { useWhatIf } from './WhatIf';
 import { layoutChanges } from '@/lib/proposal/layout';
 import { canAutoFocus } from '@/lib/client/focus';
@@ -206,6 +207,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                   })}
                 </SegGroup>
               )}
+              {text.editable && text.layout.format === 'businessCase' && <TemplateMenu versionId={versionId} />}
               {text.editable && text.layout.format !== 'businessCase' && (
                 <button
                   type="button"

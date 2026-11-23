@@ -406,4 +406,24 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_user_notifications_user ON user_notifications(user_id, read_at)`,
     ],
   },
+  {
+    id: 17,
+    name: 'business case templates',
+    sql: [
+      // A business case layout and wording for a kind of reader (persona). No numbers: each deal fills it in.
+      `CREATE TABLE bc_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        persona TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        edits_json TEXT NOT NULL DEFAULT '{}',
+        layout_json TEXT NOT NULL DEFAULT '{}',
+        owner_id INTEGER NOT NULL REFERENCES users(id),
+        shared INTEGER NOT NULL DEFAULT 1,
+        updated_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
 ];

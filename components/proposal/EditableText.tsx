@@ -22,6 +22,8 @@ interface Ctx {
   resetAll: () => void;
   /** Save now instead of waiting for the pause after typing. */
   saveNow: () => void;
+  /** Swap in new wording and layout: saved (save: true), or already saved by the server (e.g. a template applied). */
+  replace: (doc: { edits: TextEdits; layout: ProposalLayout }, save?: boolean) => void;
   state: SaveState;
   error: string | null;
 }
@@ -34,10 +36,14 @@ const ProposalTextContext = createContext<Ctx>({
   setLayout: () => {},
   resetAll: () => {},
   saveNow: () => {},
+  replace: () => {},
   state: 'saved',
   error: null,
 });
 export const useProposalText = () => useContext(ProposalTextContext);
+
+/** The deal's names and counts for wording placeholders ({customer}, {communities}, {beds}) from templates. */
+export const DealVarsContext = createContext<Record<string, string>>({});
 
 interface Saved {
   edits: TextEdits;
@@ -54,9 +60,12 @@ export function ProposalTextProvider({
   initial,
   initialLayout = DEFAULT_LAYOUT,
   editable = true,
+  saveUrl,
   children,
 }: {
   versionId: number;
+  /** Where the wording and layout save (PUT { edits, layout }); a version's proposal by default. */
+  saveUrl?: string;
   initial: TextEdits;
   initialLayout?: ProposalLayout;
   editable?: boolean;
@@ -74,7 +83,7 @@ export function ProposalTextProvider({
       timer.current = null;
       setState('saving');
       try {
-        const res = await fetch(`/api/versions/${versionId}/text`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next) });
+        const res = await fetch(saveUrl ?? `/api/versions/${versionId}/text`, { method: saveUrl ? 'PATCH' : 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(next) });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.error ?? 'Could not save your changes');
         // Only mark saved if nothing changed while this request was in flight.
@@ -85,7 +94,7 @@ export function ProposalTextProvider({
         setError(e instanceof Error ? e.message : 'Could not save your changes');
       }
     },
-    [versionId],
+    [versionId, saveUrl],
   );
 
   const schedule = useCallback(
@@ -111,6 +120,14 @@ export function ProposalTextProvider({
   const setLayout = useCallback((update: (l: ProposalLayout) => ProposalLayout) => schedule({ ...latest.current, layout: update(latest.current.layout) }), [schedule]);
   const resetAll = useCallback(() => schedule({ edits: {}, layout: structuredClone(DEFAULT_LAYOUT) }, 0), [schedule]);
   const saveNow = useCallback(() => void save(latest.current), [save]);
+  const replace = useCallback(
+    (next: Saved, persist = false) => {
+      if (persist) return schedule(next, 0);
+      latest.current = next;
+      setDoc(next);
+    },
+    [schedule],
+  );
 
   // Don't lose a pending save when the tab closes.
   useEffect(() => {
@@ -122,8 +139,8 @@ export function ProposalTextProvider({
   }, [state]);
 
   const value = useMemo(
-    () => ({ editable, edits: doc.edits, set, layout: doc.layout, setLayout, resetAll, saveNow, state, error }),
-    [editable, doc, set, setLayout, resetAll, saveNow, state, error],
+    () => ({ editable, edits: doc.edits, set, layout: doc.layout, setLayout, resetAll, saveNow, replace, state, error }),
+    [editable, doc, set, setLayout, resetAll, saveNow, replace, state, error],
   );
   return <ProposalTextContext.Provider value={value}>{children}</ProposalTextContext.Provider>;
 }
@@ -148,10 +165,11 @@ export function serialize(el: HTMLElement): string {
  */
 export function T({ k, d, v, placeholder = 'Add text' }: { k: string; d: string; v?: Record<string, string>; placeholder?: string }) {
   const { editable, edits, set } = useProposalText();
+  const deal = useContext(DealVarsContext);
   // Bumped to throw away typing (Escape) by remounting the element.
   const [rev, setRev] = useState(0);
   const template = edits[k] ?? d;
-  const vars = v ?? {};
+  const vars = { ...deal, ...(v ?? {}) };
   if (!editable) return <>{renderText(template, vars)}</>;
 
   const segments = fillTemplate(template, vars);

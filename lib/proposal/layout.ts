@@ -89,6 +89,8 @@ export interface ProposalLayout {
   colWidths?: Record<string, number>;
   /** Column order per table (column keys after the first column). */
   colOrder?: Record<string, string[]>;
+  /** Business case: the template it was last formatted from (name kept for display). */
+  bcTemplate?: { id: number; name: string; /** Its wording was applied too (not just its layout). */ wording?: boolean };
   /** 2 = saved with the current default order in mind. */
   version?: number;
 }
@@ -204,6 +206,11 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       return Object.keys(out).length ? out : undefined;
     })(),
     bcPilotFees: raw.bcPilotFees === 'total' ? 'total' : undefined,
+    bcTemplate: (() => {
+      const t = raw.bcTemplate as { id?: unknown; name?: unknown } | null | undefined;
+      if (!t || typeof t !== 'object' || !Number.isInteger(t.id) || Number(t.id) <= 0) return undefined;
+      return { id: Number(t.id), name: String(t.name ?? '').slice(0, 80), wording: (t as { wording?: unknown }).wording === true ? true : undefined };
+    })(),
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};

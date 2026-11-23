@@ -15,6 +15,7 @@ export interface ShellUser {
 export const NAV = [
   { href: '/deals', label: 'Deals', icon: 'M3 7h18M3 12h18M3 17h12' },
   { href: '/catalog', label: 'Price book', icon: 'M7 7h.01M7 3h5l9 9-7 7-9-9V3z' },
+  { href: '/templates', label: 'Templates', icon: 'M4 5a1 1 0 011-1h5a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h5a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zm10-3a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z' },
 ];
 export const ADMIN_NAV = [{ href: '/admin/users', label: 'Users', icon: 'M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 2a3 3 0 11-6 0 3 3 0 016 0z' }];
 
