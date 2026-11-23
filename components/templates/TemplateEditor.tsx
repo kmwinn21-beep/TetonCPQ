@@ -50,7 +50,8 @@ function Editor({ template, deals, preview }: { template: BcTemplate; deals: Arr
   return (
     <div className="-m-4 lg:-m-6">
       {/* Top bar: back, name, persona, preview data, save state. */}
-      <div className="sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-teton-off-white bg-white/95 backdrop-blur px-4 lg:px-6 py-3">
+      {/* Sticky at the very top: offset by the page padding (as on the deal page), so nothing shows above it. */}
+      <div className="sticky -top-4 lg:-top-6 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-teton-off-white bg-white/95 backdrop-blur px-4 lg:px-6 py-3">
         <Link href="/templates" className="text-sm text-teton-ui-gray hover:underline">← Templates</Link>
         <input
           className="min-w-0 flex-1 sm:flex-none sm:w-64 text-lg font-semibold bg-transparent border-b border-transparent hover:border-teton-pale-gray focus:border-brand-accent focus:outline-none"
@@ -83,7 +84,7 @@ function Editor({ template, deals, preview }: { template: BcTemplate; deals: Arr
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
         {/* Left: pages and sections that were removed, to add back. */}
-        <aside className="hidden xl:block border-r border-teton-off-white bg-white p-3 xl:sticky xl:top-[57px] xl:self-start xl:max-h-[calc(100dvh-57px)] xl:overflow-y-auto">
+        <aside className="hidden xl:block border-r border-teton-off-white bg-white p-3 xl:sticky xl:top-[33px] xl:self-start xl:max-h-[calc(100dvh-33px)] xl:overflow-y-auto">
           {template.canEdit ? <RemovedPanel /> : <p className="text-xs text-teton-ui-gray">This template is private to {template.owner.name}. Duplicate it from the Templates page to make your own.</p>}
           <p className="mt-3 text-[11px] text-teton-ui-gray">Hover a page for move / remove, or between pages to add one.</p>
         </aside>
@@ -93,7 +94,7 @@ function Editor({ template, deals, preview }: { template: BcTemplate; deals: Arr
           </div>
         </div>
         {/* Right: details. */}
-        <aside className="border-t xl:border-t-0 xl:border-l border-teton-off-white bg-white p-4 space-y-4 xl:sticky xl:top-[57px] xl:self-start">
+        <aside className="border-t xl:border-t-0 xl:border-l border-teton-off-white bg-white p-4 space-y-4 xl:sticky xl:top-[33px] xl:self-start">
           <div>
             <span className={eyebrow}>Persona</span>
             <div className="flex flex-wrap gap-1.5">
