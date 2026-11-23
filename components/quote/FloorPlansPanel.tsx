@@ -13,6 +13,7 @@ import { normalizeRoomTypes } from '@/lib/quote/roomTypes';
 import { count } from '@/lib/format';
 import { useFloorPlans, type FloorPlanItem } from './FloorPlans';
 import { useAccess } from './AccessContext';
+import { panelElId, usePanelOpener } from './panelNav';
 
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const kind = (p: FloorPlanItem) => (p.mime === 'application/pdf' ? 'PDF' : (p.mime.split('/')[1] ?? 'IMG').toUpperCase().replace('JPEG', 'JPG').slice(0, 4));
@@ -22,6 +23,7 @@ export function FloorPlansPanel() {
   const acc = useAccess();
   const communities = (useWatch<QuoteDraft>({ name: 'communities' }) as QuoteDraft['communities'] | undefined) ?? [];
   const [open, setOpen] = useState(false);
+  usePanelOpener('floor-plans', setOpen);
   if (!fp || !communities.length) return null;
   const canUpload = acc.inputs || acc.scope;
   const withPlan = communities.filter((c) => fp.plans.some((p) => p.communityId === c.id)).length;
@@ -31,7 +33,7 @@ export function FloorPlansPanel() {
   for (const c of communities) for (const t of normalizeRoomTypes(c.roomTypes)) for (const m of t.marks ?? []) tagged.set(m.plan, (tagged.get(m.plan) ?? 0) + 1);
   const totalTagged = fp.plans.reduce((s, p) => s + (tagged.get(p.id) ?? 0), 0);
   return (
-    <section className="card" aria-label="Floor plans">
+    <section className="card" aria-label="Floor plans" id={panelElId('floor-plans')}>
       <button type="button" className="w-full flex items-center gap-2 text-left" aria-expanded={open} aria-controls="floor-plans-panel" onClick={() => setOpen((o) => !o)}>
         <svg className={`w-4 h-4 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />

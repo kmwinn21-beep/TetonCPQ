@@ -16,6 +16,7 @@ import { AuthorPill, Triangle } from './PlanNotes';
 import { MENTIONS_READ, SHOW_TASK, useInputComments } from './InputComments';
 import type { TaskNotification } from '@/lib/data/tasks';
 import { TASKS_CHANGED } from './TasksPanel';
+import { panelElId, usePanelOpener } from './panelNav';
 
 const ago = (iso: string) => {
   const t = new Date(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
@@ -33,6 +34,7 @@ const what = (u: UnreadItem) => (u.kind === 'note' ? `added note ${u.noteNumber}
 export function NotificationsPanel() {
   const fp = useFloorPlans();
   const [open, setOpen] = useState(false);
+  usePanelOpener('notifications', setOpen);
   const plan = fp?.unread ?? [];
   const quoteId = fp?.quoteId;
   const [mentions, setMentions] = useState<MentionItem[]>([]);
@@ -109,7 +111,7 @@ export function NotificationsPanel() {
     void fp.markRead([{ kind: u.kind, id: u.id }]);
   };
   return (
-    <section className="card p-0 overflow-hidden drawer-in" aria-label="Notifications">
+    <section className="card p-0 overflow-hidden drawer-in" aria-label="Notifications" id={panelElId('notifications')}>
       <div className="flex items-center gap-2 px-4 py-3">
         <button type="button" className="flex flex-1 items-center gap-2 text-left min-w-0" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <h2 className="text-sm font-semibold">Notifications</h2>

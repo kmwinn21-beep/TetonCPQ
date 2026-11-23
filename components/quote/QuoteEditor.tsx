@@ -29,6 +29,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 import { InputCommentsButton, InputCommentsProvider } from './InputComments';
 import { TasksPanel } from './TasksPanel';
 import { ScrollRow } from '@/components/form/ScrollRow';
+import { SectionsMenu } from './SectionsMenu';
 import { AccessContext, useAccess } from './AccessContext';
 import { CollaboratorsPanel } from './CollaboratorsPanel';
 import { FloorPlansPanel } from './FloorPlansPanel';
@@ -498,10 +499,21 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </nav>
 
           <div className="space-y-4 min-w-0">
-            <div className="flex justify-end -mb-1">
-              <button type="button" className="btn-ghost" onClick={() => sections.setAll(!sections.allOpen)} aria-label={sections.allOpen ? 'Collapse all sections' : 'Expand all sections'}>
+            {/* Phones: Expand all on the left, and ☰ (jump to a section or panel card) on the right. */}
+            <div className="flex items-center justify-between sm:justify-end -mb-1">
+              <button type="button" className="btn-ghost max-sm:-ml-2" onClick={() => sections.setAll(!sections.allOpen)} aria-label={sections.allOpen ? 'Collapse all sections' : 'Expand all sections'}>
                 {sections.allOpen ? 'Collapse all' : 'Expand all'}
               </button>
+              <SectionsMenu
+                inputs={NAV}
+                assumptions={ASSUMPTIONS_NAV}
+                onInput={(id, inGroup) => {
+                  sections.setOpen(id, true);
+                  if (inGroup) sections.setOpen('assumptions', true);
+                  // Wait for the Assumptions group to expand when it was closed.
+                  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), inGroup && !assumptionsOpen ? 340 : 60);
+                }}
+              />
             </div>
             <PricingSection inputs={computed.inputs} result={computed.result} book={book} />
             <RailSlotContext.Provider value={railSlot}>

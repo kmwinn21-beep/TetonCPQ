@@ -10,6 +10,7 @@ import { Collapse } from '@/components/form/fields';
 import { defaultCloseDate, EMAIL, GEOGRAPHIES, isHubspotUrl, type DealDetails, type Geography, type Signatory } from '@/lib/data/dealDetails';
 import { useAccess } from './AccessContext';
 import { canAutoFocus } from '@/lib/client/focus';
+import { panelElId, usePanelOpener } from './panelNav';
 
 const blankSig = (): Signatory => ({ first: '', last: '', title: '', email: '' });
 const fresh = (): DealDetails => ({ legalEntity: '', geography: '', geographyOther: '', hubspotUrl: '', signatories: [], closeDate: defaultCloseDate() });
@@ -66,6 +67,7 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
   const acc = useAccess();
   const canEdit = acc.inputs;
   const [open, setOpen] = useState(false);
+  usePanelOpener('deal-details', setOpen);
   const [details, setDetails] = useState<DealDetails | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
   const d = details;
   const days = d ? daysTo(d.closeDate) : null;
   return (
-    <section className="card" aria-label="Deal details">
+    <section className="card" aria-label="Deal details" id={panelElId('deal-details')}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <button type="button" className="flex flex-1 sm:flex-none min-w-0 items-center gap-2 text-left" aria-expanded={open} aria-controls="deal-details" onClick={() => setOpen((o) => !o)}>
         <svg className={`w-4 h-4 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

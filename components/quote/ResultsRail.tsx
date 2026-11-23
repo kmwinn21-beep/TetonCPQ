@@ -10,6 +10,7 @@ import { previewTotals, type PreviewTotals } from '@/lib/quote/previewTotals';
 import type { VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, usd } from '@/lib/format';
+import { panelElId, usePanelOpener } from './panelNav';
 
 
 /** A titled block of label / value rows in the live preview. */
@@ -40,6 +41,7 @@ function Rows({ title, tag, rows }: { title: string; tag?: string; rows: Array<[
 export function KpiPreview({ result, error, draft, inputs, book }: { result: ModelResult | null; error: string | null; draft?: QuoteDraft; inputs?: ModelInputs | null; book?: PriceBook }) {
   // Collapsible; open by default, and remembered on this browser.
   const [open, setOpen] = usePersistedOpen('teton.livePreview.open', true);
+  usePanelOpener('live-preview', setOpen);
   if (error) return <div className="card text-sm"><p className="font-medium">Can’t calculate yet</p><p className="text-teton-ui-gray mt-1">{error}</p></div>;
   if (!result || !draft || !inputs || !book) return null;
   let t: PreviewTotals | null = null;
@@ -51,7 +53,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
   if (!t) return null;
   const mo = (n: number) => `${usd(n)} / mo`;
   return (
-    <div className="card">
+    <div className="card" id={panelElId('live-preview')}>
       <button type="button" className="flex w-full items-center gap-2 text-left" aria-expanded={open} aria-controls="live-preview" onClick={() => setOpen(!open)}>
         <Chevron open={open} />
         <h2 className="text-sm font-semibold">Live preview</h2>
@@ -264,10 +266,11 @@ function UnsavedCard({ u, readOnly }: { u: UnsavedChanges; readOnly?: boolean })
  */
 export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false, unsaved }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean; unsaved?: UnsavedChanges | null }) {
   const [open, setOpen] = useState(false);
+  usePanelOpener('version-history', setOpen);
   const active = versions.find((v) => v.id === activeId) ?? null;
   const ordered = active ? [active, ...versions.filter((v) => v !== active)] : versions;
   return (
-    <div className="card">
+    <div className="card" id={panelElId('version-history')}>
       <button type="button" className="w-full flex items-center gap-2 text-left" aria-expanded={open} aria-controls="version-history" onClick={() => setOpen(!open)}>
         <Chevron open={open} />
         <h2 className="text-sm font-semibold flex-1">Version History</h2>

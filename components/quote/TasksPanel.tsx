@@ -15,6 +15,7 @@ import { AuthorPill } from './PlanNotes';
 import { BubbleIcon, CommentHoverCard } from '@/components/proposal/Comments';
 import { SHOW_TASK, useInputComments } from './InputComments';
 import { canAutoFocus } from '@/lib/client/focus';
+import { panelElId, usePanelOpener } from './panelNav';
 
 /** Local today, yyyy-mm-dd. */
 export const localToday = () => {
@@ -114,6 +115,7 @@ export function TaskCheck({ done, disabled, onToggle, title }: { done: boolean; 
 
 export function TasksPanel({ quoteId }: { quoteId: number }) {
   const [open, setOpen] = useState(false);
+  usePanelOpener('tasks', setOpen);
   const [tab, setTab] = useState<'open' | 'done'>('open');
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
@@ -177,7 +179,7 @@ export function TasksPanel({ quoteId }: { quoteId: number }) {
     setForm({ edit: null });
   };
   return (
-    <section className="card" aria-label="Tasks" id="deal-tasks">
+    <section className="card" aria-label="Tasks" id={panelElId('tasks')} data-panel="deal-tasks">
       <div className="flex items-center gap-2">
         <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left" aria-expanded={open} aria-controls="tasks-body" onClick={() => setOpen((o) => !o)}>
           <svg className={`w-4 h-4 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

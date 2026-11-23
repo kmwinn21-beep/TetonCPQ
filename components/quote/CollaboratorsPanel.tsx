@@ -11,6 +11,7 @@ import { Collapse } from '@/components/form/fields';
 import { usePersistedOpen } from '@/components/Sidebar';
 import type { Collaborator, DealAccess, Perms } from '@/lib/data/access';
 import { useFloorPlans } from './FloorPlans';
+import { panelElId, usePanelOpener } from './panelNav';
 
 const TONES = ['bg-[#E5EEFC] text-[#2B5BB5]', 'bg-[#FCE8EF] text-[#A23A63]', 'bg-[#E6F4EC] text-[#2B7A4B]', 'bg-[#F1E9FB] text-[#6A3FB0]', 'bg-[#FFF1DC] text-[#8A5A00]', 'bg-[#E3F4F6] text-[#1C6E7C]'];
 const PERMS = [
@@ -38,6 +39,7 @@ export function CollaboratorsPanel() {
   const fp = useFloorPlans();
   const quoteId = fp?.quoteId;
   const [open, setOpen] = usePersistedOpen('teton.collaborators.open', true);
+  usePanelOpener('collaborators', setOpen);
   const [data, setData] = useState<{ access: DealAccess; collaborators: Collaborator[]; candidates: Array<{ id: number; name: string; email: string }> } | null>(null);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState<number | null>(null);
@@ -87,7 +89,7 @@ export function CollaboratorsPanel() {
   };
 
   return (
-    <section className="card" aria-label="Collaborators">
+    <section className="card" aria-label="Collaborators" id={panelElId('collaborators')}>
       <div className="flex items-center gap-2">
         <button type="button" className="flex flex-1 min-w-0 items-center gap-2 text-left" aria-expanded={open} aria-controls="collaborators-body" onClick={() => setOpen(!open)}>
           <svg className={`w-4 h-4 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
