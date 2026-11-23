@@ -71,6 +71,10 @@ export interface ProposalLayout {
   bcCompareChart?: 'bar' | 'line';
   /** Business case, equipment purchase: the overview cards as the summary (default) or unit prices. */
   bcInvCards?: 'units';
+  /** Business case Executive Summary: the investment card as its usual lines (default) or post-pilot unit costs. */
+  bcExecInv?: 'units';
+  /** Business case Executive Summary: the 'What gets installed' card added (off by default; listed in Removed until added). */
+  bcExecHardware?: true;
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -196,6 +200,8 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcFourYears: raw.bcFourYears === true ? true : undefined,
     bcCompareChart: raw.bcCompareChart === 'line' ? 'line' : undefined,
     bcInvCards: raw.bcInvCards === 'units' ? 'units' : undefined,
+    bcExecInv: raw.bcExecInv === 'units' ? 'units' : undefined,
+    bcExecHardware: raw.bcExecHardware === true ? true : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,
     bcCompact: (() => {

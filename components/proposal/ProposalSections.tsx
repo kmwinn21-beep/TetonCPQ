@@ -853,7 +853,12 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
       )
     : [];
   // Optional rows that start out removed (shown in the Removed list until added).
-  const optional = businessCase && bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment' }] : [];
+  const optional: Array<{ key: string; label: string; page: string; add: (l: ProposalLayout) => ProposalLayout }> = businessCase
+    ? [
+        ...(bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcFourYears: true as const }) }] : []),
+        ...(!layout.bcExecHardware ? [{ key: 'execHardware', label: 'What gets installed · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const }) }] : []),
+      ]
+    : [];
   const rows = Object.entries(layout.hiddenRows ?? {});
   // Columns that start out removed are listed only when their table is on the page.
   const cols = Object.entries(hiddenColsOf(layout)).filter(([k]) => !(k in DEFAULT_HIDDEN_COLS) || presentTables.includes(k.split('.')[0]));
@@ -878,7 +883,7 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
       r = rows.filter(([k]) => onPage(k));
       c = cols.filter(([k]) => onPage(k));
       b = blocks.filter((x) => (PAGE_OF[x.page] ?? x.page) === focus.page);
-      o = optional.filter(() => focus.page === 'scope');
+      o = optional.filter((x) => focus.page === x.page);
       where = focus.page ? (BC_PAGE_TITLES as Record<string, string>)[focus.page] ?? 'this page' : '';
     }
     if (!r.length && !c.length && !b.length && !o.length) return null;
@@ -952,8 +957,8 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
       )}
       {showOptional.length > 0 && (
         <>
-          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Optional rows</p>
-          <ul>{showOptional.map((o) => item(o.key, o.label, () => setLayout((l) => ({ ...l, bcFourYears: true }))))}</ul>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Optional</p>
+          <ul>{showOptional.map((o) => item(o.key, o.label, () => setLayout(o.add)))}</ul>
         </>
       )}
       {showRows.length > 0 && (

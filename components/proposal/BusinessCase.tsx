@@ -101,6 +101,10 @@ interface BProps {
   /** Adds a "+" to the section's controls (e.g. add a community). */
   onAdd?: () => void;
   addLabel?: string;
+  /** A view switch shown in the section's controls bar (kept off the content, where it would cover other buttons). */
+  view?: React.ReactNode;
+  /** Replaces the usual ✕ (to the Removed list), e.g. for a section that is off by default. */
+  onRemove?: () => void;
   children: React.ReactNode;
 }
 function B(_props: BProps): null {
@@ -193,6 +197,7 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                   ↓
                 </button>
                 <CompactRowsButton className={btn} />
+                {c.props.view}
                 {c.props.onWide && (
                   <button type="button" className={`${btn} ${c.props.wide ? 'bg-white/20' : ''}`} onClick={c.props.onWide} aria-pressed={!!c.props.wide} aria-label={`${c.props.wide ? 'Narrow' : 'Widen'} ${c.props.label}`} title={c.props.wide ? 'One column' : 'Span both columns'}>
                     ⇔
@@ -214,7 +219,7 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                 >
                   <ResetIcon />
                 </button>
-                <button type="button" className={btn} onClick={() => remove(id, c.props.label)} aria-label={`Remove ${c.props.label}`} title={`Remove ${c.props.label} (you can add it back)`}>
+                <button type="button" className={btn} onClick={() => (c.props.onRemove ? c.props.onRemove() : remove(id, c.props.label))} aria-label={`Remove ${c.props.label}`} title={`Remove ${c.props.label} (you can add it back)`}>
                   ✕
                 </button>
               </div>
@@ -716,6 +721,29 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   // Pages that print on more than one sheet, and how many (for page numbers).
   const spans: Record<string, number> = {};
 
+  // The hardware, each photo shown whole beside its caption (also an optional Executive Summary card).
+  const hardwareCards = (
+    <div className="bc-hw">
+      {(
+        [
+          ['sensor', '/Teton_Sensor.png', 'Teton Sensor', 'One per room or living area, more where a room needs it'],
+          ['edge', '/Teton_ComputeUnit.png', 'Teton Edge Unit', 'One per resident room'],
+        ] as const
+      ).map(([k, src, name, desc]) => (
+        <figure key={k} className="bc-hw-card">
+          <div className="bc-hw-img">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={name} />
+          </div>
+          <figcaption>
+            <b><T k={`bc.site.hw.${k}`} d={name} /></b>
+            <span><T k={`bc.site.hw.${k}.desc`} d={desc} /></span>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+
   // ---------- Scope (from the floor plans) ----------
   // Shown when at least one community has room types.
   // Only room types whose care type has resident monitoring get Edge units and sensors; those with E-Call only
@@ -861,26 +889,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           </B>
           <B id="hardware" label="What gets installed">
             <p className="bc-eyebrow bc-gray"><T k="bc.site.hardware" d="What gets installed" /></p>
-            {/* The hardware, each photo shown whole beside its caption. */}
-            <div className="bc-hw">
-              {(
-                [
-                  ['sensor', '/Teton_Sensor.png', 'Teton Sensor', 'One per room or living area, more where a room needs it'],
-                  ['edge', '/Teton_ComputeUnit.png', 'Teton Edge Unit', 'One per resident room'],
-                ] as const
-              ).map(([k, src, name, desc]) => (
-                <figure key={k} className="bc-hw-card">
-                  <div className="bc-hw-img">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={name} />
-                  </div>
-                  <figcaption>
-                    <b><T k={`bc.site.hw.${k}`} d={name} /></b>
-                    <span><T k={`bc.site.hw.${k}.desc`} d={desc} /></span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            {hardwareCards}
           </B>
         </Blocks>
       </Page>
@@ -896,6 +905,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   let execPilot: { name: string; beds: number; total: number; months: number } | null = null;
   /** The pilot communities table (beds by care type, pilot per month, pilot cost). Each place has its own id, so columns are removed separately. */
   let pilotCommunityTable: ((id: string, name: string, heading?: React.ReactNode) => React.ReactNode) | null = null;
+  let pilotCostsCard: ((heading?: React.ReactNode) => React.ReactNode) | null = null;
   if (pilotSites.length) {
     const pos = new Set(pilotSites.map((x) => x.i));
     const siteLines = lines.filter((l) => l.communityPosition != null && pos.has(l.communityPosition));
@@ -958,21 +968,13 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             </RTable>
           </div>
     );
-    defs.pilot = (no) => (
-      <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
-        <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
-        <h1 className="bc-h1">
-          <T k="bc.pilot.title" d="{days}-Day Pilot Overview" v={{ ...pvars, days: String(months * 30) }} />
-        </h1>
-        <p className="bc-lede">
-          <T k="bc.pilot.lede" d="Teton will provide a low-risk, {months}-month pilot to prove value & outcomes." v={pvars} />
-        </p>
-        <Blocks page="pilot">
-        <B id="costs" label="Pilot costs">
-        {pilotTotal <= 0 ? (
+    /** The pilot's scope and costs card (also on the Executive Summary, with its label inside and no view switches). */
+    pilotCostsCard = (heading?: React.ReactNode) =>
+      pilotTotal <= 0 ? (
           // A free pilot: what's included, and that nothing is billed. Rows full or compact (hover switch), like the tables.
-          <div className={`bc-card bc-req relative group/tbl ${layout.bcCompact?.pilotfree ? 'bc-req-compact' : ''}`}>
-            {editable && (
+          <div className={`bc-card bc-req relative group/tbl ${!heading && layout.bcCompact?.pilotfree ? 'bc-req-compact' : ''} ${heading ? 'bc-tbl-headed' : ''}`}>
+            {heading && <div className="bc-tbl-head">{heading}</div>}
+            {editable && !heading && (
               <ViewSwitch
                 field="bcCompact.pilotfree"
                 position="absolute right-2 top-1.5"
@@ -1030,9 +1032,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <td>–</td>
               );
             return (
-              <div className="bc-card bc-tbl bc-hrs bc-inv">
+              <div className={`bc-card bc-tbl bc-hrs bc-inv ${heading ? 'bc-tbl-headed' : ''}`}>
+                {heading && <div className="bc-tbl-head">{heading}</div>}
                 <RTable>
-                  <RTbody id="pilotinv" name="The pilot">
+                  <RTbody id={heading ? 'expilotinv' : 'pilotinv'} name={heading ? 'Executive summary · pilot scope' : 'The pilot'}>
                     <tr className="bc-inv-scope">
                       <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
                       <td colSpan={4}><ScopePills ecall={pilotEcall} monitoring={pilotSites.some((x) => monitors(x.dc))} /></td>
@@ -1071,7 +1074,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <td className="bc-hl bc-big">
                         {/* Per month by default; a hover switch shows the total over the pilot instead. */}
                         <div className="relative group/view">
-                          {editable && (
+                          {editable && !heading && (
                             <ViewSwitch
                 field="bcPilotFees"
                               position="absolute right-0 bottom-full mb-1"
@@ -1104,7 +1107,19 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               </div>
             );
           })()
-        )}
+        );
+    defs.pilot = (no) => (
+      <Page key="pilot" no={no} crumb={<T k="bc.pilot.crumb" d="The pilot" />}>
+        <p className="bc-eyebrow"><T k="bc.pilot.eyebrow" d="The pilot" /></p>
+        <h1 className="bc-h1">
+          <T k="bc.pilot.title" d="{days}-Day Pilot Overview" v={{ ...pvars, days: String(months * 30) }} />
+        </h1>
+        <p className="bc-lede">
+          <T k="bc.pilot.lede" d="Teton will provide a low-risk, {months}-month pilot to prove value & outcomes." v={pvars} />
+        </p>
+        <Blocks page="pilot">
+        <B id="costs" label="Pilot costs">
+        {pilotCostsCard!()}
         </B>
         <B id="communities" label="Pilot communities" onAdd={addCommunity?.(true)} addLabel="Add a pilot community">
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
@@ -2595,6 +2610,21 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const firstSentence = (t: string) => (t.match(/^.*?[.;](?=\s|$)/)?.[0] ?? t).trim();
     const termsText = resolveTerms(draft, 'terms').map((t) => firstSentence(renderText(t.template, t.vars))).filter(Boolean);
     const nextText = resolveTerms(draft, 'nextSteps').map((t) => renderText(t.template, t.vars).trim()).filter(Boolean);
+    // Post-pilot unit costs (the investment card's other view): the same unit prices as the investment page's cards.
+    const execUnits = layout.bcExecInv === 'units';
+    const unit = (() => {
+      if (capexShown) {
+        const base = grossBaseRows(capex);
+        const sensor = grossSensorRow(capex);
+        const baseRange = { minPer: Math.min(...base.map((r) => r.minPer), Infinity), maxPer: Math.max(...base.map((r) => r.maxPer), 0) };
+        return {
+          install: base.length ? perUnitText(baseRange, (n) => usd(n)) : usd(capex.pricing.basePrice),
+          sensor: sensor ? perUnitText(sensor, (n) => usd(n)) : usd(capex.pricing.sensorPrice),
+          monthly: money(capex.pricing.softwareRate),
+        };
+      }
+      return { install: money(draft.commercial.installRate), sensor: money(draft.commercial.sensorPrice), monthly: perBedMonthly };
+    })();
     defs.execsum = (no) => (
       <Page key="execsum" no={no} crumb={<T k="bc.exec.crumb" d="Executive summary" />}>
         <p className="bc-eyebrow"><T k="bc.exec.eyebrow" d="Executive summary" /></p>
@@ -2611,6 +2641,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               </div>
             </B>
             <B id="scope" label="Scope" {...card('scope')}>
+              {/* Widened (⇔), it becomes the pilot page's scope table. */}
+              {wide.has('scope') && pilotCostsCard ? (
+                pilotCostsCard(head('bc.exec.scope', 'Scope', 'pilot'))
+              ) : (
               <div className="bc-card bc-exec-card">
                 {head('bc.exec.scope', 'Scope', 'sitescope')}
                 <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(units), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
@@ -2621,7 +2655,23 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <div><b>{nComm}</b><span>{nComm === 1 ? 'community' : 'communities'}</span></div>
                 </div>
               </div>
+              )}
             </B>
+            {layout.bcExecHardware && (
+              // Off by default (added from Removed); full width by default (its ⇔ makes it one column).
+              <B
+                id="hardware"
+                label="What gets installed"
+                wide={!wide.has('hardware')}
+                onWide={editable ? toggleWide('hardware') : undefined}
+                onRemove={() => setLayout((l) => ({ ...l, bcExecHardware: undefined, bcExecWide: l.bcExecWide?.filter((x) => x !== 'hardware') }))}
+              >
+                <div className="bc-card bc-exec-card">
+                  {head('bc.exec.hw', 'What gets installed', 'sitescope')}
+                  {hardwareCards}
+                </div>
+              </B>
+            )}
             {execPilot && (
               <B id="pilot" label="The pilot" {...card('pilot')}>
                 <div className="bc-card bc-exec-card">
@@ -2643,7 +2693,35 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 {pilotCommunityTable('expilot', 'Executive summary · pilot communities', head('bc.exec.sites', pilotSites.length === 1 ? 'The pilot community' : 'Pilot communities', 'pilot'))}
               </B>
             )}
-            <B id="investment" label="The investment" {...card('investment')}>
+            <B
+              id="investment"
+              label="The investment"
+              {...card('investment')}
+              view={
+                <ViewSwitch
+                  field="bcExecInv"
+                  position="relative mx-0.5"
+                  hover="!opacity-100"
+                  label="Investment shown as"
+                  options={[['lines', 'Detail'], ['units', 'Unit costs']] as const}
+                  value={execUnits ? 'units' : 'lines'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcExecInv: v === 'units' ? 'units' : undefined }))}
+                />
+              }
+            >
+              {execUnits ? (
+              <div className="bc-card bc-exec-card bc-exec-tbl">
+                {head('bc.exec.inv.units', 'Post-Pilot', 'scope')}
+                <RTable>
+                  <RTbody id="exunit" name="Executive summary · post-pilot">
+                    {row(<T k="bc.exec.unit.install" d="Installation" />, <T k="bc.exec.unit.install.v" d="{price} per bed, one-time" v={{ price: unit.install }} />)}
+                    {row(<T k="bc.exec.unit.sensors" d="Additional Sensors" />, <T k="bc.exec.unit.sensors.v" d="{price} per bed, one-time" v={{ price: unit.sensor }} />)}
+                    {row(<T k="bc.exec.unit.monthly" d="Monthly Subscription" />, <T k="bc.exec.unit.monthly.v" d="{price} per bed, per month" v={{ price: unit.monthly }} />)}
+                    {row(<T k="bc.exec.unit.volume" d="Volume Pricing" />, <T k="bc.exec.unit.volume.v" d="Available" />)}
+                  </RTbody>
+                </RTable>
+              </div>
+              ) : (
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.inv', 'The investment', 'scope')}
                 <RTable>
@@ -2670,10 +2748,32 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <p className="bc-exec-foot"><T k="bc.exec.conversionNote" d="*Includes a {credit} conversion credit per pilot bed and sensor." v={{ credit: usd(conversionCreditOf(capex)) }} /></p>
                 )}
               </div>
+              )}
             </B>
             <B id="returns" label="What the program returns" {...card('returns')}>
               <div className="bc-card bc-exec-card bc-exec-tbl">
                 {head('bc.exec.roi', 'What the program returns', 'roi')}
+                {wide.has('returns') ? (
+                  // Widened: each source's wording from the returns page in place of the bar; its Total column can be removed.
+                  <RTable>
+                    <thead>
+                      <tr>
+                        <th>Source of value</th>
+                        <th>What it means each year</th>
+                        <th className="bc-r">Total</th>
+                      </tr>
+                    </thead>
+                    <RTbody id="exroiw" name="Executive summary · sources of value">
+                      {benefitRows.map((b) => (
+                        <tr key={b.key}>
+                          <td className="bc-exec-src"><T k={`bc.${b.key}.label`} d={b.label} /></td>
+                          <td className="bc-exec-means"><T k={`bc.${b.key}.means`} d={b.means} v={b.v} /></td>
+                          <td className="bc-r">{usd(b.value, { compact: true })}</td>
+                        </tr>
+                      ))}
+                    </RTbody>
+                  </RTable>
+                ) : (
                 <div className="bc-exec-bars">
                   {benefitRows.map((b) => (
                     <div key={b.key}>
@@ -2683,6 +2783,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     </div>
                   ))}
                 </div>
+                )}
                 <RTable>
                   <RTbody id="exroi" name="Executive summary">
                     {row('Gross annual benefit', usd(gross), 'bc-exec-tot')}
