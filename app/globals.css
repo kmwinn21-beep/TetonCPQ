@@ -799,3 +799,8 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-tbl-headed { margin-top: 0; }
 .bc-tbl-head { padding: 12px 16px 0; }
 .bc-tbl-head .bc-exec-lbl { margin-bottom: 0; }
+/* Executive summary (two columns): a card's controls sit across its top edge (left of the page number) instead of in
+   the left margin, where they covered the card beside it; its comment pin moves to the top-left corner. */
+.bc-exec-grid .bc-block-controls { left: auto; right: 48px; top: -15px; flex-direction: row; z-index: 6; }
+.bc-exec-grid .bc-pin-block { right: auto; left: -8px; top: -10px; }
+.bc-exec-grid .bc-block:has(> .bc-block-controls):hover { outline-offset: 3px; }

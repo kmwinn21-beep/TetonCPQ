@@ -8,7 +8,7 @@
 import { SegGroup } from '@/components/form/SegGroup';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PagePlanner } from './PagePlanner';
 import { dateLabel } from '@/lib/format';
 import { useProposalText } from './EditableText';
@@ -58,7 +58,14 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   const [open, setOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
   // Phones: the bar's buttons are folded away until opened.
+  // Expanded to start on desktop, collapsed on phones (set before the first paint, without animating).
   const [barOpen, setBarOpen] = useState(false);
+  const [barReady, setBarReady] = useState(false);
+  useLayoutEffect(() => {
+    if (window.matchMedia('(min-width: 640px)').matches) setBarOpen(true);
+    const t = requestAnimationFrame(() => setBarReady(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
   const [to, setTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,22 +158,22 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
     <div ref={rootRef} className="no-print sticky top-0 z-30">
     <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
       <div className="max-w-[8.5in] xl:max-w-[1120px] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2">
-        {/* Phones: this line folds the buttons away (collapsed to start); desktop always shows them. */}
-        <button type="button" className="flex min-w-0 flex-1 sm:flex-none items-center gap-2 text-left text-sm text-sidebar-font/70 sm:pointer-events-none" aria-expanded={barOpen} aria-controls="proposal-bar-tools" onClick={() => setBarOpen((o) => !o)}>
+        {/* This line folds the buttons away: expanded to start on desktop, collapsed on phones. */}
+        <button type="button" className="flex min-w-0 flex-1 sm:flex-none items-center gap-2 text-left text-sm text-sidebar-font/70 hover:text-sidebar-font" aria-expanded={barOpen} aria-controls="proposal-bar-tools" onClick={() => setBarOpen((o) => !o)}>
           <span className="min-w-0 truncate sm:whitespace-normal">
             Proposal v{versionNo}
             {status === 'sent' && sentAt ? ` · last sent ${dateLabel(sentAt)} to ${sentTo}${sentBy ? ` by ${sentBy}` : ''}` : ' · not sent yet'}
           </span>
-          {text.state !== 'saved' && <span className="sm:hidden text-[11px] text-sidebar-font/60">· {text.state === 'saving' ? 'Saving…' : 'Not saved'}</span>}
-          <svg className={`sm:hidden ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-300 motion-reduce:transition-none ${barOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          {text.state !== 'saved' && !barOpen && <span className="text-[11px] text-sidebar-font/60">· {text.state === 'saving' ? 'Saving…' : 'Not saved'}</span>}
+          <svg className={`ml-auto sm:ml-1 w-4 h-4 flex-shrink-0 transition-transform duration-300 motion-reduce:transition-none ${barOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </button>
         <div
           id="proposal-bar-tools"
-          className={`w-full grid transition-[grid-template-rows,opacity,visibility] duration-300 ease-out motion-reduce:transition-none sm:contents ${barOpen || open ? 'grid-rows-[1fr] opacity-100' : 'max-sm:grid-rows-[0fr] max-sm:opacity-0 max-sm:invisible max-sm:-mt-2'}`}
+          className={`w-full grid ${barReady ? 'transition-[grid-template-rows,opacity,visibility] duration-300 ease-out motion-reduce:transition-none' : ''} ${barOpen || open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible -mt-2'}`}
         >
-        <div className="min-h-0 overflow-hidden sm:contents">
-        <div className="space-y-2 sm:contents">
-        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
+        <div className="min-h-0 overflow-hidden">
+        <div className="space-y-2">
+        <div className="w-full flex flex-wrap items-center gap-2">
           {open ? (
             <>
               <input autoFocus={canAutoFocus()} className="input-field flex-1 min-w-0 sm:flex-none sm:w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />

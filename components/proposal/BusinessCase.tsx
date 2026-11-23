@@ -161,7 +161,9 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
     <>
       {order.map((id, i) => {
         const c = byId.get(id)!;
-        const gap = gaps[id] ?? 0;
+        // The Executive summary is a grid with even gaps: no extra space control there.
+        const grid = page === 'execsum';
+        const gap = grid ? 0 : gaps[id] ?? 0;
         return (
           <div
             key={id}
@@ -169,7 +171,7 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
             data-bc-block={id}
             style={gap ? { paddingTop: gap } : undefined}
           >
-            {editable && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
+            {editable && !grid && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
             {slot && <CommentPin page={slot.id} block={id} kind="block" />}
             {!editable && comments.enabled && slot && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -370,7 +372,8 @@ function CompactRowsButton({ className }: { className: string }) {
       type="button"
       hidden={!ids.length}
       aria-pressed={on}
-      className={`${className} ${on ? 'bg-white/20' : ''}`}
+      // ("hidden" alone loses to the button's display class.)
+      className={`${className} ${on ? 'bg-white/20' : ''} ${ids.length ? '' : '!hidden'}`}
       title={on ? 'Full rows' : 'Compact rows'}
       aria-label={on ? 'Show full table rows' : 'Show compact table rows'}
       onClick={() =>
