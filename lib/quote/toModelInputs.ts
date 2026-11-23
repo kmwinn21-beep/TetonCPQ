@@ -21,29 +21,27 @@ export function monthLabel(startDate: string, index: number): string {
 
 /**
  * Per-bed rates for a community's beds with the given products (default: the products all its priced beds
- * share; where they differ by care type, these are the monitored beds' rates without E-Call, and
- * communityExtras() bills the E-Call).
+ * share). E-Call is not in them: it is billed per device (communityExtras).
  */
 export function communityRates(d: QuoteDraft, c: DraftCommunity, products?: BedProducts): CommunityRates {
   const k = d.commercial;
   const mult = c.coverage === 'full_facility' ? k.fullFacilityMultiplier : 1;
   const p = products ?? scopeOf(c, k.ecall !== 'none').uniform ?? { monitoring: true, ecall: false };
-  const ecall = d.commercial.ecall !== 'none' && p.ecall;
-  // E-Call only (no resident monitoring): the E-Call fees, and its own installation price.
+  // E-Call only (no resident monitoring): no per-bed fees (E-Call is billed per device), and its own installation price.
   if (!p.monitoring) {
     const install = Number(k.ecallInstallRate) || 0;
     return {
-      pilotFeePerBedMonth: ecall ? k.ecallPilotRate : 0,
-      postPilotFeePerBedMonth: ecall ? k.ecallRate : 0,
+      pilotFeePerBedMonth: 0,
+      postPilotFeePerBedMonth: 0,
       specialFeePerBedMonth: null,
       pilotInstallPerBed: install * (1 - k.installCreditPct),
       postPilotInstallPerBed: install,
     };
   }
   return {
-    pilotFeePerBedMonth: k.pilotRate * mult + (ecall ? k.ecallPilotRate : 0),
-    postPilotFeePerBedMonth: k.platformRate * mult + (ecall ? k.ecallRate : 0),
-    specialFeePerBedMonth: k.specialRate != null && k.specialTermMonths > 0 ? k.specialRate * mult + (ecall ? k.ecallRate : 0) : null,
+    pilotFeePerBedMonth: k.pilotRate * mult,
+    postPilotFeePerBedMonth: k.platformRate * mult,
+    specialFeePerBedMonth: k.specialRate != null && k.specialTermMonths > 0 ? k.specialRate * mult : null,
     // Install credits apply to pilot communities (the workbook's pilot install discount).
     pilotInstallPerBed: k.installRate * mult * (1 - k.installCreditPct),
     postPilotInstallPerBed: k.installRate * mult,
@@ -80,12 +78,11 @@ export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtr
   const k = d.commercial;
   const s = scopeOf(c, k.ecall !== 'none');
   const out: CommunityExtra[] = [];
-  // Common areas with pull-cords: each billed per area, per month, at the E-Call rates (any community with E-Call).
-  const areas = pendantScope(c, k.ecall !== 'none').areas;
-  if (areas > 0) out.push({ units: areas, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
+  // E-Call: billed per device per month (pendants / pull-cords in rooms and common areas, before the contingency).
+  const devices = pendantScope(c, k.ecall !== 'none').plan;
+  if (devices > 0) out.push({ units: devices, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
   if (s.uniform) return out;
   const install = Number(k.ecallInstallRate) || 0;
-  if (s.ecall > 0) out.push({ units: s.ecall, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
   if (s.ecallOnly > 0) out.push({ units: s.ecallOnly, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: install * (1 - k.installCreditPct), postPilotInstallPerBed: install } });
   return out;
 }

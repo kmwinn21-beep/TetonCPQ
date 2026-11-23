@@ -24,9 +24,11 @@ describe('E-Call-only communities (no resident monitoring)', () => {
     const d = deal();
     d.commercial.ecallInstallRate = 25;
     const r = communityRates(d, d.communities[1]);
-    expect(r.postPilotFeePerBedMonth).toBe(10);
+    // No per-bed fee: E-Call is billed per device (here one per bed, 50 devices × $10).
+    expect(r.postPilotFeePerBedMonth).toBe(0);
     expect(r.postPilotInstallPerBed).toBe(25);
-    expect(communityRates(d, d.communities[0]).postPilotFeePerBedMonth).toBe(d.commercial.platformRate + 10);
+    expect(toModelInputs(d).communities[1].extras).toEqual([{ units: 50, rates: expect.objectContaining({ postPilotFeePerBedMonth: 10 }) }]);
+    expect(communityRates(d, d.communities[0]).postPilotFeePerBedMonth).toBe(d.commercial.platformRate);
   });
 
   it('have no subscription or sensor lines, and E-Call installation defaults to $0', () => {

@@ -31,11 +31,14 @@ describe('toModelInputs', () => {
     expect(m.communities[2].goLiveMonth).toBe(6); // 2027-06 counted from the new start
   });
 
-  it('per-community rates: platform × coverage + e-call', () => {
+  it('per-community rates: platform × coverage; E-Call billed per device on top', () => {
     const m = toModelInputs(draft());
     const [pilot, full, noEcall] = m.communities.map((c) => c.rates!);
-    expect(pilot).toMatchObject({ pilotFeePerBedMonth: 75, postPilotFeePerBedMonth: 109, pilotInstallPerBed: 400, postPilotInstallPerBed: 400 });
-    expect(full.postPilotFeePerBedMonth).toBeCloseTo(99 * 1.3 + 10, 10);
+    expect(pilot).toMatchObject({ pilotFeePerBedMonth: 75, postPilotFeePerBedMonth: 99, pilotInstallPerBed: 400, postPilotInstallPerBed: 400 });
+    expect(full.postPilotFeePerBedMonth).toBeCloseTo(99 * 1.3, 10);
+    // E-Call: devices × the E-Call rate (one device per E-Call bed without room types).
+    expect(m.communities[0].extras?.[0]).toMatchObject({ units: m.communities[0].units, rates: { postPilotFeePerBedMonth: 10 } });
+    expect(m.communities[2].extras).toBeUndefined();
     expect(full.postPilotInstallPerBed).toBeCloseTo(520, 10);
     expect(noEcall.postPilotFeePerBedMonth).toBe(99);
   });

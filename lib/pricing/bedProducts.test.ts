@@ -43,7 +43,8 @@ describe('products per care type', () => {
     expect(s).toMatchObject({ beds: 70, priced: 50, unpriced: 20, monitored: 50, ecall: 50, uniform: { monitoring: true, ecall: true } });
     const inputs = toModelInputs(deal([c]));
     expect(inputs.communities[0].units).toBe(50);
-    expect(inputs.communities[0].extras).toBeUndefined();
+    // E-Call is billed per device: one per E-Call bed here (no room types), at the E-Call rate.
+    expect(inputs.communities[0].extras).toEqual([{ units: 50, rates: expect.objectContaining({ postPilotFeePerBedMonth: 10 }) }]);
   });
 
   it('communities saved before per-care-type products keep pricing every bed', () => {

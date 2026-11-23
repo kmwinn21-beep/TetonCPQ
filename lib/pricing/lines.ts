@@ -46,9 +46,9 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
     // beds, E-Call goes on its own beds, and beds with E-Call only get the E-Call installation price).
     const sc = scopeOf(dc, k.ecall !== 'none');
     const mixed = !sc.uniform;
-    const ecall = k.ecall !== 'none' && (mixed ? sc.ecall > 0 : !!sc.uniform?.ecall);
-    const ecallQty = mixed ? sc.ecall : c.units;
-    const ecallPilotQty = mixed ? sc.ecall : s.pilotUnits;
+    // E-Call: billed per device (pendants / pull-cords in rooms and common areas, before the contingency).
+    const ecallDevices = pendantScope(dc, k.ecall !== 'none').plan;
+    const ecall = ecallDevices > 0;
     const base = { communityPosition: i, communityName: c.name };
     const L = s.firstPostPilotMonth - s.goLiveMonth;
     const special = k.specialRate != null && k.specialTermMonths > 0 ? Math.min(k.specialTermMonths, serviceTermMonths) : 0;
@@ -57,20 +57,14 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
     const mon = mixed || sc.uniform?.monitoring !== false;
     if (s.inPilot) {
       if (mon) lines.push({ ...base, sku: SKU.platform, description: `Teton subscription — pilot${cov}`, qty: s.pilotUnits, unitList: POLICY.standardPilotRate * mult, unitNet: k.pilotRate * mult, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.pilotRate < POLICY.standardPilotRate ? 'PILOT_DISCOUNT' : null });
-      if (ecall) lines.push({ ...base, sku: ecallSku, description: 'E-Call — pilot', qty: ecallPilotQty, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
+      if (ecall) lines.push({ ...base, sku: ecallSku, description: 'E-Call — pilot', qty: ecallDevices, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
     }
     if (mon && special > 0) {
       lines.push({ ...base, sku: SKU.platform, description: `Teton subscription — introductory rate${cov}`, qty: c.units, unitList: listPlatform * mult, unitNet: (k.specialRate as number) * mult, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: special, concessionCode: 'INTRO_RATE' });
     }
     if (mon) lines.push({ ...base, sku: SKU.platform, description: `Teton subscription${cov}`, qty: c.units, unitList: listPlatform * mult, unitNet: k.platformRate * mult, billing: 'monthly', startMonth: s.firstPostPilotMonth + special, termMonths: serviceTermMonths - special, concessionCode: k.platformRate < listPlatform ? 'RATE_DISCOUNT' : null });
     if (ecall) {
-      lines.push({ ...base, sku: ecallSku, description: `E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'})`, qty: ecallQty, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
-    }
-    // Common areas with pull-cords: billed per area, per month, at the E-Call rates (the pilot rate during a pilot).
-    const areas = pendantScope(dc, k.ecall !== 'none').areas;
-    if (areas > 0) {
-      if (s.inPilot) lines.push({ ...base, sku: ecallSku, description: 'E-Call common areas — pilot', qty: areas, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
-      lines.push({ ...base, sku: ecallSku, description: 'E-Call common areas', qty: areas, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
+      lines.push({ ...base, sku: ecallSku, description: `E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'})`, qty: ecallDevices, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
     }
     const ecallInstall = Number(k.ecallInstallRate) || 0;
     const install = (monitoring: boolean, qty: number, pilotQty: number) => {

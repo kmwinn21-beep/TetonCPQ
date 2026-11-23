@@ -975,21 +975,21 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 /* Unit price card values: an optional line under each; a system with nothing here shows a dash at the same height. */
 .bc-cmp-vals small { display: block; font-size: 9.5px; color: #9AA3AE; margin-top: 1px; line-height: 1.3; }
 .bc-cmp-vals .bc-cmp-none b { color: #5E6670; }
-/* Condensed tiles: the figure and its badge on one line, so the dashboard fits under the costs on one sheet. */
-.bc-ecd { padding: 10px; }
-.bc-ecd-kpi { padding: 7px 10px 8px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 2px; }
-.bc-ecd-kpi .bc-ecd-kt { grid-column: 1 / -1; }
-.bc-ecd-ic { width: 18px; height: 18px; border-radius: 5px; }
-.bc-ecd-ic svg { width: 11px; height: 11px; }
-.bc-ecd-kpi > b { font-size: 18px; margin: 0; line-height: 1.2; }
-.bc-ecd-kpi .bc-ecd-chip { justify-self: end; padding: 1px 6px; font-size: 8.5px; white-space: nowrap; }
-.bc-ecd-reasons { margin-top: 6px; padding: 10px 12px; }
-.bc-ecd-reasons > p { margin-bottom: 5px; }
-.bc-ecd-row { padding: 2px 0; }
+/* Compact (default) tiles: the figure and its badge on one line, so the dashboard fits under the costs on one sheet. */
+.bc-ecd:not(.bc-ecd-full) { padding: 10px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-kpi { padding: 7px 10px 8px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 2px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-kpi .bc-ecd-kt { grid-column: 1 / -1; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-ic { width: 18px; height: 18px; border-radius: 5px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-ic svg { width: 11px; height: 11px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-kpi > b { font-size: 18px; margin: 0; line-height: 1.2; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-kpi .bc-ecd-chip { justify-self: end; padding: 1px 6px; font-size: 8.5px; white-space: nowrap; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-reasons { margin-top: 6px; padding: 10px 12px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-reasons > p { margin-bottom: 5px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-row { padding: 2px 0; }
 /* Calls by reason in two columns (top to bottom, then across), so the whole dashboard stays short. */
-.bc-ecd-rows { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); grid-auto-flow: column; column-gap: 28px; }
-.bc-ecd-row { grid-template-columns: 10px 96px minmax(0, 1fr) 48px 28px; }
-@media (max-width: 640px) { .bc-ecd-rows { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; } }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-rows { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); grid-auto-flow: column; column-gap: 28px; }
+.bc-ecd:not(.bc-ecd-full) .bc-ecd-row { grid-template-columns: 10px 96px minmax(0, 1fr) 48px 28px; }
+@media (max-width: 640px) { .bc-ecd:not(.bc-ecd-full) .bc-ecd-rows { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; } }
 /* A little tighter, so unit prices, costs and the call analytics share one sheet. */
 .bc-cmpc-hd { padding: 9px 16px 8px; }
 .bc-cmpc-hero { padding: 9px 16px; }

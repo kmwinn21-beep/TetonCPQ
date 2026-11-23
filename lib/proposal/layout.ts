@@ -99,6 +99,8 @@ export interface ProposalLayout {
   bcCmpCards?: 'extras';
   /** Business case: that dashboard in dark colors (light by default). */
   bcEcDashTheme?: 'dark';
+  /** Business case: that dashboard at its original, taller size (compact by default). */
+  bcEcDashSize?: 'full';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -237,6 +239,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcEcDash: raw.bcEcDash === true ? true : undefined,
     bcCmpCards: raw.bcCmpCards === 'extras' ? 'extras' : undefined,
     bcEcDashTheme: raw.bcEcDashTheme === 'dark' ? 'dark' : undefined,
+    bcEcDashSize: raw.bcEcDashSize === 'full' ? 'full' : undefined,
     bcExecUnitsFor: raw.bcExecUnitsFor === 'rm' || raw.bcExecUnitsFor === 'ecall' || raw.bcExecUnitsFor === 'all' ? raw.bcExecUnitsFor : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,

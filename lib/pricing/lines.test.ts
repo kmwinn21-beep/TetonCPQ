@@ -38,7 +38,7 @@ describe('price lines', () => {
     });
   });
 
-  it('bills E-Call common areas per area, per month, and still adds up to the cash flow', () => {
+  it('bills E-Call per device (rooms and common areas, before the contingency) and still adds up to the cash flow', () => {
     const d = draft();
     d.schedule.horizonMonths = 60;
     d.commercial.ecallPilotRate = 3;
@@ -49,11 +49,12 @@ describe('price lines', () => {
     const inputs = toModelInputs(d);
     const r = runModel(inputs);
     const lines = buildPriceLines(d, inputs, book);
-    const areaLines = lines.filter((l) => l.description.startsWith('E-Call common areas'));
-    expect(areaLines.map((l) => [l.communityPosition, l.description, l.qty, l.unitNet])).toEqual([
-      [0, 'E-Call common areas — pilot', 6, 3],
-      [0, 'E-Call common areas', 6, d.commercial.ecallRate],
-      [1, 'E-Call common areas', 2, d.commercial.ecallRate],
+    // One device per E-Call bed (no room types here) plus the common areas' devices: 100 + 6, and 80 + 2 × 2.
+    const ecallLines = lines.filter((l) => l.description.startsWith('E-Call') && l.billing === 'monthly');
+    expect(ecallLines.map((l) => [l.communityPosition, l.description, l.qty, l.unitNet])).toEqual([
+      [0, 'E-Call — pilot', 106, 3],
+      [0, 'E-Call (Bluetooth)', 106, d.commercial.ecallRate],
+      [1, 'E-Call (Bluetooth)', 84, d.commercial.ecallRate],
     ]);
     r.cashFlow.communities.forEach((cc, i) => {
       const monthly = lines.filter((l) => l.communityPosition === i && l.billing === 'monthly').reduce((s, l) => s + lineTotal(l), 0);

@@ -111,7 +111,7 @@ const DASH_REASONS: Array<[string, string, number, number, string]> = [
 ];
 
 /** The E-Call dashboard, recreated with example data (every label and figure can be reworded). */
-function EcallDashboard({ dark }: { dark: boolean }) {
+function EcallDashboard({ dark, full = false }: { dark: boolean; /** The original, taller layout (compact by default). */ full?: boolean }) {
   const tiles: Array<[string, 'alerts' | 'response' | 'resolution' | 'staff', string, string, 'up' | 'ok' | 'n', string]> = [
     ['alerts', 'alerts', 'Total alerts', '319', 'up', '↗ +8% vs last week'],
     ['response', 'response', 'Avg response time', '0:48', 'ok', '↘ 12s faster'],
@@ -120,7 +120,7 @@ function EcallDashboard({ dark }: { dark: boolean }) {
   ];
   const max = Math.max(...DASH_REASONS.map((r) => r[2]));
   return (
-    <div className={`bc-ecd ${dark ? 'bc-ecd-dark' : ''}`}>
+    <div className={`bc-ecd ${dark ? 'bc-ecd-dark' : ''} ${full ? 'bc-ecd-full' : ''}`}>
       <div className="bc-ecd-kpis">
         {tiles.map(([k, icon, label, value, tone, chip]) => (
           <div key={k} className="bc-ecd-kpi">
@@ -1709,8 +1709,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const removeCmpRow = (k: string, label: string) => setLayout((l) => ({ ...l, hiddenRows: { ...(l.hiddenRows ?? {}), [`cmpcost.${k}`]: `${label} · Costs, both systems` } }));
     const cardsView = layout.bcCompareCosts !== 'table';
     const ecMonthlyLines = lines.filter((l) => isEcLine(l) && !isPilotish(l));
-    const cmpBeds = sum(ecMonthlyLines.filter((l) => !l.description.includes('common areas')).map((l) => l.qty));
-    const cmpAreas = sum(ecMonthlyLines.filter((l) => l.description.includes('common areas')).map((l) => l.qty));
+    void ecMonthlyLines;
+    // The wording keeps beds and common areas; the fee is per device (devices × rate).
+    const cmpBeds = sum(pendBy.map((x) => x.rooms));
+    const cmpAreas = sum(pendBy.map((x) => x.areas));
     const cmpInstallQty = sum(lines.filter((l) => l.billing === 'one_time' && l.unitNet > 0).map((l) => l.qty));
     const sysHead = (sys: 'ble' | 'inov') => (
       <span className={`bc-sys bc-sys-${sys}`}><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></span>
@@ -1721,17 +1723,27 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         <B id="ecdash" label="E-Call dashboard" onRemove={() => setLayout((l) => ({ ...l, bcEcDash: undefined }))}>
           <div className="relative group/view">
             {editable && (
-              <ViewSwitch
-                field="bcEcDashTheme"
-                position="absolute right-0 -top-1"
-                label="Dashboard colors"
-                options={[['light', 'Light'], ['dark', 'Dark']] as const}
-                value={layout.bcEcDashTheme === 'dark' ? 'dark' : 'light'}
-                onChange={(v) => setLayout((l) => ({ ...l, bcEcDashTheme: v === 'dark' ? 'dark' : undefined }))}
-              />
+              <div className="absolute right-0 -top-1 z-[5] flex gap-1.5">
+                <ViewSwitch
+                  field="bcEcDashSize"
+                  position="relative"
+                  label="Dashboard size"
+                  options={[['compact', 'Compact'], ['full', 'Full size']] as const}
+                  value={layout.bcEcDashSize === 'full' ? 'full' : 'compact'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcEcDashSize: v === 'full' ? 'full' : undefined }))}
+                />
+                <ViewSwitch
+                  field="bcEcDashTheme"
+                  position="relative"
+                  label="Dashboard colors"
+                  options={[['light', 'Light'], ['dark', 'Dark']] as const}
+                  value={layout.bcEcDashTheme === 'dark' ? 'dark' : 'light'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcEcDashTheme: v === 'dark' ? 'dark' : undefined }))}
+                />
+              </div>
             )}
             <p className="bc-eyebrow bc-gray"><T k="bc.ecdash.eyebrow" d="Trustworthy, powerful call analytics" /></p>
-            <EcallDashboard dark={layout.bcEcDashTheme === 'dark'} />
+            <EcallDashboard dark={layout.bcEcDashTheme === 'dark'} full={layout.bcEcDashSize === 'full'} />
           </div>
         </B>
       ) : null;
