@@ -6,7 +6,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/session';
 
-const PUBLIC = ['/login', '/setup', '/api/auth/login', '/api/auth/setup'];
+// The web app manifest is fetched by the phone without a session.
+const PUBLIC = ['/login', '/setup', '/api/auth/login', '/api/auth/setup', '/manifest.webmanifest'];
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

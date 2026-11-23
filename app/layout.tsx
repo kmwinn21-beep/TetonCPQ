@@ -6,6 +6,8 @@ import { getSessionUser } from '@/lib/auth/server';
 export const metadata: Metadata = {
   title: 'Teton Proposal Generator',
   description: 'Deal assumptions, ROI model, pricing guardrails and proposals for Teton sales.',
+  // Saved to a phone's Home Screen it runs as one app across every page (see app/manifest.ts).
+  appleWebApp: { capable: true, title: 'Proposals', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {
