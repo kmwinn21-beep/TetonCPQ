@@ -4,6 +4,7 @@
  * The proposal screen: toolbar, Removed panel and the document, rendered from
  * the saved version or, while a rep is changing inputs, from a preview of it.
  */
+import { isEcallOnlyDeal } from '@/lib/quote/draft';
 import type { PriceLine } from '@/lib/pricing/lines';
 import type { Product } from '@/lib/pricing/catalog';
 import type { QuoteDraft } from '@/lib/quote/draft';
@@ -63,12 +64,13 @@ export function ProposalView(p: {
             newerVersions={p.newerVersions}
             banner={banner}
             bothPricing={data.draft.presentation === 'both'}
+            ecallOnly={isEcallOnlyDeal(data.draft)}
           />
           <div className="proposal-doc relative max-w-[8.5in] mx-auto">
             {/* Removed sections and figures, to add back: beside the page on wide screens, above it otherwise. */}
             <div className="no-print hidden sm:block px-4 pt-4 2xl:p-0 2xl:absolute 2xl:right-full 2xl:top-6 2xl:mr-6 2xl:w-56 2xl:h-full">
               <div className="2xl:sticky 2xl:top-[calc(var(--proposal-chrome-h,96px)+16px)] 2xl:max-h-[calc(100vh-var(--proposal-chrome-h,96px)-32px)] 2xl:overflow-y-auto">
-                <RemovedPanel bothPricing={data.draft.presentation === 'both'} />
+                <RemovedPanel bothPricing={data.draft.presentation === 'both'} ecallOnly={isEcallOnlyDeal(data.draft)} />
               </div>
             </div>
             <DocumentInFormat draft={data.draft} outputs={data.outputs} lines={data.lines} versionNo={p.versionNo} savedAt={p.savedAt} />

@@ -90,6 +90,66 @@ function Stat({ value, children, ck }: { value: React.ReactNode; children: React
   );
 }
 
+/** Icons for the E-Call dashboard tiles (drawn, so they print sharp). */
+const DashIcon = ({ name }: { name: 'alerts' | 'response' | 'resolution' | 'staff' }) => (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {name === 'alerts' && <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12" />}
+    {name === 'response' && <path d="M13 2 4 14h7l-1 8 9-12h-7z" />}
+    {name === 'resolution' && <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2M9 2h6" /></>}
+    {name === 'staff' && <><rect x="3" y="7" width="18" height="13" rx="2" /><circle cx="12" cy="13" r="2.5" /><path d="M9 7V4h6v3" /></>}
+  </svg>
+);
+
+const DASH_REASONS: Array<[string, string, number, number, string]> = [
+  ['hygiene', 'Hygiene', 82, 25, '#4E9BFF'],
+  ['transfer', 'Transfer / Mobility', 66, 20, '#FF8A1F'],
+  ['convenience', 'Convenience', 51, 15, '#F5B70A'],
+  ['medication', 'Medication', 44, 13, '#B46BF2'],
+  ['social', 'Social', 42, 12, '#22C766'],
+  ['emergency', 'Emergency', 34, 10, '#F25F5F'],
+  ['unknown', 'Unknown', 17, 5, '#9AA0A8'],
+];
+
+/** The E-Call dashboard, recreated with example data (every label and figure can be reworded). */
+function EcallDashboard({ dark }: { dark: boolean }) {
+  const tiles: Array<[string, 'alerts' | 'response' | 'resolution' | 'staff', string, string, 'up' | 'ok' | 'n', string]> = [
+    ['alerts', 'alerts', 'Total alerts', '319', 'up', '↗ +8% vs last week'],
+    ['response', 'response', 'Avg response time', '0:48', 'ok', '↘ 12s faster'],
+    ['resolution', 'resolution', 'Avg resolution time', '3:12', 'ok', '↘ 14s faster'],
+    ['staff', 'staff', 'Staff logged in', '14 / 18', 'n', '9 claiming alerts'],
+  ];
+  const max = Math.max(...DASH_REASONS.map((r) => r[2]));
+  return (
+    <div className={`bc-ecd ${dark ? 'bc-ecd-dark' : ''}`}>
+      <div className="bc-ecd-kpis">
+        {tiles.map(([k, icon, label, value, tone, chip]) => (
+          <div key={k} className="bc-ecd-kpi">
+            <div className="bc-ecd-kt">
+              <T k={`bc.ecdash.${k}`} d={label} />
+              <span className="bc-ecd-ic"><DashIcon name={icon} /></span>
+            </div>
+            <b><T k={`bc.ecdash.${k}.v`} d={value} /></b>
+            <span className={`bc-ecd-chip bc-ecd-${tone}`}><T k={`bc.ecdash.${k}.chip`} d={chip} /></span>
+          </div>
+        ))}
+      </div>
+      <div className="bc-ecd-reasons">
+        <h5><T k="bc.ecdash.reasons" d="Calls by reason" /></h5>
+        <p><T k="bc.ecdash.reasons.sub" d="336 calls · what residents called about" /></p>
+        {DASH_REASONS.map(([k, label, calls, pct, color]) => (
+          <div key={k} className="bc-ecd-row">
+            <span className="bc-ecd-dot" style={{ background: color }} />
+            <span><T k={`bc.ecdash.r.${k}`} d={label} /></span>
+            <span className="bc-ecd-bar"><i style={{ width: `${(calls / max) * 100}%`, background: color }} /></span>
+            <span className="bc-ecd-calls"><T k={`bc.ecdash.r.${k}.calls`} d={`${calls} calls`} /></span>
+            <span className="bc-ecd-pct"><T k={`bc.ecdash.r.${k}.pct`} d={`${pct}%`} /></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** A movable section of a business-case page (rendered by Blocks, in the page's saved order). */
 interface BProps {
   id: string;
@@ -1652,6 +1712,26 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const sysHead = (sys: 'ble' | 'inov') => (
       <span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span>
     );
+    // E-Call only: an example of the E-Call dashboard (off by default; added from Removed). Light or dark.
+    const ecDashBlock = () =>
+      scopeMode === 'ecall' && layout.bcEcDash ? (
+        <B id="ecdash" label="E-Call dashboard" onRemove={() => setLayout((l) => ({ ...l, bcEcDash: undefined }))}>
+          <div className="relative group/view">
+            {editable && (
+              <ViewSwitch
+                field="bcEcDashTheme"
+                position="absolute right-0 -top-1"
+                label="Dashboard colors"
+                options={[['light', 'Light'], ['dark', 'Dark']] as const}
+                value={layout.bcEcDashTheme === 'dark' ? 'dark' : 'light'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcEcDashTheme: v === 'dark' ? 'dark' : undefined }))}
+              />
+            )}
+            <p className="bc-eyebrow bc-gray"><T k="bc.ecdash.eyebrow" d="Trustworthy, powerful call analytics" /></p>
+            <EcallDashboard dark={layout.bcEcDashTheme === 'dark'} />
+          </div>
+        </B>
+      ) : null;
     const compareBlocks = () => (
       <Blocks page="scope-compare">
         <B id="overview" label="Unit prices">
@@ -1849,6 +1929,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             </table>
           </div>
         </B>
+        {ecDashBlock()}
       </Blocks>
     );
     defs.scope = (no) => (
@@ -2036,6 +2117,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` },
               )}
             </B>
+            {ecDashBlock()}
           </Blocks>
         ) : compareOn ? (
           compareBlocks()
@@ -2187,6 +2269,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 { main: `${usd(d.serviceMonthly)} / mo`, sub: `(${usd(d.oneTime)} one-time)` },
               )}
             </B>
+            {ecDashBlock()}
           </Blocks>
         )}
       </Page>

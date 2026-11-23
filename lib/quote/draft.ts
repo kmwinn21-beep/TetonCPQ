@@ -350,6 +350,10 @@ export const monitors = (c: CommunityLike) => {
   return s.beds > 0 ? s.monitored > 0 : !!s.uniform?.monitoring;
 };
 
+/** A deal with E-Call and no Resident Monitoring anywhere (the business case then shows E-Call only). */
+export const isEcallOnlyDeal = (d: Pick<QuoteDraft, 'commercial' | 'communities'>) =>
+  d.commercial.ecall !== 'none' && d.communities.length > 0 && !d.communities.some((c) => monitors(c)) && d.communities.some((c) => hasEcall(c));
+
 /** Whether a community has E-Call on any of its beds (ignores whether the deal offers E-Call). */
 export const hasEcall = (c: CommunityLike) => {
   const s = scopeOf(c);

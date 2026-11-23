@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { BcTemplate } from '@/lib/data/bcTemplates';
-import type { QuoteDraft } from '@/lib/quote/draft';
+import { isEcallOnlyDeal, type QuoteDraft } from '@/lib/quote/draft';
 import type { StoredOutputs } from '@/lib/quote/outputs';
 import type { PriceLine } from '@/lib/pricing/lines';
 import { DEFAULT_LAYOUT, type ProposalLayout } from '@/lib/proposal/layout';
@@ -85,7 +85,7 @@ function Editor({ template, deals, preview }: { template: BcTemplate; deals: Arr
       <div className="grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
         {/* Left: pages and sections that were removed, to add back. */}
         <aside className="hidden xl:block border-r border-teton-off-white bg-white p-3 xl:sticky xl:top-[33px] xl:self-start xl:max-h-[calc(100dvh-33px)] xl:overflow-y-auto">
-          {template.canEdit ? <RemovedPanel /> : <p className="text-xs text-teton-ui-gray">This template is private to {template.owner.name}. Duplicate it from the Templates page to make your own.</p>}
+          {template.canEdit ? <RemovedPanel ecallOnly={isEcallOnlyDeal(preview.draft)} /> : <p className="text-xs text-teton-ui-gray">This template is private to {template.owner.name}. Duplicate it from the Templates page to make your own.</p>}
           <p className="mt-3 text-[11px] text-teton-ui-gray">Hover a page for move / remove, or between pages to add one.</p>
         </aside>
         <div className="proposal-page min-w-0 bg-teton-almost-white py-4">

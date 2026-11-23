@@ -794,7 +794,7 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* ------------------------------------------------------------------ */
 
 /** `bothPricing`: the proposal shows both pricing options, so the comparison's optional rows can be added from here. */
-export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { bothPricing?: boolean; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
+export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = false, onCount }: { bothPricing?: boolean; /** An E-Call-only deal (its optional sections can be added). */ ecallOnly?: boolean; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   // The tables on the page now (checked after each render).
@@ -859,6 +859,7 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
     ? [
         ...(bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcFourYears: true as const }) }] : []),
         ...(!layout.bcExecHardware ? [{ key: 'execHardware', label: 'What gets installed · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const }) }] : []),
+        ...(ecallOnly && !layout.bcEcDash ? [{ key: 'ecDash', label: 'E-Call dashboard · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcEcDash: true as const }) }] : []),
         ...(layout.bcExecNoPageRefs ? [{ key: 'execPageRefs', label: 'Page numbers · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined }) }] : []),
       ]
     : [];
@@ -1017,7 +1018,7 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
  * Phones: a Removed button for the toolbar; it opens a sheet from the bottom with everything removed from the
  * proposal, to add back (the side panel is hidden on phones).
  */
-export function RemovedSheetButton({ bothPricing = false }: { bothPricing?: boolean }) {
+export function RemovedSheetButton({ bothPricing = false, ecallOnly = false }: { bothPricing?: boolean; ecallOnly?: boolean }) {
   const { editable } = useProposalText();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -1041,7 +1042,7 @@ export function RemovedSheetButton({ bothPricing = false }: { bothPricing?: bool
       {/* Counts what's removed even while closed (renders nothing visible). */}
       {!open && (
         <div className="hidden" aria-hidden="true">
-          <RemovedPanel bothPricing={bothPricing} bare onCount={(n) => n !== count && setCount(n)} />
+          <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} bare onCount={(n) => n !== count && setCount(n)} />
         </div>
       )}
       <button type="button" className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
@@ -1062,7 +1063,7 @@ export function RemovedSheetButton({ bothPricing = false }: { bothPricing?: bool
               <button type="button" className="ml-auto w-8 h-8 rounded-md text-teton-ui-gray hover:bg-teton-almost-white" aria-label="Close" onClick={close}>✕</button>
             </div>
             <div className="overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <RemovedPanel bothPricing={bothPricing} bare onCount={(n) => n !== count && setCount(n)} />
+              <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} bare onCount={(n) => n !== count && setCount(n)} />
             </div>
           </div>
         </div>

@@ -93,6 +93,10 @@ export interface ProposalLayout {
   bcExecNoPageRefs?: true;
   /** Business case, E-Call only comparison: the costs as one card per system (default) or one table. */
   bcCompareCosts?: 'table';
+  /** Business case, E-Call only: the example E-Call dashboard added to the investment page (off by default). */
+  bcEcDash?: true;
+  /** Business case: that dashboard in dark colors (light by default). */
+  bcEcDashTheme?: 'dark';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -228,6 +232,8 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecSystem: raw.bcExecSystem === 'app' ? 'app' : undefined,
     bcExecNoPageRefs: raw.bcExecNoPageRefs === true ? true : undefined,
     bcCompareCosts: raw.bcCompareCosts === 'table' ? 'table' : undefined,
+    bcEcDash: raw.bcEcDash === true ? true : undefined,
+    bcEcDashTheme: raw.bcEcDashTheme === 'dark' ? 'dark' : undefined,
     bcExecUnitsFor: raw.bcExecUnitsFor === 'rm' || raw.bcExecUnitsFor === 'ecall' || raw.bcExecUnitsFor === 'all' ? raw.bcExecUnitsFor : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,

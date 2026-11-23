@@ -948,3 +948,26 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-cmpc-ctl button { width: 22px; height: 22px; border-radius: 6px; }
 .bc-cmpc-ctl button:hover { background: rgba(255,255,255,.15); }
 @media (max-width: 640px) { .bc-cmpc-pair { grid-template-columns: 1fr; } }
+
+/* The example E-Call dashboard (investment page, E-Call only): light by default, dark like the app. */
+.bc-ecd { --ecd-bg: #fff; --ecd-tile: #FAF8F4; --ecd-line: var(--bc-line); --ecd-ink: var(--bc-ink); --ecd-muted: var(--bc-muted); --ecd-track: #ECE7DE; background: var(--ecd-bg); border: 1px solid var(--ecd-line); border-radius: 14px; padding: 12px; color: var(--ecd-ink); break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.bc-ecd.bc-ecd-dark { --ecd-bg: #141519; --ecd-tile: #1E1F24; --ecd-line: #2A2C33; --ecd-ink: #F2F3F5; --ecd-muted: #9AA0A8; --ecd-track: #0E0F12; }
+.bc-ecd-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.bc-ecd-kpi, .bc-ecd-reasons { background: var(--ecd-tile); border: 1px solid var(--ecd-line); border-radius: 10px; }
+.bc-ecd-kpi { padding: 10px 12px; }
+.bc-ecd-kt { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 10px; color: var(--ecd-muted); }
+.bc-ecd-ic { width: 22px; height: 22px; flex-shrink: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: var(--ecd-bg); border: 1px solid var(--ecd-line); color: var(--ecd-ink); }
+.bc-ecd-kpi > b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 6px 0; color: var(--ecd-ink); }
+.bc-ecd-chip { display: inline-block; border-radius: 99px; padding: 2px 8px; font-size: 9px; font-weight: 600; }
+.bc-ecd-up { background: #E5EEFC; color: #1F5FB5; } .bc-ecd-ok { background: #E3F3EA; color: #2E7D52; } .bc-ecd-n { background: #F1EEE8; color: #6B6358; }
+.bc-ecd-dark .bc-ecd-up { background: rgba(80, 140, 255, .18); color: #6FA3FF; } .bc-ecd-dark .bc-ecd-ok { background: rgba(40, 200, 110, .16); color: #2FCB78; } .bc-ecd-dark .bc-ecd-n { background: rgba(255, 255, 255, .08); color: #B5BAC2; }
+.bc-ecd-reasons { margin-top: 8px; padding: 12px 14px; }
+.bc-ecd-reasons h5 { margin: 0; font-size: 12px; font-weight: 700; color: var(--ecd-ink); }
+.bc-ecd-reasons > p { margin: 2px 0 8px; font-size: 9.5px; color: var(--ecd-muted); }
+.bc-ecd-row { display: grid; grid-template-columns: 10px 112px minmax(0, 1fr) 56px 32px; align-items: center; gap: 8px; font-size: 10.5px; padding: 3px 0; }
+.bc-ecd-dot { width: 10px; height: 10px; border-radius: 3px; }
+.bc-ecd-bar { height: 6px; border-radius: 9px; background: var(--ecd-track); overflow: hidden; }
+.bc-ecd-bar i { display: block; height: 100%; border-radius: 9px; }
+.bc-ecd-calls { text-align: right; font-size: 9.5px; color: var(--ecd-muted); }
+.bc-ecd-pct { text-align: right; font-weight: 700; }
+@media (max-width: 640px) { .bc-ecd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bc-ecd-row { grid-template-columns: 10px 90px minmax(0, 1fr) 30px; } .bc-ecd-calls { display: none; } }
