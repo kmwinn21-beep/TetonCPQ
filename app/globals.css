@@ -793,7 +793,10 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-hw3-img.bc-hw3-contain img { object-fit: contain; transform: none; }
 /* E-Call only: the device card (image, kind, name, bullets) and the E-Call App beside it. With the app, the bullets
    spread down the card's height; without it, the card fits its text. */
-.bc-ec { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 12px; align-items: stretch; }
+.bc-ec { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+/* On the scope page the device sits on a white card (the Executive summary shows it without one). */
+.bc-ec-page .bc-ecdev { background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; }
+.bc-ec-page .bc-ecdev figcaption { padding-left: 16px; }
 .bc-ec.bc-ec-solo { grid-template-columns: minmax(0, 1fr); }
 .bc-ecdev { margin: 0; background: transparent; border: 0; border-radius: 0; overflow: hidden; display: grid; grid-template-columns: 1fr 44%; break-inside: avoid; }
 .bc-ec-solo .bc-ecdev { grid-template-columns: 1fr 34%; }

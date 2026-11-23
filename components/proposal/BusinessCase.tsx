@@ -867,19 +867,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     // E-Call only: the device with its bullets, and the E-Call App beside it (removable; then the card fits its text).
     const app = where === 'page' && ecallAppShown;
     return (
-      <div className={`bc-ec bc-hwset ${app ? '' : 'bc-ec-solo'}`}>
-        {/* Bullets on the left, the device on the right. */}
-        <figure className={`bc-ecdev ${app ? 'bc-ecdev-fill' : ''}`}>
-          <figcaption>
-            <span className="bc-ecdev-kind"><T k={`bc.site.hw.${devCard.k}.kind`} d={devCard.kind} /></span>
-            <b><T k={`bc.site.hw.${devCard.k}`} d={devCard.name} /></b>
-            {devBullets}
-          </figcaption>
-          <div className="bc-ecdev-img">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={devCard.src} alt={devCard.name} />
-          </div>
-        </figure>
+      <div className={`bc-ec bc-hwset ${where === 'page' ? 'bc-ec-page' : ''} ${app ? '' : 'bc-ec-solo'}`}>
+        {/* The E-Call App on the left, then the device card (bullets, picture). */}
         {app && (
           <div className="bc-ecapp group/app relative">
             {editable && (
@@ -899,6 +888,18 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             <img src="/E-Call_App.png" alt="Teton E-Call App" />
           </div>
         )}
+        {/* Bullets on the left, the device on the right. */}
+        <figure className={`bc-ecdev ${app ? 'bc-ecdev-fill' : ''}`}>
+          <figcaption>
+            <span className="bc-ecdev-kind"><T k={`bc.site.hw.${devCard.k}.kind`} d={devCard.kind} /></span>
+            <b><T k={`bc.site.hw.${devCard.k}`} d={devCard.name} /></b>
+            {devBullets}
+          </figcaption>
+          <div className="bc-ecdev-img">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={devCard.src} alt={devCard.name} />
+          </div>
+        </figure>
       </div>
     );
   };
