@@ -45,10 +45,14 @@ describe('E-Call-only communities (no resident monitoring)', () => {
     expect(a.communities[0].annualRoi).toBeGreaterThan(0);
   });
 
-  it('buy E-Call units at $480 a bed on an equipment purchase, with no sensors or software', () => {
+  it('buy E-Call at the pricing workbook rates on an equipment purchase: per bed by system, then E-Call software', () => {
     const c = computeCapex(deal());
-    expect(c.communities[1]).toMatchObject({ basePackages: 50 * 480, sensors: 0, softwareMonthly: 0, monitoring: false });
-    expect(c.softwareMonthly).toBe(100 * c.pricing.softwareRate);
-    expect(grossBaseRows(c).find((r) => r.key === 'ecallonly')?.total).toBe(24000);
+    // Bluetooth: $165 a bed installed, then $5 a bed a month; no sensors or Teton software.
+    expect(c.communities[1]).toMatchObject({ basePackages: 50 * 165, sensors: 0, softwareMonthly: 50 * 5, monitoring: false });
+    expect(c.softwareMonthly).toBe(100 * c.pricing.softwareRate + 50 * 5);
+    expect(grossBaseRows(c).find((r) => r.key === 'ecallonly')?.total).toBe(50 * 165);
+    const d = deal();
+    d.commercial.ecall = 'inovonics';
+    expect(computeCapex(d).communities[1]).toMatchObject({ basePackages: 50 * 480, softwareMonthly: 50 * 5 });
   });
 });

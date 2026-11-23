@@ -136,6 +136,7 @@ function EcallDashboard({ dark }: { dark: boolean }) {
       <div className="bc-ecd-reasons">
         <h5><T k="bc.ecdash.reasons" d="Calls by reason" /></h5>
         <p><T k="bc.ecdash.reasons.sub" d="336 calls · what residents called about" /></p>
+        <div className="bc-ecd-rows">
         {DASH_REASONS.map(([k, label, calls, pct, color]) => (
           <div key={k} className="bc-ecd-row">
             <span className="bc-ecd-dot" style={{ background: color }} />
@@ -145,6 +146,7 @@ function EcallDashboard({ dark }: { dark: boolean }) {
             <span className="bc-ecd-pct"><T k={`bc.ecdash.r.${k}.pct`} d={`${pct}%`} /></span>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -1733,28 +1735,51 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           </div>
         </B>
       ) : null;
+    // The unit price cards, or (switch) the extras: extra or replacement devices and buying E-Call instead (shown only).
+    type CmpCard = readonly [string, string, (sys: 'ble' | 'inov') => { value: string; sub?: string; none?: boolean }, string];
+    const extrasView = layout.bcCmpCards === 'extras';
+    const devs = draft.commercial.ecallDevices ?? { bleButton: 100, inoPendant: 160, inoPullcord: 150 };
+    const unitCards: CmpCard[] = [
+      ['recurring', 'Recurring costs', (sys) => ({ value: money(rateFor(sys)) }), 'per bed · per month, and per common area'],
+      ['install', 'Installation', () => ({ value: money(Number(draft.commercial.ecallInstallRate) || 0) }), 'per bed · one-time'],
+      ['devices', 'Additional devices', () => ({ value: money(draft.commercial.ecallDevicePrice ?? 75) }), 'per device · one-time'],
+    ];
+    const ecSoftware = money(capex.pricing.ecallSoftware ?? 5);
+    const extraCards: CmpCard[] = [
+      ['button', 'Wearable button / pendant', (sys) => (sys === 'ble' ? { value: money(devs.bleButton), sub: 'wearable or wall button' } : { value: money(devs.inoPendant), sub: 'pendant' }), 'each · one-time · extra or replacement'],
+      ['pullcord', 'Wall pull-cord station', (sys) => (sys === 'ble' ? { value: '—', sub: 'wall button covers it', none: true } : { value: money(devs.inoPullcord), sub: 'pull-cord station' }), 'each · one-time · extra or replacement'],
+      ['buy', 'Buy instead (per bed)', (sys) => ({ value: money((sys === 'ble' ? capex.pricing.ecallInstallBle : capex.pricing.ecallInstallInovonics) ?? (sys === 'ble' ? 165 : 480)), sub: `+ ${ecSoftware} / bed / mo` }), 'equipment purchase · upfront, then software and services'],
+    ];
     const compareBlocks = () => (
       <Blocks page="scope-compare">
         <B id="overview" label="Unit prices">
           <div className="relative group/view">
-            <p className="bc-eyebrow bc-gray"><T k="bc.scope.unitPrices" d="Unit prices" /></p>
+            {editable && (
+              <ViewSwitch
+                field="bcCmpCards"
+                position="absolute right-0 -top-1"
+                label="Unit price cards"
+                options={[['units', 'Unit prices'], ['extras', 'Extras']] as const}
+                value={extrasView ? 'extras' : 'units'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcCmpCards: v === 'extras' ? 'extras' : undefined }))}
+              />
+            )}
+            <p className="bc-eyebrow bc-gray">{extrasView ? <T k="bc.cmp.extras" d="Extras and options" /> : <T k="bc.scope.unitPrices" d="Unit prices" />}</p>
             <div className="bc-cmp-cards">
-              {(
-                [
-                  ['recurring', 'Recurring costs', (s: 'ble' | 'inov') => money(rateFor(s)), 'per bed · per month, and per common area'],
-                  ['install', 'Installation', () => money(Number(draft.commercial.ecallInstallRate) || 0), 'per bed · one-time'],
-                  ['devices', 'Additional devices', () => money(draft.commercial.ecallDevicePrice ?? 75), 'per device · one-time'],
-                ] as const
-              ).map(([k, name, val, freq]) => (
+              {(extrasView ? extraCards : unitCards).map(([k, name, val, freq]) => (
                 <div className="bc-dark bc-cmp-card" key={k}>
                   <span className="bc-unit-k"><T k={`bc.cmp.unit.${k}`} d={name} /></span>
                   <div className={`bc-cmp-vals ${cmpShown.length === 1 ? 'bc-cmp-one' : ''}`}>
-                    {cmpShown.map((sys) => (
-                      <div key={sys} className={`bc-cmp-v-${sys}`}>
-                        <i><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></i>
-                        <b><CallOut k={`cmp.unit.${k}.${sys}`}>{val(sys)}</CallOut></b>
-                      </div>
-                    ))}
+                    {cmpShown.map((sys) => {
+                      const v = val(sys);
+                      return (
+                        <div key={sys} className={`bc-cmp-v-${sys} ${v.none ? 'bc-cmp-none' : ''}`}>
+                          <i><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></i>
+                          <b><CallOut k={`cmp.unit.${k}.${sys}`}>{v.value}</CallOut></b>
+                          {v.sub != null && <small><T k={`bc.cmp.unit.${k}.${sys}.sub`} d={v.sub} /></small>}
+                        </div>
+                      );
+                    })}
                   </div>
                   <span className="bc-unit-f"><T k={`bc.cmp.unit.${k}.freq`} d={freq} /></span>
                 </div>

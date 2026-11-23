@@ -35,9 +35,9 @@ export interface CapexPricing {
   inovonicsRenewal: number;
   /** Per bed and per additional sensor, off the price at pilot communities (0 or blank = none). Not in the price book. */
   conversionCredit?: number | null;
-  /** Per bed at E-Call-only communities (no resident monitoring): 48 months of E-Call paid up front. */
+  /** @deprecated Replaced by ecallInstallBle / ecallInstallInovonics (+ ecallSoftware monthly). Kept for older saved deals. */
   ecallOnlyPrice?: number;
-  /** E-Call only unit costs (shown on the business case): installation per bed, each device, software per bed per month. */
+  /** Buying E-Call (beds with E-Call only): per bed installed by system, then software per bed per month. Device: each, shown only. */
   ecallInstallBle?: number;
   ecallInstallInovonics?: number;
   ecallDevice?: number;
@@ -57,8 +57,8 @@ export function capexPricingFrom(list: (sku: string) => number | undefined): Cap
     softwareRate: get(SKU.capexSoftware, 10),
     bleRenewal: get(SKU.capexBleRenewal, 480),
     inovonicsRenewal: get(SKU.capexInovonicsRenewal, 400),
-    ecallInstallBle: get(SKU.capexEcallInstallBle, 115),
-    ecallInstallInovonics: get(SKU.capexEcallInstallInovonics, 170),
+    ecallInstallBle: get(SKU.capexEcallInstallBle, 165),
+    ecallInstallInovonics: get(SKU.capexEcallInstallInovonics, 480),
     ecallDevice: get(SKU.capexEcallDevice, 150),
     ecallSoftware: get(SKU.capexEcallSoftware, 5),
   };
@@ -160,7 +160,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
     pkg(option, sc.monitoredEcall);
     pkg('none', sc.monitored - sc.monitoredEcall);
     if (sc.ecallOnly > 0) {
-      const per = Math.max(0, Number(pricing.ecallOnlyPrice ?? 480));
+      const per = Math.max(0, Number((option === 'inovonics' ? pricing.ecallInstallInovonics : pricing.ecallInstallBle) ?? (option === 'inovonics' ? 480 : 165)));
       parts.push({ monitoring: false, ecall: option, beds: sc.ecallOnly, perBed: per, listPerBed: per, credit: 0, total: sc.ecallOnly * per, renewals: 0 });
     }
     const monitored = sc.monitored > 0 || (sc.priced === 0 && sc.uniform?.monitoring !== false);
@@ -186,7 +186,8 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       credit: monitored ? credit : 0,
       sensorCost: sensors * sensorPrice,
       equipment: basePackages + sensors * sensorPrice,
-      softwareMonthly: sc.monitored * pricing.softwareRate,
+      // Software: monitored beds at the software rate; E-Call-only beds at the E-Call software rate.
+      softwareMonthly: sc.monitored * pricing.softwareRate + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftware ?? 5)),
       renewals: parts.reduce((s, p) => s + p.renewals, 0),
       ...(monitored ? {} : { monitoring: false }),
       parts,

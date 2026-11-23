@@ -95,6 +95,8 @@ export interface ProposalLayout {
   bcCompareCosts?: 'table';
   /** Business case, E-Call only: the example E-Call dashboard added to the investment page (off by default). */
   bcEcDash?: true;
+  /** Business case, E-Call comparison: the unit price cards show the extras (devices, buying instead). */
+  bcCmpCards?: 'extras';
   /** Business case: that dashboard in dark colors (light by default). */
   bcEcDashTheme?: 'dark';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
@@ -233,6 +235,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecNoPageRefs: raw.bcExecNoPageRefs === true ? true : undefined,
     bcCompareCosts: raw.bcCompareCosts === 'table' ? 'table' : undefined,
     bcEcDash: raw.bcEcDash === true ? true : undefined,
+    bcCmpCards: raw.bcCmpCards === 'extras' ? 'extras' : undefined,
     bcEcDashTheme: raw.bcEcDashTheme === 'dark' ? 'dark' : undefined,
     bcExecUnitsFor: raw.bcExecUnitsFor === 'rm' || raw.bcExecUnitsFor === 'ecall' || raw.bcExecUnitsFor === 'all' ? raw.bcExecUnitsFor : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,

@@ -81,6 +81,8 @@ export interface Commercial {
   ecallInstallRate?: number;
   /** Each E-Call device (pendant / pull-cord), one-time (subscription; from the price book). */
   ecallDevicePrice?: number;
+  /** Extra or replacement E-Call devices, each (from the price book; shown as prices only). */
+  ecallDevices?: { bleButton: number; inoPendant: number; inoPullcord: number };
   /** E-Call-only deals: the business case compares Bluetooth and Inovonics (the chosen system still prices the deal). */
   ecallCompare?: boolean;
   /** The other system's E-Call rate per bed per month, for the comparison (blank = its list price). */
@@ -211,6 +213,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
       ecallDevicePrice: book[SKU.ecallDevice]?.list ?? 75,
+      ecallDevices: { bleButton: book[SKU.ecallBleButton]?.list ?? 100, inoPendant: book[SKU.ecallInoPendant]?.list ?? 160, inoPullcord: book[SKU.ecallInoPullcord]?.list ?? 150 },
       capex: capexPricingFrom((sku) => book[sku]?.list),
       finish: finishFrom((sku) => book[sku]?.list),
     },
@@ -239,7 +242,13 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
 /** Drafts from before equipment-purchase pricing had a capex discount rate instead: drop it, add the list prices. */
 function normalizeCommercial(c: Commercial): Commercial {
   const { capexDiscountRate: _old, ...rest } = c as Commercial & { capexDiscountRate?: number };
-  return { ...rest, capex: { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) }, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallDevicePrice: typeof rest.ecallDevicePrice === 'number' ? rest.ecallDevicePrice : SEED_PRODUCTS.find((p) => p.sku === SKU.ecallDevice)?.list ?? 75 };
+  const seedList = (sku: string, fb: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fb;
+  const capex = { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) };
+  // The first E-Call purchase figures ($115 / $170) gave way to the pricing workbook's ($165 / $480).
+  if (capex.ecallInstallBle === 115) capex.ecallInstallBle = seedList(SKU.capexEcallInstallBle, 165);
+  if (capex.ecallInstallInovonics === 170) capex.ecallInstallInovonics = seedList(SKU.capexEcallInstallInovonics, 480);
+  const devices = rest.ecallDevices ?? { bleButton: seedList(SKU.ecallBleButton, 100), inoPendant: seedList(SKU.ecallInoPendant, 160), inoPullcord: seedList(SKU.ecallInoPullcord, 150) };
+  return { ...rest, ecallDevices: devices, capex, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallDevicePrice: typeof rest.ecallDevicePrice === 'number' ? rest.ecallDevicePrice : SEED_PRODUCTS.find((p) => p.sku === SKU.ecallDevice)?.list ?? 75 };
 }
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */

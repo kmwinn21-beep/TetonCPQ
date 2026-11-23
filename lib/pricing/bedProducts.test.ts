@@ -97,16 +97,17 @@ describe('products per care type', () => {
     expect(r.annual.target.communities[0].annualRoi).toBeCloseTo(onlyMonitored.annual.target.communities[0].annualRoi, 6);
   });
 
-  it('equipment purchase: base packages with and without E-Call, E-Call only units, software on monitored beds', () => {
+  it('equipment purchase: base packages with and without E-Call, E-Call only units, software', () => {
     const c = computeCapex(deal([mixed()]));
     const p = c.pricing;
     expect(c.communities[0].parts?.map((x) => [x.monitoring, x.ecall, x.beds, x.perBed])).toEqual([
       [true, 'ble', 80, p.bleBasePrice],
       [true, 'none', 30, p.basePrice],
-      [false, 'ble', 27, 480],
+      [false, 'ble', 27, 165],
     ]);
-    expect(c.basePackages).toBe(80 * p.bleBasePrice + 30 * p.basePrice + 27 * 480);
-    expect(c.softwareMonthly).toBe(110 * p.softwareRate);
+    expect(c.basePackages).toBe(80 * p.bleBasePrice + 30 * p.basePrice + 27 * 165);
+    // Software: monitored beds at the software rate, E-Call-only beds at the E-Call software rate.
+    expect(c.softwareMonthly).toBe(110 * p.softwareRate + 27 * 5);
     expect(grossBaseRows(c).map((r) => [r.key, r.units])).toEqual([
       ['ble', 80],
       ['none', 30],

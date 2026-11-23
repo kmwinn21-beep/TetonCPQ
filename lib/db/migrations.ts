@@ -426,4 +426,13 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 18,
+    name: 'E-Call purchase prices from the pricing workbook',
+    sql: [
+      // Buying E-Call: $165 (Bluetooth) and $480 (Inovonics) per bed, where the price book still has the first figures.
+      `UPDATE products SET list_price = 165 WHERE sku = 'CAPEX-ECALL-INSTALL-BLE' AND list_price = 115`,
+      `UPDATE products SET list_price = 480 WHERE sku = 'CAPEX-ECALL-INSTALL-INOVONICS' AND list_price = 170`,
+    ],
+  },
 ];
