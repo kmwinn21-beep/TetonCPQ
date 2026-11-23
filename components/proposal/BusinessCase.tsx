@@ -150,6 +150,21 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
   const remove = (id: string, label: string) =>
     setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), [page]: { ...(l.bcHiddenBlocks?.[page] ?? {}), [id]: label } } }));
   const btn = 'w-6 h-6 flex items-center justify-center rounded-md text-[12px] hover:bg-white/15 disabled:opacity-30';
+  // Drag and drop (the Executive summary's grid): drag a card by its ⠿ handle onto another card's left / right half
+  // (top / bottom half of a full-width card). A widened card dropped beside a one-column card goes back to one column.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [over, setOver] = useState<{ id: string; side: 'before' | 'after'; beside: boolean } | null>(null);
+  const dropAt = (from: string, to: string, side: 'before' | 'after') => {
+    if (from === to) return;
+    const next = order.filter((x) => x !== from);
+    const at = next.indexOf(to) + (side === 'after' ? 1 : 0);
+    next.splice(at, 0, from);
+    setLayout((l) => ({ ...l, bcBlocks: { ...(l.bcBlocks ?? {}), [page]: next } }));
+    const a = byId.get(from)?.props;
+    const b = byId.get(to)?.props;
+    // Beside a one-column card: a wide card can't sit next to it, so it goes to one column.
+    if (a?.wide && b && !b.wide && a.onWide) a.onWide();
+  };
   const gaps = layout.bcGaps?.[page] ?? {};
   const setGap = (id: string, px: number) =>
     setLayout((l) => {
@@ -171,9 +186,31 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
         return (
           <div
             key={id}
-            className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''} transition-[padding] duration-200 motion-reduce:transition-none`}
+            className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''} ${dragId === id ? 'bc-dragging' : ''} ${over?.id === id ? `bc-drop-${over.beside ? (over.side === 'before' ? 'left' : 'right') : over.side === 'before' ? 'top' : 'bottom'}` : ''} transition-[padding] duration-200 motion-reduce:transition-none`}
             data-bc-block={id}
             style={gap ? { paddingTop: gap } : undefined}
+            {...(grid && editable
+              ? {
+                  onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+                    if (!dragId || dragId === id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const beside = !c.props.wide;
+                    const side = beside ? (e.clientX < r.left + r.width / 2 ? 'before' : 'after') : e.clientY < r.top + r.height / 2 ? 'before' : 'after';
+                    setOver((o) => (o?.id === id && o.side === side && o.beside === beside ? o : { id, side, beside }));
+                  },
+                  onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver((o) => (o?.id === id ? null : o));
+                  },
+                  onDrop: (e: React.DragEvent<HTMLDivElement>) => {
+                    e.preventDefault();
+                    if (dragId && over?.id === id) dropAt(dragId, id, over.side);
+                    setDragId(null);
+                    setOver(null);
+                  },
+                }
+              : {})}
           >
             {editable && !grid && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
             {slot && <CommentPin page={slot.id} block={id} kind="block" />}
@@ -184,6 +221,28 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
             )}
             {editable && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
+                {grid && (
+                  <button
+                    type="button"
+                    draggable
+                    className={`${btn} cursor-grab active:cursor-grabbing`}
+                    title={`Drag ${c.props.label} to another place on the page`}
+                    aria-label={`Drag ${c.props.label}`}
+                    onDragStart={(e) => {
+                      const el = e.currentTarget.closest<HTMLElement>('[data-bc-block]');
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', id);
+                      if (el) e.dataTransfer.setDragImage(el, 24, 16);
+                      setDragId(id);
+                    }}
+                    onDragEnd={() => {
+                      setDragId(null);
+                      setOver(null);
+                    }}
+                  >
+                    ⠿
+                  </button>
+                )}
                 {slot && <CommentHere className={btn} target={{ page: slot.id, block: id, label: `${slot.title} · ${c.props.label}` }} />}
                 {c.props.onAdd && (
                   <button type="button" className={`${btn} text-[15px]`} onClick={c.props.onAdd} aria-label={c.props.addLabel ?? 'Add'} title={c.props.addLabel ?? 'Add'}>
@@ -593,7 +652,26 @@ function PageRef({ page }: { page: string }) {
     mo.observe(doc, { subtree: true, childList: true, characterData: true });
     return () => mo.disconnect();
   }, [page]);
-  return <span ref={ref} className="bc-exec-ref">{no ? `p. ${Number(no)}` : ''}</span>;
+  const { editable, layout, setLayout } = useProposalText();
+  // Removing one removes them all (added back from the Removed list).
+  if (layout.bcExecNoPageRefs) return null;
+  return (
+    <span ref={ref} className={`bc-exec-ref ${editable ? 'relative group/ref' : ''}`}>
+      {no ? `p. ${Number(no)}` : ''}
+      {editable && no && (
+        <button
+          type="button"
+          data-edit-ui
+          className="no-print absolute -right-3 -top-2 hidden group-hover/ref:flex items-center justify-center w-3.5 h-3.5 rounded-full bg-teton-near-black text-white shadow"
+          title="Remove the page numbers from every card (you can add them back)"
+          aria-label="Remove page numbers"
+          onClick={() => setLayout((l) => ({ ...l, bcExecNoPageRefs: true }))}
+        >
+          <svg viewBox="0 0 10 10" className="w-2 h-2" aria-hidden="true"><path d="M2 5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+        </button>
+      )}
+    </span>
+  );
 }
 
 interface TocEntry { id: string; title: string; sub: string; pages: string }
@@ -790,16 +868,17 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const app = where === 'page' && ecallAppShown;
     return (
       <div className={`bc-ec bc-hwset ${app ? '' : 'bc-ec-solo'}`}>
+        {/* Bullets on the left, the device on the right. */}
         <figure className={`bc-ecdev ${app ? 'bc-ecdev-fill' : ''}`}>
-          <div className="bc-ecdev-img">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={devCard.src} alt={devCard.name} />
-          </div>
           <figcaption>
             <span className="bc-ecdev-kind"><T k={`bc.site.hw.${devCard.k}.kind`} d={devCard.kind} /></span>
             <b><T k={`bc.site.hw.${devCard.k}`} d={devCard.name} /></b>
             {devBullets}
           </figcaption>
+          <div className="bc-ecdev-img">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={devCard.src} alt={devCard.name} />
+          </div>
         </figure>
         {app && (
           <div className="bc-ecapp group/app relative">
@@ -1159,7 +1238,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     .map((dc, i) => ({ dc, i, row: d.perCommunity[i] }))
     .filter((x) => x.row?.pilot);
   // The pilot in brief, for the Executive Summary.
-  let execPilot: { name: string; beds: number; total: number; months: number } | null = null;
+  let execPilot: { name: string; beds: number; total: number; months: number; install: number; monthly: number } | null = null;
   /** The pilot communities table (beds by care type, pilot per month, pilot cost). Each place has its own id, so columns are removed separately. */
   let pilotCommunityTable: ((id: string, name: string, heading?: React.ReactNode) => React.ReactNode) | null = null;
   let pilotCostsCard: ((heading?: React.ReactNode) => React.ReactNode) | null = null;
@@ -1177,7 +1256,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const months = inputs.schedule.pilotLengthMonths;
     const beds = bedsOf;
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
-    execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months };
+    execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months, install: install + pSen.total, monthly: pilotMonthlyTotal };
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
     pilotCommunityTable = (id: string, name: string, heading?: React.ReactNode) => (
           <div className={`bc-card bc-tbl bc-hrs bc-pilot-tbl ${heading ? 'bc-tbl-headed' : ''}`}>
@@ -2873,6 +2952,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const termsText = resolveTerms(draft, 'terms').map((t) => firstSentence(renderText(t.template, t.vars))).filter(Boolean);
     const nextText = resolveTerms(draft, 'nextSteps').map((t) => renderText(t.template, t.vars).trim()).filter(Boolean);
     const execAreas = sum(pendBy.map((x) => x.areas));
+    const systemImg = !(layout.bcHiddenBlocks?.execsum && 'systemimg' in layout.bcHiddenBlocks.execsum);
     // 'By community' cost: the term total (or equipment, for a purchase), or per bed.
     const perBedOn = layout.bcExecComm === 'perBed';
     const bedsAt = (i: number) => Math.max(1, inputs.communities[i]?.units ?? 0);
@@ -2909,6 +2989,33 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       }
       return { install: money(draft.commercial.installRate), sensor: money(draft.commercial.sensorPrice), monthly: perBedMonthly };
     })();
+    // Which products the unit costs show: Resident Monitoring, E-Call, or both (by default, what the deal has).
+    const unitsFor: 'rm' | 'ecall' | 'all' = !hasEc ? 'rm' : layout.bcExecUnitsFor ?? (scopeMode === 'ecall' ? 'ecall' : scopeMode === 'both' ? 'all' : 'rm');
+    const ecUnit = capexShown
+      ? {
+          install: money((inov ? capex.pricing.ecallInstallInovonics : capex.pricing.ecallInstallBle) ?? (inov ? 170 : 115)),
+          device: money(capex.pricing.ecallDevice ?? 150),
+          monthly: money(capex.pricing.ecallSoftware ?? 5),
+        }
+      : { install: money(Number(draft.commercial.ecallInstallRate) || 0), device: money(draft.commercial.ecallDevicePrice ?? 75), monthly: money(draft.commercial.ecallRate) };
+    const unitRows = () => {
+      const pre = unitsFor === 'all' ? 'E-Call ' : '';
+      const k = unitsFor === 'all' ? 'all' : 'only';
+      const rm = [
+        row(<T k="bc.exec.unit.install" d="Installation" />, <T k="bc.exec.unit.install.v" d="{price} per bed, one-time" v={{ price: unit.install }} />),
+        row(<T k="bc.exec.unit.sensors" d="Additional Sensors" />, <T k="bc.exec.unit.sensors.v" d="{price} per bed, one-time" v={{ price: unit.sensor }} />),
+        row(<T k="bc.exec.unit.monthly" d="Monthly Subscription" />, <T k="bc.exec.unit.monthly.v" d="{price} per bed, per month" v={{ price: unit.monthly }} />),
+      ];
+      const ecInstall = row(<T k={`bc.exec.unit.ec.${k}.install`} d={`${pre}Installation`.replace('E-Call Installation', 'E-Call installation')} />, <T k="bc.exec.unit.ec.install.v" d="{price} per bed, one-time" v={{ price: ecUnit.install }} />);
+      const ecMonthly = row(<T k={`bc.exec.unit.ec.${k}.monthly`} d={unitsFor === 'all' ? 'E-Call subscription' : 'Monthly Subscription'} />, <T k="bc.exec.unit.ec.monthly.v" d="{price} per bed, per month" v={{ price: ecUnit.monthly }} />);
+      const ecDevice = row(<T k={`bc.exec.unit.ec.${k}.device`} d={unitsFor === 'all' ? 'E-Call devices' : 'Per Device'} />, <T k="bc.exec.unit.ec.device.v" d="{price} per device, one-time" v={{ price: ecUnit.device }} />);
+      // Subscription: installation, monthly, then devices. Equipment purchase: installation, devices, then software.
+      const ec: Array<[string, React.ReactNode]> = capexShown ? [['ecinstall', ecInstall], ['ecdevice', ecDevice], ['ecmonthly', ecMonthly]] : [['ecinstall', ecInstall], ['ecmonthly', ecMonthly], ['ecdevice', ecDevice]];
+      const volume = row(<T k="bc.exec.unit.volume" d="Volume Pricing" />, <T k="bc.exec.unit.volume.v" d="Available" />);
+      const rmK: Array<[string, React.ReactNode]> = [['install', rm[0]], ['sensors', rm[1]], ['monthly', rm[2]]];
+      // Keyed by name, so a row removed in one view stays tied to that row.
+      return [...(unitsFor === 'ecall' ? [] : rmK), ...(unitsFor === 'rm' ? [] : ec), ['volume', volume] as [string, React.ReactNode]].map(([key, r]) => <Fragment key={key}>{r}</Fragment>);
+    };
     defs.execsum = (no) => (
       <Page key="execsum" no={no} crumb={<T k="bc.exec.crumb" d="Executive summary" />}>
         <p className="bc-eyebrow"><T k="bc.exec.eyebrow" d="Executive summary" /></p>
@@ -2989,9 +3096,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <h4><T k="bc.exec.pilot.h" d="{days} days at {name}, at {cost}" v={{ days: String(execPilot.months * 30), name: execPilot.name, cost: usd(execPilot.total) }} /></h4>
                   <p><T k="bc.exec.pilot.p" d="{beds} beds go live {goLive}. After the pilot, the service term is {term} months." v={{ beds: count(execPilot.beds), goLive: goLive ?? '', term: String(term) }} /></p>
                   <div className="bc-exec-mini">
-                    <div><b>{usd(execPilot.total)}</b><span>pilot cost</span></div>
-                    {pilots[0] && <div><b>{longDate(pilots[0].goLive).replace(/, \d{4}$/, '')}</b><span>go-live</span></div>}
-                    <div><b>{execPilot.months} mo</b><span>pilot</span></div>
+                    <div><b>{usd(execPilot.install)}</b><span>installation</span></div>
+                    <div><b>{usd(execPilot.monthly)}</b><span>monthly</span></div>
+                    <div><b>{usd(execPilot.total)}</b><span>total cost</span></div>
+                    <div><b>{execPilot.months} mo</b><span>pilot length</span></div>
                   </div>
                 </div>
               </B>
@@ -3022,14 +3130,37 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               >
                 <div className="bc-card bc-exec-card">
                   {head('bc.exec.system', 'The system', 'sitescope')}
-                  {layout.bcExecSystem === 'app' ? (
-                    <div className="bc-exec-app">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/E-Call_App.png" alt="Teton E-Call App" />
+                  {/* Widened: the device's picture beside the content, sized to the card (removable). */}
+                  <div className={wide.has('system') && systemImg ? 'bc-exec-sys' : ''}>
+                    <div className="min-w-0">
+                      {layout.bcExecSystem === 'app' ? (
+                        <div className="bc-exec-app">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src="/E-Call_App.png" alt="Teton E-Call App" />
+                        </div>
+                      ) : (
+                        devBullets
+                      )}
                     </div>
-                  ) : (
-                    devBullets
-                  )}
+                    {wide.has('system') && systemImg && (
+                      <div className="bc-exec-sys-img group/img relative">
+                        {editable && (
+                          <button
+                            type="button"
+                            data-edit-ui
+                            className="no-print absolute -top-2 -right-2 z-[5] w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white text-[11px] shadow opacity-0 group-hover/img:opacity-100 focus:opacity-100 transition-opacity motion-reduce:transition-none"
+                            title="Remove the picture (you can add it back)"
+                            aria-label="Remove the device picture"
+                            onClick={() => setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), execsum: { ...(l.bcHiddenBlocks?.execsum ?? {}), systemimg: `${devCard.kind} picture · The system` } } }))}
+                          >
+                            ✕
+                          </button>
+                        )}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={devCard.src} alt={devCard.name} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </B>
             )}
@@ -3058,15 +3189,29 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               label="The investment"
               {...card('investment')}
               view={
-                <ViewSwitch
-                  field="bcExecInv"
-                  position="relative mx-0.5"
-                  hover="!opacity-100"
-                  label="Investment shown as"
-                  options={[['lines', 'Detail'], ['units', 'Unit costs']] as const}
-                  value={execUnits ? 'units' : 'lines'}
-                  onChange={(v) => setLayout((l) => ({ ...l, bcExecInv: v === 'units' ? 'units' : undefined }))}
-                />
+                <>
+                  <ViewSwitch
+                    field="bcExecInv"
+                    position="relative mx-0.5"
+                    hover="!opacity-100"
+                    label="Investment shown as"
+                    options={[['lines', 'Detail'], ['units', 'Unit costs']] as const}
+                    value={execUnits ? 'units' : 'lines'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcExecInv: v === 'units' ? 'units' : undefined }))}
+                  />
+                  {/* Unit costs on a deal with E-Call: which products they cover. */}
+                  {execUnits && hasEc && (
+                    <ViewSwitch
+                      field="bcExecUnitsFor"
+                      position="relative mx-0.5"
+                      hover="!opacity-100"
+                      label="Unit costs for"
+                      options={[['ecall', 'E-Call only'], ['rm', 'RM only'], ['all', 'All']] as const}
+                      value={unitsFor}
+                      onChange={(v) => setLayout((l) => ({ ...l, bcExecUnitsFor: v }))}
+                    />
+                  )}
+                </>
               }
             >
               {execUnits ? (
@@ -3074,10 +3219,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 {head('bc.exec.inv.units', 'Post-Pilot', 'scope')}
                 <RTable>
                   <RTbody id="exunit" name="Executive summary · post-pilot">
-                    {row(<T k="bc.exec.unit.install" d="Installation" />, <T k="bc.exec.unit.install.v" d="{price} per bed, one-time" v={{ price: unit.install }} />)}
-                    {row(<T k="bc.exec.unit.sensors" d="Additional Sensors" />, <T k="bc.exec.unit.sensors.v" d="{price} per bed, one-time" v={{ price: unit.sensor }} />)}
-                    {row(<T k="bc.exec.unit.monthly" d="Monthly Subscription" />, <T k="bc.exec.unit.monthly.v" d="{price} per bed, per month" v={{ price: unit.monthly }} />)}
-                    {row(<T k="bc.exec.unit.volume" d="Volume Pricing" />, <T k="bc.exec.unit.volume.v" d="Available" />)}
+                    {unitRows()}
                   </RTbody>
                 </RTable>
               </div>

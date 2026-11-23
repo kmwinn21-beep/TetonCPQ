@@ -37,6 +37,11 @@ export interface CapexPricing {
   conversionCredit?: number | null;
   /** Per bed at E-Call-only communities (no resident monitoring): 48 months of E-Call paid up front. */
   ecallOnlyPrice?: number;
+  /** E-Call only unit costs (shown on the business case): installation per bed, each device, software per bed per month. */
+  ecallInstallBle?: number;
+  ecallInstallInovonics?: number;
+  ecallDevice?: number;
+  ecallSoftware?: number;
 }
 
 const seed = (sku: string, fallback: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fallback;
@@ -52,6 +57,10 @@ export function capexPricingFrom(list: (sku: string) => number | undefined): Cap
     softwareRate: get(SKU.capexSoftware, 10),
     bleRenewal: get(SKU.capexBleRenewal, 480),
     inovonicsRenewal: get(SKU.capexInovonicsRenewal, 400),
+    ecallInstallBle: get(SKU.capexEcallInstallBle, 115),
+    ecallInstallInovonics: get(SKU.capexEcallInstallInovonics, 170),
+    ecallDevice: get(SKU.capexEcallDevice, 150),
+    ecallSoftware: get(SKU.capexEcallSoftware, 5),
   };
 }
 export const DEFAULT_CAPEX_PRICING: CapexPricing = { ...capexPricingFrom(() => undefined), ecallOnlyPrice: 480 };

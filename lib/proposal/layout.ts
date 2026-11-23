@@ -87,6 +87,10 @@ export interface ProposalLayout {
   bcExecComm?: 'perBed';
   /** Business case Executive Summary, E-Call only: 'The system' card shows the E-Call App instead of the features. */
   bcExecSystem?: 'app';
+  /** Business case Executive Summary post-pilot unit costs: which products (unset = what the deal has). */
+  bcExecUnitsFor?: 'rm' | 'ecall' | 'all';
+  /** Business case Executive Summary: the page numbers in the cards' corners removed (all of them). */
+  bcExecNoPageRefs?: true;
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -220,6 +224,8 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcHwLayout: raw.bcHwLayout === 'beside' ? 'beside' : undefined,
     bcExecComm: raw.bcExecComm === 'perBed' ? 'perBed' : undefined,
     bcExecSystem: raw.bcExecSystem === 'app' ? 'app' : undefined,
+    bcExecNoPageRefs: raw.bcExecNoPageRefs === true ? true : undefined,
+    bcExecUnitsFor: raw.bcExecUnitsFor === 'rm' || raw.bcExecUnitsFor === 'ecall' || raw.bcExecUnitsFor === 'all' ? raw.bcExecUnitsFor : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,
     bcCompact: (() => {

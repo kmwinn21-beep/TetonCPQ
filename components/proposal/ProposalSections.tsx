@@ -859,6 +859,7 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
     ? [
         ...(bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcFourYears: true as const }) }] : []),
         ...(!layout.bcExecHardware ? [{ key: 'execHardware', label: 'What gets installed · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const }) }] : []),
+        ...(layout.bcExecNoPageRefs ? [{ key: 'execPageRefs', label: 'Page numbers · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined }) }] : []),
       ]
     : [];
   const rows = Object.entries(layout.hiddenRows ?? {});
