@@ -7,7 +7,7 @@ import type { QuoteDraft } from './draft';
 import { normalizeRoomTypes, roomDerived } from './roomTypes';
 
 /** The parts of a community that Scope Mode (and the drawer's room type cards) change. */
-export const SCOPE_FIELDS = ['roomTypes', 'sensorAllowancePct', 'ilBeds', 'alBeds', 'mcBeds', 'snfBeds', 'additionalSensors'] as const;
+export const SCOPE_FIELDS = ['roomTypes', 'sensorAllowancePct', 'commonAreas', 'pendantAllowancePct', 'ilBeds', 'alBeds', 'mcBeds', 'snfBeds', 'additionalSensors'] as const;
 
 export interface CommunityScope {
   id: string;

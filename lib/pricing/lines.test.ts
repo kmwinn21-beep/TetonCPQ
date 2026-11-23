@@ -38,6 +38,30 @@ describe('price lines', () => {
     });
   });
 
+  it('bills E-Call common areas per area, per month, and still adds up to the cash flow', () => {
+    const d = draft();
+    d.schedule.horizonMonths = 60;
+    d.commercial.ecallPilotRate = 3;
+    d.communities[0].commonAreas = [{ id: 'a', name: 'Communal bathroom', kind: 'bathroom', count: 6, pendants: 1 }, { id: 'b', name: 'Dining', kind: 'dining', count: 1, pendants: 0 }];
+    d.communities[1].commonAreas = [{ id: 'c', name: 'Activity', kind: 'activity', count: 2, pendants: 2 }];
+    // No E-Call in this community: its common areas aren't billed.
+    d.communities[2].commonAreas = [{ id: 'd', name: 'Lobby', kind: 'lobby', count: 3, pendants: 1 }];
+    const inputs = toModelInputs(d);
+    const r = runModel(inputs);
+    const lines = buildPriceLines(d, inputs, book);
+    const areaLines = lines.filter((l) => l.description.startsWith('E-Call common areas'));
+    expect(areaLines.map((l) => [l.communityPosition, l.description, l.qty, l.unitNet])).toEqual([
+      [0, 'E-Call common areas — pilot', 6, 3],
+      [0, 'E-Call common areas', 6, d.commercial.ecallRate],
+      [1, 'E-Call common areas', 2, d.commercial.ecallRate],
+    ]);
+    r.cashFlow.communities.forEach((cc, i) => {
+      const monthly = lines.filter((l) => l.communityPosition === i && l.billing === 'monthly').reduce((s, l) => s + lineTotal(l), 0);
+      const billed = cc.fees.slice(cc.goLiveMonth - 1, cc.firstPostPilotMonth - 1 + 36).reduce((s, x) => s + x, 0);
+      expect(monthly, `community ${i}`).toBeCloseTo(billed, 6);
+    });
+  });
+
   it('itemizes pilot, intro rate, e-call, install and the clawback credit', () => {
     const d = draft();
     const lines = buildPriceLines(d, toModelInputs(d), book).filter((l) => l.communityPosition === 0);

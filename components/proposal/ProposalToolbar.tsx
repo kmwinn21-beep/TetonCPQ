@@ -61,6 +61,13 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
   // Expanded to start on desktop, collapsed on phones (set before the first paint, without animating).
   const [barOpen, setBarOpen] = useState(false);
   const [barReady, setBarReady] = useState(false);
+  // Clipped only while folding or folded: once open, menus (e.g. Templates) can hang below the bar.
+  const [barClip, setBarClip] = useState(true);
+  const barShown = barOpen || open;
+  useEffect(() => {
+    if (!barShown) setBarClip(true);
+    else if (!barReady) setBarClip(false);
+  }, [barShown, barReady]);
   useLayoutEffect(() => {
     if (window.matchMedia('(min-width: 640px)').matches) setBarOpen(true);
     const t = requestAnimationFrame(() => setBarReady(true));
@@ -169,9 +176,10 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
         </button>
         <div
           id="proposal-bar-tools"
+          onTransitionEnd={(e) => e.target === e.currentTarget && e.propertyName === 'grid-template-rows' && (barOpen || open) && setBarClip(false)}
           className={`w-full grid ${barReady ? 'transition-[grid-template-rows,opacity,visibility] duration-300 ease-out motion-reduce:transition-none' : ''} ${barOpen || open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible -mt-2'}`}
         >
-        <div className="min-h-0 overflow-hidden">
+        <div className={`min-h-0 ${barClip ? 'overflow-hidden' : ''}`}>
         <div className="space-y-2">
         <div className="w-full flex flex-wrap items-center gap-2">
           {open ? (

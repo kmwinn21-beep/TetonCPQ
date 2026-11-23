@@ -24,7 +24,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeRoomTypes, roomScope } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
 import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
@@ -721,166 +721,411 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   // Pages that print on more than one sheet, and how many (for page numbers).
   const spans: Record<string, number> = {};
 
-  // The hardware, each photo shown whole beside its caption (also an optional Executive Summary card).
-  const hardwareCards = (
-    <div className="bc-hw">
-      {(
-        [
-          ['sensor', '/Teton_Sensor.png', 'Teton Sensor', 'One per room or living area, more where a room needs it'],
-          ['edge', '/Teton_ComputeUnit.png', 'Teton Edge Unit', 'One per resident room'],
-        ] as const
-      ).map(([k, src, name, desc]) => (
-        <figure key={k} className="bc-hw-card">
-          <div className="bc-hw-img">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={name} />
-          </div>
-          <figcaption>
-            <b><T k={`bc.site.hw.${k}`} d={name} /></b>
-            <span><T k={`bc.site.hw.${k}.desc`} d={desc} /></span>
-          </figcaption>
-        </figure>
+  // ---------- E-Call devices: pendants (Bluetooth) or pull-cords (Inovonics), in rooms and in common areas ----------
+  const ecallDeal = draft.commercial.ecall !== 'none';
+  const inov = draft.commercial.ecall === 'inovonics';
+  const DEV = inov ? { many: 'pull-cords', Many: 'Pull-cords', rm: 'Cords/rm' } : { many: 'pendants', Many: 'Pendants', rm: 'Pendants/rm' };
+  const pendBy = draft.communities.map((c) => pendantScope(c, ecallDeal));
+  const devTotal = sum(pendBy.map((p) => p.total));
+  const hasEc = devTotal > 0;
+  const hasMon = draft.communities.some((c) => monitors(c));
+  /** Which products the deal's scope shows: Resident Monitoring, E-Call, or both. */
+  const scopeMode: 'mon' | 'both' | 'ecall' = hasEc ? (hasMon ? 'both' : 'ecall') : 'mon';
+  const devCard = inov
+    ? { k: 'inov', src: '/Inovonics_Pullcord.png', kind: 'Inovonics', name: 'Teton Inovonics pull-cord', short: 'UL Certified · Radio Network · Battery Backup', bullets: ['Own radio network, independent of Wi-Fi', 'Battery backup; UL 2560 certification expected Q1 2027', 'Can take over existing infrastructure in over 70% of senior living communities'] }
+    : { k: 'ble', src: '/Bluetooth_Pendant.png', kind: 'Bluetooth', name: 'Teton Bluetooth pendant', short: 'Bluetooth Gateways · Not UL Certified', bullets: ['Lowest cost', 'Runs on Bluetooth gateways or Teton devices in the room. Not UL 2560 certified'] };
+  const ecallAppShown = !(layout.bcHiddenBlocks?.sitescope && 'ecallapp' in layout.bcHiddenBlocks.sitescope);
+  const devBullets = (
+    <ul className="bc-ecdev-ul">
+      {devCard.bullets.map((b, n) => (
+        <li key={n}><T k={`bc.site.hw.${devCard.k}.b${n + 1}`} d={b} /></li>
       ))}
-    </div>
+    </ul>
   );
 
+  // The hardware, each photo shown whole beside its caption (also an optional Executive Summary card).
+  const hwFigure = (k: string, src: string, name: string, desc: string, contain = false) => (
+    <figure key={k} className="bc-hw-card">
+      <div className={`bc-hw-img ${contain ? 'bc-hw-contain' : ''}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={name} />
+      </div>
+      <figcaption>
+        <b><T k={`bc.site.hw.${k}`} d={name} /></b>
+        <span><T k={`bc.site.hw.${k}.desc`} d={desc} /></span>
+      </figcaption>
+    </figure>
+  );
+  const SENSOR_HW = ['sensor', '/Teton_Sensor.png', 'Teton Sensor', 'One per room or living area, more where a room needs it'] as const;
+  const EDGE_HW = ['edge', '/Teton_ComputeUnit.png', 'Teton Edge Unit', 'One per resident room'] as const;
+  const hardwareCards = (where: 'page' | 'exec' = 'page') => {
+    if (scopeMode === 'mon') return <div className="bc-hw bc-hwset">{[hwFigure(...SENSOR_HW), hwFigure(...EDGE_HW)]}</div>;
+    if (scopeMode === 'both') {
+      // Three in a row: each name and line above its photo (default), or beside it.
+      if (layout.bcHwLayout === 'beside') return <div className="bc-hw bc-hw-3 bc-hwset">{[hwFigure(...SENSOR_HW), hwFigure(...EDGE_HW), hwFigure(devCard.k, devCard.src, devCard.name, devCard.short, true)]}</div>;
+      return (
+        <div className="bc-hw3 bc-hwset">
+          {(
+            [
+              [...SENSOR_HW, false],
+              [...EDGE_HW, false],
+              [devCard.k, devCard.src, devCard.name, devCard.short, true],
+            ] as const
+          ).map(([k, src, name, desc, contain]) => (
+            <figure key={k} className="bc-hw3-card">
+              <figcaption>
+                <b><T k={`bc.site.hw.${k}`} d={name} /></b>
+                <span><T k={`bc.site.hw.${k}.${k === devCard.k ? 'short' : 'desc'}`} d={desc} /></span>
+              </figcaption>
+              <div className={`bc-hw3-img ${contain ? 'bc-hw3-contain' : ''}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={name} />
+              </div>
+            </figure>
+          ))}
+        </div>
+      );
+    }
+    // E-Call only: the device with its bullets, and the E-Call App beside it (removable; then the card fits its text).
+    const app = where === 'page' && ecallAppShown;
+    return (
+      <div className={`bc-ec bc-hwset ${app ? '' : 'bc-ec-solo'}`}>
+        <figure className={`bc-ecdev ${app ? 'bc-ecdev-fill' : ''}`}>
+          <div className="bc-ecdev-img">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={devCard.src} alt={devCard.name} />
+          </div>
+          <figcaption>
+            <span className="bc-ecdev-kind"><T k={`bc.site.hw.${devCard.k}.kind`} d={devCard.kind} /></span>
+            <b><T k={`bc.site.hw.${devCard.k}`} d={devCard.name} /></b>
+            {devBullets}
+          </figcaption>
+        </figure>
+        {app && (
+          <div className="bc-ecapp group/app relative">
+            {editable && (
+              <button
+                type="button"
+                data-edit-ui
+                className="no-print absolute -top-2.5 -right-2.5 z-[5] w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white text-[11px] shadow opacity-0 group-hover/app:opacity-100 focus:opacity-100 transition-opacity motion-reduce:transition-none"
+                title="Remove the E-Call App (you can add it back)"
+                aria-label="Remove Teton E-Call App"
+                onClick={() => setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), sitescope: { ...(l.bcHiddenBlocks?.sitescope ?? {}), ecallapp: 'Teton E-Call App' } } }))}
+              >
+                ✕
+              </button>
+            )}
+            <span className="bc-ecapp-lbl"><T k="bc.site.app" d="Teton E-Call App" /></span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/E-Call_App.png" alt="Teton E-Call App" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ---------- Scope (from the floor plans) ----------
-  // Shown when at least one community has room types.
-  // Only room types whose care type has resident monitoring get Edge units and sensors; those with E-Call only
-  // are listed as such, and room types with no product are left out.
-  const scoped = draft.communities
+  // Shown when at least one community has room types with a product. Resident Monitoring room types get Edge units
+  // and sensors; E-Call room types get pendants / pull-cords (and their community's common areas). E-Call
+  // communities without room types are listed with one pendant per bed.
+  const scopeSites = draft.communities
     .map((c, i) => {
       const all = normalizeRoomTypes(c.roomTypes);
       const p = productsOf(c);
-      const ecallOn = draft.commercial.ecall !== 'none';
-      return { c, i, types: monitoredTypes(all, c), eoTypes: all.filter((t) => !p[bedKeyOf(t)].monitoring && ecallOn && p[bedKeyOf(t)].ecall) };
+      const types = all.filter((t) => p[bedKeyOf(t)].monitoring || (ecallDeal && p[bedKeyOf(t)].ecall));
+      const pend = pendBy[i];
+      return { c, i, p, types, mon: roomScope(monitoredTypes(all, c), normalizeAllowance(c.sensorAllowancePct)), pend, areas: pend.areas ? normalizeCommonAreas(c.commonAreas).filter((a) => a.count > 0 && a.pendants > 0) : [] };
     })
-    .filter((x) => x.types.length);
-  // E-Call-only communities: listed in the table, outside the room, sensor and Edge unit counts.
-  const ecallOnlySites = draft.communities.map((c, i) => ({ c, i })).filter((x) => !monitors(x.c) && scopeOf(x.c).priced > 0);
-  if (scoped.length) {
+    .filter((x) => x.types.length || (x.pend.total > 0 && !normalizeRoomTypes(x.c.roomTypes).length));
+  if (scopeSites.some((x) => x.types.length)) {
     const all = draft.communities.filter((c) => monitors(c));
     const roomsTotal = sum(all.map((c) => scopeOf(c).monitored));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
     const sensorsTotal = roomsTotal + extraTotal;
-    const perSite = scoped.map((x) => ({ ...x, s: roomScope(x.types, normalizeAllowance(x.c.sensorAllowancePct)) }));
-    const planTotal = sum(perSite.map((x) => x.s.planSensors));
-    const allowanceTotal = sum(perSite.map((x) => x.s.allowance));
-    const pctText = Array.from(new Set(perSite.map((x) => `${Math.round(normalizeAllowance(x.c.sensorAllowancePct) * 1000) / 10}%`))).join(' / ');
-    const careMix = (['al', 'mc', 'il', 'snf'] as const)
-      .map((k) => [k, sum(all.map((c) => monBedsOf(c)[k]))] as const)
-      .filter(([, n]) => n > 0)
-      .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
+    const monSites = scopeSites.filter((x) => x.mon.rooms > 0);
+    const planTotal = sum(monSites.map((x) => x.mon.planSensors));
+    const allowanceTotal = sum(monSites.map((x) => x.mon.allowance));
+    const pctText = Array.from(new Set(monSites.map((x) => `${Math.round(normalizeAllowance(x.c.sensorAllowancePct) * 1000) / 10}%`))).join(' / ');
+    const devPctText = Array.from(new Set(scopeSites.filter((x) => x.pend.total > 0).map((x) => `${Math.round(normalizePendantAllowance(x.c.pendantAllowancePct) * 1000) / 10}%`))).join(' / ');
+    const mixOf = (beds: (c: (typeof draft.communities)[number]) => Record<'il' | 'al' | 'mc' | 'snf', number>, cs: typeof draft.communities) =>
+      (['al', 'mc', 'il', 'snf'] as const)
+        .map((k) => [k, sum(cs.map((c) => beds(c)[k]))] as const)
+        .filter(([, n]) => n > 0)
+        .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
+    const careMix = mixOf(monBedsOf, all);
+    const ecRooms = sum(pendBy.map((p) => p.rooms));
+    const ecMix = mixOf((c) => {
+      const p = productsOf(c);
+      const b = bedsOf(c);
+      return { il: p.il.ecall ? b.il : 0, al: p.al.ecall ? b.al : 0, mc: p.mc.ecall ? b.mc : 0, snf: p.snf.ecall ? b.snf : 0 };
+    }, draft.communities.filter((c, i) => pendBy[i].total > 0));
+    const devRooms = sum(pendBy.map((p) => p.roomPendants));
+    const devAreas = sum(pendBy.map((p) => p.areaPendants));
+    const nAreas = sum(pendBy.map((p) => p.areas));
+    const nBaths = sum(scopeSites.flatMap((x) => x.areas.filter((a) => a.kind === 'bathroom').map((a) => a.count)));
+    const devAllow = sum(pendBy.map((p) => p.allowance));
+    const devPlan = sum(pendBy.map((p) => p.plan));
     const multi = draft.communities.length > 1;
     // The scope figure cards removed from the scope page (frees room for full-height table rows).
     const siteCardsHidden = !!layout.bcHiddenBlocks?.sitescope?.cards;
+    // Care names in short (AL, MC…): by default when the E-Call columns make the table tight.
+    const careShort = layout.bcSiteCare ? layout.bcSiteCare === 'short' : scopeMode === 'both';
+    const careText = (t: Parameters<typeof careLabel>[0]) =>
+      careShort ? (t.care === 'custom' ? (t.customCare?.trim() || 'Custom').split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase() : t.care.toUpperCase()) : careLabel(t);
+    const foldAreas = layout.bcSiteAreas === 'fold';
+    const anyAreas = scopeSites.some((x) => x.areas.length);
+    const cardsMode = scopeMode === 'both' ? layout.bcSiteCards ?? 'both' : scopeMode;
+    const nCols = 3 + (hasMon ? 3 : 0) + (hasEc ? 2 : 0);
+    type Cells = { sp?: number; dp?: number; s?: number | null; e?: number | null; dv?: number | null };
+    const dots = (n: number, co = false) => (
+      <>
+        <span className={`bc-dots ${co ? 'bc-dots-co' : ''}`} aria-hidden="true">{'●'.repeat(Math.min(n, 6))}</span> {n}
+      </>
+    );
+    const cells = (r: Cells) => (
+      <>
+        {hasMon && <td className="bc-r">{r.sp ? dots(r.sp) : '–'}</td>}
+        {hasEc && <td className="bc-r">{r.dp ? dots(r.dp, true) : '–'}</td>}
+        {hasMon && <td className={`bc-hl bc-r ${r.s != null ? 'bc-big' : ''}`}>{r.s != null ? count(r.s) : '–'}</td>}
+        {hasMon && <td className={`bc-hl2 bc-r ${r.e != null ? 'bc-big' : ''}`}>{r.e != null ? count(r.e) : '–'}</td>}
+        {hasEc && <td className={`bc-hl3 bc-r ${r.dv != null ? 'bc-big' : ''}`}>{r.dv != null ? count(r.dv) : '–'}</td>}
+      </>
+    );
+    // Totals of what the table lists.
+    const tot = { rooms: 0, s: 0, e: 0, dv: 0 };
+    for (const x of scopeSites) {
+      for (const t of x.types) {
+        tot.rooms += t.rooms;
+        if (x.p[bedKeyOf(t)].monitoring) {
+          tot.s += t.rooms * t.sensors;
+          tot.e += t.rooms;
+        }
+      }
+      if (!x.types.length) tot.rooms += x.pend.rooms;
+      tot.s += x.mon.allowance;
+      tot.dv += x.pend.total;
+    }
+    const titleVars = { rooms: count(scopeMode === 'ecall' ? ecRooms : roomsTotal), sensors: count(sensorsTotal), devices: count(devTotal), dev: DEV.many };
     defs.sitescope = (no) => (
       <Page key="sitescope" no={no} crumb={<T k="bc.site.crumb" d="Scope" />}>
         <p className="bc-eyebrow"><T k="bc.site.eyebrow" d="Scope" /></p>
         <h1 className="bc-h1">
-          <T k="bc.site.title" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors." v={{ rooms: count(roomsTotal), sensors: count(sensorsTotal) }} />
+          {scopeMode === 'mon' ? (
+            <T k="bc.site.title" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors." v={titleVars} />
+          ) : scopeMode === 'both' ? (
+            <T k="bc.site.title.both" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors, {devices} {dev}." v={titleVars} />
+          ) : (
+            <T k="bc.site.title.ecall" d="Scoped from your floor plans: {rooms} rooms, {devices} {dev}." v={titleVars} />
+          )}
         </h1>
         <p className="bc-lede">
-          <T k="bc.site.lede" d="One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed." />
+          {scopeMode === 'mon' ? (
+            <T k="bc.site.lede" d="One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed." />
+          ) : scopeMode === 'both' ? (
+            <T k="bc.site.lede.both" d="One sensor for each room or living area a resident uses, and {dev} where residents call for help. Quantities are confirmed at the site survey and trued up to what is installed." v={{ dev: DEV.many }} />
+          ) : (
+            <T k="bc.site.lede.ecall" d="{Dev} wherever residents need to call for help: in their rooms and in the shared bathrooms and spaces they use. Quantities are confirmed at the site survey." v={{ Dev: DEV.Many }} />
+          )}
         </p>
         <Blocks page="sitescope">
           <B id="cards" label="Scope figures">
+            <div className="relative group/view">
+            {editable && scopeMode === 'both' && (
+              <ViewSwitch
+                field="bcSiteCards"
+                position="absolute right-1 top-1"
+                label="Figure cards"
+                options={[['sensors', 'Sensors'], ['ecall', 'E-Call'], ['both', 'Both']] as const}
+                value={cardsMode as 'sensors' | 'ecall' | 'both'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcSiteCards: v === 'both' ? undefined : v }))}
+              />
+            )}
             <div className="bc-four">
-              <Stat ck="site.rooms" value={count(roomsTotal)}>
-                <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
-              </Stat>
-              <Stat ck="site.edge" value={count(roomsTotal)}>
-                <T k="bc.site.edge" d="Edge units, one in every resident room" />
-              </Stat>
-              <div className="bc-dark bc-dark-hot">
-                <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
-                <span><T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} /></span>
-              </div>
-              <Stat ck="site.extra" value={count(extraTotal)}>
-                <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
-              </Stat>
+              {cardsMode === 'mon' || cardsMode === 'sensors' ? (
+                <>
+                  <Stat ck="site.rooms" value={count(roomsTotal)}>
+                    <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
+                  </Stat>
+                  <Stat ck="site.edge" value={count(roomsTotal)}>
+                    <T k="bc.site.edge" d="Edge units, one in every resident room" />
+                  </Stat>
+                  <div className="bc-dark bc-dark-hot">
+                    <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
+                    <span><T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} /></span>
+                  </div>
+                  <Stat ck="site.extra" value={count(extraTotal)}>
+                    <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
+                  </Stat>
+                </>
+              ) : cardsMode === 'both' ? (
+                <>
+                  <Stat ck="site.rooms" value={count(roomsTotal)}>
+                    <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
+                  </Stat>
+                  <div className="bc-dark">
+                    <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
+                    <span><T k="bc.site.sensors.both" d="sensors: {plan} from the plan, plus a {pct} allowance" v={{ plan: count(planTotal), pct: pctText }} /></span>
+                  </div>
+                  <div className="bc-dark bc-dark-hot">
+                    <b><CallOut k="site.devices">{count(devTotal)}</CallOut></b>
+                    <span><T k="bc.site.devices.both" d="{dev}: {plan} from the plan{areas}, plus a {pct} allowance" v={{ dev: DEV.many, plan: count(devPlan), areas: devAreas ? ` (${count(devAreas)} in common areas)` : '', pct: devPctText }} /></span>
+                  </div>
+                  <Stat ck="site.edge" value={count(roomsTotal)}>
+                    <T k="bc.site.edge" d="Edge units, one in every resident room" />
+                  </Stat>
+                </>
+              ) : (
+                <>
+                  <Stat ck="site.ecRooms" value={count(ecRooms)}>
+                    <T k="bc.site.ecRooms" d="resident rooms: {mix}" v={{ mix: ecMix.join(' and ') }} />
+                  </Stat>
+                  <div className="bc-dark bc-dark-hot">
+                    <b><CallOut k="site.devRooms">{count(devRooms)}</CallOut></b>
+                    <span><T k="bc.site.devRooms" d="{dev} in resident rooms" v={{ dev: DEV.many }} /></span>
+                  </div>
+                  <div className="bc-dark bc-dark-hot">
+                    <b><CallOut k="site.devAreas">{count(devAreas)}</CallOut></b>
+                    <span><T k="bc.site.devAreas" d="{dev} in {n} common areas{baths}" v={{ dev: DEV.many, n: count(nAreas), baths: nBaths ? `, including ${count(nBaths)} communal bathroom${nBaths === 1 ? '' : 's'}` : '' }} /></span>
+                  </div>
+                  <Stat ck="site.devTotal" value={count(devTotal)}>
+                    <T k="bc.site.devTotal" d="{dev} in all, with a {pct} allowance of {allowance}" v={{ dev: DEV.many, pct: devPctText, allowance: count(devAllow) }} />
+                  </Stat>
+                </>
+              )}
+            </div>
             </div>
           </B>
           <B id="types" label="Rooms by type">
             <div className="relative group/view">
-            {/* With the scope cards removed there's room for full-height rows: a hover switch picks them. */}
-            {editable && siteCardsHidden && (
-              <ViewSwitch
-                field="bcSiteRows"
-                position="absolute right-0 -top-1"
-                label="Table rows"
-                options={[['compact', 'Compact rows'], ['full', 'Full rows']] as const}
-                value={layout.bcSiteRows ?? 'compact'}
-                onChange={(v) => setLayout((l) => ({ ...l, bcSiteRows: v === 'full' ? 'full' : undefined }))}
-              />
+            {editable && (
+              <div className="absolute right-0 -top-1 z-[5] flex flex-wrap justify-end gap-1.5">
+                {/* With the scope cards removed there's room for full-height rows. */}
+                {siteCardsHidden && (
+                  <ViewSwitch
+                    field="bcSiteRows"
+                    position="relative"
+                    label="Table rows"
+                    options={[['compact', 'Compact rows'], ['full', 'Full rows']] as const}
+                    value={layout.bcSiteRows ?? 'compact'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcSiteRows: v === 'full' ? 'full' : undefined }))}
+                  />
+                )}
+                <ViewSwitch
+                  field="bcSiteCare"
+                  position="relative"
+                  label="Care names"
+                  options={[['full', 'Care: Full'], ['short', 'Short']] as const}
+                  value={careShort ? 'short' : 'full'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcSiteCare: v }))}
+                />
+                {anyAreas && (
+                  <ViewSwitch
+                    field="bcSiteAreas"
+                    position="relative"
+                    label="Common areas"
+                    options={[['rows', 'With common areas'], ['fold', 'Rooms only']] as const}
+                    value={foldAreas ? 'fold' : 'rows'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcSiteAreas: v === 'fold' ? 'fold' : undefined }))}
+                  />
+                )}
+              </div>
             )}
             <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
-            <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
+            <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${hasMon && hasEc ? 'bc-site-8' : ''} ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
               <RTable>
                 <thead>
                   <tr>
                     <th>Room type</th>
                     <th>Care</th>
                     <th className="bc-r">Rooms</th>
-                    <th className="bc-r">Sensors per room</th>
-                    <th className="bc-hl bc-r">Sensors</th>
-                    <th className="bc-hl2 bc-r">Edge units</th>
+                    {hasMon && <th className="bc-r">Sensors/rm</th>}
+                    {hasEc && <th className="bc-r">{DEV.rm}</th>}
+                    {hasMon && <th className="bc-hl bc-r">Sensors</th>}
+                    {hasMon && <th className="bc-hl2 bc-r">Edge units</th>}
+                    {hasEc && <th className="bc-hl3 bc-r">{DEV.Many}</th>}
                   </tr>
                 </thead>
                 <RTbody id="site" name="Rooms by type">
-                  {perSite.map(({ c, i, types, eoTypes, s: st }) => (
-                    <Fragment key={c.id}>
+                  {scopeSites.map((x) => (
+                    <Fragment key={x.c.id}>
                       {multi && (
                         <tr className="bc-site-group" data-fixed>
-                          <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
+                          <td colSpan={nCols}>{d.perCommunity[x.i]?.name || x.c.name}</td>
                         </tr>
                       )}
-                      {types.map((t) => (
-                        <tr key={t.id}>
-                          <td className="bc-m">{t.name || 'Room type'}</td>
-                          <td><span className={`bc-care bc-care-${t.care}`}>{careLabel(t)}</span></td>
-                          <td className="bc-r">{count(t.rooms)}</td>
-                          <td className="bc-r"><span className="bc-dots" aria-hidden="true">{'●'.repeat(Math.min(t.sensors, 6))}</span> {t.sensors}</td>
-                          <td className="bc-hl bc-big bc-r">{count(t.rooms * t.sensors)}</td>
-                          <td className="bc-hl2 bc-big bc-r">{count(t.rooms)}</td>
-                        </tr>
-                      ))}
-                      {st.allowance > 0 && (
-                        <tr>
-                          <td className="bc-m bc-quiet">Site-conditions allowance</td>
-                          <td><small>{Math.round(normalizeAllowance(c.sensorAllowancePct) * 1000) / 10}% of {count(st.planSensors)}, rounded up</small></td>
-                          <td className="bc-r">–</td>
-                          <td className="bc-r">–</td>
-                          <td className="bc-hl bc-big bc-r">{count(st.allowance)}</td>
-                          <td className="bc-hl2 bc-r">–</td>
+                      {x.types.map((t) => {
+                        const sp = x.p[bedKeyOf(t)].monitoring ? t.sensors : 0;
+                        const dp = pendantsPerRoom(t, x.p, ecallDeal);
+                        return (
+                          <tr key={t.id}>
+                            <td className="bc-m">{t.name || 'Room type'}</td>
+                            <td><span className={`bc-care bc-care-${t.care}`}>{careText(t)}</span></td>
+                            <td className="bc-r">{count(t.rooms)}</td>
+                            {cells({ sp, dp, s: sp ? t.rooms * sp : null, e: sp ? t.rooms : null, dv: dp ? t.rooms * dp : null })}
+                          </tr>
+                        );
+                      })}
+                      {!x.types.length && (
+                        <tr key="allbeds">
+                          <td className="bc-m"><T k="bc.site.allBeds" d="All E-Call beds" /></td>
+                          <td />
+                          <td className="bc-r">{count(x.pend.rooms)}</td>
+                          {cells({ dp: 1, dv: x.pend.roomPendants })}
                         </tr>
                       )}
-                      {eoTypes.map((t) => (
-                        <tr key={t.id} className="bc-site-ecall">
-                          <td colSpan={6}>
-                            <T k={`bc.site.ecallOnlyType.${t.id}`} d="{name} ({care}) · E-Call only · {rooms} rooms" v={{ name: t.name || 'Room type', care: careLabel(t), rooms: count(t.rooms) }} />
+                      {x.areas.length > 0 &&
+                        (foldAreas
+                          ? [
+                              <tr key="areas-fold">
+                                <td className="bc-m"><T k="bc.site.areas" d="Common areas" /></td>
+                                <td><small>{count(x.pend.areas)} area{x.pend.areas === 1 ? '' : 's'}</small></td>
+                                <td className="bc-r">–</td>
+                                {cells({ dv: x.pend.areaPendants })}
+                              </tr>,
+                            ]
+                          : [
+                              <tr key="areas-sub" className="bc-site-sub" data-fixed>
+                                <td colSpan={nCols}><T k="bc.site.areas" d="Common areas" /></td>
+                              </tr>,
+                              ...x.areas.map((a) => (
+                                <tr key={`area-${a.id}`}>
+                                  <td className="bc-m">{a.name || AREA_KINDS[a.kind]}</td>
+                                  <td><span className="bc-care bc-care-common">{careShort ? 'CA' : 'Common'}</span></td>
+                                  <td className="bc-r">{count(a.count)}</td>
+                                  {cells({ dp: a.pendants, dv: a.count * a.pendants })}
+                                </tr>
+                              )),
+                            ])}
+                      {(x.mon.allowance > 0 || x.pend.allowance > 0) && (
+                        <tr key="allow">
+                          <td className="bc-m bc-quiet">
+                            Site-conditions allowance
+                            <small className="bc-site-note">
+                              {[
+                                x.mon.allowance > 0 ? `${Math.round(normalizeAllowance(x.c.sensorAllowancePct) * 1000) / 10}% of ${count(x.mon.planSensors)} sensors` : '',
+                                x.pend.allowance > 0 ? `${Math.round(normalizePendantAllowance(x.c.pendantAllowancePct) * 1000) / 10}% of ${count(x.pend.plan)} ${DEV.many}` : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                              , rounded up
+                            </small>
                           </td>
+                          <td />
+                          <td className="bc-r">–</td>
+                          {cells({ s: x.mon.allowance > 0 ? x.mon.allowance : null, dv: x.pend.allowance > 0 ? x.pend.allowance : null })}
                         </tr>
-                      ))}
-                    </Fragment>
-                  ))}
-                  {ecallOnlySites.map(({ c, i }) => (
-                    <Fragment key={c.id}>
-                      <tr className="bc-site-group" data-fixed>
-                        <td colSpan={6}>{d.perCommunity[i]?.name || c.name}</td>
-                      </tr>
-                      <tr className="bc-site-ecall">
-                        <td colSpan={6}><T k="bc.site.ecallOnly" d="E-Call only · {beds} beds" v={{ beds: count(scopeOf(c).priced) }} /></td>
-                      </tr>
+                      )}
                     </Fragment>
                   ))}
                   <tr className="bc-tot">
                     <td className="bc-m">Total</td>
                     <td />
-                    <td className="bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
-                    <td />
-                    <td className="bc-hl bc-big bc-r">{count(sum(perSite.map((x) => x.s.totalSensors)))}</td>
-                    <td className="bc-hl2 bc-big bc-r">{count(sum(perSite.map((x) => x.s.rooms)))}</td>
+                    <td className="bc-r">{count(tot.rooms)}</td>
+                    {hasMon && <td />}
+                    {hasEc && <td />}
+                    {hasMon && <td className="bc-hl bc-big bc-r">{count(tot.s)}</td>}
+                    {hasMon && <td className="bc-hl2 bc-big bc-r">{count(tot.e)}</td>}
+                    {hasEc && <td className="bc-hl3 bc-big bc-r">{count(tot.dv)}</td>}
                   </tr>
                 </RTbody>
               </RTable>
@@ -888,8 +1133,20 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             </div>
           </B>
           <B id="hardware" label="What gets installed">
-            <p className="bc-eyebrow bc-gray"><T k="bc.site.hardware" d="What gets installed" /></p>
-            {hardwareCards}
+            <div className="relative group/view">
+              {editable && scopeMode === 'both' && (
+                <ViewSwitch
+                  field="bcHwLayout"
+                  position="absolute right-0 -top-1"
+                  label="Hardware layout"
+                  options={[['above', 'Text above'], ['beside', 'Text beside']] as const}
+                  value={layout.bcHwLayout === 'beside' ? 'beside' : 'above'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcHwLayout: v === 'beside' ? 'beside' : undefined }))}
+                />
+              )}
+              <p className="bc-eyebrow bc-gray"><T k="bc.site.hardware" d="What gets installed" /></p>
+              {hardwareCards()}
+            </div>
           </B>
         </Blocks>
       </Page>
@@ -1162,10 +1419,12 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   ) : null;
 
   /** Every community: beds by care type, and its total cost (a main figure with a smaller one under it). */
-  const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }) => (
+  // Columns: sensors where any community has Resident Monitoring, pendants / pull-cords where any has E-Call ("–" where a community has none).
+  const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }, opts?: { id?: string; name?: string; heading?: React.ReactNode }) => (
     <>
-      <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
-      <div className="bc-card bc-tbl bc-hrs bc-pilot-tbl">
+      {!opts?.heading && <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>}
+      <div className={`bc-card bc-tbl bc-hrs bc-pilot-tbl ${hasMon && hasEc ? 'bc-site-8' : ''} ${opts?.heading ? 'bc-tbl-headed' : ''}`}>
+        {opts?.heading && <div className="bc-tbl-head">{opts.heading}</div>}
         <RTable>
           <thead>
             <tr>
@@ -1173,11 +1432,12 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               <th>AL beds</th>
               <th>MC beds</th>
               <th>SNF beds</th>
-              <th>Sensors</th>
+              {hasMon && <th>Sensors</th>}
+              {hasEc && <th>{DEV.Many}</th>}
               <th className="bc-hl">Total cost</th>
             </tr>
           </thead>
-          <RTbody id="comm" name="By community">
+          <RTbody id={opts?.id ?? 'comm'} name={opts?.name ?? 'By community'}>
             {draft.communities.map((dc, i) => {
               const b = bedsOf(dc);
               const c = cell(i);
@@ -1190,7 +1450,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <td>{count(b.al)}</td>
                   <td>{count(b.mc)}</td>
                   <td>{count(b.snf)}</td>
-                  <td>{count(sensorsOf(dc))}</td>
+                  {hasMon && <td>{monitors(dc) ? count(sensorsOf(dc)) : '–'}</td>}
+                  {hasEc && <td>{pendBy[i].total ? count(pendBy[i].total) : '–'}</td>}
                   <td className="bc-hl bc-big">
                     {c.main}
                     <small>{c.sub}</small>
@@ -1204,7 +1465,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
-                <td>{count(sum(draft.communities.map(sensorsOf)))}</td>
+                {hasMon && <td>{count(sum(draft.communities.filter((c) => monitors(c)).map(sensorsOf)))}</td>}
+                {hasEc && <td>{count(devTotal)}</td>}
                 <td className="bc-hl bc-big">
                   {total.main}
                   <small>{total.sub}</small>
@@ -2610,6 +2872,28 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const firstSentence = (t: string) => (t.match(/^.*?[.;](?=\s|$)/)?.[0] ?? t).trim();
     const termsText = resolveTerms(draft, 'terms').map((t) => firstSentence(renderText(t.template, t.vars))).filter(Boolean);
     const nextText = resolveTerms(draft, 'nextSteps').map((t) => renderText(t.template, t.vars).trim()).filter(Boolean);
+    const execAreas = sum(pendBy.map((x) => x.areas));
+    // 'By community' cost: the term total (or equipment, for a purchase), or per bed.
+    const perBedOn = layout.bcExecComm === 'perBed';
+    const bedsAt = (i: number) => Math.max(1, inputs.communities[i]?.units ?? 0);
+    const execCommCell = (i: number) => {
+      if (capexShown) {
+        const eq = capex.communities[i]?.equipment ?? 0;
+        const sw = capex.communities[i]?.softwareMonthly ?? 0;
+        return perBedOn ? { main: `${usd(eq / bedsAt(i))} / bed`, sub: `(${money(sw / bedsAt(i))} / bed / mo)` } : { main: usd(eq), sub: `(${usd(sw)} / mo)` };
+      }
+      const tot = sum(lines.filter((l) => l.communityPosition === i).map(lineTotal));
+      const perBed = d.perCommunity[i].monthly / bedsAt(i);
+      return perBedOn ? { main: `${money(perBed)} / bed / mo`, sub: `(${usd(tot)} over the term)` } : { main: usd(tot), sub: `${money(perBed)} per bed / mo` };
+    };
+    const allBedsN = Math.max(1, sum(inputs.communities.map((c) => c.units)));
+    const execCommTotal = capexShown
+      ? perBedOn
+        ? { main: `${usd(capex.equipment / allBedsN)} / bed`, sub: `(${money(capex.softwareMonthly / allBedsN)} / bed / mo)` }
+        : { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` }
+      : perBedOn
+        ? { main: `${money(d.serviceMonthly / allBedsN)} / bed / mo`, sub: `(${usd(d.termTotal)} over the term)` }
+        : { main: usd(d.termTotal), sub: `${money(d.serviceMonthly / allBedsN)} per bed / mo` };
     // Post-pilot unit costs (the investment card's other view): the same unit prices as the investment page's cards.
     const execUnits = layout.bcExecInv === 'units';
     const unit = (() => {
@@ -2645,17 +2929,43 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               {wide.has('scope') && pilotCostsCard ? (
                 pilotCostsCard(head('bc.exec.scope', 'Scope', 'pilot'))
               ) : (
+              scopeMode === 'ecall' ? (
+                // E-Call only: the system, and its devices in rooms and common areas.
+                <div className="bc-card bc-exec-card">
+                  {head('bc.exec.scope', 'Scope', 'sitescope')}
+                  <h4>
+                    <T k="bc.exec.scope.ecall.h" d="Teton E-Call" />
+                    <span className="bc-exec-badge">{devCard.kind}</span>
+                  </h4>
+                  <p>
+                    <T
+                      k="bc.exec.scope.ecall.p"
+                      d="{devices} {dev} across {rooms} rooms{areas}, in {n}."
+                      v={{ devices: count(devTotal), dev: DEV.many, rooms: count(sum(pendBy.map((x) => x.rooms))), areas: execAreas ? ` and ${count(execAreas)} common area${execAreas === 1 ? '' : 's'}` : '', n: nComm === 1 ? '1 community' : `${nComm} communities` }}
+                    />
+                  </p>
+                  <div className="bc-exec-mini">
+                    <div className="bc-exec-co"><b>{count(sum(pendBy.map((x) => x.roomPendants)))}</b><span>in rooms</span></div>
+                    {execAreas > 0 && <div className="bc-exec-co"><b>{count(sum(pendBy.map((x) => x.areaPendants)))}</b><span>in common areas</span></div>}
+                    <div><b>{count(devTotal)}</b><span>{DEV.many}</span></div>
+                  </div>
+                </div>
+              ) : (
               <div className="bc-card bc-exec-card">
                 {head('bc.exec.scope', 'Scope', 'sitescope')}
                 <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(units), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
-                <p>{careText ? <T k="bc.exec.scope.p" d="{split}, from your floor plans." v={{ split: careText.charAt(0).toUpperCase() + careText.slice(1) }} /> : null}</p>
+                <p>
+                  {careText ? <T k="bc.exec.scope.p" d="{split}, from your floor plans." v={{ split: careText.charAt(0).toUpperCase() + careText.slice(1) }} /> : null}
+                  {scopeMode === 'both' && <> <T k="bc.exec.scope.both" d="Resident Monitoring and {kind} E-Call." v={{ kind: devCard.kind }} /></>}
+                </p>
                 <div className="bc-exec-mini">
                   <div><b>{count(units)}</b><span>Edge units</span></div>
                   <div><b>{count(sensorsTotal)}</b><span>sensors</span></div>
+                  {scopeMode === 'both' && <div className="bc-exec-co"><b>{count(devTotal)}</b><span>{DEV.many}</span></div>}
                   <div><b>{nComm}</b><span>{nComm === 1 ? 'community' : 'communities'}</span></div>
                 </div>
               </div>
-              )}
+              ))}
             </B>
             {layout.bcExecHardware && (
               // Off by default (added from Removed); full width by default (its ⇔ makes it one column).
@@ -2668,7 +2978,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               >
                 <div className="bc-card bc-exec-card">
                   {head('bc.exec.hw', 'What gets installed', 'sitescope')}
-                  {hardwareCards}
+                  {hardwareCards('exec')}
                 </div>
               </B>
             )}
@@ -2693,6 +3003,56 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 {pilotCommunityTable('expilot', 'Executive summary · pilot communities', head('bc.exec.sites', pilotSites.length === 1 ? 'The pilot community' : 'Pilot communities', 'pilot'))}
               </B>
             )}
+            {scopeMode === 'ecall' && (
+              <B
+                id="system"
+                label="The system"
+                {...card('system')}
+                view={
+                  <ViewSwitch
+                    field="bcExecSystem"
+                    position="relative mx-0.5"
+                    hover="!opacity-100"
+                    label="The system shows"
+                    options={[['features', 'Features'], ['app', 'App']] as const}
+                    value={layout.bcExecSystem === 'app' ? 'app' : 'features'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcExecSystem: v === 'app' ? 'app' : undefined }))}
+                  />
+                }
+              >
+                <div className="bc-card bc-exec-card">
+                  {head('bc.exec.system', 'The system', 'sitescope')}
+                  {layout.bcExecSystem === 'app' ? (
+                    <div className="bc-exec-app">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/E-Call_App.png" alt="Teton E-Call App" />
+                    </div>
+                  ) : (
+                    devBullets
+                  )}
+                </div>
+              </B>
+            )}
+            {/* Every community: beds, sensors and / or pendants, and its cost (full width by default). */}
+            <B
+              id="bycomm"
+              label="By community"
+              wide={!wide.has('bycomm')}
+              onWide={editable ? toggleWide('bycomm') : undefined}
+              view={
+                <ViewSwitch
+                  field="bcExecComm"
+                  position="relative mx-0.5"
+                  hover="!opacity-100"
+                  label="Cost shown as"
+                  options={[['total', 'Total cost'], ['perBed', 'Per bed']] as const}
+                  value={layout.bcExecComm === 'perBed' ? 'perBed' : 'total'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcExecComm: v === 'perBed' ? 'perBed' : undefined }))}
+                />
+              }
+            >
+              {communityTable(execCommCell, execCommTotal, { id: 'excomm', name: 'Executive summary · by community', heading: head('bc.exec.comm', draft.communities.length === 1 ? 'The community' : 'By community', 'scope') })}
+            </B>
             <B
               id="investment"
               label="The investment"

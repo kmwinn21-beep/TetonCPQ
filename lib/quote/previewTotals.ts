@@ -11,11 +11,13 @@ import { computeCapex, grossBaseRows, grossSensorRow } from '@/lib/pricing/capex
 import { computeFinish } from '@/lib/pricing/finish';
 import { installMath, sensorMath } from '@/lib/proposal/costMath';
 import { scopeOf, type QuoteDraft } from './draft';
+import { pendantScope } from './roomTypes';
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 export interface PreviewTotals {
-  scope: { edgeUnits: number; sensors: number; additionalSensors: number };
+  /** pendants: E-Call pendants / pull-cords (rooms, common areas and contingency); 0 without E-Call. */
+  scope: { edgeUnits: number; sensors: number; additionalSensors: number; pendants: number };
   capex: null | { basePackages: number; ecallUnits: number; sensors: number; equipment: number; softwareMonthly: number; renewals: number; ownership: number; years: number };
   opex: null | { install: number; sensors: number; monthly: number; year1: number };
   pilot: null | { install: number; sensors: number; fees: number; total: number; months: number };
@@ -71,7 +73,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
 
   const f = computeFinish(draft);
   return {
-    scope: { edgeUnits: beds, sensors: beds + additional, additionalSensors: additional },
+    scope: { edgeUnits: beds, sensors: beds + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
     capex,
     opex,
     pilot,

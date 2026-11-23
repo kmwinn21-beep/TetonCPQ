@@ -30,6 +30,8 @@ const LABELS: Partial<Record<keyof DraftCommunity, string>> = {
   additionalSensors: 'additional sensors',
   roomTypes: 'room types',
   sensorAllowancePct: 'sensor allowance',
+  commonAreas: 'common areas',
+  pendantAllowancePct: 'pull-cord contingency',
 };
 
 const nameOf = (c: DraftCommunity, i: number) => c.name.trim() || `community ${i + 1}`;

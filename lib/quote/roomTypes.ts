@@ -24,6 +24,8 @@ export interface RoomType {
   rooms: number;
   /** Sensors in each room of this type (one per room or living area a resident uses). */
   sensors: number;
+  /** E-Call pendants / pull-cords in each room of this type (1 when missing). Billing stays per bed. */
+  pendants?: number;
   /** The care type's name when care is 'custom' (its rooms count as assisted living beds). */
   customCare?: string;
   /** Badge color (one of BADGE_COLORS) and initials (up to 3 characters) for its badges on the floor plans. */
@@ -135,6 +137,7 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       // Locked to the floor plan: one room per tagged badge.
       rooms: fromPlan ? (marks?.length ?? 0) : int(r.rooms, 5000),
       sensors: Math.max(1, int(r.sensors ?? 1, 20)),
+      ...(r.pendants != null && Number(r.pendants) !== 1 ? { pendants: Math.max(1, int(r.pendants, 20)) } : {}),
       ...(r.care === 'custom' ? { customCare: String(r.customCare ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) } : {}),
       ...(typeof r.color === 'string' && (BADGE_COLORS as readonly string[]).includes(r.color) ? { color: r.color } : {}),
       ...(initials ? { initials } : {}),
@@ -197,9 +200,94 @@ export function roomDerived(c: Partial<DraftCommunity>, pct = normalizeAllowance
 
 /** A community with its beds and additional sensors set from its room types (unchanged when it has none). */
 export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
+  if (c.commonAreas !== undefined) {
+    const areas = normalizeCommonAreas(c.commonAreas);
+    const { commonAreas: _a, ...rest } = c;
+    c = areas.length ? { ...rest, commonAreas: areas } : (rest as DraftCommunity);
+  }
   const r = roomDerived(c);
   if (!r) return c;
   return { ...c, roomTypes: r.types, ilBeds: r.beds.il, alBeds: r.beds.al, mcBeds: r.beds.mc, snfBeds: r.beds.snf, additionalSensors: r.additionalSensors };
+}
+
+/** E-Call pendants / pull-cords in each room of this type: none when its care setting has no E-Call (or the deal has none). */
+export const pendantsPerRoom = (t: Pick<RoomType, 'care' | 'pendants'>, p?: CareProducts | null, ecallOn = true) =>
+  ecallOn && (!p || p[bedKeyOf(t)].ecall) ? Math.max(1, Number(t.pendants) || 1) : 0;
+
+// ---------- Common areas (E-Call only for now): shared spaces with pull-cords, billed per area, per month ----------
+export type AreaKind = 'bathroom' | 'activity' | 'dining' | 'hallway' | 'lobby' | 'other';
+export const AREA_KINDS: Record<AreaKind, string> = { bathroom: 'Bathroom', activity: 'Activity', dining: 'Dining', hallway: 'Hallway', lobby: 'Lobby', other: 'Other' };
+export interface CommonArea {
+  id: string;
+  name: string;
+  kind: AreaKind;
+  /** How many areas like this. */
+  count: number;
+  /** Pendants / pull-cords in each. */
+  pendants: number;
+}
+export const newCommonArea = (): CommonArea => ({ id: `ca-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', kind: 'bathroom', count: 1, pendants: 1 });
+export function normalizeCommonAreas(v: unknown): CommonArea[] {
+  if (!Array.isArray(v)) return [];
+  return v.slice(0, 40).flatMap((x, i) => {
+    if (!x || typeof x !== 'object') return [];
+    const a = x as Partial<CommonArea>;
+    return [{
+      id: typeof a.id === 'string' && a.id ? a.id.slice(0, 40) : `ca-${i}`,
+      name: String(a.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      kind: (a.kind && a.kind in AREA_KINDS ? a.kind : 'other') as AreaKind,
+      count: int(a.count ?? 1, 500),
+      pendants: int(a.pendants ?? 1, 20),
+    }];
+  });
+}
+
+export const DEFAULT_PENDANT_ALLOWANCE = 0.05;
+export const normalizePendantAllowance = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 0.5 ? v : DEFAULT_PENDANT_ALLOWANCE);
+
+/** A community's E-Call devices: in its rooms, in its common areas, and the contingency on both. */
+export interface PendantScope {
+  /** Rooms (beds) with E-Call. */
+  rooms: number;
+  roomPendants: number;
+  /** Common areas with pull-cords (each billed per month). */
+  areas: number;
+  areaPendants: number;
+  plan: number;
+  allowance: number;
+  total: number;
+}
+/**
+ * E-Call devices for a community: Σ rooms × pendants per room over its room types with E-Call (one per E-Call bed
+ * when it has no room types), plus its common areas, plus the contingency (plan × %, rounded up). All zero when the
+ * deal has no E-Call or the community has none.
+ */
+export function pendantScope(c: Partial<DraftCommunity> | null | undefined, ecallOn: boolean): PendantScope {
+  const zero = { rooms: 0, roomPendants: 0, areas: 0, areaPendants: 0, plan: 0, allowance: 0, total: 0 };
+  if (!ecallOn || !c) return zero;
+  const p = productsOf(c);
+  const types = normalizeRoomTypes(c.roomTypes);
+  let rooms = 0;
+  let roomPendants = 0;
+  if (types.length) {
+    for (const t of types) {
+      const n = pendantsPerRoom(t, p);
+      if (!n) continue;
+      rooms += t.rooms;
+      roomPendants += t.rooms * n;
+    }
+  } else {
+    const beds = { il: Number(c.ilBeds) || 0, al: Number(c.alBeds) || 0, mc: Number(c.mcBeds) || 0, snf: Number(c.snfBeds) || 0 };
+    rooms = (['il', 'al', 'mc', 'snf'] as const).reduce((s, k) => s + (p[k].ecall ? beds[k] : 0), 0);
+    roomPendants = rooms;
+  }
+  if (!rooms && !(['il', 'al', 'mc', 'snf'] as const).some((k) => p[k].ecall)) return zero;
+  const live = normalizeCommonAreas(c.commonAreas).filter((a) => a.count > 0 && a.pendants > 0);
+  const areas = live.reduce((s, a) => s + a.count, 0);
+  const areaPendants = live.reduce((s, a) => s + a.count * a.pendants, 0);
+  const plan = roomPendants + areaPendants;
+  const allowance = Math.ceil(Math.round(plan * normalizePendantAllowance(c.pendantAllowancePct) * 1e4) / 1e4);
+  return { rooms, roomPendants, areas, areaPendants, plan, allowance, total: plan + allowance };
 }
 
 export const newRoomType = (): RoomType => ({ id: `rt-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', care: 'al', rooms: 0, sensors: 1 });

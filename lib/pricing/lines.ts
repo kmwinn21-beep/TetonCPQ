@@ -7,6 +7,7 @@ import { communitySchedule } from '@/lib/model/cashflow';
 import { annualForCase } from '@/lib/model/annual';
 import type { ModelInputs } from '@/lib/model';
 import { scopeOf, type QuoteDraft } from '@/lib/quote/draft';
+import { pendantScope } from '@/lib/quote/roomTypes';
 import { POLICY, SKU, type PriceBook } from './catalog';
 
 export interface PriceLine {
@@ -64,6 +65,12 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
     if (mon) lines.push({ ...base, sku: SKU.platform, description: `Teton subscription${cov}`, qty: c.units, unitList: listPlatform * mult, unitNet: k.platformRate * mult, billing: 'monthly', startMonth: s.firstPostPilotMonth + special, termMonths: serviceTermMonths - special, concessionCode: k.platformRate < listPlatform ? 'RATE_DISCOUNT' : null });
     if (ecall) {
       lines.push({ ...base, sku: ecallSku, description: `E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'})`, qty: ecallQty, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
+    }
+    // Common areas with pull-cords: billed per area, per month, at the E-Call rates (the pilot rate during a pilot).
+    const areas = pendantScope(dc, k.ecall !== 'none').areas;
+    if (areas > 0) {
+      if (s.inPilot) lines.push({ ...base, sku: ecallSku, description: 'E-Call common areas — pilot', qty: areas, unitList: listEcall, unitNet: k.ecallPilotRate, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: k.ecallPilotRate < listEcall ? 'ECALL_PILOT' : null });
+      lines.push({ ...base, sku: ecallSku, description: 'E-Call common areas', qty: areas, unitList: listEcall, unitNet: k.ecallRate, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: k.ecallRate < listEcall ? 'ECALL_DISCOUNT' : null });
     }
     const ecallInstall = Number(k.ecallInstallRate) || 0;
     const install = (monitoring: boolean, qty: number, pilotQty: number) => {

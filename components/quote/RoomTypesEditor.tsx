@@ -8,7 +8,7 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { badgeOf, bedKeyOf, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, newRoomType, nextBadgeColor, normalizeAllowance, roomDerived, type CareType, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, badgeOf, bedKeyOf, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
@@ -18,6 +18,8 @@ import { canAutoFocus } from '@/lib/client/focus';
 
 const iconBtn = 'w-7 h-9 flex items-center justify-center rounded-md text-teton-ui-gray hover:bg-teton-off-white hover:text-teton-ink';
 const eyebrow = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mb-1 truncate';
+/** For narrow number fields: wraps onto two lines rather than cutting off. */
+const eyebrowWrap = 'block text-[10px] font-semibold uppercase tracking-wider leading-tight text-teton-ui-gray mb-1';
 
 export function RoomTypesEditor({ index: i, position }: { index: number; position: number }) {
   const { control, setValue } = useFormContext<QuoteDraft>();
@@ -26,8 +28,24 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   const types = Array.isArray(raw) ? raw : [];
   const productsRaw = useWatch({ control, name: `communities.${i}.products` });
   const legacy = useWatch({ control, name: [`communities.${i}.monitoring`, `communities.${i}.ecall`] });
-  const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
+  const ecallOption = useWatch({ control, name: 'commercial.ecall' });
+  const ecallOn = ecallOption !== 'none';
   const products = productsOf({ products: productsRaw, monitoring: legacy[0], ecall: legacy[1] });
+  // E-Call devices: pendants (Bluetooth) or pull-cords (Inovonics), per room and in common areas.
+  const anyEcall = ecallOn && (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].ecall);
+  const dev = ecallOption === 'inovonics' ? { rm: 'Cords / rm', each: 'Pull-cords each', many: 'pull-cords', one: 'pull-cord' } : { rm: 'Pendants / rm', each: 'Pendants each', many: 'pendants', one: 'pendant' };
+  const areasRaw = useWatch({ control, name: `communities.${i}.commonAreas` }) as CommonArea[] | undefined;
+  const areas = Array.isArray(areasRaw) ? areasRaw : [];
+  const pendantPct = useWatch({ control, name: `communities.${i}.pendantAllowancePct` });
+  const bedsW = useWatch({ control, name: [`communities.${i}.ilBeds`, `communities.${i}.alBeds`, `communities.${i}.mcBeds`, `communities.${i}.snfBeds`] });
+  const pend = pendantScope({ roomTypes: types, products: productsRaw, monitoring: legacy[0], ecall: legacy[1], commonAreas: areas, pendantAllowancePct: pendantPct, ilBeds: bedsW[0], alBeds: bedsW[1], mcBeds: bedsW[2], snfBeds: bedsW[3] }, ecallOn);
+  const writeAreas = (next: CommonArea[]) => setValue(`communities.${i}.commonAreas`, next, { shouldDirty: true });
+  const patchArea = (id: string, p: Partial<CommonArea>) => writeAreas(areas.map((a) => (a.id === id ? { ...a, ...p } : a)));
+  // Room type cards: a pendants column when the community has E-Call; no sensors column when it has no Resident Monitoring.
+  const anyMon = (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].monitoring);
+  const showSensors = anyMon || !anyEcall;
+  const cols = anyEcall && showSensors ? 'grid-cols-[minmax(0,1fr)_4.25rem_4.75rem_5.25rem_1.75rem]' : 'grid-cols-[minmax(0,1fr)_4.25rem_5.5rem_1.75rem]';
+  const span = anyEcall && showSensors ? 'col-span-5' : 'col-span-4';
 
   // Room types and the beds and additional sensors they imply, written together.
   const { write } = useRoomTypes(i);
@@ -56,8 +74,8 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
       {types.length > 0 && (
         <div className="mt-1 space-y-1.5">
           {types.map((t, k) => (
-            <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_5.5rem_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
-              <div className="col-span-4">
+            <div key={t.id} className={`grid ${cols} gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2`}>
+              <div className={span}>
                 <span className={eyebrow}>Room Type/Name</span>
                 <span className="flex items-center gap-2">
                   {/* Its badge on the floor plans. */}
@@ -120,8 +138,9 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   aria-label={`Community ${position} room type ${k + 1} rooms`}
                 />
               </div>
+              {showSensors && (
               <div>
-                <span className={eyebrow}>Sensors / rm</span>
+                <span className={eyebrowWrap}>Sensors / rm</span>
                 {/* No resident monitoring in this care setting: no sensors (0, locked). */}
                 {products[bedKeyOf(t)].monitoring ? (
                   <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
@@ -131,6 +150,20 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   </span>
                 )}
               </div>
+              )}
+              {anyEcall && (
+                <div>
+                  <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.rm}</span>
+                  {/* No E-Call in this care setting: none (0, locked). */}
+                  {products[bedKeyOf(t)].ecall ? (
+                    <NumInput value={t.pendants ?? 1} onChange={(v) => patch(t.id, { pendants: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room`} />
+                  ) : (
+                    <span title="This care setting doesn’t have E-Call">
+                      <NumInput value={0} onChange={() => {}} disabled aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call)`} />
+                    </span>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 className={iconBtn}
@@ -145,13 +178,14 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                 ✕
               </button>
               {/* The products this room type gets: its care setting's ticks in the Beds grid above. */}
-              <div className="col-span-4 -mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teton-ui-gray">
+              <div className={`${span} -mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teton-ui-gray`}>
                 Products
                 <ProductPill on={products[bedKeyOf(t)].monitoring} tone="lav">Monitoring</ProductPill>
                 {ecallOn && <ProductPill on={products[bedKeyOf(t)].ecall} tone="coral">E-Call</ProductPill>}
                 <span>· from {bedKeyOf(t).toUpperCase()} above</span>
               </div>
               <PlanLine
+                span={span}
                 t={t}
                 tagged={(t.marks ?? []).filter((m) => planIds.includes(m.plan)).length}
                 hasPlans={plans.length > 0}
@@ -168,9 +202,9 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
         <button type="button" className="btn-secondary py-1 text-xs" onClick={() => write([...types, { ...newRoomType(), color: nextBadgeColor(types) }])}>
           + Add room type
         </button>
-        {types.length > 0 && (
+        {types.length > 0 && showSensors && (
           <label className="flex items-center gap-1.5 text-xs text-teton-dark-gray">
-            Contingency
+            {anyEcall ? 'Sensor contingency' : 'Contingency'}
             <span className="w-20">
               <NumInput
                 value={allowance ?? DEFAULT_ALLOWANCE}
@@ -189,13 +223,80 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
           </label>
         )}
       </div>
-      {scope && (
+      {scope && showSensors && (
         <p className="text-xs text-teton-dark-gray mt-2 rounded-lg bg-teton-almost-white px-3 py-2">
           {types.some((t) => t.care === 'custom') && <span className="block mb-1">Custom care types count as assisted living beds.</span>}
           {unmonitored > 0 && <span className="block mb-1">{count(unmonitored)} rooms without Resident Monitoring get no Edge units or sensors.</span>}
           {count(scope.rooms)} monitored rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
         </p>
+      )}
+      {anyEcall && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="eyebrow">Common areas (optional)</span>
+            <span className="text-[11px] text-teton-ui-gray">E-Call · billed per area, per month</span>
+          </div>
+          {areas.length > 0 && (
+            <div className="mt-1 space-y-1.5">
+              {areas.map((a, k) => (
+                <div key={a.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_5.25rem_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
+                  <div className="col-span-4">
+                    <span className={eyebrow}>Area name</span>
+                    <input className="input-field px-2 py-1.5" value={a.name} placeholder="e.g. Communal bathroom" aria-label={`Community ${position} common area ${k + 1} name`} onChange={(e) => patchArea(a.id, { name: e.target.value })} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className={eyebrow}>Kind</span>
+                    <span className="relative block">
+                      <select className="input-field appearance-none pl-2 pr-7 text-xs truncate" value={a.kind} aria-label={`Community ${position} common area ${k + 1} kind`} onChange={(e) => patchArea(a.id, { kind: e.target.value as AreaKind })}>
+                        {(Object.keys(AREA_KINDS) as AreaKind[]).map((x) => (
+                          <option key={x} value={x}>{AREA_KINDS[x]}</option>
+                        ))}
+                      </select>
+                      <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-teton-ui-gray" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div>
+                    <span className={eyebrowWrap}>How many</span>
+                    <NumInput value={a.count} onChange={(v) => patchArea(a.id, { count: Math.max(0, v ?? 0) })} min={0} aria-label={`Community ${position} common area ${k + 1} how many`} />
+                  </div>
+                  <div>
+                    <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.each}</span>
+                    <NumInput value={a.pendants} onChange={(v) => patchArea(a.id, { pendants: Math.max(0, v ?? 0) })} min={0} aria-label={`Community ${position} common area ${k + 1} ${dev.many} each`} />
+                  </div>
+                  <button type="button" className={iconBtn} onClick={() => writeAreas(areas.filter((x) => x.id !== a.id))} aria-label={`Remove common area ${k + 1}`} title="Remove">
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <button type="button" className="btn-secondary py-1 text-xs" onClick={() => writeAreas([...normalizeCommonAreas(areas), newCommonArea()])}>
+              + Add common area
+            </button>
+            <label className="flex items-center gap-1.5 text-xs text-teton-dark-gray">
+              {dev.one === 'pull-cord' ? 'Pull-cord' : 'Pendant'} contingency
+              <span className="w-20">
+                <NumInput
+                  value={pendantPct ?? DEFAULT_PENDANT_ALLOWANCE}
+                  scale={100}
+                  suffix="%"
+                  min={0}
+                  max={0.5}
+                  onChange={(v) => setValue(`communities.${i}.pendantAllowancePct`, normalizePendantAllowance(v ?? DEFAULT_PENDANT_ALLOWANCE), { shouldDirty: true })}
+                  aria-label={`Community ${position} ${dev.one} contingency`}
+                />
+              </span>
+            </label>
+          </div>
+          <p className="text-xs mt-2 rounded-lg bg-[#FDF1EE] text-[#9A2E1C] px-3 py-2">
+            {count(pend.plan)} {dev.many} from the plan ({count(pend.roomPendants)} in {count(pend.rooms)} rooms{pend.areaPendants ? ` + ${count(pend.areaPendants)} in ${count(pend.areas)} common area${pend.areas === 1 ? '' : 's'}` : ''}) + {count(pend.allowance)} contingency = <b>{count(pend.total)} {dev.many}</b>.
+            {pend.areas > 0 && ` Billed per month: ${count(pend.rooms)} beds + ${count(pend.areas)} common area${pend.areas === 1 ? '' : 's'}.`}
+          </p>
+        </div>
       )}
     </div>
   );
@@ -215,13 +316,13 @@ function ProductPill({ on, tone, children }: { on: boolean; tone: 'lav' | 'coral
  * A room type's link to the floor plans: how many rooms are tagged, whether Rooms follows them (locked) or is typed
  * in (an override), and how far a typed-in count is from the tagged one.
  */
-function PlanLine({ t, tagged, hasPlans, warn, onLock, onShow, onTag }: { t: RoomType; tagged: number; hasPlans: boolean; warn: boolean; onLock: (on: boolean) => void; onShow: () => void; onTag: () => void }) {
+function PlanLine({ span, t, tagged, hasPlans, warn, onLock, onShow, onTag }: { span: string; t: RoomType; tagged: number; hasPlans: boolean; warn: boolean; onLock: (on: boolean) => void; onShow: () => void; onTag: () => void }) {
   if (!hasPlans && !tagged) return null;
   const rooms = Number(t.rooms) || 0;
   const d = rooms - tagged;
   const link = 'underline text-teton-dark-gray hover:text-teton-ink';
   return (
-    <div className="col-span-4 -mt-0.5 text-[11px] text-teton-ui-gray space-y-1">
+    <div className={`${span} -mt-0.5 text-[11px] text-teton-ui-gray space-y-1`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {tagged > 0 ? (
           <>

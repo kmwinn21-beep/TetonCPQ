@@ -3,7 +3,7 @@
  * holds, what a quote version stores (inputs_json), and what toModelInputs()
  * turns into engine inputs. Rates are fractions; money is dollars.
  */
-import { applyRoomTypes, type RoomType } from './roomTypes';
+import { applyRoomTypes, type CommonArea, type RoomType } from './roomTypes';
 import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
 import { finishFrom, normalizeFinish, type FinishSetting } from '@/lib/pricing/finish';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
@@ -59,6 +59,10 @@ export interface DraftCommunity {
   roomTypes?: RoomType[];
   /** Allowance for site conditions on top of the plan's sensors (0.03 = 3%). */
   sensorAllowancePct?: number;
+  /** Common areas with E-Call pull-cords (each billed per area, per month at the E-Call rate). */
+  commonAreas?: CommonArea[];
+  /** Contingency on top of the plan's pendants / pull-cords (0.05 = 5%). */
+  pendantAllowancePct?: number;
 }
 
 export interface Commercial {

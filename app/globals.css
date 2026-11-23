@@ -717,6 +717,13 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-site-tbl td { padding-left: 10px; padding-right: 10px; }
 .bc-site-tbl th:first-child, .bc-site-tbl td:first-child { padding-left: 16px; }
 .bc-site-tbl td:nth-child(2) small { white-space: nowrap; }
+.bc-site-tbl td small.bc-site-note { display: block; margin-top: 1px; font-weight: 400; white-space: normal; }
+/* Both products: eight columns, so tighter cells. */
+.bc-site-8 th { padding-left: 6px; padding-right: 6px; letter-spacing: 0.5px; font-size: 8.5px; }
+.bc-site-8 td { padding-left: 6px; padding-right: 6px; }
+.bc-site-8 th:first-child, .bc-site-8 td:first-child { padding-left: 14px; }
+.bc-site-8 th:last-child, .bc-site-8 td:last-child { padding-right: 14px; }
+.bc-pilot-tbl.bc-site-8 td.bc-big { font-size: 14px; }
 /* Investment page, equipment purchase: unit price cards (price, how it's billed, what it covers). */
 .bc-unit-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .bc-unit-cards .bc-dark { padding: 12px 16px 13px; }
@@ -767,19 +774,65 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-hw-card figcaption { padding: 10px 12px; }
 .bc-hw-card figcaption b { display: block; font-size: 12.5px; color: var(--bc-ink); }
 .bc-hw-card figcaption > span { display: block; font-size: 10.5px; color: var(--bc-muted); line-height: 1.4; margin-top: 2px; }
-@media (max-width: 640px) { .bc-hw { grid-template-columns: 1fr; } }
+/* Three products: three narrower cards (text beside), or each name and line above its photo. */
+.bc-hw.bc-hw-3 { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.bc-hw-3 .bc-hw-card { grid-template-columns: 48% 1fr; }
+.bc-hw-3 .bc-hw-card figcaption { padding: 8px 10px; }
+.bc-hw-3 .bc-hw-card figcaption b { font-size: 11.5px; }
+.bc-hw-3 .bc-hw-card figcaption > span { font-size: 9.5px; }
+.bc-hw-img.bc-hw-contain { background: #fff; display: flex; align-items: center; justify-content: center; padding: 6px; }
+.bc-hw-img.bc-hw-contain img { object-fit: contain; transform: none; }
+.bc-hw3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.bc-hw3-card { margin: 0; background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; break-inside: avoid; }
+.bc-hw3-card figcaption { padding: 10px 12px 8px; min-height: 58px; }
+.bc-hw3-card figcaption b { display: block; font-size: 12px; color: var(--bc-ink); }
+.bc-hw3-card figcaption > span { display: block; font-size: 10px; color: var(--bc-muted); line-height: 1.4; margin-top: 2px; }
+.bc-hw3-img { aspect-ratio: 473 / 300; overflow: hidden; border-top: 1px solid var(--bc-line); margin-top: auto; }
+.bc-hw3-img img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.03); display: block; }
+.bc-hw3-img.bc-hw3-contain { background: #fff; display: flex; align-items: center; justify-content: center; padding: 8px; }
+.bc-hw3-img.bc-hw3-contain img { object-fit: contain; transform: none; }
+/* E-Call only: the device card (image, kind, name, bullets) and the E-Call App beside it. With the app, the bullets
+   spread down the card's height; without it, the card fits its text. */
+.bc-ec { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 12px; align-items: stretch; }
+.bc-ec.bc-ec-solo { grid-template-columns: minmax(0, 1fr); }
+.bc-ecdev { margin: 0; background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: 44% 1fr; break-inside: avoid; }
+.bc-ec-solo .bc-ecdev { grid-template-columns: 34% 1fr; }
+.bc-ecdev-img { display: flex; align-items: center; justify-content: center; padding: 12px; }
+.bc-ecdev-img img { max-width: 100%; max-height: 210px; object-fit: contain; }
+.bc-ec-solo .bc-ecdev-img img { max-height: 150px; }
+.bc-ecdev figcaption { padding: 16px 16px 14px 4px; display: flex; flex-direction: column; }
+.bc-ecdev-kind { font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 800; color: var(--bc-coral, #E8664A); margin-bottom: 6px; }
+.bc-ecdev figcaption b { display: block; font-size: 13.5px; color: var(--bc-ink); margin-bottom: 6px; }
+.bc-ecdev-ul { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.45; color: var(--bc-body, #3C4450); list-style: disc; }
+.bc-ecdev-ul li { margin: 2px 0; }
+.bc-ecdev-fill figcaption { padding-top: 20px; padding-bottom: 20px; }
+.bc-ecdev-fill .bc-ecdev-ul { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; font-size: 11.5px; margin-top: 4px; }
+.bc-ecdev-fill .bc-ecdev-ul li { margin: 0; }
+.bc-ecapp { background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; align-items: center; break-inside: avoid; }
+.bc-ecapp-lbl { align-self: flex-start; font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 800; color: var(--bc-muted); margin-bottom: 8px; }
+.bc-ecapp img { height: 210px; width: auto; }
+@media (max-width: 640px) {
+  .bc-hw { grid-template-columns: 1fr; }
+  .bc-hw.bc-hw-3, .bc-hw3 { grid-template-columns: 1fr; }
+  .bc-ec, .bc-ecdev { grid-template-columns: 1fr; }
+}
 /* With the hardware photos on it, the scope page tightens so the cards, table and photos share one sheet. */
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-lede { margin-bottom: 10px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark { padding: 11px 14px 12px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark > b { font-size: 28px; line-height: 1.1; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-four .bc-dark > span { font-size: 10.5px; margin-top: 4px; line-height: 1.35; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) { margin-top: 6px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) th { padding-top: 7px; padding-bottom: 6px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td { padding-top: 5px; padding-bottom: 5px; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-site-tbl:not(.bc-site-full) td.bc-big { font-size: 12.5px; font-weight: 700; }
-[data-bc-page="sitescope"]:has(.bc-hw) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-lede { margin-bottom: 10px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-four .bc-dark { padding: 11px 14px 12px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-four .bc-dark > b { font-size: 28px; line-height: 1.1; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-four .bc-dark > span { font-size: 10.5px; margin-top: 4px; line-height: 1.35; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-site-tbl:not(.bc-site-full) { margin-top: 6px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-site-tbl:not(.bc-site-full) th { padding-top: 7px; padding-bottom: 6px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-site-tbl:not(.bc-site-full) td { padding-top: 5px; padding-bottom: 5px; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-site-tbl:not(.bc-site-full) td.bc-big { font-size: 12.5px; font-weight: 700; }
+[data-bc-page="sitescope"]:has(.bc-hwset) .bc-eyebrow.bc-gray { margin-top: 12px; margin-bottom: 6px; }
 
 /* Rooms by type: an E-Call-only community, one line across the table. */
+/* E-Call on the scope table: coral dots and a coral-tinted pendants / pull-cords column; a common-areas subheading. */
+.bc-dots.bc-dots-co { color: #E8664A; }
+.bc-tbl .bc-hl3 { background: #FDF0EC; }
+.bc-care-common { background: #F1EEE8; color: #6B6358; }
+.bc-site-sub td { font-size: 9.5px !important; letter-spacing: 1.4px; font-weight: 700; text-transform: uppercase; color: var(--bc-muted) !important; padding-top: 7px !important; padding-bottom: 5px !important; }
 .bc-site-tbl tr.bc-site-ecall td { text-align: center !important; font-style: italic; color: var(--bc-muted); font-size: 12px; }
 
 /* Scrolls without showing a scrollbar (the inputs page's right panel). */
@@ -803,6 +856,12 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @keyframes slideFromLeft { from { transform: translateX(-100%); } to { transform: none; } }
 /* A table card with its label inside (Executive summary): the label row, then the table. */
 .bc-tbl-headed { margin-top: 0; }
+/* Executive summary, E-Call: coral device counts, the system's badge, and the E-Call App image. */
+.bc-exec-mini .bc-exec-co b { color: var(--bc-coral); }
+.bc-exec-badge { display: inline-block; margin-left: 6px; vertical-align: 2px; border-radius: 99px; padding: 2px 8px; font-size: 9.5px; font-weight: 800; background: #FDE6DF; color: #B4442C; }
+.bc-exec-app { display: flex; justify-content: center; }
+.bc-exec-app img { height: 150px; width: auto; }
+.bc-exec-card .bc-ecdev-ul { font-size: 11px; }
 .bc-tbl-head { padding: 12px 16px 0; }
 .bc-req > .bc-tbl-head { padding: 0 0 2px; }
 .bc-tbl-head .bc-exec-lbl { margin-bottom: 0; }

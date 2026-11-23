@@ -75,6 +75,18 @@ export interface ProposalLayout {
   bcExecInv?: 'units';
   /** Business case Executive Summary: the 'What gets installed' card added (off by default; listed in Removed until added). */
   bcExecHardware?: true;
+  /** Business case scope table: care names in full or short (AL, MC…); unset = short when the E-Call columns show. */
+  bcSiteCare?: 'full' | 'short';
+  /** Business case scope table: common areas folded into one line instead of a row each. */
+  bcSiteAreas?: 'fold';
+  /** Business case scope page, both products: which figure cards show (unset = both). */
+  bcSiteCards?: 'sensors' | 'ecall';
+  /** Business case 'What gets installed', both products: names and lines beside each photo instead of above. */
+  bcHwLayout?: 'beside';
+  /** Business case Executive Summary 'By community': the cost column per bed per month instead of the total. */
+  bcExecComm?: 'perBed';
+  /** Business case Executive Summary, E-Call only: 'The system' card shows the E-Call App instead of the features. */
+  bcExecSystem?: 'app';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -202,6 +214,12 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcInvCards: raw.bcInvCards === 'units' ? 'units' : undefined,
     bcExecInv: raw.bcExecInv === 'units' ? 'units' : undefined,
     bcExecHardware: raw.bcExecHardware === true ? true : undefined,
+    bcSiteCare: raw.bcSiteCare === 'full' || raw.bcSiteCare === 'short' ? raw.bcSiteCare : undefined,
+    bcSiteAreas: raw.bcSiteAreas === 'fold' ? 'fold' : undefined,
+    bcSiteCards: raw.bcSiteCards === 'sensors' || raw.bcSiteCards === 'ecall' ? raw.bcSiteCards : undefined,
+    bcHwLayout: raw.bcHwLayout === 'beside' ? 'beside' : undefined,
+    bcExecComm: raw.bcExecComm === 'perBed' ? 'perBed' : undefined,
+    bcExecSystem: raw.bcExecSystem === 'app' ? 'app' : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,
     bcCompact: (() => {

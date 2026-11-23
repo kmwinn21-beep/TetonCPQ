@@ -339,12 +339,14 @@ export function RTbody({ id, name, className, outside = false, children }: { id:
       if (!isValidElement(el)) return [el];
       const key = `${prefix}${String(el.key ?? '')}`;
       if (el.type === Fragment) return walk((el.props as { children?: React.ReactNode }).children, `${key}-`);
-      if (el.type !== 'tr') return [el];
+      // Rows from different fragments (e.g. one per community) would repeat their local keys: give each its full one.
+      const own = cloneElement(el, { key });
+      if (el.type !== 'tr') return [own];
       const props = el.props as { className?: string; children?: React.ReactNode; 'data-fixed'?: boolean };
-      if (props['data-fixed']) return [el];
+      if (props['data-fixed']) return [own];
       const rk = `${id}.${clean(key)}`.slice(0, 80);
       if (rk in hidden) return [];
-      if (!editable) return [el];
+      if (!editable) return [own];
       // The remove button sits in the row's first cell, shown on hover.
       const cells = Children.toArray(props.children);
       const first = cells.findIndex((c) => isValidElement(c));
@@ -373,7 +375,7 @@ export function RTbody({ id, name, className, outside = false, children }: { id:
           </>
         ),
       });
-      return [cloneElement(el as React.ReactElement<{ className?: string; children?: React.ReactNode }>, { className: `${props.className ?? ''} group/row`, children: cells })];
+      return [cloneElement(el as React.ReactElement<{ className?: string; children?: React.ReactNode }>, { key, className: `${props.className ?? ''} group/row`, children: cells })];
     });
   return <tbody className={className}>{walk(children, '')}</tbody>;
 }

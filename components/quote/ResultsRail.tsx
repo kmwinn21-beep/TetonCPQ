@@ -61,7 +61,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
       </button>
       <Collapse open={open} id="live-preview">
       <div className="pt-3 divide-y divide-teton-off-white [&>*]:pb-3 [&>*:last-child]:pb-0">
-        <Rows title="Scope" rows={[['Edge units', count(t.scope.edgeUnits)], ['Sensors', count(t.scope.sensors)], ['Additional sensors', count(t.scope.additionalSensors)]]} />
+        <Rows title="Scope" rows={[['Edge units', count(t.scope.edgeUnits)], ['Sensors', count(t.scope.sensors)], ['Additional sensors', count(t.scope.additionalSensors)], ...(t.scope.pendants ? [[draft.commercial.ecall === 'inovonics' ? 'Pull-cords' : 'Pendants', count(t.scope.pendants)] as [string, string]] : [])]} />
         {t.capex && (
           <Rows
             title="Investment"

@@ -114,7 +114,7 @@ const GROUP: Record<string, string> = {
 };
 
 // Products are compared per care type below (the community-wide monitoring / E-Call flags follow them).
-const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes' | 'products' | 'monitoring' | 'ecall'>, Field> = {
+const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes' | 'commonAreas' | 'products' | 'monitoring' | 'ecall'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
   city: { label: 'City', fmt: 'text' },
   market: { label: 'State', fmt: 'text' },
@@ -130,6 +130,7 @@ const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomT
   roiDelayMonths: { label: 'ROI delay (months)', fmt: 'num' },
   additionalSensors: { label: 'Additional sensors', fmt: 'num' },
   sensorAllowancePct: { label: 'Sensor allowance', fmt: 'pct' },
+  pendantAllowancePct: { label: 'Pendant / pull-cord contingency', fmt: 'pct' },
 };
 
 const TEXT: Record<string, string> = {
@@ -241,6 +242,10 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
     if (JSON.stringify(prev.roomTypes ?? []) !== JSON.stringify(c.roomTypes ?? [])) {
       const n = (x: typeof c) => (x.roomTypes ?? []).length;
       changes.push({ group: 'Communities', label: `${c.name || prev.name}: Room types`, from: `${n(prev)} types`, to: `${n(c)} types` });
+    }
+    if (JSON.stringify(prev.commonAreas ?? []) !== JSON.stringify(c.commonAreas ?? [])) {
+      const n = (x: typeof c) => (x.commonAreas ?? []).reduce((s, a) => s + a.count, 0);
+      changes.push({ group: 'Communities', label: `${c.name || prev.name}: Common areas`, from: `${n(prev)} areas`, to: `${n(c)} areas` });
     }
   }
   // Stages and terms are lists: described item by item.

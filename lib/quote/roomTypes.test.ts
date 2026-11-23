@@ -43,4 +43,29 @@ describe('room types', () => {
     expect(careLabel({ care: 'al' })).toBe('Assisted living');
     expect(roomScope(t, 0).beds).toEqual({ il: 0, al: 4, mc: 0, snf: 0 });
   });
+
+  describe('pendantScope (E-Call devices)', () => {
+    it('counts pendants per room on E-Call room types, common areas and the contingency', async () => {
+      const { pendantScope } = await import('./roomTypes');
+      const { allProducts } = await import('./draft');
+      const c = {
+        products: allProducts({ monitoring: true, ecall: true }),
+        roomTypes: [
+          { id: 'a', name: 'Studio', care: 'al' as const, rooms: 55, sensors: 1 },
+          { id: 'b', name: 'One bedroom', care: 'al' as const, rooms: 33, sensors: 2, pendants: 2 },
+        ],
+        commonAreas: [{ id: 'x', name: 'Bath', kind: 'bathroom' as const, count: 6, pendants: 1 }, { id: 'y', name: 'Dining', kind: 'dining' as const, count: 1, pendants: 0 }],
+        pendantAllowancePct: 0.05,
+      };
+      expect(pendantScope(c, true)).toEqual({ rooms: 88, roomPendants: 121, areas: 6, areaPendants: 6, plan: 127, allowance: 7, total: 134 });
+      expect(pendantScope(c, false).total).toBe(0);
+      // No E-Call on any care type: nothing, common areas included.
+      expect(pendantScope({ ...c, products: allProducts({ monitoring: true, ecall: false }) }, true).total).toBe(0);
+    });
+    it('without room types: one per E-Call bed', async () => {
+      const { pendantScope } = await import('./roomTypes');
+      const { allProducts } = await import('./draft');
+      expect(pendantScope({ products: allProducts({ monitoring: false, ecall: true }), alBeds: 40, mcBeds: 10, pendantAllowancePct: 0 }, true)).toMatchObject({ rooms: 50, roomPendants: 50, total: 50 });
+    });
+  });
 });

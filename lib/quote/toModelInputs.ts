@@ -5,6 +5,7 @@
 import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityExtra, type CommunityRates, type ModelInputs } from '@/lib/model';
 import { scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
+import { pendantScope } from './roomTypes';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -72,14 +73,18 @@ export function communityUnits(c: DraftCommunity, ecallOn = true): number {
 
 /**
  * Where products differ by care type: E-Call billed on top of the monitored beds — the E-Call fee on every
- * E-Call bed, and the E-Call installation on beds with E-Call only. None otherwise.
+ * E-Call bed, and the E-Call installation on beds with E-Call only. Plus, for any community, its common areas'
+ * E-Call fee (per area, per month).
  */
 export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtra[] {
   const k = d.commercial;
   const s = scopeOf(c, k.ecall !== 'none');
-  if (s.uniform) return [];
-  const install = Number(k.ecallInstallRate) || 0;
   const out: CommunityExtra[] = [];
+  // Common areas with pull-cords: each billed per area, per month, at the E-Call rates (any community with E-Call).
+  const areas = pendantScope(c, k.ecall !== 'none').areas;
+  if (areas > 0) out.push({ units: areas, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
+  if (s.uniform) return out;
+  const install = Number(k.ecallInstallRate) || 0;
   if (s.ecall > 0) out.push({ units: s.ecall, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
   if (s.ecallOnly > 0) out.push({ units: s.ecallOnly, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: install * (1 - k.installCreditPct), postPilotInstallPerBed: install } });
   return out;
