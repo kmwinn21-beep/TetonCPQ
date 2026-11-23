@@ -811,13 +811,25 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-ecdev-fill figcaption { padding-top: 20px; padding-bottom: 20px; }
 .bc-ecdev-fill .bc-ecdev-ul { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; font-size: 11.5px; margin-top: 4px; }
 .bc-ecdev-fill .bc-ecdev-ul li { margin: 0; }
+/* Comparing both E-Call systems: two device cards side by side, or stacked beside the E-Call App. */
+.bc-ec2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bc-ec2 .bc-ecdev { grid-template-columns: 1fr 40%; }
+.bc-ec2 .bc-ecdev-img img { max-height: 150px; }
+.bc-ec-stack { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; min-width: 0; }
+.bc-ecdev.bc-ecdev-tight { grid-template-columns: 1fr 32%; }
+.bc-ecdev-tight figcaption { padding-top: 10px; padding-bottom: 10px; }
+.bc-ecdev-tight figcaption b { font-size: 12.5px; margin-bottom: 3px; }
+.bc-ecdev-tight .bc-ecdev-ul { font-size: 10.5px; }
+.bc-ecdev-tight .bc-ecdev-ul li { margin: 1px 0; }
+.bc-ecdev-tight .bc-ecdev-img { padding: 6px 10px; }
+.bc-ecdev-tight .bc-ecdev-img img { max-height: 84px; }
 .bc-ecapp { background: #fff; border: 1px solid var(--bc-line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; align-items: center; break-inside: avoid; }
 .bc-ecapp-lbl { align-self: flex-start; font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 800; color: var(--bc-muted); margin-bottom: 8px; }
 .bc-ecapp img { height: 210px; width: auto; }
 @media (max-width: 640px) {
   .bc-hw { grid-template-columns: 1fr; }
   .bc-hw.bc-hw-3, .bc-hw3 { grid-template-columns: 1fr; }
-  .bc-ec, .bc-ecdev { grid-template-columns: 1fr; }
+  .bc-ec, .bc-ecdev, .bc-ec2, .bc-ecdev.bc-ecdev-tight, .bc-ec2 .bc-ecdev { grid-template-columns: 1fr; }
 }
 /* With the hardware photos on it, the scope page tightens so the cards, table and photos share one sheet. */
 [data-bc-page="sitescope"]:has(.bc-hwset) .bc-lede { margin-bottom: 10px; }
@@ -890,3 +902,28 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-block.bc-drop-bottom::after { bottom: -8px; left: 0; right: 0; height: 4px; }
 /* Device photos on white backgrounds blend into the cream page (no card around them). */
 .bc-ecdev-img img, .bc-exec-sys-img img { mix-blend-mode: multiply; filter: brightness(1.06) contrast(1.04); }
+
+/* E-Call only, comparing Bluetooth and Inovonics: unit price cards with both values, and tinted columns per system. */
+.bc-cmp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.bc-cmp-card { padding: 14px 16px; }
+.bc-cmp-vals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 4px; }
+.bc-cmp-vals.bc-cmp-one { grid-template-columns: 1fr; }
+.bc-cmp-vals > div { border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 6px; }
+.bc-cmp-vals i { display: block; font-style: normal; font-size: 8.5px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 800; color: #9AA3AE; }
+.bc-cmp-vals b { display: block; font-size: 22px; font-weight: 500; color: var(--bc-mint); line-height: 1.2; }
+.bc-cmp-vals .bc-cmp-v-inov b { color: #F3B27A; }
+.bc-cmp-tbl table { width: 100%; border-collapse: collapse; }
+.bc-cmp-tbl .bc-cmp-ble { background: #EEF4FD; }
+.bc-cmp-tbl .bc-cmp-inov { background: #FDF1E8; }
+.bc-cmp-tbl th.bc-cmp-grp { text-align: center; padding-bottom: 2px; border-bottom: 0; }
+.bc-cmp-tbl td small { display: block; font-weight: 400; color: var(--bc-muted); font-size: 10.5px; }
+.bc-sys { display: inline-block; border-radius: 99px; padding: 3px 10px; font-size: 10px; letter-spacing: 1.2px; font-weight: 800; }
+.bc-sys-ble { background: #DCE8FB; color: #1F4F96; }
+.bc-sys-inov { background: #FBE3D2; color: #9A4A14; }
+@media (max-width: 640px) { .bc-cmp-cards { grid-template-columns: 1fr; } }
+.bc-cmp-tbl th, .bc-cmp-tbl td { white-space: nowrap; }
+.bc-cmp-tbl td:first-child { white-space: normal; min-width: 150px; }
+.bc-cmp-tbl td.bc-big { font-size: 15px; }
+.bc-cmp-tbl th, .bc-cmp-tbl td { padding-left: 8px; padding-right: 8px; }
+.bc-cmp-tbl th:first-child, .bc-cmp-tbl td:first-child { padding-left: 16px; }
+.bc-cmp-tbl th:last-child, .bc-cmp-tbl td:last-child { padding-right: 14px; }

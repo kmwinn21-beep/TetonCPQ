@@ -81,6 +81,10 @@ export interface Commercial {
   ecallInstallRate?: number;
   /** Each E-Call device (pendant / pull-cord), one-time (subscription; from the price book). */
   ecallDevicePrice?: number;
+  /** E-Call-only deals: the business case compares Bluetooth and Inovonics (the chosen system still prices the deal). */
+  ecallCompare?: boolean;
+  /** The other system's E-Call rate per bed per month, for the comparison (blank = its list price). */
+  ecallCompareRate?: number | null;
   /** The rep chose a custom install credit (installCreditPct then carries it; blank until typed, which blocks saving). */
   installCreditCustom?: boolean;
   installCreditCustomPct?: number | null;

@@ -69,6 +69,8 @@ const FIELDS: Record<string, Field> = {
   'commercial.pilotRate': { label: 'Pilot rate / bed / mo', fmt: 'usd' },
   'commercial.ecall': { label: 'E-Call', fmt: 'text' },
   'commercial.ecallRate': { label: 'E-Call rate / bed / mo', fmt: 'usd' },
+  'commercial.ecallCompare': { label: 'Compare Bluetooth and Inovonics', fmt: 'bool' },
+  'commercial.ecallCompareRate': { label: 'Comparison E-Call rate / bed / mo', fmt: 'usd' },
   'commercial.ecallPilotRate': { label: 'E-Call during pilot', fmt: 'usd' },
   'commercial.installRate': { label: 'Install / bed', fmt: 'usd' },
   'commercial.installCreditPct': { label: 'Install credit on pilot sites', fmt: 'pct' },

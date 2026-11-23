@@ -274,6 +274,11 @@ export function PricingSection({ book }: SectionProps) {
               }}
             />
           </SetupRow>
+          {ecallOn && (
+            <SetupRow label="Compare both systems" hint="E-Call-only deals: the business case shows Bluetooth and Inovonics side by side. The system above prices the deal.">
+              <Switch name="commercial.ecallCompare" label="Compare Bluetooth and Inovonics" />
+            </SetupRow>
+          )}
           <SetupRow label="Concealed finish" hint="Optional add-on, quoted per room pending the site survey">
             <Switch name="commercial.finish.concealed" label="Concealed finish" />
           </SetupRow>
@@ -301,6 +306,17 @@ export function PricingSection({ book }: SectionProps) {
             <MoneyField name="commercial.installRate" label="Install per bed" hint={`List $${listInstall} · one-time`} min={0} />
             <MoneyField name="commercial.sensorPrice" label="Additional sensor" hint="Each, one-time" min={0} />
             {ecallOn && <MoneyField name="commercial.ecallRate" label="E-Call per bed / month" suffix="/bed" hint={`List $${ecallList(k.ecall)}`} min={0} />}
+            {ecallOn && k.ecallCompare && (
+              <MoneyField
+                name="commercial.ecallCompareRate"
+                label={`${k.ecall === 'ble' ? 'Inovonics' : 'Bluetooth'} per bed / month`}
+                suffix="/bed"
+                hint={`For the comparison · list $${ecallList(k.ecall === 'ble' ? 'inovonics' : 'ble')}`}
+                min={0}
+                nullable
+                placeholder={String(ecallList(k.ecall === 'ble' ? 'inovonics' : 'ble'))}
+              />
+            )}
             {ecallOn && <MoneyField name="commercial.ecallInstallRate" label="E-Call installation per bed" hint="One-time, on beds with E-Call only" min={0} nullable placeholder="0" />}
             <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Common areas & hallways; usually 1.2–1.4×" min={1} />
           </PriceGroup>

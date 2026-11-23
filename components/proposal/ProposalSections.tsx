@@ -848,7 +848,7 @@ export function RemovedPanel({ bothPricing = false, bare = false, onCount }: { b
   const pages = businessCase ? removedBcPages(bcPagesOf(layout)) : [];
   const values = layout.hiddenValues;
   // Business case: sections removed from inside its pages, with their page's name.
-  const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
+  const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'scope-compare': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
   const blocks = businessCase
     ? Object.entries(layout.bcHiddenBlocks ?? {}).flatMap(([page, m]) =>
         Object.entries(m).map(([id, label]) => ({ page, id, label, where: (BC_PAGE_TITLES as Record<string, string>)[PAGE_OF[page] ?? page] ?? page })),

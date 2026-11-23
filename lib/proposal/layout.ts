@@ -91,6 +91,8 @@ export interface ProposalLayout {
   bcExecUnitsFor?: 'rm' | 'ecall' | 'all';
   /** Business case Executive Summary: the page numbers in the cards' corners removed (all of them). */
   bcExecNoPageRefs?: true;
+  /** Business case, E-Call only comparison: one system's columns only (unset = both). */
+  bcCompareShow?: 'ble' | 'inov';
   /** Business case, subscription: the overview cards as unit prices (default) or the summary. */
   bcOpexCards?: 'overview';
   /** Business case scope page, scope cards removed: the rooms table at full row height instead of compact. */
@@ -225,6 +227,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecComm: raw.bcExecComm === 'perBed' ? 'perBed' : undefined,
     bcExecSystem: raw.bcExecSystem === 'app' ? 'app' : undefined,
     bcExecNoPageRefs: raw.bcExecNoPageRefs === true ? true : undefined,
+    bcCompareShow: raw.bcCompareShow === 'ble' || raw.bcCompareShow === 'inov' ? raw.bcCompareShow : undefined,
     bcExecUnitsFor: raw.bcExecUnitsFor === 'rm' || raw.bcExecUnitsFor === 'ecall' || raw.bcExecUnitsFor === 'all' ? raw.bcExecUnitsFor : undefined,
     bcOpexCards: raw.bcOpexCards === 'overview' ? 'overview' : undefined,
     bcSiteRows: raw.bcSiteRows === 'full' ? 'full' : undefined,

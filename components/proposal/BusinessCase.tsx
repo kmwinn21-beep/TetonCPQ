@@ -16,7 +16,7 @@ import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows, conversionCreditOf, grossBaseRows, partsOf, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
 import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
-import { SKU } from '@/lib/pricing/catalog';
+import { SEED_PRODUCTS, SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import { hasEcall, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
@@ -802,23 +802,63 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   // ---------- E-Call devices: pendants (Bluetooth) or pull-cords (Inovonics), in rooms and in common areas ----------
   const ecallDeal = draft.commercial.ecall !== 'none';
   const inov = draft.commercial.ecall === 'inovonics';
-  const DEV = inov ? { many: 'pull-cords', Many: 'Pull-cords', rm: 'Cords/rm' } : { many: 'pendants', Many: 'Pendants', rm: 'Pendants/rm' };
   const pendBy = draft.communities.map((c) => pendantScope(c, ecallDeal));
   const devTotal = sum(pendBy.map((p) => p.total));
   const hasEc = devTotal > 0;
   const hasMon = draft.communities.some((c) => monitors(c));
   /** Which products the deal's scope shows: Resident Monitoring, E-Call, or both. */
   const scopeMode: 'mon' | 'both' | 'ecall' = hasEc ? (hasMon ? 'both' : 'ecall') : 'mon';
-  const devCard = inov
-    ? { k: 'inov', src: '/Inovonics_Pullcord.png', kind: 'Inovonics', name: 'Teton Inovonics pull-cord', short: 'UL Certified · Radio Network · Battery Backup', bullets: ['Own radio network, independent of Wi-Fi', 'Battery backup; UL 2560 certification expected Q1 2027', 'Can take over existing infrastructure in over 70% of senior living communities'] }
-    : { k: 'ble', src: '/Bluetooth_Pendant.png', kind: 'Bluetooth', name: 'Teton Bluetooth pendant', short: 'Bluetooth Gateways · Not UL Certified', bullets: ['Lowest cost', 'Runs on Bluetooth gateways or Teton devices in the room. Not UL 2560 certified'] };
-  const ecallAppShown = !(layout.bcHiddenBlocks?.sitescope && 'ecallapp' in layout.bcHiddenBlocks.sitescope);
-  const devBullets = (
+  /** E-Call only, comparing Bluetooth and Inovonics: devices are named generically and both systems are shown. */
+  const ecCompare = scopeMode === 'ecall' && !!draft.commercial.ecallCompare;
+  const DEV = ecCompare
+    ? { many: 'devices', Many: 'Devices', rm: 'Devices/rm' }
+    : inov
+      ? { many: 'pull-cords', Many: 'Pull-cords', rm: 'Cords/rm' }
+      : { many: 'pendants', Many: 'Pendants', rm: 'Pendants/rm' };
+  type DevCard = { k: 'ble' | 'inov'; src: string; kind: string; name: string; short: string; bullets: string[] };
+  const DEV_CARDS: Record<'ble' | 'inov', DevCard> = {
+    inov: { k: 'inov', src: '/Inovonics_Pullcord.png', kind: 'Inovonics', name: 'Teton Inovonics pull-cord', short: 'UL Certified · Radio Network · Battery Backup', bullets: ['Own radio network, independent of Wi-Fi', 'Battery backup; UL 2560 certification expected Q1 2027', 'Can take over existing infrastructure in over 70% of senior living communities'] },
+    ble: { k: 'ble', src: '/Bluetooth_Pendant.png', kind: 'Bluetooth', name: 'Teton Bluetooth pendant', short: 'Bluetooth Gateways · Not UL Certified', bullets: ['Lowest cost', 'Runs on Bluetooth gateways or Teton devices in the room. Not UL 2560 certified'] },
+  };
+  const devCard = inov ? DEV_CARDS.inov : DEV_CARDS.ble;
+  const siteHidden = layout.bcHiddenBlocks?.sitescope ?? {};
+  const ecallAppShown = !('ecallapp' in siteHidden);
+  const bulletsOf = (c: DevCard) => (
     <ul className="bc-ecdev-ul">
-      {devCard.bullets.map((b, n) => (
-        <li key={n}><T k={`bc.site.hw.${devCard.k}.b${n + 1}`} d={b} /></li>
+      {c.bullets.map((b, n) => (
+        <li key={n}><T k={`bc.site.hw.${c.k}.b${n + 1}`} d={b} /></li>
       ))}
     </ul>
+  );
+  const devBullets = bulletsOf(devCard);
+  const hideSite = (key: string, label: string) => setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), sitescope: { ...(l.bcHiddenBlocks?.sitescope ?? {}), [key]: label } } }));
+  const removeBtn = (title: string, label: string, onClick: () => void, group: string) =>
+    editable ? (
+      <button
+        type="button"
+        data-edit-ui
+        className={`no-print absolute -top-2.5 -right-2.5 z-[5] w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white text-[11px] shadow opacity-0 ${group} focus:opacity-100 transition-opacity motion-reduce:transition-none`}
+        title={title}
+        aria-label={label}
+        onClick={onClick}
+      >
+        ✕
+      </button>
+    ) : null;
+  /** A device card: kind, name and bullets on the left, the picture on the right. In a comparison each can be removed. */
+  const devFigure = (c: DevCard, cls: string, removable = false) => (
+    <figure key={c.k} className={`bc-ecdev ${cls} ${removable ? 'group/dev relative' : ''}`}>
+      {removable && removeBtn(`Remove ${c.kind} (you can add it back)`, `Remove ${c.kind}`, () => hideSite(c.k === 'ble' ? 'devble' : 'devinov', `${c.kind} device · Scope`), 'group-hover/dev:opacity-100')}
+      <figcaption>
+        <span className="bc-ecdev-kind"><T k={`bc.site.hw.${c.k}.kind`} d={c.kind} /></span>
+        <b><T k={`bc.site.hw.${c.k}`} d={c.name} /></b>
+        {bulletsOf(c)}
+      </figcaption>
+      <div className="bc-ecdev-img">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={c.src} alt={c.name} />
+      </div>
+    </figure>
   );
 
   // The hardware, each photo shown whole beside its caption (also an optional Executive Summary card).
@@ -864,42 +904,33 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </div>
       );
     }
-    // E-Call only: the device with its bullets, and the E-Call App beside it (removable; then the card fits its text).
+    // E-Call only: the device(s) with their bullets, and the E-Call App on the left (removable; then the cards fit their text).
     const app = where === 'page' && ecallAppShown;
+    const cards = ecCompare && where === 'page' ? [DEV_CARDS.ble, DEV_CARDS.inov].filter((c) => !((c.k === 'ble' ? 'devble' : 'devinov') in siteHidden)) : [devCard];
+    const appCard = app && (
+      <div className="bc-ecapp group/app relative">
+        {removeBtn('Remove the E-Call App (you can add it back)', 'Remove Teton E-Call App', () => hideSite('ecallapp', 'Teton E-Call App'), 'group-hover/app:opacity-100')}
+        <span className="bc-ecapp-lbl"><T k="bc.site.app" d="Teton E-Call App" /></span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/E-Call_App.png" alt="Teton E-Call App" />
+      </div>
+    );
+    if (cards.length === 2) {
+      // Both systems: side by side; with the app, stacked beside it so the section keeps its height.
+      return app ? (
+        <div className={`bc-ec bc-hwset bc-ec-page`}>
+          {appCard}
+          <div className="bc-ec-stack">{cards.map((c) => devFigure(c, 'bc-ecdev-tight', true))}</div>
+        </div>
+      ) : (
+        <div className="bc-ec2 bc-hwset bc-ec-page">{cards.map((c) => devFigure(c, '', true))}</div>
+      );
+    }
+    const one = cards[0] ?? devCard;
     return (
       <div className={`bc-ec bc-hwset ${where === 'page' ? 'bc-ec-page' : ''} ${app ? '' : 'bc-ec-solo'}`}>
-        {/* The E-Call App on the left, then the device card (bullets, picture). */}
-        {app && (
-          <div className="bc-ecapp group/app relative">
-            {editable && (
-              <button
-                type="button"
-                data-edit-ui
-                className="no-print absolute -top-2.5 -right-2.5 z-[5] w-6 h-6 flex items-center justify-center rounded-full bg-teton-near-black text-white text-[11px] shadow opacity-0 group-hover/app:opacity-100 focus:opacity-100 transition-opacity motion-reduce:transition-none"
-                title="Remove the E-Call App (you can add it back)"
-                aria-label="Remove Teton E-Call App"
-                onClick={() => setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), sitescope: { ...(l.bcHiddenBlocks?.sitescope ?? {}), ecallapp: 'Teton E-Call App' } } }))}
-              >
-                ✕
-              </button>
-            )}
-            <span className="bc-ecapp-lbl"><T k="bc.site.app" d="Teton E-Call App" /></span>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/E-Call_App.png" alt="Teton E-Call App" />
-          </div>
-        )}
-        {/* Bullets on the left, the device on the right. */}
-        <figure className={`bc-ecdev ${app ? 'bc-ecdev-fill' : ''}`}>
-          <figcaption>
-            <span className="bc-ecdev-kind"><T k={`bc.site.hw.${devCard.k}.kind`} d={devCard.kind} /></span>
-            <b><T k={`bc.site.hw.${devCard.k}`} d={devCard.name} /></b>
-            {devBullets}
-          </figcaption>
-          <div className="bc-ecdev-img">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={devCard.src} alt={devCard.name} />
-          </div>
-        </figure>
+        {appCard}
+        {devFigure(one, app ? 'bc-ecdev-fill' : '', ecCompare && where === 'page')}
       </div>
     );
   };
@@ -994,6 +1025,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             <T k="bc.site.title" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors." v={titleVars} />
           ) : scopeMode === 'both' ? (
             <T k="bc.site.title.both" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors, {devices} {dev}." v={titleVars} />
+          ) : ecCompare ? (
+            <T k="bc.site.title.compare" d="Scoped from your floor plans: {rooms} rooms, {devices} E-Call devices." v={titleVars} />
           ) : (
             <T k="bc.site.title.ecall" d="Scoped from your floor plans: {rooms} rooms, {devices} {dev}." v={titleVars} />
           )}
@@ -1003,6 +1036,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             <T k="bc.site.lede" d="One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed." />
           ) : scopeMode === 'both' ? (
             <T k="bc.site.lede.both" d="One sensor for each room or living area a resident uses, and {dev} where residents call for help. Quantities are confirmed at the site survey and trued up to what is installed." v={{ dev: DEV.many }} />
+          ) : ecCompare ? (
+            <T k="bc.site.lede.compare" d="An E-Call device wherever residents need to call for help: in their rooms and in the shared bathrooms and spaces they use. Quantities are the same with either system and are confirmed at the site survey." />
           ) : (
             <T k="bc.site.lede.ecall" d="{Dev} wherever residents need to call for help: in their rooms and in the shared bathrooms and spaces they use. Quantities are confirmed at the site survey." v={{ Dev: DEV.Many }} />
           )}
@@ -1559,6 +1594,226 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     </>
   );
   {
+    // ---------- E-Call only, comparing Bluetooth and Inovonics (subscription) ----------
+    // The deal is priced with its chosen system; the other uses its comparison rate (or list). Each system's figures
+    // come from the deal's price lines with the E-Call fee swapped, so both columns add up the same way.
+    const compareOn = ecCompare && !capexShown;
+    const chosenSys: 'ble' | 'inov' = inov ? 'inov' : 'ble';
+    const listEcall = (sys: 'ble' | 'inov') => SEED_PRODUCTS.find((x) => x.sku === (sys === 'ble' ? SKU.ecallBle : SKU.ecallInovonics))?.list ?? (sys === 'ble' ? 10 : 15);
+    const rateFor = (sys: 'ble' | 'inov') => (sys === chosenSys ? draft.commercial.ecallRate : draft.commercial.ecallCompareRate ?? listEcall(sys));
+    const isEcLine = (l: PriceLine) => l.sku === SKU.ecallBle || l.sku === SKU.ecallInovonics;
+    const isPilotish = (l: PriceLine) => l.description.includes('pilot') || l.description.includes('introductory');
+    const sysCalc = (sys: 'ble' | 'inov') => {
+      const rate = rateFor(sys);
+      let oneTime = 0;
+      let y1 = 0;
+      let termTotal = 0;
+      let monthly = 0;
+      const per = draft.communities.map(() => ({ monthly: 0, oneTime: 0 }));
+      for (const l of lines) {
+        const amt = l.qty * (isEcLine(l) && !l.description.includes('pilot') ? rate : l.unitNet);
+        const at = per[l.communityPosition];
+        if (l.billing === 'one_time') {
+          oneTime += amt;
+          termTotal += amt;
+          if (l.startMonth <= 12) y1 += amt;
+          if (at) at.oneTime += amt;
+        } else {
+          const m = l.termMonths ?? 0;
+          termTotal += amt * m;
+          y1 += amt * Math.max(0, Math.min(12, l.startMonth + m - 1) - l.startMonth + 1);
+          if (!isPilotish(l)) {
+            monthly += amt;
+            if (at) at.monthly += amt;
+          }
+        }
+      }
+      return { sys, rate, oneTime, y1, termTotal, monthly, per };
+    };
+    const cmp = { ble: sysCalc('ble'), inov: sysCalc('inov') };
+    const cmpShown: Array<'ble' | 'inov'> = layout.bcCompareShow ? [layout.bcCompareShow] : ['ble', 'inov'];
+    const SYS_NAME = { ble: 'Bluetooth', inov: 'Inovonics' } as const;
+    const ecMonthlyLines = lines.filter((l) => isEcLine(l) && !isPilotish(l));
+    const cmpBeds = sum(ecMonthlyLines.filter((l) => !l.description.includes('common areas')).map((l) => l.qty));
+    const cmpAreas = sum(ecMonthlyLines.filter((l) => l.description.includes('common areas')).map((l) => l.qty));
+    const cmpInstallQty = sum(lines.filter((l) => l.billing === 'one_time' && l.unitNet > 0).map((l) => l.qty));
+    const sysHead = (sys: 'ble' | 'inov') => (
+      <span className={`bc-sys bc-sys-${sys}`}>{SYS_NAME[sys]}</span>
+    );
+    const compareBlocks = () => (
+      <Blocks page="scope-compare">
+        <B id="overview" label="Unit prices">
+          <div className="relative group/view">
+            {editable && (
+              <ViewSwitch
+                field="bcCompareShow"
+                position="absolute right-0 -top-1"
+                label="Systems shown"
+                options={[['both', 'Compare both'], ['ble', 'Bluetooth'], ['inov', 'Inovonics']] as const}
+                value={layout.bcCompareShow ?? 'both'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcCompareShow: v === 'both' ? undefined : v }))}
+              />
+            )}
+            <p className="bc-eyebrow bc-gray"><T k="bc.scope.unitPrices" d="Unit prices" /></p>
+            <div className="bc-cmp-cards">
+              {(
+                [
+                  ['recurring', 'Recurring costs', (s: 'ble' | 'inov') => money(rateFor(s)), 'per bed · per month, and per common area'],
+                  ['install', 'Installation', () => money(Number(draft.commercial.ecallInstallRate) || 0), 'per bed · one-time'],
+                  ['devices', 'Additional devices', () => money(draft.commercial.ecallDevicePrice ?? 75), 'per device · one-time'],
+                ] as const
+              ).map(([k, name, val, freq]) => (
+                <div className="bc-dark bc-cmp-card" key={k}>
+                  <span className="bc-unit-k"><T k={`bc.cmp.unit.${k}`} d={name} /></span>
+                  <div className={`bc-cmp-vals ${cmpShown.length === 1 ? 'bc-cmp-one' : ''}`}>
+                    {cmpShown.map((sys) => (
+                      <div key={sys} className={`bc-cmp-v-${sys}`}>
+                        <i>{SYS_NAME[sys]}</i>
+                        <b>{val(sys)}</b>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="bc-unit-f"><T k={`bc.cmp.unit.${k}.freq`} d={freq} /></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </B>
+        <B id="costs" label="Costs, both systems">
+          <div>
+            <p className="bc-eyebrow bc-gray"><T k="bc.cmp.costs" d="Costs" /></p>
+            <div className="bc-card bc-tbl bc-cmp-tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th rowSpan={2}>Item</th>
+                    <th rowSpan={2} className="bc-r">Quantity</th>
+                    {cmpShown.map((sys) => (
+                      <th key={sys} colSpan={2} className={`bc-cmp-grp bc-cmp-${sys}`}>{sysHead(sys)}</th>
+                    ))}
+                  </tr>
+                  <tr>
+                    {cmpShown.map((sys) => (
+                      <Fragment key={sys}>
+                        <th className={`bc-r bc-cmp-${sys}`}>Unit price</th>
+                        <th className={`bc-r bc-cmp-${sys}`}>Total</th>
+                      </Fragment>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="bc-m"><T k="bc.cmp.install" d="Installation" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                    <td className="bc-r">{count(cmpInstallQty)} beds</td>
+                    {cmpShown.map((sys) => (
+                      <Fragment key={sys}>
+                        <td className={`bc-r bc-cmp-${sys}`}>{money(Number(draft.commercial.ecallInstallRate) || 0)} / bed</td>
+                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].oneTime)}</td>
+                      </Fragment>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="bc-m">
+                      <T k="bc.cmp.monthly" d="Monthly subscription" />
+                      <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
+                    </td>
+                    <td className="bc-r">{count(cmpBeds)} beds{cmpAreas ? ` + ${count(cmpAreas)} areas` : ''}</td>
+                    {cmpShown.map((sys) => (
+                      <Fragment key={sys}>
+                        <td className={`bc-r bc-cmp-${sys}`}>{money(cmp[sys].rate)} / mo</td>
+                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].monthly)} / mo</td>
+                      </Fragment>
+                    ))}
+                  </tr>
+                  <tr className="bc-tot">
+                    <td className="bc-m">
+                      <T k="bc.cmp.year1" d="Total Year 1 Investment" />
+                      <small><T k="bc.cmp.year1Note" d="One-time + monthly fees in the first 12 months" /></small>
+                    </td>
+                    <td />
+                    {cmpShown.map((sys) => (
+                      <Fragment key={sys}>
+                        <td className={`bc-cmp-${sys}`} />
+                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].y1)}</td>
+                      </Fragment>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="bc-m"><T k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} /></td>
+                    <td />
+                    {cmpShown.map((sys) => (
+                      <Fragment key={sys}>
+                        <td className={`bc-cmp-${sys}`} />
+                        <td className={`bc-r bc-big bc-cmp-${sys}`}>{usd(cmp[sys].termTotal)}</td>
+                      </Fragment>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </B>
+        <B id="communities" label="Communities" onAdd={addCommunity?.(false)} addLabel="Add a community">
+          <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>
+          <div className="bc-card bc-tbl bc-cmp-tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th rowSpan={2}>Community</th>
+                  <th rowSpan={2} className="bc-r">AL beds</th>
+                  <th rowSpan={2} className="bc-r">MC beds</th>
+                  <th rowSpan={2} className="bc-r">Devices</th>
+                  {cmpShown.map((sys) => (
+                    <th key={sys} className={`bc-cmp-grp bc-cmp-${sys}`}>{sysHead(sys)}</th>
+                  ))}
+                </tr>
+                <tr>
+                  {cmpShown.map((sys) => (
+                    <th key={sys} className={`bc-r bc-cmp-${sys}`}>Total cost</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {draft.communities.map((dc, i) => {
+                  const b = bedsOf(dc);
+                  return (
+                    <tr key={dc.id}>
+                      <td className="bc-m">
+                        <CommunityName index={i}>{d.perCommunity[i].name}</CommunityName>
+                        <span className="bc-csub">{d.perCommunity[i].detail && <small>{d.perCommunity[i].detail}</small>}</span>
+                      </td>
+                      <td className="bc-r">{count(b.al)}</td>
+                      <td className="bc-r">{count(b.mc)}</td>
+                      <td className="bc-r">{pendBy[i].total ? count(pendBy[i].total) : '–'}</td>
+                      {cmpShown.map((sys) => (
+                        <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>
+                          {usd(cmp[sys].per[i]?.monthly ?? 0)} / mo
+                          <small>{usd(cmp[sys].per[i]?.oneTime ?? 0)} one-time</small>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {draft.communities.length > 1 && (
+                  <tr className="bc-tot">
+                    <td className="bc-m">{`${draft.communities.length} communities`}</td>
+                    <td className="bc-r">{count(sum(draft.communities.map((c) => bedsOf(c).al)))}</td>
+                    <td className="bc-r">{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
+                    <td className="bc-r">{count(devTotal)}</td>
+                    {cmpShown.map((sys) => (
+                      <td key={sys} className={`bc-r bc-big bc-cmp-${sys}`}>
+                        {usd(cmp[sys].monthly)} / mo
+                        <small>{usd(cmp[sys].oneTime)} one-time</small>
+                      </td>
+                    ))}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </B>
+      </Blocks>
+    );
     defs.scope = (no) => (
       <Page key="scope" no={no} crumb={<T k="bc.crumb" d="{customer} · Proposal" v={vars} />}>
         <p className="bc-eyebrow"><T k="bc.scope.eyebrow" d="The investment" /></p>
@@ -1577,7 +1832,11 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               <T k="bc.scope.title.opex" d="Post-Pilot Overview" />
             </h1>
             <p className="bc-lede">
-              <T k="bc.scope.lede.opex" d="Cost breakdown of Teton post-pilot" />
+              {compareOn ? (
+                <T k="bc.scope.lede.compare" d="Two ways to run Teton E-Call. The rooms, devices and app are the same; the network underneath differs." />
+              ) : (
+                <T k="bc.scope.lede.opex" d="Cost breakdown of Teton post-pilot" />
+              )}
             </p>
           </>
         )}
@@ -1741,6 +2000,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               )}
             </B>
           </Blocks>
+        ) : compareOn ? (
+          compareBlocks()
         ) : (
           <Blocks page="scope">
             <B id="overview" label="Overview">
