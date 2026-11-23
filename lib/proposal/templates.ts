@@ -92,11 +92,25 @@ export function applyTemplate(current: { edits: TextEdits; layout: ProposalLayou
   layout.bcTemplate = { id: ref.id, name: ref.name, wording: mode === 'all' ? true : undefined };
   if (layout.bcPages === undefined) layout.bcPages = null;
   if (layout.bcCustom === undefined) layout.bcCustom = {};
+  if (layout.hiddenValues === undefined) layout.hiddenValues = [];
   let edits = current.edits;
   if (mode === 'all') {
     edits = Object.fromEntries(Object.entries(current.edits).filter(([k]) => !k.startsWith('bc.')));
     Object.assign(edits, tpl.edits);
   }
+  return { edits, layout: layout as unknown as ProposalLayout };
+}
+
+/**
+ * The standard business case: template and business-case layout changes removed (the standard format's own layout
+ * and wording kept), with every field the page expects present.
+ */
+export function standardBusinessCase(current: { edits: TextEdits; layout: ProposalLayout }): { edits: TextEdits; layout: ProposalLayout } {
+  const layout = { ...current.layout } as unknown as Record<string, unknown>;
+  for (const k of TEMPLATE_LAYOUT_KEYS) delete layout[k];
+  delete layout.bcTemplate;
+  Object.assign(layout, { hiddenValues: [], bcPages: null, bcCustom: {}, bcBlocks: {}, bcHiddenBlocks: {}, bcGaps: {} });
+  const edits = Object.fromEntries(Object.entries(current.edits).filter(([k]) => !k.startsWith('bc.')));
   return { edits, layout: layout as unknown as ProposalLayout };
 }
 

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SegGroup } from '@/components/form/SegGroup';
 import type { BcTemplate } from '@/lib/data/bcTemplates';
-import { INCLUDE_ALL, matchesTemplate, TEMPLATE_LAYOUT_KEYS, type ApplyMode, type Include } from '@/lib/proposal/templates';
+import { INCLUDE_ALL, matchesTemplate, standardBusinessCase, type ApplyMode, type Include } from '@/lib/proposal/templates';
 import type { ProposalLayout } from '@/lib/proposal/layout';
 import type { TextEdits } from '@/lib/proposal/text';
 import { useProposalText } from './EditableText';
@@ -79,13 +79,7 @@ export function TemplateMenu({ versionId }: { versionId: number }) {
   // Back to the standard business case: drop its layout and wording changes (the standard format's are kept).
   const toStandard = () => {
     const before = { edits: text.edits, layout: text.layout };
-    const layout = { ...text.layout } as unknown as Record<string, unknown>;
-    for (const k of TEMPLATE_LAYOUT_KEYS) delete layout[k];
-    delete layout.bcTemplate;
-    layout.bcPages = null;
-    layout.bcCustom = {};
-    const edits = Object.fromEntries(Object.entries(text.edits).filter(([k]) => !k.startsWith('bc.')));
-    text.replace({ edits, layout: layout as unknown as ProposalLayout }, true);
+    text.replace(standardBusinessCase(before), true);
     setUndo({ doc: before, name: 'Standard' });
     setAsking(null);
   };

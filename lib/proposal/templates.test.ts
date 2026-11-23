@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LAYOUT, type ProposalLayout } from './layout';
-import { applyTemplate, dealVars, matchesTemplate, templateFrom, toPlaceholders } from './templates';
+import { applyTemplate, dealVars, matchesTemplate, standardBusinessCase, templateFrom, toPlaceholders } from './templates';
 
 const vars = dealVars({ customerName: 'ABC Senior Living', communities: [{ ilBeds: 100, alBeds: 100, mcBeds: 5, snfBeds: 0 }, { ilBeds: 0, alBeds: 100, mcBeds: 0, snfBeds: 0 }, { ilBeds: 0, alBeds: 0, mcBeds: 0, snfBeds: 0 }] as never });
 
@@ -36,5 +36,13 @@ describe('business case templates', () => {
     expect(lay.layout.bcTemplate?.wording).toBeUndefined();
     expect(matchesTemplate(lay, tpl)).toBe(true); // own wording isn't a change
     expect(matchesTemplate({ ...lay, layout: { ...lay.layout, bcChart: undefined } }, tpl)).toBe(false);
+  });
+
+  it('goes back to the standard business case with a complete layout', () => {
+    const applied = applyTemplate({ edits: { 'bc.a': 'x', 'cover.t': 'std' }, layout: { ...structuredClone(DEFAULT_LAYOUT), pageStarts: ['terms'] } }, { edits: { 'bc.b': 'y' }, layout: { bcPages: ['cover'], hiddenValues: ['k'], bcBlocks: { roi: ['a'] } } }, 'all', { id: 1, name: 'T' });
+    const std = standardBusinessCase(applied);
+    expect(std.edits).toEqual({ 'cover.t': 'std' });
+    expect(std.layout).toMatchObject({ format: 'businessCase', pageStarts: ['terms'], hiddenValues: [], bcPages: null, bcCustom: {}, bcBlocks: {}, hiddenSections: [], order: DEFAULT_LAYOUT.order });
+    expect(std.layout.bcTemplate).toBeUndefined();
   });
 });
