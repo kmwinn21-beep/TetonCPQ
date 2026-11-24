@@ -14,6 +14,7 @@ import { ProposalTextProvider } from '@/components/proposal/EditableText';
 import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
 import { CommentsProvider, useComments, BubbleIcon } from '@/components/proposal/Comments';
 import { DocumentInFormat } from '@/components/proposal/ProposalView';
+import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
@@ -55,6 +56,7 @@ export function ProspectView(p: Props) {
 function Body(p: Props) {
   const comments = useComments();
   const [commenting, setCommenting] = useState(false);
+  const contents = useContents();
   // Comment mode: click a page or a section to comment on it. Esc leaves it.
   useEffect(() => {
     if (!commenting) return;
@@ -90,6 +92,7 @@ function Body(p: Props) {
             <img src="/teton-logo.png" alt="" className="w-[22px] h-[22px] object-contain" />
             Teton
           </span>
+          <ContentsButton c={contents} />
           <span className="hidden md:block min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]">
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
           </span>
@@ -132,8 +135,11 @@ function Body(p: Props) {
           </p>
         )}
       </header>
+      <ContentsPanel c={contents} />
+      <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>
         <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />
+      </div>
       </div>
     </>
   );
