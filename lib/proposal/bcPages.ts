@@ -4,6 +4,7 @@
  * drops its page); after that the list is the rep's own.
  */
 import { BC_PAGES, isBcCustomId, type ProposalLayout } from './layout';
+import { isOnePager, onePagerTitle } from './onePager';
 
 export type BcPageId = (typeof BC_PAGES)[number] | `bcpage-${string}`;
 
@@ -23,6 +24,20 @@ export const BC_PAGE_TITLES: Record<(typeof BC_PAGES)[number], string> = {
   terms: 'Terms',
   assumptions: 'Assumptions',
 };
+
+/** A built-in page's name (or a one pager's). */
+export const bcPageTitle = (id: string): string => (BC_PAGE_TITLES as Record<string, string>)[id] ?? (isOnePager(id) ? onePagerTitle(id) : id);
+
+/** Add a one pager after the investment page (or the last of the pages before it that's present), else at the end. */
+export function addOnePager(pages: string[], id: string): string[] {
+  if (pages.includes(id)) return pages;
+  const after = ['scope', 'pilot', 'sitescope', 'contents', 'execsum', 'cover'].find((p) => pages.includes(p));
+  if (!after) return [...pages, id];
+  let at = pages.indexOf(after) + 1;
+  // After any one pagers already there, so they stay together in the order added.
+  while (at < pages.length && isOnePager(pages[at])) at++;
+  return [...pages.slice(0, at), id, ...pages.slice(at)];
+}
 
 /** The standard page set for a layout, following the standard sections it keeps. */
 export function defaultBcPages(l: Pick<ProposalLayout, 'hiddenSections'>): string[] {

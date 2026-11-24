@@ -87,6 +87,8 @@ export interface ProposalLayout {
   bcSiteCare?: 'full' | 'short';
   /** Business case scope table: common areas folded into one line instead of a row each. */
   bcSiteAreas?: 'fold';
+  /** One pagers (Resident Monitoring) showing the pilot community table: their page ids (off by default). */
+  bcOpPilotTable?: string[];
   /** Business case pilot page: the 'Measuring pilot success' element in its light style (dark by default). */
   bcPilotMeasure?: 'light';
   /** Business case scope table (Resident Monitoring deals): totals as a strip above the table, condensed or expanded (unset = in the table). */
@@ -140,6 +142,9 @@ export interface ProposalLayout {
 export const DEFAULT_LAYOUT: ProposalLayout = { order: [...STANDARD_SECTIONS], hiddenSections: [], hiddenValues: [], custom: {}, pageStarts: null, format: 'standard', bcPages: null, bcCustom: {}, version: LAYOUT_VERSION };
 
 /** The business-case format's built-in pages, in their standard order. */
+/** One pagers (budgetary quotes): off until added; "op-{rm|ec|both}-{both|opex|capex}". */
+export const ONE_PAGERS = (['rm', 'ec', 'both'] as const).flatMap((s) => (['both', 'opex', 'capex'] as const).map((m) => `op-${s}-${m}` as const));
+
 export const BC_PAGES = ['cover', 'execsum', 'contents', 'sitescope', 'pilot', 'scope', 'roi', 'summary', 'cashflow', 'implementation', 'resources', 'roledesc', 'terms', 'assumptions'] as const;
 export const isBcCustomId = (id: string) => id.startsWith('bcpage-');
 
@@ -181,7 +186,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
   };
   const custom = parseCustom(raw.custom, isCustomId);
   const bcCustom = parseCustom(raw.bcCustom, isBcCustomId);
-  const bcKnown = new Set<string>([...BC_PAGES, ...Object.keys(bcCustom)]);
+  const bcKnown = new Set<string>([...BC_PAGES, ...ONE_PAGERS, ...Object.keys(bcCustom)]);
 
   // Order: keep known ids once and drop unknown ones. A standard section missing from a saved order (e.g. one
   // added to the template later) goes in after the standard section it normally follows; custom ones go last.
@@ -245,6 +250,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecHardware: raw.bcExecHardware === true ? true : undefined,
     bcSiteCare: raw.bcSiteCare === 'full' || raw.bcSiteCare === 'short' ? raw.bcSiteCare : undefined,
     bcSiteAreas: raw.bcSiteAreas === 'fold' ? 'fold' : undefined,
+    bcOpPilotTable: raw.bcOpPilotTable == null ? undefined : ids(raw.bcOpPilotTable, 9).filter((id) => (ONE_PAGERS as readonly string[]).includes(id)),
     bcPilotMeasure: raw.bcPilotMeasure === 'light' ? 'light' : undefined,
     bcSiteTotals: raw.bcSiteTotals === 'condensed' || raw.bcSiteTotals === 'expanded' ? raw.bcSiteTotals : undefined,
     bcSiteCards: raw.bcSiteCards === 'sensors' || raw.bcSiteCards === 'ecall' ? raw.bcSiteCards : undefined,

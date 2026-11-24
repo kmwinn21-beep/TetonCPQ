@@ -5,6 +5,7 @@
  * that it was sent — which keeps a standalone HTML copy of exactly what was on
  * screen, so "what did we send them in October?" has a literal answer.
  */
+import type { OnePagerInfo } from '@/lib/proposal/onePager';
 import { SegGroup } from '@/components/form/SegGroup';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -53,7 +54,7 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
-export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner, bothPricing = false, ecallOnly = false }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode; /** Both pricing options shown (for the Removed list). */ bothPricing?: boolean; /** An E-Call-only deal (for the Removed list). */ ecallOnly?: boolean }) {
+export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner, bothPricing = false, ecallOnly = false, onePagers = null }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode; /** Both pricing options shown (for the Removed list). */ bothPricing?: boolean; /** An E-Call-only deal (for the Removed list). */ ecallOnly?: boolean; /** The one pagers that can be added (for the Removed list). */ onePagers?: OnePagerInfo | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
@@ -234,7 +235,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                   ▤ Pages{text.layout.pageStarts ? ' · custom' : ''}
                 </button>
               )}
-              <RemovedSheetButton bothPricing={bothPricing} ecallOnly={ecallOnly} />
+              <RemovedSheetButton bothPricing={bothPricing} ecallOnly={ecallOnly} onePagers={onePagers} />
               <CommentsButton />
               {text.editable ? (
                 <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden">Sent</span><span className="hidden sm:inline">Record as sent</span></button>

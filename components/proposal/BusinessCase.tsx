@@ -31,7 +31,7 @@ import { hiddenColsOf } from '@/lib/proposal/layout';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { dealVars } from '@/lib/proposal/templates';
 import { CommentHere, CommentPageContext, CommentPin, useComments } from './Comments';
-import { BC_PAGE_TITLES, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
+import { bcPageTitle, bcPagesOf, insertBcPage, moveBcPage, removeBcPage } from '@/lib/proposal/bcPages';
 import { BC_GAP_STEP, MAX_BC_GAP, type ProposalLayout } from '@/lib/proposal/layout';
 import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
@@ -49,6 +49,8 @@ import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
 import { ImplementationWeeks } from './ImplementationWeeks';
 import { canAutoFocus } from '@/lib/client/focus';
+import { OnePagerBody } from './OnePager';
+import { ONE_PAGERS, onePagerParts } from '@/lib/proposal/onePager';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -538,7 +540,7 @@ const ResetIcon = () => (
 function PageSlot({ id, index, order, children }: { id: string; index: number; order: string[]; children: React.ReactNode }) {
   const { editable, layout, setLayout } = useProposalText();
   const custom = layout.bcCustom?.[id];
-  const title = custom ? custom.title || 'Added page' : (BC_PAGE_TITLES as Record<string, string>)[id] ?? id;
+  const title = custom ? custom.title || 'Added page' : bcPageTitle(id);
   const move = (dir: -1 | 1) => setLayout((l) => ({ ...l, bcPages: moveBcPage(bcPagesOf(l), id, dir, order) }));
   const remove = () => {
     if (custom && (custom.html.replace(/<[^>]*>/g, '').trim() || (custom.title && custom.title !== 'New page')) && !window.confirm('Delete this page and its text?')) return;
@@ -4001,6 +4003,31 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </div>
       </Page>
     );
+  }
+
+  // ---------- One pagers (budgetary quotes): the three for the deal's products, shown once the rep adds them ----------
+  {
+    const opScope = scopeMode === 'mon' ? 'rm' : scopeMode === 'ecall' ? 'ec' : 'both';
+    const quoteDate = savedAt ? new Date(savedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const opPilot = execPilot ? { months: execPilot.months, install: execPilot.install, monthly: execPilot.monthly, total: execPilot.total, creditPct: draft.commercial.installCreditPct } : null;
+    for (const id of ONE_PAGERS) {
+      if (onePagerParts(id).scope !== opScope) continue;
+      defs[id] = (no) => (
+        <Page key={id} no={no} crumb={<T k="bc.op.crumb" d="Budgetary quote" />}>
+          <OnePagerBody
+            id={id}
+            draft={draft}
+            customer={customer}
+            community={sites}
+            quoteDate={quoteDate}
+            pilot={opPilot}
+            pilotTable={pilotCommunityTable ? pilotCommunityTable(`${id}-pilot`, 'Pilot communities · One pager') : null}
+            Blocks={Blocks}
+            B={B}
+          />
+        </Page>
+      );
+    }
   }
 
   const custom = layout.bcCustom ?? {};

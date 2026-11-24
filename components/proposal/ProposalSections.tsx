@@ -9,7 +9,8 @@
  */
 import { Children, cloneElement, createContext, Fragment, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { renderText } from '@/lib/proposal/text';
-import { addBackBcPage, BC_PAGE_TITLES, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
+import { addBackBcPage, addOnePager, BC_PAGE_TITLES, bcPageTitle, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
+import { OP_MODES, onePagerId, type OnePagerInfo } from '@/lib/proposal/onePager';
 import { DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
@@ -794,7 +795,7 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* ------------------------------------------------------------------ */
 
 /** `bothPricing`: the proposal shows both pricing options, so the comparison's optional rows can be added from here. */
-export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = false, onCount }: { bothPricing?: boolean; /** An E-Call-only deal (its optional sections can be added). */ ecallOnly?: boolean; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
+export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers = null, bare = false, onCount }: { bothPricing?: boolean; /** An E-Call-only deal (its optional sections can be added). */ ecallOnly?: boolean; /** The deal's products and pilot, for the one pagers that can be added. */ onePagers?: OnePagerInfo | null; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   // The tables on the page now (checked after each render).
@@ -851,7 +852,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
   const PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'scope-compare': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
   const blocks = businessCase
     ? Object.entries(layout.bcHiddenBlocks ?? {}).flatMap(([page, m]) =>
-        Object.entries(m).map(([id, label]) => ({ page, id, label, where: (BC_PAGE_TITLES as Record<string, string>)[PAGE_OF[page] ?? page] ?? page })),
+        Object.entries(m).map(([id, label]) => ({ page, id, label, where: bcPageTitle(PAGE_OF[page] ?? page) })),
       )
     : [];
   // Optional rows that start out removed (shown in the Removed list until added).
@@ -861,12 +862,22 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
         ...(!layout.bcExecHardware ? [{ key: 'execHardware', label: 'What gets installed · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const }) }] : []),
         ...(ecallOnly && !layout.bcEcDash ? [{ key: 'ecDash', label: 'E-Call dashboard · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcEcDash: true as const }) }] : []),
         ...(layout.bcExecNoPageRefs ? [{ key: 'execPageRefs', label: 'Page numbers · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined }) }] : []),
+        // Resident Monitoring one pagers on a pilot deal: the pilot community table (off by default).
+        ...(onePagers?.scope === 'rm' && onePagers.pilot
+          ? OP_MODES.map((m) => onePagerId('rm', m))
+              .filter((id) => bcPagesOf(layout).includes(id) && !(layout.bcOpPilotTable ?? []).includes(id))
+              .map((id) => ({ key: `opPilot-${id}`, label: `Pilot community table · ${bcPageTitle(id)}`, page: id, add: (l: ProposalLayout) => ({ ...l, bcOpPilotTable: [...(l.bcOpPilotTable ?? []), id] }) }))
+          : []),
       ]
     : [];
+  // One pagers (budgetary quotes) for the deal's products, not yet in the business case.
+  const OP_LABEL = { both: 'Purchase and subscription', opex: 'Subscription only (OpEx)', capex: 'Purchase only (CapEx)' } as const;
+  const opScope = onePagers?.scope;
+  const onePagerItems = businessCase && opScope ? OP_MODES.map((m) => ({ id: onePagerId(opScope, m), label: OP_LABEL[m] })).filter((x) => !bcPagesOf(layout).includes(x.id)) : [];
   const rows = Object.entries(layout.hiddenRows ?? {});
   // Columns that start out removed are listed only when their table is on the page.
   const cols = Object.entries(hiddenColsOf(layout)).filter(([k]) => !(k in DEFAULT_HIDDEN_COLS) || presentTables.includes(k.split('.')[0]));
-  const total = sections.length + values.length + pages.length + blocks.length + optional.length + rows.length + cols.length;
+  const total = sections.length + values.length + pages.length + onePagerItems.length + blocks.length + optional.length + rows.length + cols.length;
   totalRef.current = total;
   // What belongs to the hovered table, or else the hovered page (rows and columns go with their table's page).
   const pageOfTable = (key: string) => {
@@ -888,7 +899,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
       c = cols.filter(([k]) => onPage(k));
       b = blocks.filter((x) => (PAGE_OF[x.page] ?? x.page) === focus.page);
       o = optional.filter((x) => focus.page === x.page);
-      where = focus.page ? (BC_PAGE_TITLES as Record<string, string>)[focus.page] ?? 'this page' : '';
+      where = focus.page ? bcPageTitle(focus.page) : '';
     }
     if (!r.length && !c.length && !b.length && !o.length) return null;
     return { rows: r, cols: c, blocks: b, optional: o, where };
@@ -896,6 +907,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
   if (!total) return bare ? <p className="px-2 py-6 text-center text-sm text-teton-ui-gray">Nothing has been removed from this proposal.</p> : null;
   const showSections = filtered ? [] : sections;
   const showPages = filtered ? [] : pages;
+  const showOnePagers = filtered ? [] : onePagerItems;
   const showValues = filtered ? [] : values;
   const showBlocks = filtered ? filtered.blocks : blocks;
   const showOptional = filtered ? filtered.optional : optional;
@@ -937,6 +949,14 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Pages</p>
           <ul>
             {showPages.map((id) => item(`page-${id}`, BC_PAGE_TITLES[id], () => setLayout((l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }))))}
+          </ul>
+        </>
+      )}
+      {showOnePagers.length > 0 && (
+        <>
+          <p className="text-[11px] text-teton-ui-gray px-2 mt-2">One Pagers</p>
+          <ul>
+            {showOnePagers.map((x) => item(`op-${x.id}`, x.label, () => setLayout((l) => ({ ...l, bcPages: addOnePager(bcPagesOf(l), x.id) }))))}
           </ul>
         </>
       )}
@@ -1018,7 +1038,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, bare = fa
  * Phones: a Removed button for the toolbar; it opens a sheet from the bottom with everything removed from the
  * proposal, to add back (the side panel is hidden on phones).
  */
-export function RemovedSheetButton({ bothPricing = false, ecallOnly = false }: { bothPricing?: boolean; ecallOnly?: boolean }) {
+export function RemovedSheetButton({ bothPricing = false, ecallOnly = false, onePagers = null }: { bothPricing?: boolean; ecallOnly?: boolean; onePagers?: OnePagerInfo | null }) {
   const { editable } = useProposalText();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -1042,7 +1062,7 @@ export function RemovedSheetButton({ bothPricing = false, ecallOnly = false }: {
       {/* Counts what's removed even while closed (renders nothing visible). */}
       {!open && (
         <div className="hidden" aria-hidden="true">
-          <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} bare onCount={(n) => n !== count && setCount(n)} />
+          <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} onePagers={onePagers} bare onCount={(n) => n !== count && setCount(n)} />
         </div>
       )}
       <button type="button" className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
@@ -1063,7 +1083,7 @@ export function RemovedSheetButton({ bothPricing = false, ecallOnly = false }: {
               <button type="button" className="ml-auto w-8 h-8 rounded-md text-teton-ui-gray hover:bg-teton-almost-white" aria-label="Close" onClick={close}>✕</button>
             </div>
             <div className="overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} bare onCount={(n) => n !== count && setCount(n)} />
+              <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} onePagers={onePagers} bare onCount={(n) => n !== count && setCount(n)} />
             </div>
           </div>
         </div>
