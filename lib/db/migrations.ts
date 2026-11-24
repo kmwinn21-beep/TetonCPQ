@@ -435,4 +435,9 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `UPDATE products SET list_price = 480 WHERE sku = 'CAPEX-ECALL-INSTALL-INOVONICS' AND list_price = 170`,
     ],
   },
+  {
+    id: 19,
+    name: 'E-Call device price replaced by the system-specific device prices',
+    sql: [`DELETE FROM products WHERE sku = 'ECALL-DEVICE'`],
+  },
 ];

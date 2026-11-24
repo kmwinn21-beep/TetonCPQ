@@ -70,7 +70,7 @@ export const FIELDS: WhatIfField[] = [
   }),
   F('commercial.platformRate', 'Platform rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.pilotRate', 'Pilot rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
-  F('commercial.ecallRate', 'E-Call rate / bed / mo', PRICING, PRICING_AT, 'usd2'),
+  F('commercial.ecallRate', 'E-Call rate / mo (per room or device)', PRICING, PRICING_AT, 'usd2'),
   F('commercial.ecallPilotRate', 'E-Call during pilot / bed / mo', PRICING, PRICING_AT, 'usd2'),
   F('commercial.installRate', 'Install / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.installCreditPct', 'Install credit on pilot sites', PRICING, PRICING_AT, 'pct', { max: 1 }),

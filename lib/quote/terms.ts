@@ -115,7 +115,13 @@ export function standardTerms(d: QuoteDraft, kind: ListKind = 'terms'): Array<{ 
       template: 'Introductory rate of {rate} per bed for the first {months} of the service term.',
       vars: { rate: usd(k.specialRate, { cents: true }), months: `${k.specialTermMonths} months` },
     });
-  out.push({ id: 'billing', template: 'Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live.', vars: {} });
+  out.push({
+    id: 'billing',
+    template: pilot
+      ? 'One-time charges (installation, additional sensors and devices) are billed at each community’s go-live, or at pilot completion for pilot sites; recurring fees are billed quarterly in advance from go-live.'
+      : 'Each community’s installation is billed at its go-live; recurring fees are billed quarterly in advance from go-live.',
+    vars: {},
+  });
   return out;
 }
 

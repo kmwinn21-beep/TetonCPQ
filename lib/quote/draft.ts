@@ -3,7 +3,7 @@
  * holds, what a quote version stores (inputs_json), and what toModelInputs()
  * turns into engine inputs. Rates are fractions; money is dollars.
  */
-import { applyRoomTypes, type CommonArea, type RoomType } from './roomTypes';
+import { applyRoomTypes, type CommonArea, type EcallBilling, type RoomType } from './roomTypes';
 import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
 import { finishFrom, normalizeFinish, type FinishSetting } from '@/lib/pricing/finish';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
@@ -79,7 +79,7 @@ export interface Commercial {
   installCreditPct: number;
   /** One-time E-Call installation per bed at E-Call-only communities (subscription). */
   ecallInstallRate?: number;
-  /** Each E-Call device (pendant / pull-cord), one-time (subscription; from the price book). */
+  /** @deprecated Replaced by the system-specific device prices (ecallDevices). */
   ecallDevicePrice?: number;
   /** Extra or replacement E-Call devices, each (from the price book; shown as prices only). */
   ecallDevices?: { bleButton: number; inoPendant: number; inoPullcord: number };
@@ -87,6 +87,8 @@ export interface Commercial {
   ecallCompare?: boolean;
   /** The other system's E-Call rate per bed per month, for the comparison (blank = its list price). */
   ecallCompareRate?: number | null;
+  /** E-Call monthly billing: per room (default; devices beyond the rooms are one-time extras) or per device. */
+  ecallBilling?: EcallBilling;
   /** The rep chose a custom install credit (installCreditPct then carries it; blank until typed, which blocks saving). */
   installCreditCustom?: boolean;
   installCreditCustomPct?: number | null;
@@ -204,6 +206,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       ecall: 'ble',
       ecallRate: book[SKU.ecallBle]?.list ?? 10,
       ecallPilotRate: 0, // E-Call is free during the pilot
+      ecallBilling: 'room',
       installRate: book[SKU.install]?.list ?? 400,
       installCreditPct: 0,
       installClawback: false,
@@ -212,7 +215,6 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
-      ecallDevicePrice: book[SKU.ecallDevice]?.list ?? 75,
       ecallDevices: { bleButton: book[SKU.ecallBleButton]?.list ?? 100, inoPendant: book[SKU.ecallInoPendant]?.list ?? 160, inoPullcord: book[SKU.ecallInoPullcord]?.list ?? 150 },
       capex: capexPricingFrom((sku) => book[sku]?.list),
       finish: finishFrom((sku) => book[sku]?.list),
@@ -248,7 +250,13 @@ function normalizeCommercial(c: Commercial): Commercial {
   if (capex.ecallInstallBle === 115) capex.ecallInstallBle = seedList(SKU.capexEcallInstallBle, 165);
   if (capex.ecallInstallInovonics === 170) capex.ecallInstallInovonics = seedList(SKU.capexEcallInstallInovonics, 480);
   const devices = rest.ecallDevices ?? { bleButton: seedList(SKU.ecallBleButton, 100), inoPendant: seedList(SKU.ecallInoPendant, 160), inoPullcord: seedList(SKU.ecallInoPullcord, 150) };
-  return { ...rest, ecallDevices: devices, capex, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallDevicePrice: typeof rest.ecallDevicePrice === 'number' ? rest.ecallDevicePrice : SEED_PRODUCTS.find((p) => p.sku === SKU.ecallDevice)?.list ?? 75 };
+  return { ...rest, ecallDevices: devices, capex, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallBilling: rest.ecallBilling === 'device' ? 'device' : 'room' };
+}
+
+/** One additional E-Call device beyond the rooms (per-room billing): a Bluetooth button, or an Inovonics pull-cord. */
+export function extraDevicePrice(k: Pick<Commercial, 'ecall' | 'ecallDevices'>): number {
+  const d = k.ecallDevices ?? { bleButton: 100, inoPendant: 160, inoPullcord: 150 };
+  return k.ecall === 'inovonics' ? d.inoPullcord : d.bleButton;
 }
 
 /** Communities saved before the IL/AL/MC split had one bed count: it becomes AL. */

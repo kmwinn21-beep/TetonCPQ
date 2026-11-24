@@ -18,7 +18,7 @@ import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SEED_PRODUCTS, SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
-import { hasEcall, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
+import { extraDevicePrice, hasEcall, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
@@ -612,7 +612,7 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
 }
 
 /** What's in scope, as pills: filled when included, dimmed when not. */
-function ScopePills({ ecall, rates, monitoring = true }: { ecall: boolean; rates?: { monitoring: string; ecall: string }; monitoring?: boolean }) {
+function ScopePills({ ecall, rates, monitoring = true }: { ecall: boolean; rates?: { monitoring: string; ecall: string; ecallUnit?: string }; monitoring?: boolean }) {
   return (
     <div className="bc-pills">
       <span className="bc-pill-col">
@@ -623,7 +623,7 @@ function ScopePills({ ecall, rates, monitoring = true }: { ecall: boolean; rates
         <span className={ecall ? 'bc-pill-on bc-pill-coral' : 'bc-pill-off'}>
           <T k="bc.scope.pill.ecall" d="Teton E-Call / Nurse Call" />
         </span>
-        {rates && ecall && <span className="bc-pill-rate"><T k="bc.scope.pill.ecallRate" d="({rate} per bed, per month)" v={{ rate: rates.ecall }} /></span>}
+        {rates && ecall && <span className="bc-pill-rate"><T k="bc.scope.pill.ecallRate" d="({rate} per {unit}, per month)" v={{ rate: rates.ecall, unit: rates.ecallUnit ?? 'room' }} /></span>}
       </span>
     </div>
   );
@@ -866,6 +866,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const ecallDeal = draft.commercial.ecall !== 'none';
   const inov = draft.commercial.ecall === 'inovonics';
   const pendBy = draft.communities.map((c) => pendantScope(c, ecallDeal));
+  // E-Call priced per room (default) or per device: the unit the proposal quotes.
+  const ecPerRoom = draft.commercial.ecallBilling !== 'device';
+  const ecUnitWord = ecPerRoom ? 'room' : 'device';
   const devTotal = sum(pendBy.map((p) => p.total));
   const hasEc = devTotal > 0;
   const hasMon = draft.communities.some((c) => monitors(c));
@@ -1666,6 +1669,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const listEcall = (sys: 'ble' | 'inov') => SEED_PRODUCTS.find((x) => x.sku === (sys === 'ble' ? SKU.ecallBle : SKU.ecallInovonics))?.list ?? (sys === 'ble' ? 10 : 15);
     const rateFor = (sys: 'ble' | 'inov') => (sys === chosenSys ? draft.commercial.ecallRate : draft.commercial.ecallCompareRate ?? listEcall(sys));
     const isEcLine = (l: PriceLine) => l.sku === SKU.ecallBle || l.sku === SKU.ecallInovonics;
+    // Per room: devices beyond the rooms, one-time, at each system's own device price.
+    const isDevLine = (l: PriceLine) => l.sku === SKU.ecallBleButton || l.sku === SKU.ecallInoPullcord;
+    const devFor = (sys: 'ble' | 'inov') => extraDevicePrice({ ...draft.commercial, ecall: sys === 'ble' ? 'ble' : 'inovonics' });
     const isPilotish = (l: PriceLine) => l.description.includes('pilot') || l.description.includes('introductory');
     const sysCalc = (sys: 'ble' | 'inov') => {
       const rate = rateFor(sys);
@@ -1675,7 +1681,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       let monthly = 0;
       const per = draft.communities.map(() => ({ monthly: 0, oneTime: 0 }));
       for (const l of lines) {
-        const amt = l.qty * (isEcLine(l) && !l.description.includes('pilot') ? rate : l.unitNet);
+        const chosenDev = devFor(chosenSys);
+        const amt = l.qty * (isEcLine(l) && !l.description.includes('pilot') ? rate : isDevLine(l) && chosenDev > 0 ? (l.unitNet * devFor(sys)) / chosenDev : l.unitNet);
         const at = per[l.communityPosition];
         if (l.billing === 'one_time') {
           oneTime += amt;
@@ -1713,6 +1720,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     // The wording keeps beds and common areas; the fee is per device (devices × rate).
     const cmpBeds = sum(pendBy.map((x) => x.rooms));
     const cmpAreas = sum(pendBy.map((x) => x.areas));
+    const cmpDevices = sum(pendBy.map((x) => x.plan));
+    const cmpQtyText = ecPerRoom ? `${count(cmpBeds)} rooms${cmpAreas ? ` + ${count(cmpAreas)} common areas` : ''}` : `${count(cmpDevices)} devices`;
     const cmpInstallQty = sum(lines.filter((l) => l.billing === 'one_time' && l.unitNet > 0).map((l) => l.qty));
     const sysHead = (sys: 'ble' | 'inov') => (
       <span className={`bc-sys bc-sys-${sys}`}><T k={`bc.cmp.sys.${sys}`} d={SYS_NAME[sys]} /></span>
@@ -1752,9 +1761,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const extrasView = layout.bcCmpCards === 'extras';
     const devs = draft.commercial.ecallDevices ?? { bleButton: 100, inoPendant: 160, inoPullcord: 150 };
     const unitCards: CmpCard[] = [
-      ['recurring', 'Recurring costs', (sys) => ({ value: money(rateFor(sys)) }), 'per bed · per month, and per common area'],
+      ['recurring', 'Recurring costs', (sys) => ({ value: money(rateFor(sys)) }), ecPerRoom ? 'per room · per month (each common area counts as a room)' : 'per device · per month'],
       ['install', 'Installation', () => ({ value: money(Number(draft.commercial.ecallInstallRate) || 0) }), 'per bed · one-time'],
-      ['devices', 'Additional devices', () => ({ value: money(draft.commercial.ecallDevicePrice ?? 75) }), 'per device · one-time'],
+      ['devices', 'Additional devices', (sys) => ({ value: money(devFor(sys)), sub: sys === 'ble' ? 'button' : 'pull-cord' }), ecPerRoom ? 'per device beyond the rooms · one-time' : 'per device · one-time'],
     ];
     const ecSoftware = money(capex.pricing.ecallSoftware ?? 5);
     const extraCards: CmpCard[] = [
@@ -1819,7 +1828,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   const c = cmp[sys];
                   const rowsDef: Array<[string, React.ReactNode, React.ReactNode, React.ReactNode]> = [
                     ['install', <T key="l" k="bc.cmp.install" d="Installation" />, <T key="s" k="bc.inv.oneTime" d="One-time" />, usd(c.oneTime)],
-                    ['monthly', <T key="l" k="bc.cmp.monthly" d="Monthly subscription" />, <T key="s" k="bc.cmp.monthlyQty" d="{beds} beds{areas}" v={{ beds: count(cmpBeds), areas: cmpAreas ? ` + ${count(cmpAreas)} areas` : '' }} />, `${money(c.rate)} / bed / mo`],
+                    ['monthly', <T key="l" k="bc.cmp.monthly" d="Monthly subscription" />, ecPerRoom ? <T key="s" k="bc.cmp.monthlyQty" d="{beds} rooms{areas}" v={{ beds: count(cmpBeds), areas: cmpAreas ? ` + ${count(cmpAreas)} areas` : '' }} /> : <T key="s" k="bc.cmp.monthlyQtyDev" d="{devices} devices" v={{ devices: count(cmpDevices) }} />, `${money(c.rate)} / ${ecUnitWord} / mo`],
                     ['y1', <T key="l" k="bc.cmp.year1" d="Total Year 1 Investment" />, <T key="s" k="bc.cmp.year1Short" d="One-time + first 12 months" />, usd(c.y1)],
                     ['term', <T key="l" k="bc.cmp.term" d="Over the {term}-month term" v={{ term: String(term) }} />, null, usd(c.termTotal)],
                   ];
@@ -1868,7 +1877,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <RTable>
                   <thead>
                     <tr>
-                      <th>{`${count(cmpBeds)} beds${cmpAreas ? ` + ${count(cmpAreas)} common areas` : ''}`}</th>
+                      <th>{cmpQtyText}</th>
                       {(['ble', 'inov'] as const).map((sys) => (
                         <th key={sys} className={`bc-r bc-cmp-${sys}`}>{sysHead(sys)}</th>
                       ))}
@@ -2237,7 +2246,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <RTbody id="opinv" name="The investment">
                         <tr className="bc-inv-scope">
                           <td className="bc-m"><T k="bc.scope.scope" d="Scope" /></td>
-                          <td colSpan={4}><ScopePills ecall={anyEcall} monitoring={anyMonitoring} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate) }} /></td>
+                          <td colSpan={4}><ScopePills ecall={anyEcall} monitoring={anyMonitoring} rates={{ monitoring: money(draft.commercial.platformRate), ecall: money(draft.commercial.ecallRate), ecallUnit: ecUnitWord }} /></td>
                         </tr>
                         <tr className="bc-inv-head" data-fixed>
                           <th><T k="bc.inv.item" d="Item" /></th>
@@ -3417,7 +3426,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           device: money(capex.pricing.ecallDevice ?? 150),
           monthly: money(capex.pricing.ecallSoftware ?? 5),
         }
-      : { install: money(Number(draft.commercial.ecallInstallRate) || 0), device: money(draft.commercial.ecallDevicePrice ?? 75), monthly: money(draft.commercial.ecallRate) };
+      : { install: money(Number(draft.commercial.ecallInstallRate) || 0), device: money(extraDevicePrice(draft.commercial)), monthly: money(draft.commercial.ecallRate) };
     const unitRows = () => {
       const pre = unitsFor === 'all' ? 'E-Call ' : '';
       const k = unitsFor === 'all' ? 'all' : 'only';
@@ -3427,7 +3436,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         row(<T k="bc.exec.unit.monthly" d="Monthly Subscription" />, <T k="bc.exec.unit.monthly.v" d="{price} per bed, per month" v={{ price: unit.monthly }} />),
       ];
       const ecInstall = row(<T k={`bc.exec.unit.ec.${k}.install`} d={`${pre}Installation`.replace('E-Call Installation', 'E-Call installation')} />, <T k="bc.exec.unit.ec.install.v" d="{price} per bed, one-time" v={{ price: ecUnit.install }} />);
-      const ecMonthly = row(<T k={`bc.exec.unit.ec.${k}.monthly`} d={unitsFor === 'all' ? 'E-Call subscription' : 'Monthly Subscription'} />, <T k="bc.exec.unit.ec.monthly.v" d="{price} per bed, per month" v={{ price: ecUnit.monthly }} />);
+      const ecMonthly = row(<T k={`bc.exec.unit.ec.${k}.monthly`} d={unitsFor === 'all' ? 'E-Call subscription' : 'Monthly Subscription'} />, <T k="bc.exec.unit.ec.monthly.v" d={capexShown ? '{price} per bed, per month' : '{price} per {unit}, per month'} v={{ price: ecUnit.monthly, unit: ecUnitWord }} />);
       const ecDevice = row(<T k={`bc.exec.unit.ec.${k}.device`} d={unitsFor === 'all' ? 'E-Call devices' : 'Per Device'} />, <T k="bc.exec.unit.ec.device.v" d="{price} per device, one-time" v={{ price: ecUnit.device }} />);
       // Subscription: installation, monthly, then devices. Equipment purchase: installation, devices, then software.
       const ec: Array<[string, React.ReactNode]> = capexShown ? [['ecinstall', ecInstall], ['ecdevice', ecDevice], ['ecmonthly', ecMonthly]] : [['ecinstall', ecInstall], ['ecmonthly', ecMonthly], ['ecdevice', ecDevice]];

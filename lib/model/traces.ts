@@ -175,9 +175,9 @@ export function buildTraces(inputs: ModelInputs, annual: AnnualCaseResult, cf: C
           : []),
       ]);
   }), '12 Mo Cash Flow row 75');
-  const installT = derived(`cf.install12`, `One-time install (${months})`, sum(cf.install.slice(0, w)), 'usd', 'Install billed in each community’s go-live month', cf.communities.map((cc, i) => {
+  const installT = derived(`cf.install12`, `One-time install (${months})`, sum(cf.install.slice(0, w)), 'usd', inputs.schedule.oneTimeAtPilotEnd ? 'One-time charges billed at each community’s go-live (pilot sites: at pilot completion)' : 'Install billed in each community’s go-live month', cf.communities.map((cc, i) => {
     const c = inputs.communities[i];
-    return derived(`cf.install.c${i}`, `Install — ${c.name} (month ${cc.goLiveMonth})`, cc.goLiveMonth <= w ? cc.installCost : 0, 'usd',
+    return derived(`cf.install.c${i}`, `Install — ${c.name} (month ${cc.oneTimeMonth})`, cc.oneTimeMonth <= w ? cc.installCost : 0, 'usd',
       cc.inPilot ? 'Pilot units × Pilot install + Other units × Install + Sensors × Sensor price' : 'Units × Install per bed + Sensors × Sensor price',
       [a(`c${i}.units`, `Units — ${c.name}`, c.units, 'count'), feeRate('Install / bed', cc.inPilot ? inputs.pricing.pilotInstallPerBed : inputs.pricing.postPilotInstallPerBed)]);
   }), '12 Mo Cash Flow row 76');

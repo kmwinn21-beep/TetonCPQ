@@ -92,6 +92,11 @@ export interface Schedule {
   /** Length of the monthly cash flow. The workbook's client view is 12; the CPQ default is 36. */
   horizonMonths: number;
   includeReimbursement: boolean; // 12 Mo CF D7
+  /**
+   * One-time charges (installation, sensors, extra devices) billed when a pilot site completes its pilot rather than
+   * at go-live. Not in the workbook (it bills at go-live); deals turn it on. Sites without a pilot bill at go-live.
+   */
+  oneTimeAtPilotEnd?: boolean;
 }
 
 export interface ImplementationInputs {

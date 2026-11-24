@@ -30,9 +30,7 @@ export const SKU = {
   capexSoftware: 'CAPEX-SOFTWARE',
   capexBleRenewal: 'CAPEX-ECALL-BLE-RENEWAL',
   capexInovonicsRenewal: 'CAPEX-ECALL-INOVONICS-RENEWAL',
-  // E-Call only: installation per bed, devices beyond the first, and software (shown as post-pilot unit costs).
-  ecallDevice: 'ECALL-DEVICE',
-  // Extra or replacement E-Call devices, each (shown as prices; not added to totals).
+  // Extra or replacement E-Call devices, each: billed one-time beyond the rooms when E-Call is priced per room.
   ecallBleButton: 'ECALL-BLE-BUTTON',
   ecallInoPendant: 'ECALL-INOVONICS-PENDANT',
   ecallInoPullcord: 'ECALL-INOVONICS-PULLCORD',
@@ -60,7 +58,6 @@ export const SEED_PRODUCTS: Product[] = [
   { sku: SKU.capexSoftware, name: 'Software and services', pricingModel: 'per_bed_month', list: 10, description: 'Per bed per month, billed monthly.' },
   { sku: SKU.capexBleRenewal, name: 'E-Call (Bluetooth/WiFi) renewal', pricingModel: 'per_bed_once', list: 480, description: 'Every 4 years, per bed.' },
   { sku: SKU.capexInovonicsRenewal, name: 'Inovonics E-Call renewal', pricingModel: 'per_bed_once', list: 400, description: 'Every 3 years after the first 3-year contract, per bed.' },
-  { sku: SKU.ecallDevice, name: 'E-Call device', pricingModel: 'per_unit_once', list: 75, description: 'Each additional pendant or pull-cord, one-time.' },
   { sku: SKU.capexEcallInstallBle, name: 'E-Call only installation (Bluetooth/WiFi)', pricingModel: 'per_bed_once', list: 165, description: 'Buying E-Call: per bed, installed, one-time (then E-Call software per bed per month).' },
   { sku: SKU.capexEcallInstallInovonics, name: 'E-Call only installation (Inovonics)', pricingModel: 'per_bed_once', list: 480, description: 'Buying E-Call: per bed, installed, one-time (then E-Call software per bed per month).' },
   { sku: SKU.ecallBleButton, name: 'Bluetooth wearable or wall button', pricingModel: 'per_unit_once', list: 100, description: 'Extra or replacement E-Call device, each, one-time.' },

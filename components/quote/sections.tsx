@@ -3,7 +3,7 @@
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { ROI_CASES, STANDARD_CASE_METRICS, uniformCaseMetrics, type CaseMetrics, type ModelInputs, type ModelResult, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
-import { pricedBedsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { extraDevicePrice, pricedBedsOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityRates } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, pct, usd } from '@/lib/format';
 import { DerivedField, Grid, MoneyField, NumberField, PercentField, ResetDefaults, Section, SegmentedField, ToggleField } from '@/components/form/fields';
@@ -219,6 +219,9 @@ export function PricingSection({ book }: SectionProps) {
   const opex = d.presentation !== 'capex';
   const capex = d.presentation !== 'opex';
   const ecallOn = k.ecall !== 'none';
+  const perRoom = k.ecallBilling !== 'device';
+  const unitWord = perRoom ? 'room' : 'device';
+  const extraDevice = extraDevicePrice(k);
 
   return (
     <Section
@@ -275,6 +278,22 @@ export function PricingSection({ book }: SectionProps) {
             />
           </SetupRow>
           {ecallOn && (
+            <div className="py-2.5 border-t border-teton-off-white pl-4">
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm text-teton-ink">E-Call pricing</p>
+                  <p className="text-xs text-teton-ui-gray mt-0.5">How the monthly E-Call fee is counted</p>
+                </div>
+                <Seg name="commercial.ecallBilling" label="E-Call pricing" options={[['device', 'Per Device / mo'], ['room', 'Per Room / mo']]} />
+              </div>
+              <p role="note" className="mt-2 rounded-2xl bg-teton-pale-yellow border border-[#F0D58A] px-3 py-1.5 text-xs text-teton-ink">
+                {perRoom
+                  ? `Per Room / mo: the monthly fee is the rate × total rooms, counting each common area with a device as one room. Devices beyond the room count are one-time additional devices (${usd(extraDevice)} each), billed at go-live, or at pilot completion for pilot sites.`
+                  : 'Per Device / mo: the monthly fee is the rate × every E-Call device (pendants and pull-cords in rooms and common areas, before the contingency). No separate charge for additional devices.'}
+              </p>
+            </div>
+          )}
+          {ecallOn && (
             <SetupRow label="Compare both systems" hint="E-Call-only deals: the business case shows Bluetooth and Inovonics side by side. The system above prices the deal.">
               <Switch name="commercial.ecallCompare" label="Compare Bluetooth and Inovonics" />
             </SetupRow>
@@ -305,12 +324,20 @@ export function PricingSection({ book }: SectionProps) {
             <MoneyField name="commercial.platformRate" label="Rate per bed / month" suffix="/bed" hint={`List $${listPlatform} · floor $${POLICY.postPilotFloor}`} min={0} />
             <MoneyField name="commercial.installRate" label="Install per bed" hint={`List $${listInstall} · one-time`} min={0} />
             <MoneyField name="commercial.sensorPrice" label="Additional sensor" hint="Each, one-time" min={0} />
-            {ecallOn && <MoneyField name="commercial.ecallRate" label="E-Call per bed / month" suffix="/bed" hint={`List $${ecallList(k.ecall)}`} min={0} />}
+            {ecallOn && <MoneyField name="commercial.ecallRate" label={`E-Call per ${unitWord} / month`} suffix={`/${unitWord}`} hint={`List $${ecallList(k.ecall)}`} min={0} />}
+            {ecallOn && perRoom && (
+              <MoneyField
+                name={k.ecall === 'inovonics' ? 'commercial.ecallDevices.inoPullcord' : 'commercial.ecallDevices.bleButton'}
+                label={`Additional ${k.ecall === 'inovonics' ? 'pull-cord' : 'button'}`}
+                hint="Each, one-time · devices beyond the rooms"
+                min={0}
+              />
+            )}
             {ecallOn && k.ecallCompare && (
               <MoneyField
                 name="commercial.ecallCompareRate"
-                label={`${k.ecall === 'ble' ? 'Inovonics' : 'Bluetooth'} per bed / month`}
-                suffix="/bed"
+                label={`${k.ecall === 'ble' ? 'Inovonics' : 'Bluetooth'} per ${unitWord} / month`}
+                suffix={`/${unitWord}`}
                 hint={`For the comparison · list $${ecallList(k.ecall === 'ble' ? 'inovonics' : 'ble')}`}
                 min={0}
                 nullable
@@ -348,7 +375,7 @@ export function PricingSection({ book }: SectionProps) {
           <PriceGroup title="Pilot" tag="Pilot" tone="pl" note="Applies to the communities marked as pilot sites.">
             <MoneyField name="commercial.pilotRate" label="Pilot rate per bed / month" suffix="/bed" hint={`Standard $${POLICY.standardPilotRate}`} min={0} />
             <NumberField name="schedule.pilotLengthMonths" label="Pilot length" suffix="months" hint={`Standard ${POLICY.standardPilotMonths}, then 36-month term`} min={1} />
-            {ecallOn && <MoneyField name="commercial.ecallPilotRate" label="E-Call during pilot" suffix="/bed" hint="Standard: free" min={0} />}
+            {ecallOn && <MoneyField name="commercial.ecallPilotRate" label="E-Call during pilot" suffix={`/${unitWord}`} hint="Standard: free" min={0} />}
           </PriceGroup>
         )}
 

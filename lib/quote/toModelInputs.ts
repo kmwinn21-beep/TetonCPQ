@@ -4,8 +4,8 @@
  */
 import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityExtra, type CommunityRates, type ModelInputs } from '@/lib/model';
-import { scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
-import { pendantScope } from './roomTypes';
+import { extraDevicePrice, scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
+import { ecallBilled, pendantScope } from './roomTypes';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -78,9 +78,14 @@ export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtr
   const k = d.commercial;
   const s = scopeOf(c, k.ecall !== 'none');
   const out: CommunityExtra[] = [];
-  // E-Call: billed per device per month (pendants / pull-cords in rooms and common areas, before the contingency).
-  const devices = pendantScope(c, k.ecall !== 'none').plan;
-  if (devices > 0) out.push({ units: devices, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
+  // E-Call monthly: per room (rooms with E-Call + common areas with devices) or per device (before the contingency).
+  // Per room, devices beyond the rooms are one-time extras (the pilot install credit applies at pilot sites).
+  const billed = ecallBilled(pendantScope(c, k.ecall !== 'none'), k.ecallBilling);
+  if (billed.monthly > 0) out.push({ units: billed.monthly, rates: { pilotFeePerBedMonth: k.ecallPilotRate, postPilotFeePerBedMonth: k.ecallRate, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 } });
+  if (billed.extra > 0) {
+    const each = extraDevicePrice(k);
+    out.push({ units: billed.extra, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: each * (1 - k.installCreditPct), postPilotInstallPerBed: each } });
+  }
   if (s.uniform) return out;
   const install = Number(k.ecallInstallRate) || 0;
   if (s.ecallOnly > 0) out.push({ units: s.ecallOnly, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: install * (1 - k.installCreditPct), postPilotInstallPerBed: install } });
@@ -126,7 +131,7 @@ export function toModelInputs(d: QuoteDraft): ModelInputs {
       postPilotSensorPrice: d.commercial.sensorPrice,
       specialTermMonths: d.commercial.specialRate != null ? d.commercial.specialTermMonths : 0,
     },
-    schedule: { ...d.schedule, startDate },
+    schedule: { ...d.schedule, startDate, oneTimeAtPilotEnd: true },
     implementation: d.implementation,
     communities: d.communities.map((c) => ({
       name: c.name || 'Unnamed community',

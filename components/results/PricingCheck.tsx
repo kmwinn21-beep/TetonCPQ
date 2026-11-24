@@ -79,6 +79,7 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
   const careCols = (['il', 'al', 'mc', 'snf'] as const).filter((k) => check.scope.some((s) => s.beds[k] > 0));
   const hasEcall = check.scope.some((s) => s.devices > 0);
   const hasPilot = check.scope.some((s) => s.pilot);
+  const perRoom = check.ecallBilling === 'room';
   const failed = check.checks.filter((c) => !c.ok && !c.warn).length;
   const warned = check.checks.filter((c) => c.warn).length;
 
@@ -181,6 +182,7 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
                       <th className="text-right font-semibold px-2 py-2">Billed</th>
                       <th className="text-right font-semibold px-2 py-2">Sensors</th>
                       {hasEcall && <th className="text-right font-semibold px-2 py-2">Devices</th>}
+                      {hasEcall && perRoom && <th className="text-right font-semibold px-2 py-2">Rooms billed</th>}
                       {hasEcall && <th className="text-right font-semibold px-3 py-2">Areas</th>}
                     </tr>
                   </thead>
@@ -196,6 +198,7 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
                         <td className="px-2 py-1.5 text-right">{count(s.billedBeds)}</td>
                         <td className="px-2 py-1.5 text-right">{s.sensors ? count(s.sensors) : '—'}</td>
                         {hasEcall && <td className="px-2 py-1.5 text-right whitespace-nowrap">{count(s.devices)}{s.contingency > 0 && <span className="text-teton-ui-gray text-xs"> +{count(s.contingency)}</span>}</td>}
+                        {hasEcall && perRoom && <td className="px-2 py-1.5 text-right whitespace-nowrap">{count(s.ecallUnits)}{s.extraDevices > 0 && <span className="text-teton-ui-gray text-xs" title="Additional devices, one-time"> · {count(s.extraDevices)} extra</span>}</td>}
                         {hasEcall && <td className="px-3 py-1.5 text-right">{count(s.areas)}</td>}
                       </tr>
                     ))}
@@ -206,6 +209,7 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
                         <td className="px-2 py-1.5 text-right">{count(scope.reduce((n, s) => n + s.billedBeds, 0))}</td>
                         <td className="px-2 py-1.5 text-right">{count(scope.reduce((n, s) => n + s.sensors, 0))}</td>
                         {hasEcall && <td className="px-2 py-1.5 text-right">{count(scope.reduce((n, s) => n + s.devices, 0))}</td>}
+                        {hasEcall && perRoom && <td className="px-2 py-1.5 text-right">{count(scope.reduce((n, s) => n + s.ecallUnits, 0))}</td>}
                         {hasEcall && <td className="px-3 py-1.5 text-right">{count(scope.reduce((n, s) => n + s.areas, 0))}</td>}
                       </tr>
                     )}
@@ -214,7 +218,10 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
               </div>
               <p className="px-3 py-2 text-xs text-teton-ui-gray border-t border-teton-off-white">
                 Billed: beds priced per bed{hasPilot ? '; pilot beds billed at the pilot rate during the pilot' : ''}. Sensors: additional sensors.
-                {hasEcall && ' Devices: pendants / pull-cords in rooms and common areas, as billed; the contingency (+n) is not billed.'}
+                {hasEcall &&
+                  (perRoom
+                    ? ' Devices: pendants / pull-cords in rooms and common areas; the contingency (+n) is not billed. Rooms billed: rooms with E-Call + common areas with devices (billed monthly); devices beyond them are one-time extras.'
+                    : ' Devices: pendants / pull-cords in rooms and common areas, billed monthly; the contingency (+n) is not billed.')}
               </p>
             </div>
           </div>

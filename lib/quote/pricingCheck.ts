@@ -13,8 +13,8 @@ import { subscriptionTotals } from '@/lib/model';
 import { basePackageRows, renewalsWithin, sensorRows, type CapexResult } from '@/lib/pricing/capex';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
-import { bedsByCare, scopeOf, type QuoteDraft } from './draft';
-import { pendantScope } from './roomTypes';
+import { bedsByCare, extraDevicePrice, scopeOf, type QuoteDraft } from './draft';
+import { ecallBilled, pendantScope } from './roomTypes';
 
 export type CheckProduct = 'subscription' | 'ecall' | 'capex';
 /** Formula pieces: text, or a value from this deal (shown highlighted). */
@@ -40,6 +40,10 @@ export interface CheckScopeRow {
   billedBeds: number;
   sensors: number;
   devices: number;
+  /** E-Call units billed monthly (rooms + common areas per room; devices per device). */
+  ecallUnits: number;
+  /** Devices beyond the rooms, billed one-time (per-room billing). */
+  extraDevices: number;
   contingency: number;
   areas: number;
 }
@@ -82,6 +86,8 @@ export interface PricingCheck {
   groups: CheckGroup[];
   checks: SelfCheck[];
   communities: string[];
+  /** How E-Call is billed monthly on this deal. */
+  ecallBilling: 'room' | 'device';
 }
 
 export interface PricingCheckArgs {
@@ -103,7 +109,8 @@ export interface PricingCheckArgs {
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
 const ECALL_SKUS = new Set<string>([SKU.ecallBle, SKU.ecallInovonics]);
-const isEcallLine = (l: PriceLine) => ECALL_SKUS.has(l.sku) || l.description === 'E-Call installation';
+const DEVICE_SKUS = new Set<string>([SKU.ecallBleButton, SKU.ecallInoPullcord]);
+const isEcallLine = (l: PriceLine) => ECALL_SKUS.has(l.sku) || DEVICE_SKUS.has(l.sku) || l.description === 'E-Call installation';
 
 /** What a line bills in months 1..m (inclusive). */
 export function lineBilledThrough(l: PriceLine, m: number): number {
@@ -120,6 +127,8 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
   const sys = k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth';
   const cents = (n: number) => money(n, !Number.isInteger(n));
   const cf = out.cashFlow;
+  const perRoom = k.ecallBilling !== 'device';
+  const unitWord = perRoom ? 'room' : 'device';
   const names = inputs.communities.map((c) => c.name);
 
   // ---- Inputs, next to the price book
@@ -143,8 +152,10 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     if (anyFull) price('full', 'Full-facility coverage multiplier', 'subscription', k.fullFacilityMultiplier, list(SKU.fullFacility), (n) => `${n}×`);
   }
   if (ecallOn) {
-    price('ecall', `E-Call (${sys}) per device / month`, 'ecall', k.ecallRate, list(k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle));
-    if (anyPilot) inRows.push({ key: 'ecallPilot', label: 'E-Call pilot rate per device / month', product: 'ecall', deal: cents(k.ecallPilotRate), book: '—', differs: false });
+    inRows.push({ key: 'ecallBilling', label: 'E-Call billing', product: 'ecall', deal: perRoom ? 'Per room / mo' : 'Per device / mo', book: null, differs: false });
+    price('ecall', `E-Call (${sys}) per ${unitWord} / month`, 'ecall', k.ecallRate, list(k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle));
+    if (perRoom) price('ecallDevice', `Additional device (${k.ecall === 'inovonics' ? 'pull-cord' : 'button'}), each`, 'ecall', extraDevicePrice(k), list(k.ecall === 'inovonics' ? SKU.ecallInoPullcord : SKU.ecallBleButton));
+    if (anyPilot) inRows.push({ key: 'ecallPilot', label: `E-Call pilot rate per ${unitWord} / month`, product: 'ecall', deal: cents(k.ecallPilotRate), book: '—', differs: false });
     if (anyEcallOnly) inRows.push({ key: 'ecallInstall', label: 'E-Call installation per bed (E-Call only)', product: 'ecall', deal: cents(Number(k.ecallInstallRate) || 0), book: '—', differs: false });
   }
   const p = capex.pricing;
@@ -185,6 +196,7 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       billedBeds: c?.units ?? 0,
       sensors: c?.additionalSensors ?? 0,
       devices: ps.plan,
+      ...((b) => ({ ecallUnits: b.monthly, extraDevices: b.extra }))(ecallBilled(ps, k.ecallBilling)),
       contingency: ps.total - ps.plan,
       areas: ps.areas,
     };
@@ -203,16 +215,16 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       const per = g.map((l) => ({ community: l.communityName, qty: l.qty, total: lineTotal(l) }));
       const row = (community: string | null, qtys: number[], total: number, idx: string): CheckRow => {
         const qty: Piece[] = qtys.length > 1 ? ['(', ...qtys.flatMap((q, j) => (j ? [' + ', { v: count(q) }] : [{ v: count(q) }])), ')'] : [{ v: count(qtys[0]) }];
-        const what = l0.sku === SKU.sensor ? 'sensors' : ECALL_SKUS.has(l0.sku) ? 'devices' : 'beds';
-        const unitWord = l0.billing === 'monthly' ? 'rate' : 'price';
+        const what = l0.sku === SKU.sensor ? 'sensors' : DEVICE_SKUS.has(l0.sku) ? 'extra devices' : ECALL_SKUS.has(l0.sku) ? `${unitWord}s` : 'beds';
+        const rateWord = l0.billing === 'monthly' ? 'rate' : 'price';
         // Credits: −(quantity × price × credit %), from the line's net (−price × credit).
         const pct = k.installCreditPct;
         const formula: Piece[] =
           l0.unitNet < 0 && pct > 0
-            ? [`−(${what} × ${l0.sku === SKU.sensor ? 'sensor price' : 'install'} × credit) = −`, ...qty, ' × ', { v: cents(-l0.unitNet / pct) }, ' × ', { v: `${Math.round(pct * 100)}%` }]
+            ? [`−(${what} × ${l0.sku === SKU.sensor ? 'sensor price' : DEVICE_SKUS.has(l0.sku) ? 'device price' : 'install'} × credit) = −`, ...qty, ' × ', { v: cents(-l0.unitNet / pct) }, ' × ', { v: `${Math.round(pct * 100)}%` }]
             : l0.billing === 'monthly'
-            ? [`${what} × ${unitWord} × months = `, ...qty, ' × ', { v: cents(l0.unitNet) }, ' × ', { v: count(l0.termMonths ?? 0) }]
-            : [`${what} × ${unitWord} = `, ...qty, ' × ', { v: cents(l0.unitNet) }];
+            ? [`${what} × ${rateWord} × months = `, ...qty, ' × ', { v: cents(l0.unitNet) }, ' × ', { v: count(l0.termMonths ?? 0) }]
+            : [`${what} × ${rateWord} = `, ...qty, ' × ', { v: cents(l0.unitNet) }];
         return { key: `${prefix}.${idx}`, label: l0.description, community, formula, result: total, unit: 'usd', calc: { qty: sum(qtys), unit: l0.unitNet, ...(l0.billing === 'monthly' ? { months: l0.termMonths ?? 0 } : {}) } };
       };
       // One row for the deal, plus one per community (the view filters by community).
@@ -250,30 +262,48 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     draft.communities.forEach((dc, i) => {
       const ps = pendantScope(dc, ecallOn);
       if (ps.plan <= 0) return;
+      const b = ecallBilled(ps, k.ecallBilling);
+      const cont = ps.total > ps.plan ? [` (contingency +${count(ps.total - ps.plan)} not billed)`] : [];
       devRows.push({
         key: `ec.dev.c${i}`,
-        label: 'Devices billed',
+        label: perRoom ? 'Devices' : 'Devices billed',
         community: scope[i].name,
-        formula: ['room devices + common-area devices = ', { v: count(ps.roomPendants) }, ' + ', { v: count(ps.areaPendants) }, ...(ps.total > ps.plan ? [` (contingency +${count(ps.total - ps.plan)} not billed)`] : [])],
+        formula: ['room devices + common-area devices = ', { v: count(ps.roomPendants) }, ' + ', { v: count(ps.areaPendants) }, ...cont],
         result: ps.plan,
         unit: 'count',
         alsoOn: 'Scope page',
       });
+      if (perRoom) {
+        devRows.push({ key: `ec.rooms.c${i}`, label: 'Rooms billed monthly', community: scope[i].name, formula: ['rooms with E-Call + common areas with devices = ', { v: count(ps.rooms) }, ' + ', { v: count(ps.areas) }], result: b.monthly, unit: 'count' });
+        devRows.push({ key: `ec.extra.c${i}`, label: 'Additional devices (one-time)', community: scope[i].name, formula: ['devices − rooms billed = ', { v: count(ps.plan) }, ' − ', { v: count(b.monthly) }], result: b.extra, unit: 'count' });
+      }
     });
     const withDev = scope.filter((s) => s.devices > 0);
     devRows.unshift({
       key: 'ec.dev',
-      label: 'Devices billed',
+      label: perRoom ? 'Devices' : 'Devices billed',
       community: null,
       formula: withDev.length > 1 ? ['Σ communities = ', ...withDev.flatMap((s, j) => (j ? [' + ', { v: count(s.devices) }] : [{ v: count(s.devices) }]))] : ['room devices + common-area devices (before the contingency)'],
       result: devTotal,
       unit: 'count',
       alsoOn: 'Scope page',
     });
+    if (perRoom) {
+      const rooms = sum(scope.map((s) => s.ecallUnits));
+      const extra = sum(scope.map((s) => s.extraDevices));
+      const rs = sum(draft.communities.map((dc) => pendantScope(dc, ecallOn).rooms));
+      const as = sum(draft.communities.map((dc) => pendantScope(dc, ecallOn).areas));
+      devRows.splice(1, 0,
+        { key: 'ec.rooms', label: 'Rooms billed monthly', community: null, formula: ['rooms with E-Call + common areas with devices = ', { v: count(rs) }, ' + ', { v: count(as) }], result: rooms, unit: 'count' },
+        { key: 'ec.extra', label: 'Additional devices (one-time)', community: null, formula: ['devices − rooms billed = ', { v: count(devTotal) }, ' − ', { v: count(rooms) }], result: extra, unit: 'count' },
+      );
+    }
     groups.push({
       key: 'ecall',
       title: sys,
-      note: 'Per device, per month · devices = pendants / pull-cords in rooms and common areas',
+      note: perRoom
+        ? 'Per room, per month (each common area with devices counts as a room) · devices beyond the rooms are one-time'
+        : 'Per device, per month · devices = pendants / pull-cords in rooms and common areas',
       rows: [...devRows, ...lineRows(ecLines, 'ec'), ...(ecLines.length ? subtotals(ecLines, 'ec', `E-Call over pilot + ${POLICY.serviceTermMonths} months`, 'Investment page') : [])],
     });
   }
@@ -404,5 +434,5 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     detail: diff === 0 ? 'No deal-specific prices' : inRows.filter((r) => r.differs).map((r) => r.label).join(' · '),
   });
 
-  return { inputs: inRows, scope, groups, checks, communities: names };
+  return { inputs: inRows, scope, groups, checks, communities: names, ecallBilling: perRoom ? 'room' : 'device' };
 }

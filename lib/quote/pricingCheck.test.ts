@@ -67,6 +67,22 @@ describe('pricing check', () => {
     expect(check.scope[2].ecallOnly).toBe(true);
   });
 
+  it('per room: bills rooms + common areas monthly and the devices beyond them once', () => {
+    const d = draft();
+    d.communities[0].commonAreas = [{ id: 'a', name: 'Bath', kind: 'bathroom', count: 3, pendants: 2 }];
+    const { check } = build(d);
+    const ec = check.groups.find((g) => g.key === 'ecall')!;
+    // Pilot: 100 rooms + 3 areas billed, 106 devices → 3 extra.
+    expect(ec.rows.find((r) => r.key === 'ec.rooms.c0')!.result).toBe(103);
+    expect(ec.rows.find((r) => r.key === 'ec.extra.c0')!.result).toBe(3);
+    expect(check.scope[0]).toMatchObject({ devices: 106, ecallUnits: 103, extraDevices: 3 });
+    expect(check.checks.every((c) => c.ok || c.warn)).toBe(true);
+    d.commercial.ecallBilling = 'device';
+    const dev = build(d).check;
+    expect(dev.scope[0]).toMatchObject({ ecallUnits: 106, extraDevices: 0 });
+    expect(dev.groups.find((g) => g.key === 'ecall')!.rows.some((r) => r.key === 'ec.rooms')).toBe(false);
+  });
+
   it('flags a saved version whose equipment figures no longer match its inputs', () => {
     const d = draft();
     const inputs = toModelInputs(d);

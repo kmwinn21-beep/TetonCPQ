@@ -48,6 +48,8 @@ export interface CommunitySchedule {
   roiStartMonth: number;
   fullRoiMonth: number;
   installCost: number;
+  /** Month the one-time charges are billed: go-live, or (oneTimeAtPilotEnd) the first month after the pilot. */
+  oneTimeMonth: number;
   /** Monthly reimbursement offset once post-pilot (0 when reimbursement is off). */
   monthlyReimbursement: number;
   /** Full monthly benefit once ramped (annual ROI ÷ 12). */
@@ -117,6 +119,7 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
     roiStartMonth,
     fullRoiMonth,
     installCost,
+    oneTimeMonth: schedule.oneTimeAtPilotEnd ? firstPostPilotMonth : goLiveMonth,
     monthlyReimbursement,
     fullMonthlyBenefit: annualRoi / 12,
     rates,
@@ -178,7 +181,7 @@ export function buildCashFlow(inputs: ModelInputs, annual: AnnualCaseResult, hor
       grossBenefit[i] += cc.gross[i];
       if (cc.firstPostPilotMonth <= i + 1) reimbursement[i] -= cc.monthlyReimbursement;
     }
-    if (cc.goLiveMonth >= 1 && cc.goLiveMonth <= n) install[cc.goLiveMonth - 1] += cc.installCost;
+    if (cc.oneTimeMonth >= 1 && cc.oneTimeMonth <= n) install[cc.oneTimeMonth - 1] += cc.installCost;
   }
   const totalCost = months.map((_, i) => recurringFees[i] + install[i] + reimbursement[i]);
   const netBenefit = months.map((_, i) => grossBenefit[i] - totalCost[i]);

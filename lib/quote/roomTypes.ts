@@ -290,6 +290,19 @@ export function pendantScope(c: Partial<DraftCommunity> | null | undefined, ecal
   return { rooms, roomPendants, areas, areaPendants, plan, allowance, total: plan + allowance };
 }
 
+/** How E-Call is billed monthly: per room (each common area with a device counts as a room) or per device. */
+export type EcallBilling = 'room' | 'device';
+
+/**
+ * E-Call units billed for a community: per room, the rooms with E-Call plus the common areas with devices, and every
+ * device beyond that count as a one-time additional device; per device, every device (before the contingency).
+ */
+export function ecallBilled(ps: Pick<PendantScope, 'rooms' | 'areas' | 'plan'>, billing: EcallBilling = 'room'): { monthly: number; extra: number } {
+  if (billing === 'device') return { monthly: ps.plan, extra: 0 };
+  const monthly = ps.plan > 0 ? ps.rooms + ps.areas : 0;
+  return { monthly, extra: Math.max(0, ps.plan - monthly) };
+}
+
 export const newRoomType = (): RoomType => ({ id: `rt-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', care: 'al', rooms: 0, sensors: 1 });
 
 /** A room number used by more than one tagged room. */

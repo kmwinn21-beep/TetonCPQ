@@ -53,10 +53,12 @@ describe('install credit on additional sensors', () => {
     d.commercial.sensorPrice = 300;
     const sensorTotal = (x: QuoteDraft) => buildPriceLines(x, toModelInputs(x), priceBook()).filter((l) => l.sku === 'SENSOR-ADDITIONAL').reduce((s, l) => s + lineTotal(l), 0);
     expect(sensorTotal(d)).toBe(82 * 300); // off by default
-    const before = runModel(toModelInputs(d)).cashFlow.install[0];
+    // Pilot sites: one-time charges are billed at pilot completion.
+    const installs = (x: QuoteDraft) => runModel(toModelInputs(x)).cashFlow.install.reduce((a, b) => a + b, 0);
+    const before = installs(d);
     d.commercial.sensorCredit = true;
     expect(sensorTotal(d)).toBe(0);
-    expect(runModel(toModelInputs(d)).cashFlow.install[0]).toBe(before - 82 * 300);
+    expect(installs(d)).toBe(before - 82 * 300);
     // Equipment purchase still charges the sensors once converted.
     expect(computeCapex(d).sensorCost).toBe(36_900);
   });
