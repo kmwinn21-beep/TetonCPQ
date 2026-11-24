@@ -11,8 +11,7 @@ import { Children, cloneElement, createContext, Fragment, isValidElement, useCal
 import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, addOnePager, BC_PAGE_TITLES, bcPageTitle, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
 import { OP_MODES, onePagerId, type OnePagerInfo } from '@/lib/proposal/onePager';
-import { openInspectorRemoved } from './inspectorContext';
-import { DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
+import { BC_PAGES, DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
 import { canAutoFocus } from '@/lib/client/focus';
@@ -799,6 +798,119 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* Removed sections and figures, with Add back.                        */
 /* ------------------------------------------------------------------ */
 
+/** Something that can be added to the business case (the floating Add menu): what it is, where it goes, how. */
+export interface Addable {
+  key: string;
+  group: 'onepager' | 'page' | 'section' | 'row' | 'figure';
+  name: string;
+  sub: string;
+  add: (l: ProposalLayout) => ProposalLayout;
+  /** Where it shows once added (to go to it and select it). */
+  go: { page?: string; blocksPage?: string; block?: string; table?: string; fig?: string };
+}
+
+/** Business-case page keys of sections that live on another page's slot. */
+const BC_BLOCKS_PAGE_OF: Record<string, string> = { 'scope-capex': 'scope', 'scope-both': 'scope', 'scope-compare': 'scope', 'roi-both': 'roi', 'cashflow-both': 'cashflow' };
+
+/**
+ * Everything that can be added to the business case: one pagers for the deal's products, removed pages, removed
+ * sections (and ones that start out off), removed table rows and columns, removed figures. The same rules as the
+ * Removed list.
+ */
+export function useAddables({ bothPricing = false, ecallOnly = false, onePagers = null }: { bothPricing?: boolean; ecallOnly?: boolean; onePagers?: OnePagerInfo | null }): Addable[] {
+  const { layout, edits } = useProposalText();
+  const { labels } = useContext(LabelsCtx);
+  const [presentTables, setPresentTables] = useState<string[]>([]);
+  const [pageNos, setPageNos] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const ids = Array.from(document.querySelectorAll<HTMLElement>('table[data-rtable]')).map((t) => t.dataset.rtable ?? '').sort();
+    setPresentTables((p) => (p.join() === ids.join() ? p : ids));
+    const nos: Record<string, number> = {};
+    document.querySelectorAll<HTMLElement>('[data-bc-page]').forEach((e, i) => (nos[e.dataset.bcPage ?? ''] = i + 1));
+    setPageNos((p) => (JSON.stringify(p) === JSON.stringify(nos) ? p : nos));
+  }, [layout, edits]);
+  if (layout.format !== 'businessCase') return [];
+  const pages = bcPagesOf(layout);
+  const where = (page: string) => `${bcPageTitle(page)}${pageNos[page] ? ` · page ${pageNos[page]}` : ''}`;
+  const tablePage = (table: string) =>
+    typeof document === 'undefined' ? null : document.querySelector<HTMLElement>(`table[data-rtable="${CSS.escape(table)}"]`)?.closest<HTMLElement>('[data-bc-page]')?.dataset.bcPage ?? null;
+  const split = (label: string) => {
+    const [a, ...b] = label.split(' · ');
+    return { name: a, sub: b.join(' · ') };
+  };
+  const out: Addable[] = [];
+  // One pagers.
+  const OP_LABEL = { both: 'Purchase and subscription', opex: 'Subscription only (OpEx)', capex: 'Purchase only (CapEx)' } as const;
+  const SCOPE = { rm: 'Resident Monitoring', ec: 'E-Call', both: 'Resident Monitoring + E-Call' } as const;
+  const opScope = onePagers?.scope;
+  if (opScope)
+    for (const m of OP_MODES) {
+      const id = onePagerId(opScope, m);
+      if (pages.includes(id)) continue;
+      const after = ['scope', 'pilot', 'sitescope', 'contents', 'execsum', 'cover'].find((x) => pages.includes(x));
+      out.push({ key: `op-${id}`, group: 'onepager', name: OP_LABEL[m], sub: `${SCOPE[opScope]} · adds a page${after ? ` after ${bcPageTitle(after)}` : ''}`, add: (l) => ({ ...l, bcPages: addOnePager(bcPagesOf(l), id) }), go: { page: id } });
+    }
+  // Removed pages: they go back after the nearest standard page before them.
+  for (const id of removedBcPages(pages)) {
+    const k = (BC_PAGES as readonly string[]).indexOf(id);
+    const before = BC_PAGES.slice(0, k).reverse().find((x) => pages.includes(x));
+    out.push({ key: `page-${id}`, group: 'page', name: BC_PAGE_TITLES[id], sub: before ? `Goes back after ${bcPageTitle(before)}` : 'Goes back at the start', add: (l) => ({ ...l, bcPages: addBackBcPage(bcPagesOf(l), id) }), go: { page: id } });
+  }
+  // Removed sections.
+  for (const [bp, m] of Object.entries(layout.bcHiddenBlocks ?? {}))
+    for (const [id, label] of Object.entries(m)) {
+      const slot = BC_BLOCKS_PAGE_OF[bp] ?? bp;
+      out.push({
+        key: `block-${bp}-${id}`,
+        group: 'section',
+        name: split(label).name,
+        sub: where(slot),
+        add: (l) => {
+          const all = { ...(l.bcHiddenBlocks ?? {}) };
+          const mm = { ...(all[bp] ?? {}) };
+          delete mm[id];
+          if (Object.keys(mm).length) all[bp] = mm;
+          else delete all[bp];
+          return { ...l, bcHiddenBlocks: all };
+        },
+        go: { page: slot, blocksPage: bp, block: id },
+      });
+    }
+  // Sections that start out off.
+  const opt: Array<[string, string, string, (l: ProposalLayout) => ProposalLayout]> = [
+    ...(bothPricing && !layout.bcFourYears ? [['fourYears', 'Four years from go-live', 'scope', (l: ProposalLayout) => ({ ...l, bcFourYears: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
+    ...(!layout.bcExecHardware ? [['execHardware', 'What gets installed', 'execsum', (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
+    ...(ecallOnly && !layout.bcEcDash ? [['ecDash', 'E-Call dashboard', 'scope', (l: ProposalLayout) => ({ ...l, bcEcDash: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
+    ...(layout.bcExecNoPageRefs ? [['execPageRefs', 'Page numbers', 'execsum', (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
+    ...(onePagers?.scope === 'rm' && onePagers.pilot
+      ? OP_MODES.map((m) => onePagerId('rm', m))
+          .filter((id) => pages.includes(id) && !(layout.bcOpPilotTable ?? []).includes(id))
+          .map((id) => [`opPilot-${id}`, 'Pilot community table', id, (l: ProposalLayout) => ({ ...l, bcOpPilotTable: [...(l.bcOpPilotTable ?? []), id] })] as [string, string, string, (l: ProposalLayout) => ProposalLayout])
+      : []),
+  ];
+  for (const [key, name, page, add] of opt) if (pages.includes(page)) out.push({ key: `opt-${key}`, group: 'section', name, sub: where(page), add, go: { page } });
+  // Removed table rows and columns.
+  for (const [k, label] of Object.entries(layout.hiddenRows ?? {})) {
+    const t = k.split('.')[0];
+    const pg = tablePage(t);
+    const { name, sub } = split(label);
+    out.push({ key: `row-${k}`, group: 'row', name, sub: [sub, pg ? where(pg) : ''].filter(Boolean).join(' · '), add: (l) => addBackRow(l, k), go: { table: t, page: pg ?? undefined } });
+  }
+  for (const [k, label] of Object.entries(hiddenColsOf(layout))) {
+    const t = k.split('.')[0];
+    if (k in DEFAULT_HIDDEN_COLS && !presentTables.includes(t)) continue;
+    const pg = tablePage(t);
+    const { name, sub } = split(label);
+    out.push({ key: `col-${k}`, group: 'row', name, sub: [sub, pg ? where(pg) : ''].filter(Boolean).join(' · '), add: (l) => addBackCol(l, k), go: { table: t, page: pg ?? undefined } });
+  }
+  // Removed figures.
+  for (const k of layout.hiddenValues) {
+    const { name, sub } = split(labels[k] ?? k);
+    out.push({ key: `fig-${k}`, group: 'figure', name, sub, add: (l) => ({ ...l, hiddenValues: l.hiddenValues.filter((x) => x !== k) }), go: { fig: k } });
+  }
+  return out;
+}
+
 /** A removed table row back. */
 export function addBackRow(l: ProposalLayout, k: string): ProposalLayout {
   const m = { ...(l.hiddenRows ?? {}) };
@@ -1064,7 +1176,8 @@ export function RemovedSheetButton({ bothPricing = false, ecallOnly = false, one
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
   }, [open]);
-  if (!editable) return null;
+  // The business case has the floating Add menu instead.
+  if (!editable || businessCase) return null;
   return (
     <>
       {/* Counts what's removed even while closed (renders nothing visible). */}
@@ -1075,10 +1188,10 @@ export function RemovedSheetButton({ bothPricing = false, ecallOnly = false, one
       )}
       <button
         type="button"
-        className={`${businessCase ? '' : 'sm:hidden'} inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10`}
+        className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10"
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => (businessCase && window.matchMedia('(min-width: 640px)').matches ? openInspectorRemoved() : setOpen(true))}
+        onClick={() => setOpen(true)}
       >
         Removed
         {count > 0 && <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-white text-teton-ink text-[10.5px] font-bold">{count}</span>}

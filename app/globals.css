@@ -1305,3 +1305,19 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 }
 @media (prefers-reduced-motion: reduce) { .proposal-doc { transition: none; } }
 @media print { .bc-doc [data-insp-sel] { outline: none !important; } .bc-doc .bc-block:hover { outline: none !important; } }
+
+/* Business case: the floating Add button and its menu (bottom right; beside the options panel when it's open). */
+.bc-addfab { right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); transition: right .3s ease-out, opacity .2s; }
+@media (max-width: 639px) { html.bc-insp-open .bc-addfab { opacity: 0; pointer-events: none; } }
+.bc-addpop { left: 0; right: 0; bottom: 0; max-height: 78dvh; border-radius: 16px 16px 0 0; }
+@media (min-width: 640px) {
+  .bc-addfab { right: 24px; bottom: 24px; }
+  .bc-addpop { left: auto; right: 24px; bottom: 82px; width: 372px; border-radius: 16px; max-height: calc(100dvh - var(--proposal-header-h, 99px) - 110px); transform-origin: bottom right; transition: right .3s ease-out; }
+  html.bc-insp-open .bc-addfab, html.bc-insp-open .bc-addpop { right: 368px; }
+}
+@keyframes addPopIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes addPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.98); } }
+.bc-addpop-in { animation: addPopIn .2s ease-out; }
+.bc-addpop-out { animation: addPopOut .18s ease-in forwards; }
+@media (max-width: 639px) { .bc-addpop-in { animation: sheetUp .25s ease-out; } }
+@media (prefers-reduced-motion: reduce) { .bc-addpop-in, .bc-addpop-out, .bc-addfab, .bc-addpop { animation: none; transition: none; } }

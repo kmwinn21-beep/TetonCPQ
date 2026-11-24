@@ -18,7 +18,7 @@ import { capexCashFlow } from '@/lib/pricing/capexCashFlow';
 import { rangeText } from '@/lib/pricing/finish';
 import { SEED_PRODUCTS, SKU } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
-import { extraDevicePrice, hasEcall, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
+import { extraDevicePrice, hasEcall, isEcallOnlyDeal, monitors, productsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, monthName, multiple, usd } from '@/lib/format';
 import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
@@ -52,7 +52,8 @@ import { canAutoFocus } from '@/lib/client/focus';
 import { createPortal } from 'react-dom';
 import { BlockDisplayCtx, InPanelCtx, InspectorProvider, InspGroup, InspRow, InspSeg, InspStepper, InspToggle, inspBtn, inspDanger, inspFootBtn, inspIconBtn, useInspector } from './Inspector';
 import { OnePagerBody } from './OnePager';
-import { ONE_PAGERS, onePagerParts } from '@/lib/proposal/onePager';
+import { AddMenu } from './AddMenu';
+import { ONE_PAGERS, onePagerInfo, onePagerParts } from '@/lib/proposal/onePager';
 
 const Logo = () => (
   <span className="bc-logo">
@@ -4323,6 +4324,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       })}
       <AddPageZone at={null} />
     </article>
+    <AddMenu bothPricing={draft.presentation === 'both'} ecallOnly={isEcallOnlyDeal(draft)} onePagers={onePagerInfo(draft)} />
     </InspectorProvider>
   );
 }
