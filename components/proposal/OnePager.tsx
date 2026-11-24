@@ -13,9 +13,10 @@ import { onePagerCounts, onePagerParts, purchaseTable, subscriptionTable, type O
 import { T, useProposalText } from './EditableText';
 import { RTable, RTbody } from './ProposalSections';
 import { CallOut } from './CallOut';
+import { ViewSwitch } from './ViewSwitch';
 
 type BlocksT = (p: { page: string; children: React.ReactNode }) => React.ReactNode;
-type BT = (p: { id: string; label: string; onRemove?: () => void; children: React.ReactNode }) => null;
+type BT = (p: { id: string; label: string; onRemove?: () => void; view?: React.ReactNode; children: React.ReactNode }) => null;
 
 export interface OnePagerPilot {
   months: number;
@@ -67,7 +68,7 @@ export function OnePagerBody({
   Blocks: BlocksT;
   B: BT;
 }) {
-  const { layout, setLayout } = useProposalText();
+  const { layout, setLayout, editable } = useProposalText();
   const { scope, mode } = onePagerParts(id);
   const systems: Array<OpSys | null> = scope === 'rm' ? [null] : ['ble', 'inov'];
   const two = systems.length === 2;
@@ -209,6 +210,17 @@ export function OnePagerBody({
         : `E-Call subscription is per room${n.areas ? ` (common areas count as rooms)` : ''}, one device each included; devices beyond that are one-time. Purchase base packages include E-Call per bed.`;
   const pilotShown = !!pilot;
   const tableShown = scope === 'rm' && !!pilotTable && (layout.bcOpPilotTable ?? []).includes(id);
+  // What gets installed: condensed cards (whole photo, name only) or large ones (bigger photo and the description).
+  // Until the rep picks one, the page's own fit decides: condensed where space is tight.
+  const hwAuto: 'condensed' | 'large' = scope === 'both' || (!single && (pilotShown || tableShown)) ? 'condensed' : 'large';
+  const hwSize = layout.bcOpHw?.[id] ?? hwAuto;
+  const setHwSize = (v: 'condensed' | 'large') =>
+    setLayout((l) => {
+      const next = { ...(l.bcOpHw ?? {}) };
+      if (v === hwAuto) delete next[id];
+      else next[id] = v;
+      return { ...l, bcOpHw: Object.keys(next).length ? next : undefined };
+    });
   const hideTable = () => setLayout((l) => ({ ...l, bcOpPilotTable: (l.bcOpPilotTable ?? []).filter((x) => x !== id) }));
 
   return (
@@ -252,14 +264,30 @@ export function OnePagerBody({
             ))}
           </div>
         </B>
-        <B id="installed" label="What gets installed">
+        <B
+          id="installed"
+          label="What gets installed"
+          view={
+            editable ? (
+              <ViewSwitch
+                field={`bcOpHw.${id}`}
+                position="relative mx-0.5"
+                hover="!opacity-100"
+                label="Pictures shown"
+                options={[['condensed', 'Condensed'], ['large', 'Large']] as const}
+                value={hwSize}
+                onChange={setHwSize}
+              />
+            ) : null
+          }
+        >
           <p className="bc-eyebrow bc-gray"><T k={k('installed')} d="What gets installed" /></p>
           {scope === 'rm' ? (
-            <div className="bc-op-hws bc-op-hws-2">{[hw('sensor'), hw('edge')]}</div>
+            <div className={`bc-op-hws bc-op-hws-2 bc-op-hw-${hwSize}`}>{[hw('sensor'), hw('edge')]}</div>
           ) : scope === 'ec' ? (
-            <div className="bc-op-hws bc-op-hws-ec">{hw('ble')}{or}{hw('inov')}</div>
+            <div className={`bc-op-hws bc-op-hws-ec bc-op-hw-${hwSize}`}>{hw('ble')}{or}{hw('inov')}</div>
           ) : (
-            <div className="bc-op-hws bc-op-hws-both">
+            <div className={`bc-op-hws bc-op-hws-both bc-op-hw-${hwSize}`}>
               {hw('sensor')}
               {hw('edge')}
               <span className="bc-op-hwplus" aria-hidden="true">+</span>

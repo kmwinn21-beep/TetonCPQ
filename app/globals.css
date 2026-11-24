@@ -1247,6 +1247,36 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-op-withtable .bc-op-fine { margin-top: 6px; }
 .bc-op-withtable.bc-op-single .bc-op-tbl td { padding: 10px 16px; }
 .bc-op-withtable.bc-op-single .bc-op-hw { height: 84px; }
+/* One pagers, "What gets installed": the rep's choice of condensed or large pictures (overrides the page's own fit). */
+/* Condensed: name only, and each photo shown whole (scaled to the card's height, never cropped). */
+.bc-op .bc-op-hw-condensed .bc-op-hw { height: 52px !important; grid-template-columns: auto minmax(0, 1fr) !important; }
+.bc-op .bc-op-hw-condensed .bc-op-hwi { height: 100%; width: auto; display: flex; align-items: center; }
+.bc-op .bc-op-hw-condensed .bc-op-hwi img { height: 100%; width: auto; max-width: 96px; object-fit: contain; }
+.bc-op .bc-op-hw-condensed .bc-op-hw-fit .bc-op-hwi img { padding: 4px 6px; }
+.bc-op .bc-op-hw-condensed .bc-op-hw figcaption > span { display: none !important; }
+.bc-op .bc-op-hw-condensed.bc-op-hws-both .bc-op-hw { height: 46px !important; }
+.bc-op .bc-op-hw-condensed.bc-op-hws-both .bc-op-hwi img { max-width: 56px; }
+/* Large: a bigger photo with the description. Four in a row: photo above the name. */
+.bc-op .bc-op-hw-large .bc-op-hw { height: 112px !important; grid-template-columns: 40% minmax(0, 1fr) !important; }
+.bc-op .bc-op-hw-large .bc-op-hw figcaption { padding: 8px 12px; }
+.bc-op .bc-op-hw-large .bc-op-hw figcaption b { font-size: 13.5px; }
+.bc-op .bc-op-hw-large .bc-op-hw figcaption > span { display: block !important; font-size: 10.5px; }
+.bc-op .bc-op-hw-large.bc-op-hws-both { align-items: stretch; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hwor, .bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hwplus { align-self: center; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hw { height: auto !important; grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; align-items: stretch; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hwi { height: 72px; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption { padding: 6px 8px 8px; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption b { font-size: 11px; }
+.bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption > span { font-size: 9px; }
+/* The fullest page (both systems, both options): large pictures, names only. */
+.bc-op-dense .bc-op-hw-large.bc-op-hws-both .bc-op-hwi { height: 50px; }
+.bc-op-dense .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption { padding: 5px 8px 6px; }
+.bc-op-dense .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-op-dense .bc-op-hw-large.bc-op-hws-both .bc-op-hw figcaption > span { display: none !important; }
+@media (max-width: 640px) {
+  .bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hw { grid-template-columns: 40% minmax(0, 1fr) !important; height: 96px !important; }
+  .bc-op .bc-op-hw-large.bc-op-hws-both .bc-op-hwi { height: 100%; }
+}
 @media print {
   .bc-op-col-ble, .bc-op-col-inov, .bc-op-col-rm, .bc-op-oc, .bc-op-pcost-tot, .bc-op-tbl tr.bc-op-tot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

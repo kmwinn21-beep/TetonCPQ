@@ -89,6 +89,8 @@ export interface ProposalLayout {
   bcSiteAreas?: 'fold';
   /** One pagers (Resident Monitoring) showing the pilot community table: their page ids (off by default). */
   bcOpPilotTable?: string[];
+  /** One pagers: "What gets installed" pictures condensed or large, by page id (unset = what fits the page). */
+  bcOpHw?: Record<string, 'condensed' | 'large'>;
   /** Business case pilot page: the 'Measuring pilot success' element in its light style (dark by default). */
   bcPilotMeasure?: 'light';
   /** Business case scope table (Resident Monitoring deals): totals as a strip above the table, condensed or expanded (unset = in the table). */
@@ -250,6 +252,13 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecHardware: raw.bcExecHardware === true ? true : undefined,
     bcSiteCare: raw.bcSiteCare === 'full' || raw.bcSiteCare === 'short' ? raw.bcSiteCare : undefined,
     bcSiteAreas: raw.bcSiteAreas === 'fold' ? 'fold' : undefined,
+    bcOpHw: (() => {
+      const v = raw.bcOpHw;
+      if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;
+      const out: Record<string, 'condensed' | 'large'> = {};
+      for (const [k, x] of Object.entries(v as Record<string, unknown>)) if ((ONE_PAGERS as readonly string[]).includes(k) && (x === 'condensed' || x === 'large')) out[k] = x;
+      return Object.keys(out).length ? out : undefined;
+    })(),
     bcOpPilotTable: raw.bcOpPilotTable == null ? undefined : ids(raw.bcOpPilotTable, 9).filter((id) => (ONE_PAGERS as readonly string[]).includes(id)),
     bcPilotMeasure: raw.bcPilotMeasure === 'light' ? 'light' : undefined,
     bcSiteTotals: raw.bcSiteTotals === 'condensed' || raw.bcSiteTotals === 'expanded' ? raw.bcSiteTotals : undefined,
