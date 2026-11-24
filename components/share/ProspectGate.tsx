@@ -24,7 +24,7 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ProspectGate({ token, dealName, ownerName, ownerEmail, needsCode }: { token: string; dealName: string; ownerName: string; ownerEmail: string; needsCode: boolean }) {
+export function ProspectGate({ token, dealName, ownerName, needsCode }: { token: string; dealName: string; ownerName: string; ownerEmail?: string; needsCode: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -79,10 +79,9 @@ export function ProspectGate({ token, dealName, ownerName, ownerEmail, needsCode
         </button>
       </form>
       <p className="mt-5 pt-4 border-t border-[#F1EEE7] flex items-center gap-2.5 text-[12.5px] text-[#5A6270]">
-        <span className="w-[30px] h-[30px] rounded-full bg-teton-ink text-white grid place-items-center text-[11px] font-bold">{ownerName.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</span>
-        <span className="min-w-0 truncate">
-          {ownerName} · Teton{ownerEmail ? ` · ${ownerEmail}` : ''}
-        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-[.6px] text-teton-ui-gray">Sent by:</span>
+        <span className="w-[30px] h-[30px] flex-shrink-0 rounded-full bg-teton-ink text-white grid place-items-center text-[11px] font-bold">{ownerName.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+        <span className="min-w-0 truncate">{ownerName} · Teton</span>
       </p>
     </Card>
   );
