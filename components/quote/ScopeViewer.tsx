@@ -526,6 +526,7 @@ export function ScopeViewer({
         target: match ? match.id : g.key === 'none' && types.length ? types[0].id : 'new',
         newName: name ?? (oneGroup || g.key === 'none' ? '' : `Room type ${k + 1}`),
         care: careFromName(name ?? ''),
+        sensors: 1,
       };
     });
     setAuto({
@@ -559,7 +560,7 @@ export function ScopeViewer({
         else {
           const color = nearestBadge(g.color, used);
           used.push(color);
-          const t: RoomType = { id: uid('rt'), name, care: g.care, rooms: marks.length, sensors: 1, marks, roomsFromPlan: true, color };
+          const t: RoomType = { id: uid('rt'), name, care: g.care, rooms: marks.length, sensors: Number.isFinite(g.sensors) ? g.sensors : 1, marks, roomsFromPlan: true, color };
           created.add(t.id);
           next = [...next, t];
           continue;

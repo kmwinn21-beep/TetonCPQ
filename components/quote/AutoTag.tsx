@@ -17,6 +17,8 @@ export interface AutoGroupPick {
   target: string;
   newName: string;
   care: CareType;
+  /** Sensors in each room of the new room type. */
+  sensors: number;
 }
 export interface AutoState {
   page: number;
@@ -54,7 +56,7 @@ export function AutoTagPanel({ state, types, onChange, onPlace, onCancel }: { st
   const sure = live.filter((i) => i.sure).length;
   const countOf = (key: string) => live.filter((i) => i.group === key).length;
   const placing = state.groups.filter((g) => g.target !== 'skip').reduce((n, g) => n + countOf(g.key), 0);
-  const missingName = state.groups.some((g) => g.target === 'new' && countOf(g.key) > 0 && !g.newName.trim());
+  const missingName = state.groups.some((g) => g.target === 'new' && countOf(g.key) > 0 && (!g.newName.trim() || !Number.isFinite(g.sensors)));
   const set = (key: string, patch: Partial<AutoGroupPick>) => onChange({ ...state, groups: state.groups.map((g) => (g.key === key ? { ...g, ...patch } : g)) });
   const multi = state.groups.length > 1;
 
@@ -104,11 +106,24 @@ export function AutoTagPanel({ state, types, onChange, onPlace, onCancel }: { st
                     <option value="skip">Don’t tag these</option>
                   </select>
                   {g.target === 'new' && (
-                    <div className="mt-1.5 grid grid-cols-[1fr_auto] gap-1.5">
+                    <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
                       <input className="input-field py-1 text-xs" placeholder="Room type name" aria-label="New room type name" value={g.newName} maxLength={60} onChange={(e) => set(g.key, { newName: e.target.value })} />
                       <select className="input-field py-1 text-xs" aria-label="Care setting" value={g.care} onChange={(e) => set(g.key, { care: e.target.value as CareType })}>
                         {CARES.map((c) => <option key={c} value={c}>{CARE_LABEL[c]}</option>)}
                       </select>
+                      <label className="col-span-2 flex items-center justify-between gap-2 text-[11px] text-teton-dark-gray">
+                        Sensors per room
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={20}
+                          className="input-field w-16 py-1 text-xs text-right"
+                          aria-label={`Sensors per room for ${g.newName || 'the new room type'}`}
+                          value={Number.isFinite(g.sensors) ? g.sensors : ''}
+                          onChange={(e) => set(g.key, { sensors: e.target.value === '' ? NaN : Math.max(0, Math.min(20, Math.round(Number(e.target.value)))) })}
+                        />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -125,7 +140,7 @@ export function AutoTagPanel({ state, types, onChange, onPlace, onCancel }: { st
           <p className="mt-3 text-[11px] text-teton-ui-gray">Rooms without a readable number aren’t found: click them with Scope Mode to tag them.</p>
           <div className="mt-3 flex items-center justify-end gap-2">
             <button type="button" className="btn-secondary py-1 text-xs" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn-primary py-1 text-xs" disabled={!placing || missingName} title={missingName ? 'Name the new room type' : undefined} onClick={onPlace}>
+            <button type="button" className="btn-primary py-1 text-xs" disabled={!placing || missingName} title={missingName ? 'Name the new room type and give its sensors per room' : undefined} onClick={onPlace}>
               Place {count(placing)} tag{placing === 1 ? '' : 's'}
             </button>
           </div>
