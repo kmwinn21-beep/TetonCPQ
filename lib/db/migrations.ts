@@ -477,4 +477,46 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE proposal_comments ADD COLUMN share_link_id INTEGER`,
     ],
   },
+  {
+    id: 21,
+    name: 'emails to prospects',
+    sql: [
+      // The share email: the proposal's name, the opening line ({first name} filled in) and an optional note.
+      // verify_email: sign-in also needs a 6-digit code emailed to them (replaces the rep-sent access_code).
+      `ALTER TABLE share_links ADD COLUMN proposal_name TEXT`,
+      `ALTER TABLE share_links ADD COLUMN intro TEXT`,
+      `ALTER TABLE share_links ADD COLUMN note TEXT`,
+      `ALTER TABLE share_links ADD COLUMN verify_email INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE share_link_emails ADD COLUMN name TEXT`,
+      `ALTER TABLE share_link_emails ADD COLUMN emailed_at TEXT`,
+      `ALTER TABLE share_link_emails ADD COLUMN last_seen_at TEXT`,
+      `ALTER TABLE share_link_emails ADD COLUMN mute_replies INTEGER NOT NULL DEFAULT 0`,
+      // Sign-in codes (hashed), 10 minutes each.
+      `CREATE TABLE share_link_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_id INTEGER NOT NULL REFERENCES share_links(id),
+        email TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        used_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_share_link_codes ON share_link_codes(link_id, email)`,
+      // The team's replies and comments a prospect gets by email: held a few minutes so several go as one.
+      // Items with the same email_id went (or will go) in one email; status: scheduled, seen (dropped), canceled.
+      `CREATE TABLE prospect_mail (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_id INTEGER NOT NULL REFERENCES share_links(id),
+        email TEXT NOT NULL,
+        comment_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        email_id TEXT,
+        send_at TEXT,
+        status TEXT NOT NULL DEFAULT 'scheduled',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_prospect_mail ON prospect_mail(link_id, email, status)`,
+    ],
+  },
 ];

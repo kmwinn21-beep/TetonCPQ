@@ -6,6 +6,7 @@ import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { getProposalCustomization } from '@/lib/data/proposalText';
 import { daysLeft, EXPIRY_WARNING_DAYS, linkByToken, linkState, recordOpen } from '@/lib/data/shareLinks';
 import { prospectSession } from '@/lib/auth/prospect';
+import { markSeen } from '@/lib/data/prospectMail';
 import { ProspectClosed, ProspectGate } from '@/components/share/ProspectGate';
 import { ProspectView } from '@/components/share/ProspectView';
 
@@ -27,7 +28,7 @@ export default async function SharedProposalPage({ params }: { params: { token: 
   const state = linkState(l);
   if (state !== 'ok') return <ProspectClosed reason={state} ownerName={l.ownerName} ownerEmail={l.ownerEmail} expiresOn={l.expiresOn} />;
   const who = await prospectSession(l);
-  if (!who) return <ProspectGate token={l.token} dealName={l.dealName} ownerName={l.ownerName} ownerEmail={l.ownerEmail} needsCode={!!l.accessCode} />;
+  if (!who) return <ProspectGate token={l.token} dealName={l.dealName} ownerName={l.ownerName} ownerEmail={l.ownerEmail} needsCode={l.verifyEmail} />;
 
   const v = await getVersion(db, l.versionId);
   if (!v || !v.outputs) return <ProspectClosed reason="missing" ownerName={l.ownerName} ownerEmail={l.ownerEmail} />;
@@ -35,6 +36,7 @@ export default async function SharedProposalPage({ params }: { params: { token: 
   if (!lines.length) lines = buildPriceLines(v.inputs, toModelInputs(v.inputs), (await loadPriceBook(db)).book);
   const custom = await getProposalCustomization(db, v.id);
   await recordOpen(db, l, who.email);
+  await markSeen(db, l, who.email).catch(() => {});
   const left = daysLeft(l.expiresOn);
   return (
     <ProspectView

@@ -72,6 +72,8 @@ export function CommentsProvider({ versionId, versionNo, quoteId, prospect = nul
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [me, setMe] = useState<number | null>(null);
+  // The deal has a live shared link: new comments can be shown to the prospect too.
+  const [shareLink, setShareLink] = useState(false);
   const [drawer, setDrawer] = useState<{ target?: CommentTarget; threadId?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef(false);
@@ -80,7 +82,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, prospect = nul
     async (path: string, init?: RequestInit) => {
       setError(null);
       const r = await fetch(`${base}${path}`, { ...init, headers: { 'content-type': 'application/json' } });
-      const j = (await r.json().catch(() => ({}))) as { threads?: CommentThread[]; people?: Person[]; me?: number; error?: string; id?: number };
+      const j = (await r.json().catch(() => ({}))) as { threads?: CommentThread[]; people?: Person[]; me?: number; error?: string; id?: number; shareLink?: boolean };
       if (!r.ok) {
         setError(j.error ?? 'Something went wrong. Try again.');
         return null;
@@ -88,6 +90,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, prospect = nul
       if (j.threads) setThreads(j.threads);
       if (j.people) setPeople(j.people);
       if (j.me != null) setMe(j.me);
+      if (j.shareLink != null) setShareLink(j.shareLink);
       return j;
     },
     [base],
@@ -127,9 +130,10 @@ export function CommentsProvider({ versionId, versionNo, quoteId, prospect = nul
           me={me}
           versionNo={versionNo}
           audience={prospect ? 'prospect' : 'team'}
+          shareLink={!prospect && shareLink}
           error={error}
-          onAdd={async (body, target, parentId) => {
-            const j = await call('', { method: 'POST', body: JSON.stringify({ body, mentions: mentionsIn(body, people), parentId, page: target?.page ?? null, block: target?.block ?? null, label: target?.label }) });
+          onAdd={async (body, target, parentId, shared) => {
+            const j = await call('', { method: 'POST', body: JSON.stringify({ body, mentions: mentionsIn(body, people), parentId, page: target?.page ?? null, block: target?.block ?? null, label: target?.label, shared: !!shared }) });
             return j?.id ?? null;
           }}
           onEdit={async (id, body) => !!(await call(`/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mentions: mentionsIn(body, people) }) }))}
@@ -228,8 +232,10 @@ interface DrawerProps {
   me: number | null;
   versionNo: number;
   audience?: 'team' | 'prospect';
+  /** The team can show a new comment to the prospect (the deal has a live shared link). */
+  shareLink?: boolean;
   error: string | null;
-  onAdd: (body: string, target: CommentTarget | undefined, parentId?: number) => Promise<number | null>;
+  onAdd: (body: string, target: CommentTarget | undefined, parentId?: number, shared?: boolean) => Promise<number | null>;
   onEdit: (id: number, body: string) => Promise<boolean>;
   onResolve: (id: number, resolved: boolean) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
@@ -241,6 +247,15 @@ function CommentsDrawer(p: DrawerProps) {
   const [closing, setClosing] = useState(false);
   const [filter, setFilter] = useState<Filter>('open');
   const [focus, setFocus] = useState<number | null>(null);
+  const [toProspect, setToProspect] = useState(false);
+  const prospectSwitch = p.shareLink ? (
+    <label className="mt-1.5 flex items-center gap-2 text-[11.5px] text-teton-dark-gray cursor-pointer select-none">
+      <button type="button" role="switch" aria-checked={toProspect} aria-label="Show to the prospect" onClick={() => setToProspect((v) => !v)} className={`relative w-7 h-4 flex-shrink-0 rounded-full transition-colors duration-200 motion-reduce:transition-none ${toProspect ? 'bg-[#D9553F]' : 'bg-[#D5D9DE]'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-200 motion-reduce:transition-none ${toProspect ? 'translate-x-3' : ''}`} />
+      </button>
+      Show to the prospect{toProspect ? ' (they’re emailed)' : ''}
+    </label>
+  ) : null;
   // Pages picked in the filter: kept while on this page (closing the drawer keeps it; leaving or reloading resets it).
   const [picked, setPicked] = useState<string[]>([]);
   const list = useRef<HTMLDivElement>(null);
@@ -355,14 +370,16 @@ function CommentsDrawer(p: DrawerProps) {
                 submitLabel="Comment"
                 onCancel={p.clearTarget}
                 onSubmit={async (body) => {
-                  const id = await p.onAdd(body, target);
+                  const id = await p.onAdd(body, target, undefined, toProspect);
                   if (id == null) return false;
+                  setToProspect(false);
                   p.clearTarget();
                   if (filter === 'resolved') setFilter('open');
                   setFocus(id);
                   return true;
                 }}
               />
+              {prospectSwitch}
             </div>
           )}
         </Collapse>
@@ -391,14 +408,16 @@ function CommentsDrawer(p: DrawerProps) {
             placeholder="Comment on the whole proposal…"
             submitLabel="Comment"
             onSubmit={async (body) => {
-              const id = await p.onAdd(body, { page: null, block: null, label: 'Whole proposal' });
+              const id = await p.onAdd(body, { page: null, block: null, label: 'Whole proposal' }, undefined, toProspect);
               if (id == null) return false;
+              setToProspect(false);
               if (filter === 'resolved') setFilter('open');
               setFocus(id);
               setTimeout(() => list.current?.querySelector(`[data-thread="${id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 60);
               return true;
             }}
           />
+          {!target && prospectSwitch}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { jsonError } from '@/lib/db/server';
 import { addProspectComment, linkByToken, type ProspectComment } from '@/lib/data/shareLinks';
 import { listSharedThreads } from '@/lib/data/proposalComments';
 import { prospectSession } from '@/lib/auth/prospect';
+import { markSeen } from '@/lib/data/prospectMail';
 
 async function prospect(token: string) {
   const db = await getDb();
@@ -16,7 +17,9 @@ async function prospect(token: string) {
 /** The link's comment threads (the prospects' own, with the team's replies). */
 export async function GET(_req: Request, { params }: { params: { token: string } }) {
   try {
-    const { db, l } = await prospect(params.token);
+    const { db, l, who } = await prospect(params.token);
+    // They've seen the comments now: anything waiting to be emailed to them isn't sent.
+    await markSeen(db, l, who.email).catch(() => {});
     return NextResponse.json({ threads: await listSharedThreads(db, l.versionId, l.id), people: [], me: null }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);

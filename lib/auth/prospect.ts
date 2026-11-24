@@ -4,7 +4,6 @@
  * email still listed, the same code. Not an app login: it opens that one link only.
  */
 import 'server-only';
-import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { jwtVerify, SignJWT } from 'jose';
 import { checkAccess, daysLeft, isoDay, type PublicLink } from '@/lib/data/shareLinks';
@@ -17,8 +16,8 @@ function secret(): Uint8Array {
   if (!s || s.length < 32) throw new Error('JWT_SECRET must be set to at least 32 characters');
   return new TextEncoder().encode(s);
 }
-/** A changed code ends sessions made with the old one. */
-const codeTag = (code: string | null) => (code ? createHash('sha256').update(`teton-share:${code}`).digest('hex').slice(0, 12) : '');
+/** Sessions note whether the link wanted an emailed code then: turning it on later asks everyone again. */
+const codeTag = (l: Pick<PublicLink, 'verifyEmail'>) => (l.verifyEmail ? 'v' : '');
 
 export interface ProspectSession {
   email: string;
@@ -27,7 +26,7 @@ export interface ProspectSession {
 
 export async function prospectCookie(l: PublicLink, who: ProspectSession) {
   const days = Math.max(1, Math.min(30, daysLeft(l.expiresOn, isoDay()) + 1));
-  const token = await new SignJWT({ lid: l.id, em: who.email, nm: who.name ?? '', ct: codeTag(l.accessCode) })
+  const token = await new SignJWT({ lid: l.id, em: who.email, nm: who.name ?? '', ct: codeTag(l) })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${Math.min(MAX_AGE, days * 86400)}s`)
@@ -49,10 +48,10 @@ export async function prospectSession(l: PublicLink): Promise<ProspectSession | 
   if (!raw) return null;
   try {
     const { payload } = await jwtVerify(raw, secret(), { algorithms: ['HS256'] });
-    if (Number(payload.lid) !== l.id || String(payload.ct ?? '') !== codeTag(l.accessCode)) return null;
+    if (Number(payload.lid) !== l.id || String(payload.ct ?? '') !== codeTag(l)) return null;
     const email = String(payload.em ?? '');
-    // The code was checked when the cookie was made (and is part of it): here, the link's state and the email.
-    if (checkAccess(l, email, l.accessCode) !== 'ok') return null;
+    // The code (if any) was checked when the cookie was made: here, the link's state and the email.
+    if (checkAccess(l, email) !== 'ok') return null;
     return { email, name: payload.nm ? String(payload.nm) : null };
   } catch {
     return null;

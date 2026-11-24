@@ -1,13 +1,16 @@
 'use client';
 
 /**
- * Share a proposal with a prospect: the emails that may open it (and, optionally, a 6-digit code as well), whether
- * they may comment and download a PDF, when the link expires (30 days by default), and which saved version it shows.
- * Then the link to copy, who has opened it, and a way to turn it off.
+ * Share a proposal with prospects: who may open it (each with a first name for the email), whether they verify their
+ * email with a 6-digit code, whether they may comment and download a PDF, and when the link expires (30 days by
+ * default). Then the email they get: the proposal's name, the opening line ("Hey {first name} - …") and a note, sent
+ * from here. The link to copy, who was emailed and who opened it, and a way to turn it off.
  */
 import { useEffect, useState } from 'react';
+import { Collapse } from '@/components/form/fields';
 import type { ShareLink } from '@/lib/data/shareLinks';
 
+const DEFAULT_INTRO = 'Hey {first name} - here is your proposal from Teton!';
 const DAY = 86400000;
 const isoDay = (plus = 0) => new Date(Date.now() + plus * DAY).toISOString().slice(0, 10);
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -20,6 +23,15 @@ const when = (iso: string | null) => {
   return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** "Dana" from "dana.lee@…" (a suggestion, editable). */
+const guessFirst = (email: string) => {
+  const p = email.split('@')[0].split(/[._-]+/).filter(Boolean);
+  return p.length > 1 && /^[a-z]{2,}$/i.test(p[0]) ? p[0][0].toUpperCase() + p[0].slice(1).toLowerCase() : '';
+};
+interface Person {
+  email: string;
+  name: string;
+}
 
 export function ShareButton({ quoteId, versionId, versionNo, className }: { quoteId: number; versionId: number; versionNo: number; className: string }) {
   const [open, setOpen] = useState(false);
@@ -46,36 +58,51 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
   const [closing, setClosing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
+  const [dealName, setDealName] = useState('');
   const [link, setLink] = useState<ShareLink | null>(null);
-  const [emails, setEmails] = useState<string[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [draft, setDraft] = useState('');
   const [allowComments, setAllowComments] = useState(true);
   const [allowPdf, setAllowPdf] = useState(true);
+  const [verifyEmail, setVerifyEmail] = useState(false);
   const [expiresOn, setExpiresOn] = useState(isoDay(30));
-  const [requireCode, setRequireCode] = useState(false);
   const [useThisVersion, setUseThisVersion] = useState(false);
+  const [proposalName, setProposalName] = useState('');
+  const [intro, setIntro] = useState(DEFAULT_INTRO);
+  const [note, setNote] = useState('');
+  const [emailOpen, setEmailOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<'link' | 'code' | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const fill = (l: ShareLink | null) => {
+  const fill = (l: ShareLink | null, deal = dealName) => {
     setLink(l);
-    if (!l) return;
-    setEmails(l.people.map((x) => x.email));
+    if (!l) {
+      setProposalName(`${deal} proposal`.trim());
+      return;
+    }
+    setPeople(l.people.map((x) => ({ email: x.email, name: x.name ?? '' })));
     setAllowComments(l.allowComments);
     setAllowPdf(l.allowPdf);
+    setVerifyEmail(l.verifyEmail);
     setExpiresOn(l.expiresOn);
-    setRequireCode(!!l.accessCode);
     setUseThisVersion(false);
+    setProposalName(l.proposalName ?? `${deal} proposal`.trim());
+    setIntro(l.intro ?? DEFAULT_INTRO);
+    setNote(l.note ?? '');
+    setEmailOpen(l.people.some((x) => !x.emailedAt));
   };
   useEffect(() => {
     void fetch(`/api/quotes/${quoteId}/share`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((j: { link: ShareLink | null; canEdit?: boolean }) => {
-        fill(j.link);
+      .then((j: { link: ShareLink | null; canEdit?: boolean; dealName?: string }) => {
+        setDealName(j.dealName ?? '');
+        fill(j.link, j.dealName ?? '');
         setCanEdit(j.canEdit !== false);
         setLoaded(true);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteId]);
   const close = () => {
     setClosing(true);
@@ -88,35 +115,82 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Typed emails become chips on Enter, comma, space or leaving the field.
-  const addDraft = () => {
-    const parts = draft.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
-    if (!parts.length) return true;
-    const bad = parts.find((x) => !EMAIL.test(x));
-    if (bad) {
-      setError(`“${bad}” isn’t an email address`);
-      return false;
+  // Typed emails (or "Name <email>") become people on Enter, comma or leaving the field.
+  const parseDraft = (): Person[] | null => {
+    const parts = draft.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean);
+    const out: Person[] = [];
+    for (const t of parts) {
+      const m = t.match(/^(.*)<([^>]+)>$/);
+      const email = (m ? m[2] : t).trim().toLowerCase();
+      if (!EMAIL.test(email)) {
+        setError(`“${email}” isn’t an email address`);
+        return null;
+      }
+      const full = m ? m[1].replace(/"/g, '').trim() : '';
+      out.push({ email, name: full ? full.split(/\s+/)[0] : guessFirst(email) });
     }
+    return out;
+  };
+  const addDraft = () => {
+    const add = parseDraft();
+    if (!add) return false;
     setError(null);
-    setEmails((list) => [...new Set([...list, ...parts])]);
+    setPeople((list) => [...list, ...add.filter((p) => !list.some((x) => x.email === p.email))]);
     setDraft('');
     return true;
   };
-  const save = async (extra: { newCode?: boolean } = {}) => {
-    if (!addDraft()) return;
-    const list = [...new Set([...emails, ...draft.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean)])];
-    if (!list.length) return setError('Add at least one email');
+  const allPeople = (): Person[] | null => {
+    const add = parseDraft();
+    if (!add) return null;
+    return [...people, ...add.filter((p) => !people.some((x) => x.email === p.email))];
+  };
+  const save = async (): Promise<ShareLink | null> => {
+    const list = allPeople();
+    if (!list) return null;
+    setDraft('');
+    setPeople(list);
+    if (!list.length) {
+      setError('Add at least one email');
+      return null;
+    }
     setBusy(true);
     setError(null);
     const r = await fetch(`/api/quotes/${quoteId}/share`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ versionId: !link || useThisVersion ? versionId : link.versionId, emails: list, allowComments, allowPdf, expiresOn, requireCode, ...extra }),
+      body: JSON.stringify({
+        versionId: !link || useThisVersion ? versionId : link.versionId,
+        emails: list.map((p) => ({ email: p.email, name: p.name.trim() || null })),
+        allowComments,
+        allowPdf,
+        verifyEmail,
+        expiresOn,
+        proposalName,
+        intro: intro.trim() === DEFAULT_INTRO ? null : intro,
+        note,
+      }),
     });
     const j = (await r.json().catch(() => ({}))) as { link?: ShareLink; error?: string };
     setBusy(false);
-    if (!r.ok || !j.link) return setError(j.error ?? 'Couldn’t save. Try again.');
+    if (!r.ok || !j.link) {
+      setError(j.error ?? 'Couldn’t save. Try again.');
+      return null;
+    }
     fill(j.link);
+    return j.link;
+  };
+  const send = async (only?: string[]) => {
+    const l = changed ? await save() : link;
+    if (!l) return;
+    setBusy(true);
+    setError(null);
+    const r = await fetch(`/api/quotes/${quoteId}/share/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(only ? { emails: only } : {}) });
+    const j = (await r.json().catch(() => ({}))) as { sent?: string[]; link?: ShareLink; error?: string };
+    setBusy(false);
+    if (!r.ok) return setError(j.error ?? 'Couldn’t send. Try again.');
+    if (j.link) fill(j.link);
+    setNotice(j.sent?.length ? `Emailed ${j.sent.length === 1 ? j.sent[0] : `${j.sent.length} people`}` : 'Everyone has the email already');
+    setTimeout(() => setNotice(null), 3000);
   };
   const turnOff = async () => {
     if (!window.confirm('Turn this link off? It stops opening for everyone. Their comments stay with the deal.')) return;
@@ -124,35 +198,42 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
     await fetch(`/api/quotes/${quoteId}/share`, { method: 'DELETE' });
     setBusy(false);
     fill(null);
-    setEmails([]);
+    setPeople([]);
     setExpiresOn(isoDay(30));
-    setRequireCode(false);
+    setVerifyEmail(false);
   };
   const url = link ? `${typeof window === 'undefined' ? '' : window.location.origin}/p/${link.token}` : '';
-  const copy = async (what: 'link' | 'code', text: string) => {
-    await navigator.clipboard?.writeText(text).catch(() => {});
-    setCopied(what);
-    setTimeout(() => setCopied((c) => (c === what ? null : c)), 1500);
+  const copy = async () => {
+    await navigator.clipboard?.writeText(url).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
   const changed =
     !link ||
     useThisVersion ||
     link.allowComments !== allowComments ||
     link.allowPdf !== allowPdf ||
+    link.verifyEmail !== verifyEmail ||
     link.expiresOn !== expiresOn ||
-    !!link.accessCode !== requireCode ||
+    (link.proposalName ?? `${dealName} proposal`.trim()) !== proposalName ||
+    (link.intro ?? DEFAULT_INTRO) !== intro ||
+    (link.note ?? '') !== note ||
     draft.trim() !== '' ||
-    link.people.map((x) => x.email).join() !== emails.join();
+    JSON.stringify(link.people.map((x) => [x.email, x.name ?? ''])) !== JSON.stringify(people.map((x) => [x.email, x.name]));
+  const notEmailed = link ? people.filter((p) => !link.people.find((x) => x.email === p.email)?.emailedAt).length : people.length;
   const daysLeft = Math.round((Date.parse(`${expiresOn}T00:00:00Z`) - Date.parse(`${isoDay()}T00:00:00Z`)) / DAY);
   const row = 'flex items-center justify-between gap-3 py-2.5 border-t border-teton-off-white text-[13px]';
   const btn = 'inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[10px] border border-[#D5D9DE] bg-white text-[13px] font-semibold text-teton-ink hover:bg-teton-almost-white disabled:opacity-50 whitespace-nowrap';
   const dark = 'inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-[10px] bg-teton-ink text-white text-[13px] font-semibold hover:bg-black disabled:opacity-50 whitespace-nowrap';
+  const label = 'mb-1.5 text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray';
+  const field = 'w-full rounded-[10px] border border-[#D5D9DE] px-3 text-[13px] outline-none focus:border-[#3F8CEA] focus:ring-[3px] focus:ring-[#3F8CEA]/15 disabled:bg-teton-almost-white';
+  const firstOf = (p: Person) => p.name.trim().split(/\s+/)[0] || 'there';
 
   return (
     <div className="no-print fixed inset-0 z-[90] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Share this proposal" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div className={`absolute inset-0 bg-black/45 transition-opacity duration-200 motion-reduce:transition-none ${closing ? 'opacity-0' : 'opacity-100 [animation:fadeIn_.2s_ease-out]'}`} onClick={close} />
       <div
-        className={`relative w-full sm:w-[560px] max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-white text-teton-ink shadow-[0_24px_60px_rgba(0,0,0,.3)] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${closing ? 'opacity-0 translate-y-3' : 'max-sm:[animation:sheetUp_.25s_ease-out] sm:[animation:fadeScale_.2s_ease-out] motion-reduce:[animation:none]'}`}
+        className={`relative w-full sm:w-[600px] max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-white text-teton-ink shadow-[0_24px_60px_rgba(0,0,0,.3)] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${closing ? 'opacity-0 translate-y-3' : 'max-sm:[animation:sheetUp_.25s_ease-out] sm:[animation:fadeScale_.2s_ease-out] motion-reduce:[animation:none]'}`}
       >
         <div className="flex items-start gap-3 px-5 sm:px-6 pt-5 pb-3.5 border-b border-teton-off-white">
           <div className="min-w-0">
@@ -169,57 +250,59 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
           <p className="px-6 py-10 text-center text-sm text-teton-ui-gray">Loading…</p>
         ) : (
           <div className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 pt-4 pb-2">
-            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray">Who can open it</p>
-            <div className="flex flex-wrap items-center gap-1.5 min-h-[42px] rounded-[10px] border border-[#D5D9DE] px-2 py-1.5 focus-within:border-[#3F8CEA] focus-within:ring-[3px] focus-within:ring-[#3F8CEA]/15">
-              {emails.map((e) => (
-                <span key={e} className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF5FE] py-1 pl-2.5 pr-1 text-[12.5px] font-medium text-[#1F4F96] [animation:fadeIn_.15s_ease-out]">
-                  {e}
-                  {canEdit && (
-                    <button type="button" className="w-4 h-4 rounded-full bg-[#1F4F96]/10 grid place-items-center text-[10px] hover:bg-[#1F4F96]/20" onClick={() => setEmails((l) => l.filter((x) => x !== e))} aria-label={`Remove ${e}`}>
-                      ✕
-                    </button>
-                  )}
-                </span>
-              ))}
-              {canEdit && (
-                <input
-                  className="flex-1 min-w-[180px] h-7 px-1 text-[13px] outline-none bg-transparent"
-                  placeholder={emails.length ? 'Add another email…' : 'name@company.com'}
-                  value={draft}
-                  aria-label="Add an email"
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-                      e.preventDefault();
-                      addDraft();
-                    } else if (e.key === 'Backspace' && !draft && emails.length) setEmails((l) => l.slice(0, -1));
-                  }}
-                  onBlur={() => draft && addDraft()}
-                />
-              )}
-            </div>
-            <p className="mt-1.5 text-[11.5px] leading-snug text-teton-ui-gray">They enter their email to open it; it has to be one of these{requireCode ? ', and they enter the code below too' : ''}.</p>
+            <p className={label}>Who can open it</p>
+            {people.length > 0 && (
+              <ul className="mb-2 rounded-[10px] border border-teton-off-white divide-y divide-teton-off-white">
+                {people.map((p, i) => {
+                  const lp = link?.people.find((x) => x.email === p.email);
+                  return (
+                    <li key={p.email} className="flex items-center gap-2 px-2.5 py-1.5 [animation:fadeIn_.15s_ease-out]">
+                      <input
+                        className="w-[110px] h-8 rounded-lg border border-transparent hover:border-[#D5D9DE] focus:border-[#3F8CEA] px-2 text-[13px] font-semibold outline-none"
+                        value={p.name}
+                        placeholder="First name"
+                        aria-label={`First name for ${p.email}`}
+                        disabled={!canEdit}
+                        onChange={(e) => setPeople((list) => list.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))}
+                      />
+                      <span className="flex-1 min-w-0 truncate text-[12.5px] text-teton-dark-gray">{p.email}</span>
+                      <span className="hidden sm:inline text-[11px] text-teton-ui-gray whitespace-nowrap">{lp?.emailedAt ? `Emailed ${when(lp.emailedAt)}` : link && lp ? 'Not emailed' : ''}</span>
+                      {canEdit && (
+                        <button type="button" className="w-6 h-6 rounded-md text-teton-ui-gray hover:bg-teton-almost-white text-[11px]" onClick={() => setPeople((list) => list.filter((x) => x.email !== p.email))} aria-label={`Remove ${p.email}`}>
+                          ✕
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {canEdit && (
+              <input
+                className={`${field} h-10`}
+                placeholder={people.length ? 'Add another email…' : 'name@company.com, or Dana Lee <dana@company.com>'}
+                value={draft}
+                aria-label="Add an email"
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addDraft();
+                  }
+                }}
+                onBlur={() => draft && addDraft()}
+              />
+            )}
+            <p className="mt-1.5 text-[11.5px] leading-snug text-teton-ui-gray">They enter their email to open it; it has to be one of these. First names go in the email’s opening line.</p>
 
             <div className="mt-3">
               <div className={row}>
                 <span>
-                  Also require a 6-digit code
-                  <small className="block text-[11.5px] text-teton-ui-gray">Extra security: you send them the code yourself</small>
+                  Verify their email with a 6-digit code
+                  <small className="block text-[11.5px] text-teton-ui-gray">When they open the link, we email them a code to enter</small>
                 </span>
-                <Toggle on={requireCode} onChange={setRequireCode} label="Require a 6-digit code" />
+                <Toggle on={verifyEmail} onChange={setVerifyEmail} label="Verify their email with a 6-digit code" />
               </div>
-              {requireCode && link?.accessCode && (
-                <div className="flex items-center gap-2 pb-2.5 [animation:fadeIn_.2s_ease-out]">
-                  <span className="h-9 px-3 rounded-[10px] bg-teton-almost-white border border-teton-off-white grid place-items-center text-[17px] font-bold tracking-[5px] tabular-nums">{link.accessCode}</span>
-                  <button type="button" className={btn} onClick={() => void copy('code', link.accessCode!)}>
-                    {copied === 'code' ? 'Copied' : 'Copy code'}
-                  </button>
-                  <button type="button" className={btn} disabled={busy || !canEdit} onClick={() => window.confirm('Make a new code? The old one stops working, and anyone using it has to enter the new one.') && void save({ newCode: true })}>
-                    New code
-                  </button>
-                </div>
-              )}
-              {requireCode && !link?.accessCode && <p className="pb-2.5 text-[11.5px] text-teton-ui-gray">A code is made when you save.</p>}
               <div className={row}>
                 <span>
                   Allow comments
@@ -249,25 +332,71 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
               )}
             </div>
 
+            {/* The email they get. */}
+            <div className="mt-2 rounded-xl border border-teton-off-white">
+              <button type="button" className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left" aria-expanded={emailOpen} onClick={() => setEmailOpen((o) => !o)}>
+                <span className="text-[13px] font-semibold">The email they get</span>
+                <span className="text-[11.5px] text-teton-ui-gray truncate">{proposalName}</span>
+                <svg className={`ml-auto w-3.5 h-3.5 text-teton-ui-gray transition-transform duration-300 motion-reduce:transition-none ${emailOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M5.2 7.2a.75.75 0 011.06 0L10 10.94l3.74-3.74a.75.75 0 111.06 1.06l-4.27 4.27a.75.75 0 01-1.06 0L5.2 8.26a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>
+              </button>
+              <Collapse open={emailOpen}>
+                <div className="px-3.5 pb-3.5 space-y-3 min-w-0">
+                  <label className="block">
+                    <span className="mb-1 block text-[12px] font-semibold">Proposal name</span>
+                    <input className={`${field} h-9`} value={proposalName} maxLength={120} disabled={!canEdit} onChange={(e) => setProposalName(e.target.value)} placeholder="ABC Senior Living proposal" />
+                    <span className="mt-1 block text-[11px] text-teton-ui-gray">Shown beside the proposal’s picture, and in the subject line.</span>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 flex items-baseline gap-2 text-[12px] font-semibold">
+                      Opening message
+                      {intro !== DEFAULT_INTRO && canEdit && (
+                        <button type="button" className="text-[11px] font-medium text-[#1F5FB5] hover:underline" onClick={() => setIntro(DEFAULT_INTRO)}>
+                          Use the standard one
+                        </button>
+                      )}
+                    </span>
+                    <input className={`${field} h-9`} value={intro} maxLength={300} disabled={!canEdit} onChange={(e) => setIntro(e.target.value)} />
+                    <span className="mt-1 block text-[11px] leading-snug text-teton-ui-gray whitespace-normal break-words">
+                      <code className="rounded bg-teton-almost-white px-1">{'{first name}'}</code> becomes each person’s first name
+                      {people[0] ? <> · e.g. “{(intro.trim() || DEFAULT_INTRO).replace(/\{first name\}/gi, firstOf(people[0]))}”</> : null}
+                    </span>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[12px] font-semibold">
+                      Note <span className="font-normal text-teton-ui-gray">(optional, shown above the proposal)</span>
+                    </span>
+                    <textarea className={`${field} py-2 min-h-[72px] resize-y`} value={note} maxLength={2000} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} placeholder="Great talking today. Here’s the proposal we discussed…" />
+                  </label>
+                </div>
+              </Collapse>
+            </div>
+
             {link && (
               <>
-                <p className="mt-3 mb-1.5 text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray">Link</p>
+                <p className={`${label} mt-4`}>Link</p>
                 <div className="flex gap-2">
                   <span className="flex-1 min-w-0 h-9 rounded-[10px] border border-[#D5D9DE] bg-teton-almost-white px-3 flex items-center text-[12.5px] text-teton-dark-gray truncate" title={url}>
                     {url.replace(/^https?:\/\//, '')}
                   </span>
-                  <button type="button" className={dark} onClick={() => void copy('link', url)}>
-                    {copied === 'link' ? 'Copied ✓' : 'Copy link'}
+                  <button type="button" className={btn} onClick={() => void copy()}>
+                    {copied ? 'Copied ✓' : 'Copy link'}
                   </button>
                 </div>
-                <p className="mt-3 mb-1.5 text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray">Activity</p>
+                <p className={`${label} mt-4`}>Activity</p>
                 <ul className="rounded-[10px] border border-teton-off-white text-[12px] divide-y divide-teton-off-white">
                   {link.people.map((x) => (
                     <li key={x.email} className="flex items-center gap-2.5 px-3 py-2">
                       <span className={`w-[7px] h-[7px] rounded-full flex-shrink-0 ${x.firstOpenedAt ? 'bg-[#2E9E64]' : 'bg-[#C8CDD3]'}`} />
                       <b className="font-semibold truncate">{x.email}</b>
-                      <span className="text-teton-ui-gray whitespace-nowrap">{x.firstOpenedAt ? `opened it · ${x.views} view${x.views === 1 ? '' : 's'}` : 'hasn’t opened it yet'}</span>
-                      <span className="ml-auto text-teton-ui-gray whitespace-nowrap">{when(x.lastOpenedAt) || '—'}</span>
+                      <span className="text-teton-ui-gray whitespace-nowrap">{x.firstOpenedAt ? `opened it · ${x.views} view${x.views === 1 ? '' : 's'}` : x.emailedAt ? 'emailed, not opened yet' : 'not emailed yet'}</span>
+                      <span className="ml-auto flex items-center gap-2 text-teton-ui-gray whitespace-nowrap">
+                        {when(x.lastOpenedAt)}
+                        {canEdit && x.emailedAt && (
+                          <button type="button" className="text-[11px] font-semibold text-[#1F5FB5] hover:underline disabled:opacity-50" disabled={busy} onClick={() => void send([x.email])}>
+                            Send again
+                          </button>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -284,17 +413,23 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
         {loaded && (
           <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-3.5 border-t border-teton-off-white bg-[#FAFAFB] rounded-b-2xl pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             {link && canEdit && (
-              <button type="button" className={`${btn} !text-[#C2412D] !border-[#F3D3CC] mr-auto`} disabled={busy} onClick={() => void turnOff()}>
+              <button type="button" className={`${btn} !text-[#C2412D] !border-[#F3D3CC]`} disabled={busy} onClick={() => void turnOff()}>
                 Turn off link
               </button>
             )}
+            {notice && <span role="status" className="text-[12px] font-medium text-[#256B41] [animation:fadeIn_.2s_ease-out]">✓ {notice}</span>}
             <span className="flex-1" />
             {canEdit && (!link || changed) && (
-              <button type="button" className={dark} disabled={busy} onClick={() => void save()}>
+              <button type="button" className={btn} disabled={busy} onClick={() => void save()}>
                 {busy ? 'Saving…' : link ? 'Save changes' : 'Create link'}
               </button>
             )}
-            {link && !changed && (
+            {canEdit && (notEmailed > 0 || !link) && (
+              <button type="button" className={dark} disabled={busy || (!people.length && !draft.trim())} onClick={() => void send()}>
+                {busy ? 'Sending…' : `Email the link${notEmailed > 1 ? ` to ${notEmailed}` : ''}`}
+              </button>
+            )}
+            {link && !changed && notEmailed === 0 && (
               <button type="button" className={dark} onClick={close}>
                 Done
               </button>

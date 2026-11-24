@@ -16,6 +16,10 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface ShareLinkPerson {
   email: string;
+  /** Their name, as the rep gave it (for "Hey Dana"). */
+  name: string | null;
+  /** When the share email last went to them. */
+  emailedAt: string | null;
   firstOpenedAt: string | null;
   lastOpenedAt: string | null;
   views: number;
@@ -30,8 +34,12 @@ export interface ShareLink {
   expiresOn: string;
   allowComments: boolean;
   allowPdf: boolean;
-  /** The 6-digit code, when it's required. */
-  accessCode: string | null;
+  /** Signing in also needs a 6-digit code emailed to them. */
+  verifyEmail: boolean;
+  /** The share email: the proposal's name, the opening line ({first name} filled in), a note. */
+  proposalName: string | null;
+  intro: string | null;
+  note: string | null;
   createdAt: string;
   people: ShareLinkPerson[];
 }
@@ -42,20 +50,42 @@ export const isoDay = (d = new Date(), plusDays = 0) => new Date(d.getTime() + p
 export const daysLeft = (expiresOn: string, today = isoDay()) => Math.round((Date.parse(`${expiresOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
 
 export function normalizeEmails(raw: unknown): string[] {
-  const list = (Array.isArray(raw) ? raw : String(raw ?? '').split(/[\s,;]+/)).map((e) => String(e).trim().toLowerCase()).filter(Boolean);
-  const bad = list.find((e) => !EMAIL.test(e) || e.length > 200);
-  if (bad) throw httpError(`“${bad}” isn’t an email address`, 400);
-  return [...new Set(list)].slice(0, 50);
+  return normalizePeople(raw).map((p) => p.email);
+}
+/** People to share with: emails (strings, "Name <email>", or { email, name }), checked and without repeats. */
+export function normalizePeople(raw: unknown): Array<{ email: string; name: string | null }> {
+  const items = Array.isArray(raw) ? raw : String(raw ?? '').split(/[,;\n]+/);
+  const out = new Map<string, { email: string; name: string | null }>();
+  for (const it of items) {
+    let email = '';
+    let name: string | null = null;
+    if (it && typeof it === 'object') {
+      email = String((it as { email?: unknown }).email ?? '');
+      name = String((it as { name?: unknown }).name ?? '').trim() || null;
+    } else {
+      const t = String(it ?? '').trim();
+      const m = t.match(/^(.*)<([^>]+)>$/);
+      if (m) {
+        name = m[1].replace(/"/g, '').trim() || null;
+        email = m[2];
+      } else email = t;
+    }
+    email = email.trim().toLowerCase();
+    if (!email) continue;
+    if (!EMAIL.test(email) || email.length > 200) throw httpError(`“${email}” isn’t an email address`, 400);
+    out.set(email, { email, name: name ? name.slice(0, 80) : out.get(email)?.name ?? null });
+  }
+  return [...out.values()].slice(0, 50);
 }
 
 const newToken = () => randomBytes(12).toString('base64url');
-const newCode = () => String(randomInt(0, 1_000_000)).padStart(6, '0');
+export const newCode = () => String(randomInt(0, 1_000_000)).padStart(6, '0');
 
 async function linkRow(db: Client, where: string, args: Array<string | number>): Promise<ShareLink | null> {
   const r = await db.execute({ sql: `SELECT l.*, v.version_no FROM share_links l JOIN quote_versions v ON v.id = l.version_id WHERE ${where} ORDER BY l.id DESC LIMIT 1`, args });
   if (!r.rows.length) return null;
   const x = r.rows[0];
-  const people = await db.execute({ sql: 'SELECT email, first_opened_at, last_opened_at, views FROM share_link_emails WHERE link_id = ? ORDER BY id', args: [Number(x.id)] });
+  const people = await db.execute({ sql: 'SELECT * FROM share_link_emails WHERE link_id = ? ORDER BY id', args: [Number(x.id)] });
   return toLink(x, people.rows);
 }
 const toLink = (x: Row, people: Row[]): ShareLink => ({
@@ -67,9 +97,19 @@ const toLink = (x: Row, people: Row[]): ShareLink => ({
   expiresOn: String(x.expires_on),
   allowComments: Number(x.allow_comments) === 1,
   allowPdf: Number(x.allow_pdf) === 1,
-  accessCode: x.access_code == null ? null : String(x.access_code),
+  verifyEmail: Number(x.verify_email) === 1,
+  proposalName: x.proposal_name == null ? null : String(x.proposal_name),
+  intro: x.intro == null ? null : String(x.intro),
+  note: x.note == null ? null : String(x.note),
   createdAt: String(x.created_at),
-  people: people.map((p) => ({ email: String(p.email), firstOpenedAt: p.first_opened_at == null ? null : String(p.first_opened_at), lastOpenedAt: p.last_opened_at == null ? null : String(p.last_opened_at), views: Number(p.views) })),
+  people: people.map((p) => ({
+    email: String(p.email),
+    name: p.name == null ? null : String(p.name),
+    emailedAt: p.emailed_at == null ? null : String(p.emailed_at),
+    firstOpenedAt: p.first_opened_at == null ? null : String(p.first_opened_at),
+    lastOpenedAt: p.last_opened_at == null ? null : String(p.last_opened_at),
+    views: Number(p.views),
+  })),
 });
 
 async function dealOfQuote(db: Client, quoteId: number) {
@@ -90,10 +130,11 @@ export interface ShareLinkInput {
   allowPdf?: boolean;
   /** yyyy-mm-dd; default 30 days from today. */
   expiresOn?: string | null;
-  /** Ask for a 6-digit code as well as the email. */
-  requireCode?: boolean;
-  /** A new code (the old one stops working). */
-  newCode?: boolean;
+  /** Signing in also needs a 6-digit code emailed to them. */
+  verifyEmail?: boolean;
+  proposalName?: string | null;
+  intro?: string | null;
+  note?: string | null;
 }
 
 /** Creates the deal's link, or changes the live one (who, what it allows, when it expires, the version it shows). */
@@ -102,7 +143,8 @@ export async function saveShareLink(db: Client, quoteId: number, input: ShareLin
   const v = await db.execute({ sql: 'SELECT v.id, v.status, q.deal_id FROM quote_versions v JOIN quotes q ON q.id = v.quote_id WHERE v.id = ?', args: [Number(input.versionId)] });
   if (!v.rows.length || Number(v.rows[0].deal_id) !== dealId) throw httpError('That version isn’t part of this deal', 400);
   if (v.rows[0].status === 'draft') throw httpError('Save a version first: links show saved versions only', 400);
-  const emails = normalizeEmails(input.emails);
+  const people = normalizePeople(input.emails);
+  const emails = people.map((p) => p.email);
   if (!emails.length) throw httpError('Add at least one email', 400);
   const expiresOn = input.expiresOn ? String(input.expiresOn).slice(0, 10) : isoDay(new Date(`${today}T00:00:00Z`), DEFAULT_LINK_DAYS);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn) || Number.isNaN(Date.parse(expiresOn))) throw httpError('Pick an expiry date', 400);
@@ -110,19 +152,22 @@ export async function saveShareLink(db: Client, quoteId: number, input: ShareLin
   if (left < 0) throw httpError('The expiry date has passed: pick today or later', 400);
   if (left > MAX_LINK_DAYS) throw httpError(`Links can last up to ${MAX_LINK_DAYS} days`, 400);
   const live = await getDealShareLink(db, quoteId);
-  const code = input.requireCode ? (input.newCode || !live?.accessCode ? newCode() : live.accessCode) : null;
-  const args = [Number(input.versionId), expiresOn, input.allowComments === false ? 0 : 1, input.allowPdf === false ? 0 : 1, code];
+  const opt = (v: unknown, max: number) => (v == null ? null : String(v).replace(/\r\n?/g, '\n').trim().slice(0, max) || null);
+  const args = [Number(input.versionId), expiresOn, input.allowComments === false ? 0 : 1, input.allowPdf === false ? 0 : 1, input.verifyEmail ? 1 : 0, opt(input.proposalName, 120), opt(input.intro, 300), opt(input.note, 2000)];
   let id: number;
   if (live) {
     id = live.id;
-    await db.execute({ sql: "UPDATE share_links SET version_id = ?, expires_on = ?, allow_comments = ?, allow_pdf = ?, access_code = ?, updated_at = datetime('now') WHERE id = ?", args: [...args, id] });
+    await db.execute({ sql: "UPDATE share_links SET version_id = ?, expires_on = ?, allow_comments = ?, allow_pdf = ?, verify_email = ?, proposal_name = ?, intro = ?, note = ?, access_code = NULL, updated_at = datetime('now') WHERE id = ?", args: [...args, id] });
   } else {
-    const r = await db.execute({ sql: 'INSERT INTO share_links (version_id, expires_on, allow_comments, allow_pdf, access_code, deal_id, token, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', args: [...args, dealId, newToken(), userId] });
+    const r = await db.execute({ sql: 'INSERT INTO share_links (version_id, expires_on, allow_comments, allow_pdf, verify_email, proposal_name, intro, note, deal_id, token, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id', args: [...args, dealId, newToken(), userId] });
     id = Number(r.rows[0].id);
   }
   // People: keep the ones still listed (and when they opened it), add the new ones, drop the rest.
   await db.execute({ sql: `DELETE FROM share_link_emails WHERE link_id = ? AND email NOT IN (${emails.map(() => '?').join(',')})`, args: [id, ...emails] });
-  for (const e of emails) await db.execute({ sql: 'INSERT OR IGNORE INTO share_link_emails (link_id, email) VALUES (?, ?)', args: [id, e] });
+  for (const p of people) {
+    await db.execute({ sql: 'INSERT OR IGNORE INTO share_link_emails (link_id, email) VALUES (?, ?)', args: [id, p.email] });
+    await db.execute({ sql: 'UPDATE share_link_emails SET name = ? WHERE link_id = ? AND email = ?', args: [p.name, id, p.email] });
+  }
   return (await linkRow(db, 'l.id = ?', [id]))!;
 }
 
@@ -151,7 +196,7 @@ export async function linkByToken(db: Client, token: string): Promise<PublicLink
   });
   if (!r.rows.length) return null;
   const x = r.rows[0];
-  const people = await db.execute({ sql: 'SELECT email, first_opened_at, last_opened_at, views FROM share_link_emails WHERE link_id = ? ORDER BY id', args: [Number(x.id)] });
+  const people = await db.execute({ sql: 'SELECT * FROM share_link_emails WHERE link_id = ? ORDER BY id', args: [Number(x.id)] });
   return {
     ...toLink(x, people.rows),
     revoked: x.revoked_at != null,
@@ -165,13 +210,12 @@ export async function linkByToken(db: Client, token: string): Promise<PublicLink
 export type LinkState = 'ok' | 'revoked' | 'expired';
 export const linkState = (l: Pick<PublicLink, 'revoked' | 'expiresOn'>, today = isoDay()): LinkState => (l.revoked ? 'revoked' : daysLeft(l.expiresOn, today) < 0 ? 'expired' : 'ok');
 
-/** May this email (and code) open the link? Codes compare exactly; emails ignore case and spaces. */
-export function checkAccess(l: PublicLink, email: string, code: string | null | undefined, today = isoDay()): 'ok' | 'revoked' | 'expired' | 'email' | 'code' {
+/** May this email open the link (before any emailed code)? Emails ignore case and spaces. */
+export function checkAccess(l: PublicLink, email: string, today = isoDay()): 'ok' | 'revoked' | 'expired' | 'email' {
   const st = linkState(l, today);
   if (st !== 'ok') return st;
   const e = email.trim().toLowerCase();
   if (!l.people.some((p) => p.email === e)) return 'email';
-  if (l.accessCode && String(code ?? '').replace(/\s/g, '') !== l.accessCode) return 'code';
   return 'ok';
 }
 

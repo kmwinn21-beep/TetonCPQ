@@ -12,7 +12,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const db = await getDb();
     const q = idParam(params.id);
     const a = await accessForQuote(db, q, u);
-    return NextResponse.json({ link: await getDealShareLink(db, q), canEdit: a.deliverables }, { headers: { 'cache-control': 'no-store' } });
+    const d = await db.execute({ sql: 'SELECT d.customer_name FROM deals d JOIN quotes q ON q.deal_id = d.id WHERE q.id = ?', args: [q] });
+    return NextResponse.json({ link: await getDealShareLink(db, q), canEdit: a.deliverables, dealName: String(d.rows[0]?.customer_name ?? '') }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
   }

@@ -159,12 +159,20 @@ export interface NewComment {
   label?: string;
   body?: string;
   mentions?: number[];
+  /** A new business case thread the prospect sees too (on the deal's live shared link). */
+  shared?: boolean;
 }
 
 /** A new thread (on a page, a section or general) or a reply to one. The author has read their own mentions. */
 export async function addComment(db: Client, versionId: number, input: NewComment, v: Viewer): Promise<number> {
   const { dealId, versionNo } = await dealOfVersion(db, versionId);
-  return insertComment(db, { dealId, versionId, versionNo, area: 'deliverable' }, input, v);
+  const id = await insertComment(db, { dealId, versionId, versionNo, area: 'deliverable' }, input, v);
+  if (input.shared && input.parentId == null) {
+    const l = await db.execute({ sql: 'SELECT id FROM share_links WHERE deal_id = ? AND revoked_at IS NULL ORDER BY id DESC LIMIT 1', args: [dealId] });
+    if (!l.rows.length) throw httpError('Share the proposal first: there’s no link for the prospect to see it on', 400);
+    await db.execute({ sql: 'UPDATE proposal_comments SET share_link_id = ? WHERE id = ?', args: [Number(l.rows[0].id), id] });
+  }
+  return id;
 }
 
 /**

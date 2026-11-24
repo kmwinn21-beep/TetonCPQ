@@ -46,7 +46,7 @@ describe('share links', () => {
   it('creates one link per deal, 30 days by default, and changes it in place', async () => {
     await expect(saveShareLink(db, quoteId, { versionId: v1, emails: [] }, users.kw.id, TODAY)).rejects.toThrow(/at least one email/);
     const a = await saveShareLink(db, quoteId, { versionId: v1, emails: ['dana@fh.com'] }, users.kw.id, TODAY);
-    expect(a).toMatchObject({ versionNo: 1, expiresOn: '2026-12-24', allowComments: true, allowPdf: true, accessCode: null });
+    expect(a).toMatchObject({ versionNo: 1, expiresOn: '2026-12-24', allowComments: true, allowPdf: true, verifyEmail: false });
     expect(a.token.length).toBeGreaterThan(10);
     const b = await saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com', 'cfo@fh.com'], expiresOn: '2026-11-30', allowPdf: false }, users.kw.id, TODAY);
     expect(b.id).toBe(a.id);
@@ -57,21 +57,17 @@ describe('share links', () => {
     await expect(saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com'], expiresOn: '2028-01-01' }, users.kw.id, TODAY)).rejects.toThrow(/up to/);
   });
 
-  it('lets in a listed email (and, when turned on, only with the code)', async () => {
+  it('lets in a listed email; keeps names; the verify switch', async () => {
     const l = (await linkByToken(db, (await getDealShareLink(db, quoteId))!.token))!;
-    expect(checkAccess(l, ' DANA@fh.com ', null, TODAY)).toBe('ok');
-    expect(checkAccess(l, 'someone@fh.com', null, TODAY)).toBe('email');
-    expect(checkAccess(l, 'dana@fh.com', null, '2026-12-01')).toBe('expired');
+    expect(checkAccess(l, ' DANA@fh.com ', TODAY)).toBe('ok');
+    expect(checkAccess(l, 'someone@fh.com', TODAY)).toBe('email');
+    expect(checkAccess(l, 'dana@fh.com', '2026-12-01')).toBe('expired');
     expect(daysLeft(l.expiresOn, TODAY)).toBe(6);
-    const withCode = await saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com', 'cfo@fh.com'], expiresOn: '2026-11-30', requireCode: true }, users.kw.id, TODAY);
-    expect(withCode.accessCode).toMatch(/^\d{6}$/);
-    const l2 = (await linkByToken(db, withCode.token))!;
-    expect(checkAccess(l2, 'dana@fh.com', null, TODAY)).toBe('code');
-    expect(checkAccess(l2, 'dana@fh.com', '000000' === withCode.accessCode ? '111111' : '000000', TODAY)).toBe('code');
-    expect(checkAccess(l2, 'dana@fh.com', withCode.accessCode, TODAY)).toBe('ok');
-    // The same code until a new one is asked for; turning it off clears it.
-    expect((await saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com', 'cfo@fh.com'], expiresOn: '2026-11-30', requireCode: true }, users.kw.id, TODAY)).accessCode).toBe(withCode.accessCode);
-    expect((await saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com', 'cfo@fh.com'], expiresOn: '2026-11-30', requireCode: false }, users.kw.id, TODAY)).accessCode).toBeNull();
+    const v = await saveShareLink(db, quoteId, { versionId: v2, emails: ['Dana Lee <dana@fh.com>', { email: 'cfo@fh.com', name: 'Chris Fox' }], expiresOn: '2026-11-30', verifyEmail: true, proposalName: 'Forest Hills proposal', intro: 'Hi {first name}!', note: ' Have a look ' }, users.kw.id, TODAY);
+    expect(v).toMatchObject({ verifyEmail: true, proposalName: 'Forest Hills proposal', intro: 'Hi {first name}!', note: 'Have a look' });
+    expect(v.people.map((p) => [p.email, p.name])).toEqual([['dana@fh.com', 'Dana Lee'], ['cfo@fh.com', 'Chris Fox']]);
+    const off = await saveShareLink(db, quoteId, { versionId: v2, emails: ['dana@fh.com', 'cfo@fh.com'], expiresOn: '2026-11-30' }, users.kw.id, TODAY);
+    expect(off.verifyEmail).toBe(false);
   });
 
   it('counts visits and tells the owner about each person’s first one', async () => {
@@ -125,7 +121,7 @@ describe('share links', () => {
     await expect(addProspectComment(db, (await linkByToken(db, token))!, { email: 'dana@fh.com' }, { body: 'Hello' })).rejects.toThrow(/turned off/);
     await revokeShareLink(db, quoteId);
     expect(await getDealShareLink(db, quoteId)).toBeNull();
-    expect(checkAccess((await linkByToken(db, token))!, 'dana@fh.com', null, TODAY)).toBe('revoked');
+    expect(checkAccess((await linkByToken(db, token))!, 'dana@fh.com', TODAY)).toBe('revoked');
     expect(await linkByToken(db, 'not a token')).toBeNull();
     expect(isoDay(new Date('2026-11-24T23:00:00Z'), 30)).toBe('2026-12-24');
   });
