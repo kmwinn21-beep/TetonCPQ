@@ -371,6 +371,9 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   /* A page that runs onto a second sheet keeps its margins on both. */
   .bc-pad { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
   .bc-page { margin: 0; box-shadow: none; break-after: page; width: 8.5in; max-width: none; min-height: 11in; }
+  /* A page that runs onto another sheet but doesn't fill it: the rest of that sheet is the page's cream, not white. */
+  html:has(.bc-doc), html:has(.bc-doc) body { background: #FBF8F3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  :has(> .bc-doc), :has(> * > .bc-doc), :has(> * > * > .bc-doc) { background: transparent !important; }
   .bc-last .bc-page:last-child { break-after: auto; }
   .bc-card, .bc-dark, .bc-callout, .bc-phase, .bc-tbl tr { break-inside: avoid; }
   /* Long tables split between rows (the header repeats) instead of jumping whole to the next sheet. */
