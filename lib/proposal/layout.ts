@@ -3,6 +3,8 @@
  * standard sections, removed figures, and added free-form sections. Stored
  * next to the wording edits; the numbers themselves never change.
  */
+import { sanitizeImpacts, type ImpactItem } from './impacts';
+
 
 /** Most extra space above a business-case section, in px. */
 export const MAX_BC_GAP = 240;
@@ -63,6 +65,12 @@ export interface ProposalLayout {
   bcRoiCallout?: 'asset' | 'fall';
   /** Business-case format: a customer quote at the bottom of that callout. */
   bcRoiQuote?: boolean;
+  /** Business case 'What the program returns': the Impacts view (sources of value and who they benefit) instead of the annual benefits. */
+  bcRoiView?: 'impacts';
+  /** That view's impacts as icon chips with a legend (labeled pills by default). */
+  bcImpactStyle?: 'chips';
+  /** Impacts per source of value (rows not listed use the defaults). */
+  bcImpacts?: Record<string, ImpactItem[]>;
   /** Business-case format: Executive Summary cards that span both columns. */
   bcExecWide?: string[];
   /** Business case, both pricing options: show the 'Four years from go-live' row (off by default). */
@@ -226,6 +234,9 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcImplWaves: raw.bcImplWaves === 'schedule' ? 'schedule' : undefined,
     bcRoiCallout: raw.bcRoiCallout === 'fall' ? 'fall' : undefined,
     bcRoiQuote: raw.bcRoiQuote === true ? true : undefined,
+    bcRoiView: raw.bcRoiView === 'impacts' ? 'impacts' : undefined,
+    bcImpactStyle: raw.bcImpactStyle === 'chips' ? 'chips' : undefined,
+    bcImpacts: sanitizeImpacts(raw.bcImpacts),
     bcExecWide: raw.bcExecWide == null ? undefined : ids(raw.bcExecWide, 20),
     bcFourYears: raw.bcFourYears === true ? true : undefined,
     bcCompareChart: raw.bcCompareChart === 'line' ? 'line' : undefined,

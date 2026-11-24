@@ -43,6 +43,8 @@ import { useWhatIf } from './WhatIf';
 import { MissingPlanPill } from './FloorPlanStatus';
 import { CallOut } from './CallOut';
 import { ViewSwitch } from './ViewSwitch';
+import { ImpactLegend, ImpactsCell } from './Impacts';
+import { impactsFor } from '@/lib/proposal/impacts';
 import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
 import { ImplementationWeeks } from './ImplementationWeeks';
@@ -2591,6 +2593,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
 
   // ---------- The return ----------
   {
+    const impactsView = layout.bcRoiView === 'impacts';
+    const impactChips = layout.bcImpactStyle === 'chips';
     defs.roi = (no) => (
       <Page key="roi" no={no} crumb={<T k="bc.roi.crumb" d="What the program returns" />}>
         <p className="bc-eyebrow"><T k="bc.roi.eyebrow" d="What the program returns" /></p>
@@ -2599,7 +2603,70 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           <T k="bc.roi.lede" d="The sources of value, modeled for {customer}, based on real outcomes from existing Teton customers" v={vars} />
         </p>
         <Blocks page="roi">
-        <B id="table" label="Sources of value">
+        <B
+          id="table"
+          label="Sources of value"
+          view={
+            editable ? (
+              <>
+                <ViewSwitch
+                  field="bcRoiView"
+                  position="relative mx-0.5"
+                  hover="!opacity-100"
+                  label="Sources of value show"
+                  options={[['benefit', 'Annual benefit'], ['impacts', 'Impacts']] as const}
+                  value={impactsView ? 'impacts' : 'benefit'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcRoiView: v === 'impacts' ? 'impacts' : undefined }))}
+                />
+                {impactsView && (
+                  <ViewSwitch
+                    field="bcImpactStyle"
+                    position="relative mx-0.5"
+                    hover="!opacity-100"
+                    label="Impacts as"
+                    options={[['pills', 'Pills'], ['chips', 'Chips']] as const}
+                    value={impactChips ? 'chips' : 'pills'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcImpactStyle: v === 'chips' ? 'chips' : undefined }))}
+                  />
+                )}
+              </>
+            ) : null
+          }
+        >
+        {impactsView ? (
+          <>
+            {impactChips && <ImpactLegend items={benefitRows.flatMap((b) => impactsFor(layout.bcImpacts, b.key))} />}
+            <div className={`bc-card bc-tbl bc-roi-tbl bc-imp-tbl ${impactChips ? 'bc-imp-tbl-c' : ''}`}>
+              <RTable>
+                <thead>
+                  <tr>
+                    <th>Source of value</th>
+                    <th>What it means each year</th>
+                    <th>Impacts</th>
+                  </tr>
+                </thead>
+                <RTbody id="roi" name="Sources of value">
+                  {benefitRows.map((b) => (
+                    <tr key={b.key}>
+                      <td className="bc-m"><T k={`bc.${b.key}.label`} d={b.label} /></td>
+                      <td>
+                        <T k={`bc.${b.key}.means`} d={b.means} v={b.v} />
+                        {b.sub && <small><T k={`bc.${b.key}.sub`} d={b.sub} /></small>}
+                      </td>
+                      <td>
+                        <ImpactsCell
+                          items={impactsFor(layout.bcImpacts, b.key)}
+                          chip={impactChips}
+                          onChange={editable ? (next) => setLayout((l) => ({ ...l, bcImpacts: { ...(l.bcImpacts ?? {}), [b.key]: next } })) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </RTbody>
+              </RTable>
+            </div>
+          </>
+        ) : (
         <div className="bc-card bc-tbl bc-roi-tbl">
           <RTable>
             <thead>
@@ -2652,6 +2719,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             </RTbody>
           </RTable>
         </div>
+        )}
         </B>
         <B id="callout" label="Asset value / Fall risk">
         {roiCallout()}
