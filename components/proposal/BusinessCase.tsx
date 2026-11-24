@@ -49,6 +49,8 @@ import { CompareChart } from './CompareChart';
 import { ImplementationTimeline } from './ImplementationTimeline';
 import { ImplementationWeeks } from './ImplementationWeeks';
 import { canAutoFocus } from '@/lib/client/focus';
+import { createPortal } from 'react-dom';
+import { BlockDisplayCtx, InPanelCtx, InspectorProvider, InspGroup, InspRow, InspSeg, InspStepper, InspToggle, inspBtn, inspDanger, inspFootBtn, inspIconBtn, useInspector } from './Inspector';
 import { OnePagerBody } from './OnePager';
 import { ONE_PAGERS, onePagerParts } from '@/lib/proposal/onePager';
 
@@ -217,6 +219,37 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
   const remove = (id: string, label: string) =>
     setLayout((l) => ({ ...l, bcHiddenBlocks: { ...(l.bcHiddenBlocks ?? {}), [page]: { ...(l.bcHiddenBlocks?.[page] ?? {}), [id]: label } } }));
   const btn = 'w-6 h-6 flex items-center justify-center rounded-md text-[12px] hover:bg-white/15 disabled:opacity-30';
+  // Options panel: a selected section's options (and on its page's tab, the list of sections) go to the panel.
+  const insp = useInspector();
+  const panelMode = insp.on;
+  const [displayEl, setDisplayEl] = useState<HTMLElement | null>(null);
+  const [dragSec, setDragSec] = useState<string | null>(null);
+  const onThisPage = !!slot && insp.sel?.page === slot.id;
+  const selId = panelMode && onThisPage && insp.sel?.tab === 'section' && insp.sel.blocksPage === page ? insp.sel.block : null;
+  const blockEl = (id: string) => (slot ? document.querySelector<HTMLElement>(`[data-bc-page="${CSS.escape(slot.id)}"] [data-bc-blocks="${CSS.escape(page)}"][data-bc-block="${CSS.escape(id)}"]`) : null);
+  const resetBlock = (id: string, label: string) => {
+    const el = blockEl(id);
+    if (!el || !window.confirm(`Reset ${label} to its standard wording and layout?`)) return;
+    const parts = customisedIn(el);
+    for (const k of parts.edits) set(k, null);
+    setLayout((l) => resetLayoutParts(l, parts));
+    setGap(id, 0);
+  };
+  const removeBlock = (id: string) => {
+    const c = byId.get(id);
+    if (!c) return;
+    if (c.props.onRemove) c.props.onRemove();
+    else remove(id, c.props.label);
+  };
+  const showBlock = (id: string) =>
+    setLayout((l) => {
+      const all = { ...(l.bcHiddenBlocks ?? {}) };
+      const m = { ...(all[page] ?? {}) };
+      delete m[id];
+      if (Object.keys(m).length) all[page] = m;
+      else delete all[page];
+      return { ...l, bcHiddenBlocks: all };
+    });
   // Drag and drop (the Executive summary's grid): drag a card by its ⠿ handle onto another card's left / right half
   // (top / bottom half of a full-width card). A widened card dropped beside a one-column card goes back to one column.
   const [dragId, setDragId] = useState<string | null>(null);
@@ -253,6 +286,8 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
         return (
           <div
             key={id}
+            data-bc-blocks={page}
+            data-bc-label={c.props.label}
             className={`bc-block group/bcb ${c.props.wide ? 'bc-wide' : ''} ${dragId === id ? 'bc-dragging' : ''} ${over?.id === id ? `bc-drop-${over.beside ? (over.side === 'before' ? 'left' : 'right') : over.side === 'before' ? 'top' : 'bottom'}` : ''} transition-[padding] duration-200 motion-reduce:transition-none`}
             data-bc-block={id}
             style={gap ? { paddingTop: gap } : undefined}
@@ -279,14 +314,14 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                 }
               : {})}
           >
-            {editable && !grid && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
+            {editable && !grid && !panelMode && <GapControl gap={gap} label={c.props.label} onChange={(px) => setGap(id, px)} />}
             {slot && <CommentPin page={slot.id} block={id} kind="block" />}
             {!editable && comments.enabled && slot && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
                 <CommentHere className={btn} target={{ page: slot.id, block: id, label: `${slot.title} · ${c.props.label}` }} />
               </div>
             )}
-            {editable && (
+            {editable && !panelMode && (
               <div data-edit-ui className="no-print bc-block-controls opacity-0 group-hover/bcb:opacity-100 focus-within:opacity-100 transition-opacity">
                 {grid && (
                   <button
@@ -350,10 +385,189 @@ function Blocks({ page, children }: { page: string; children: React.ReactNode })
                 </button>
               </div>
             )}
-            {c.props.children}
+            {panelMode ? <BlockDisplayCtx.Provider value={{ el: id === selId ? displayEl : null }}>{c.props.children}</BlockDisplayCtx.Provider> : c.props.children}
           </div>
         );
       })}
+      {selId && byId.has(selId) && insp.main &&
+        createPortal(
+          <InPanelCtx.Provider value={true}>
+            <BlockOptions
+              key={selId}
+              c={byId.get(selId)!.props}
+              index={order.indexOf(selId)}
+              count={order.length}
+              gap={page === 'execsum' ? null : gaps[selId] ?? 0}
+              el={blockEl(selId)}
+              setDisplayEl={setDisplayEl}
+              onMove={(dir) => move(selId, dir)}
+              onGap={(px) => setGap(selId, px)}
+              comment={slot && comments.enabled ? { page: slot.id, block: selId, label: `${slot.title} · ${byId.get(selId)!.props.label}` } : null}
+              list={sectionList()}
+            />
+          </InPanelCtx.Provider>,
+          insp.main,
+        )}
+      {selId && byId.has(selId) && insp.foot &&
+        createPortal(
+          <>
+            <button type="button" className={inspFootBtn} onClick={() => resetBlock(selId, byId.get(selId)!.props.label)}>
+              <ResetIcon /> Reset section
+            </button>
+            <button type="button" className={inspDanger} onClick={() => removeBlock(selId)}>
+              ✕ Remove section
+            </button>
+          </>,
+          insp.foot,
+        )}
+      {panelMode && onThisPage && insp.sel?.tab === 'page' && insp.sections && createPortal(sectionList(), insp.sections)}
+    </>
+  );
+
+  /** Every section of this page, in order (removed ones switched off): drag to reorder, switch to remove / add back, click to select. */
+  function sectionList() {
+    const drag = dragSec;
+    const setDrag = setDragSec;
+    const all = merged;
+    const reorder = (from: string, to: string) => {
+      if (from === to) return;
+      const next = all.filter((x) => x !== from);
+      next.splice(next.indexOf(to) + (all.indexOf(from) < all.indexOf(to) ? 1 : 0), 0, from);
+      setLayout((l) => ({ ...l, bcBlocks: { ...(l.bcBlocks ?? {}), [page]: next.filter((x) => !(x in hidden)) } }));
+    };
+    return (
+      <ul className="rounded-xl border border-teton-off-white overflow-hidden">
+        {all.map((id) => {
+          const c = byId.get(id);
+          if (!c) return null;
+          const off = id in hidden;
+          const cur = id === selId;
+          return (
+            <li
+              key={id}
+              draggable={!off}
+              onDragStart={(e) => {
+                setDrag(id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', id);
+              }}
+              onDragOver={(e) => {
+                if (drag && drag !== id) e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (drag) reorder(drag, id);
+                setDrag(null);
+              }}
+              onDragEnd={() => setDrag(null)}
+              className={`flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] border-t border-teton-off-white first:border-t-0 transition-colors ${cur ? 'bg-[#EEF5FE]' : ''} ${drag === id ? 'opacity-50' : ''}`}
+            >
+              <span className={`text-[12px] ${off ? 'text-transparent' : 'text-teton-light-gray cursor-grab'}`} aria-hidden="true">⠿</span>
+              <button
+                type="button"
+                disabled={off}
+                className={`flex-1 min-w-0 truncate text-left ${off ? 'text-teton-light-gray line-through' : cur ? 'font-semibold text-[#1F5FB5]' : 'hover:text-[#1F5FB5]'}`}
+                onClick={() => slot && insp.select({ tab: 'section', page: slot.id, pageTitle: slot.title, block: id, blocksPage: page, blockLabel: c.props.label, table: null, tableName: null })}
+                title={off ? undefined : `Select ${c.props.label}`}
+              >
+                {c.props.label}
+              </button>
+              <InspToggle on={!off} label={off ? `Add back ${c.props.label}` : `Remove ${c.props.label}`} onChange={(on) => (on ? showBlock(id) : removeBlock(id))} />
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+}
+
+/** A selected section's options: its display switches, place on the page, comments. */
+function BlockOptions({ c, index, count, gap, el, setDisplayEl, onMove, onGap, comment, list }: { c: BProps; index: number; count: number; gap: number | null; el: HTMLElement | null; setDisplayEl: (e: HTMLElement | null) => void; onMove: (dir: -1 | 1) => void; onGap: (px: number) => void; comment: { page: string; block: string; label: string } | null; list: React.ReactNode }) {
+  const { layout, setLayout } = useProposalText();
+  // Tables in the section (for their row height), and the room left on the page (for more space above).
+  const [tables, setTables] = useState<string[]>([]);
+  const [room, setRoom] = useState(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const found = el ? Array.from(el.querySelectorAll('table[data-rtable]')).map((t) => t.getAttribute('data-rtable')!).filter((id) => id && id !== 'site') : [];
+    setTables((prev) => (prev.join() === found.join() ? prev : found));
+    const pg = el?.closest<HTMLElement>('.bc-page');
+    const foot = pg?.querySelector<HTMLElement>('.bc-foot');
+    if (!pg || !foot) return;
+    const scale = pg.getBoundingClientRect().width / (pg.offsetWidth || 1) || 1;
+    let bottom = 0;
+    pg.querySelectorAll<HTMLElement>('.bc-block, .bc-lede, .bc-h1').forEach((x) => (bottom = Math.max(bottom, x.getBoundingClientRect().bottom)));
+    const free = (foot.getBoundingClientRect().top - bottom) / scale;
+    setRoom(free >= BC_GAP_STEP + 12);
+  });
+  const compact = tables.length > 0 && tables.every((id) => layout.bcCompact?.[id]);
+  const comments = useComments();
+  return (
+    <>
+      <InspGroup title="Display" hideEmpty>
+        <div ref={setDisplayEl} className="insp-slot space-y-1">
+          {c.view}
+          {c.onWide && (
+            <InspRow label="Width">
+              <InspSeg label="Width" options={[['one', 'One column'], ['both', 'Both columns']] as const} value={c.wide ? 'both' : 'one'} onChange={(v) => (v === 'both') !== !!c.wide && c.onWide!()} />
+            </InspRow>
+          )}
+          {tables.length > 0 && (
+            <InspRow label="Table rows">
+              <InspSeg
+                label="Table rows"
+                options={[['full', 'Full'], ['compact', 'Compact']] as const}
+                value={compact ? 'compact' : 'full'}
+                onChange={(v) =>
+                  setLayout((l) => {
+                    const next = { ...(l.bcCompact ?? {}) };
+                    for (const id of tables) {
+                      if (v === 'compact') next[id] = true;
+                      else delete next[id];
+                    }
+                    return { ...l, bcCompact: Object.keys(next).length ? next : undefined };
+                  })
+                }
+              />
+            </InspRow>
+          )}
+        </div>
+      </InspGroup>
+      <InspGroup title="Position on the page">
+        <InspRow label="Order" sub={`${index + 1} of ${count} sections`}>
+          <button type="button" className={inspIconBtn} disabled={index <= 0} onClick={() => onMove(-1)} aria-label={`Move ${c.label} up`} title="Move up">↑</button>
+          <button type="button" className={inspIconBtn} disabled={index >= count - 1} onClick={() => onMove(1)} aria-label={`Move ${c.label} down`} title="Move down">↓</button>
+        </InspRow>
+        {gap != null && (
+          <InspRow label="Space above">
+            <InspStepper
+              value={gap ? `+${gap}px` : 'Standard'}
+              lessDisabled={gap <= 0}
+              moreDisabled={!room || gap >= MAX_BC_GAP}
+              onLess={() => onGap(Math.max(0, gap - BC_GAP_STEP))}
+              onMore={() => onGap(gap + BC_GAP_STEP)}
+              lessLabel={`Less space above ${c.label}`}
+              moreLabel={room ? `More space above ${c.label}` : 'No room left on this page'}
+            />
+          </InspRow>
+        )}
+        {c.onAdd && (
+          <InspRow label={c.addLabel ?? 'Add'}>
+            <button type="button" className={inspBtn} onClick={c.onAdd}>+ Add</button>
+          </InspRow>
+        )}
+      </InspGroup>
+      <InspGroup title="Sections on this page">
+        {list}
+        <p className="mt-2 text-[11.5px] leading-snug text-teton-ui-gray">Drag to reorder. Switch a section off to remove it; switch it on to add it back.</p>
+      </InspGroup>
+      {comment && comments.enabled && (
+        <InspGroup title="Comments">
+          <InspRow label={<span className="text-teton-ui-gray text-[12px]">Comment on this section</span>}>
+            <CommentHere className={inspIconBtn} target={comment} />
+          </InspRow>
+        </InspGroup>
+      )}
     </>
   );
 }
@@ -405,7 +619,9 @@ function GapControl({ gap, label, onChange }: { gap: number; label: string; onCh
 /** "+ Add page" in the gap before a page (or after the last one): inserts a page of formatted text. */
 function AddPageZone({ at }: { at: string | null }) {
   const { editable, setLayout } = useProposalText();
-  if (!editable) return null;
+  const insp = useInspector();
+  // With the options panel, a page is added from its page options instead.
+  if (!editable || insp.on) return null;
   return (
     <div data-edit-ui className="no-print bc-addzone group/add">
       <div className="bc-addband">
@@ -553,8 +769,8 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
   const btn = 'w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent';
   const { set } = useProposalText();
   // Back to standard: the page's wording, tables, figures and switches, and its sections (removed, order, spacing).
-  const reset = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const el = e.currentTarget.closest<HTMLElement>('[data-bc-page]');
+  const reset = (e: React.MouseEvent<HTMLButtonElement>, pageNode?: HTMLElement) => {
+    const el = pageNode ?? e.currentTarget.closest<HTMLElement>('[data-bc-page]');
     if (!el || !window.confirm(`Reset “${title}” to its standard wording and layout?`)) return;
     const parts = customisedIn(el);
     for (const k of parts.edits) set(k, null);
@@ -574,6 +790,23 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
   };
   const comments = useComments();
   const slotCtx = useMemo(() => ({ id, title }), [id, title]);
+  const insp = useInspector();
+  const panelMode = insp.on;
+  const pageSel = panelMode && insp.sel?.tab === 'page' && insp.sel.page === id;
+  const pageEl = () => document.querySelector<HTMLElement>(`[data-bc-page="${CSS.escape(id)}"]`);
+  const addAfter = () => {
+    const nid = `bcpage-${Date.now().toString(36)}`;
+    setLayout((l) => {
+      const pages = bcPagesOf(l);
+      const i = pages.indexOf(id);
+      return { ...l, bcPages: insertBcPage(pages, i < 0 ? pages.length : i + 1, nid), bcCustom: { ...(l.bcCustom ?? {}), [nid]: { title: 'New page', html: '' } } };
+    });
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-custom-title="${nid}"]`);
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      insp.select({ tab: 'page', page: nid, pageTitle: 'New page', block: null, blocksPage: null, blockLabel: null, table: null, tableName: null });
+    }, 80);
+  };
   return (
     <CommentPageContext.Provider value={slotCtx}>
       <AddPageZone at={id} />
@@ -587,7 +820,7 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
             <CommentHere className={btn} target={{ page: id, block: null, label: title }} />
           </div>
         )}
-        {editable && (
+        {editable && !panelMode && (
           <div data-edit-ui className="no-print bc-controls opacity-0 group-hover/bcp:opacity-100 focus-within:opacity-100 transition-opacity">
             <span className="px-2 text-[11px] font-medium">
               Page {index + 1} · {title}
@@ -611,6 +844,38 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
         )}
         {children}
       </div>
+      {pageSel && insp.main &&
+        createPortal(
+          <InspGroup title="Page">
+            <InspRow label="Position" sub={`${index + 1} of ${order.length} pages`}>
+              <button type="button" className={inspBtn} disabled={index === 0} onClick={() => move(-1)} aria-label={`Move ${title} earlier`}>↑ Earlier</button>
+              <button type="button" className={inspBtn} disabled={index === order.length - 1} onClick={() => move(1)} aria-label={`Move ${title} later`}>↓ Later</button>
+            </InspRow>
+            <InspRow label="Add a page after this one">
+              <button type="button" className={inspBtn} onClick={addAfter}>+ Add page</button>
+            </InspRow>
+            {comments.enabled && (
+              <InspRow label={<span className="text-teton-ui-gray text-[12px]">Comment on this page</span>}>
+                <CommentHere className={inspIconBtn} target={{ page: id, block: null, label: title }} />
+              </InspRow>
+            )}
+          </InspGroup>,
+          insp.main,
+        )}
+      {pageSel && insp.foot &&
+        createPortal(
+          <>
+            {!custom && (
+              <button type="button" className={inspFootBtn} onClick={(e) => reset(e, pageEl() ?? undefined)}>
+                <ResetIcon /> Reset page
+              </button>
+            )}
+            <button type="button" className={inspDanger} onClick={() => { remove(); insp.select(null); }}>
+              ✕ {custom ? 'Delete page' : 'Remove page'}
+            </button>
+          </>,
+          insp.foot,
+        )}
     </CommentPageContext.Provider>
   );
 }
@@ -4033,7 +4298,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const custom = layout.bcCustom ?? {};
   const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);
   return (
-    <article id="proposal" className="bc-doc" data-format="businessCase">
+    <InspectorProvider enabled={editable}>
+    <article id="proposal" className="bc-doc" data-format="businessCase" data-insp={editable ? '' : undefined}>
       {/* Each sheet is a full Letter page with its own margins. Setting the document's page (rather than a named page)
           keeps the browser from starting a fresh, empty sheet before the cover. */}
       <style>{'@page { size: Letter; margin: 0; }'}</style>
@@ -4057,5 +4323,6 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       })}
       <AddPageZone at={null} />
     </article>
+    </InspectorProvider>
   );
 }

@@ -11,6 +11,7 @@ import { Children, cloneElement, createContext, Fragment, isValidElement, useCal
 import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, addOnePager, BC_PAGE_TITLES, bcPageTitle, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
 import { OP_MODES, onePagerId, type OnePagerInfo } from '@/lib/proposal/onePager';
+import { openInspectorRemoved } from './inspectorContext';
 import { DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
 import { T, useProposalText } from './EditableText';
 import { useFigure } from './WhatIf';
@@ -267,7 +268,11 @@ export function RTable({ className, children }: { className?: string; children: 
       const col = isHead && idx >= 0 ? columns[idx] : undefined;
       const ci = idx + 1;
       if (!shown) continue;
-      const w = isHead && col && hidden.size && widths[col.key] ? { style: { width: widths[col.key], minWidth: widths[col.key] } } : {};
+      const w = {
+        ...(isHead && col && hidden.size && widths[col.key] ? { style: { width: widths[col.key], minWidth: widths[col.key] } } : {}),
+        // The options panel lists the columns by these.
+        ...(isHead && col ? { 'data-col': col.key } : {}),
+      };
       if (isHead && editable && col && ci > 1) {
         out.push(
           cloneElement(c, {
@@ -318,7 +323,7 @@ export function RTable({ className, children }: { className?: string; children: 
   const compactable = layout.format === 'businessCase' && id !== 'site';
   const compact = compactable && !!layout.bcCompact?.[id];
   return (
-    <table className={`${className ?? ''} ${compactable ? 'group/tbl' : ''}`} data-rtable={id} data-compact={compact ? '' : undefined}>
+    <table className={`${className ?? ''} ${compactable ? 'group/tbl' : ''}`} data-rtable={id} data-rtable-name={name} data-compact={compact ? '' : undefined}>
       {/* Compact / full rows: a button in the section's hover controls (business case). */}
       {fixed}
     </table>
@@ -376,7 +381,7 @@ export function RTbody({ id, name, className, outside = false, children }: { id:
           </>
         ),
       });
-      return [cloneElement(el as React.ReactElement<{ className?: string; children?: React.ReactNode }>, { key, className: `${props.className ?? ''} group/row`, children: cells })];
+      return [cloneElement(el as React.ReactElement<{ className?: string; children?: React.ReactNode }>, { key, className: `${props.className ?? ''} group/row`, 'data-rk': rk, children: cells } as Record<string, unknown>)];
     });
   return <tbody className={className}>{walk(children, '')}</tbody>;
 }
@@ -794,8 +799,26 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /* Removed sections and figures, with Add back.                        */
 /* ------------------------------------------------------------------ */
 
+/** A removed table row back. */
+export function addBackRow(l: ProposalLayout, k: string): ProposalLayout {
+  const m = { ...(l.hiddenRows ?? {}) };
+  delete m[k];
+  return { ...l, hiddenRows: Object.keys(m).length ? m : undefined };
+}
+
+/** A removed table column back (or a column that starts out removed, shown). */
+export function addBackCol(l: ProposalLayout, k: string): ProposalLayout {
+  if (k in DEFAULT_HIDDEN_COLS) return { ...l, shownCols: Array.from(new Set([...(l.shownCols ?? []), k])) };
+  const m = { ...(l.hiddenCols ?? {}) };
+  delete m[k];
+  const table = k.split('.')[0];
+  const w = { ...(l.colWidths ?? {}) };
+  if (!Object.keys(m).some((x) => x.split('.')[0] === table)) for (const x of Object.keys(w)) if (x.split('.')[0] === table) delete w[x];
+  return { ...l, hiddenCols: Object.keys(m).length ? m : undefined, colWidths: Object.keys(w).length ? w : undefined };
+}
+
 /** `bothPricing`: the proposal shows both pricing options, so the comparison's optional rows can be added from here. */
-export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers = null, bare = false, onCount }: { bothPricing?: boolean; /** An E-Call-only deal (its optional sections can be added). */ ecallOnly?: boolean; /** The deal's products and pilot, for the one pagers that can be added. */ onePagers?: OnePagerInfo | null; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
+export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers = null, bare = false, page = null, hideForBusinessCase = false, onCount }: { /** Only what can be added back to this page (the options panel's page tab). */ page?: string | null; /** Nothing on the business case (the options panel lists it there). */ hideForBusinessCase?: boolean; bothPricing?: boolean; /** An E-Call-only deal (its optional sections can be added). */ ecallOnly?: boolean; /** The deal's products and pilot, for the one pagers that can be added. */ onePagers?: OnePagerInfo | null; /** Without its card (inside the phone sheet). */ bare?: boolean; /** Reports how many things are removed. */ onCount?: (n: number) => void } = {}) {
   const { editable, layout, setLayout, edits } = useProposalText();
   const { labels } = useContext(LabelsCtx);
   // The tables on the page now (checked after each render).
@@ -804,10 +827,11 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
   onCountRef.current = onCount;
   // Desktop: the page (and table) under the pointer narrows the list to what can be added back there. Moving
   // onto the panel keeps it; resting on the background for a moment shows everything again.
-  const [focus, setFocus] = useState<{ page: string | null; table: string | null } | null>(null);
+  const [hoverFocus, setFocus] = useState<{ page: string | null; table: string | null } | null>(null);
+  const focus = page ? { page, table: null } : hoverFocus;
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (bare || typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    if (bare || page || typeof window === 'undefined' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     let clear: ReturnType<typeof setTimeout> | null = null;
     const over = (e: PointerEvent) => {
       const el = e.target as HTMLElement | null;
@@ -832,7 +856,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
       document.removeEventListener('pointerover', over);
       if (clear) clearTimeout(clear);
     };
-  }, [bare]);
+  }, [bare, page]);
   useEffect(() => {
     const ids = Array.from(document.querySelectorAll<HTMLElement>('table[data-rtable]')).map((t) => t.dataset.rtable ?? '').sort();
     if (ids.join() !== presentTables.join()) setPresentTables(ids);
@@ -844,6 +868,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
   });
   if (!editable) return null;
   const businessCase = layout.format === 'businessCase';
+  if (hideForBusinessCase && businessCase) return null;
   // The business-case format arranges pages instead of sections.
   const sections = businessCase ? [] : layout.hiddenSections.filter((id): id is StandardSection => id in SECTION_TITLES);
   const pages = businessCase ? removedBcPages(bcPagesOf(layout)) : [];
@@ -886,7 +911,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
     return t?.closest<HTMLElement>('[data-bc-page]')?.dataset.bcPage ?? null;
   };
   const filtered = (() => {
-    if (!focus || bare) return null;
+    if (!focus || (bare && !page)) return null;
     const inTable = (k: string) => !!focus.table && k.split('.')[0] === focus.table;
     const onPage = (k: string) => !!focus.page && pageOfTable(k) === focus.page;
     let r = rows.filter(([k]) => inTable(k));
@@ -904,6 +929,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
     if (!r.length && !c.length && !b.length && !o.length) return null;
     return { rows: r, cols: c, blocks: b, optional: o, where };
   })();
+  if (page && !filtered) return <p className="text-[12px] text-teton-ui-gray">Nothing removed from this page.</p>;
   if (!total) return bare ? <p className="px-2 py-6 text-center text-sm text-teton-ui-gray">Nothing has been removed from this proposal.</p> : null;
   const showSections = filtered ? [] : sections;
   const showPages = filtered ? [] : pages;
@@ -989,15 +1015,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table rows</p>
           <ul>
-            {showRows.map(([k, label]) =>
-              item(`row-${k}`, label, () =>
-                setLayout((l) => {
-                  const m = { ...(l.hiddenRows ?? {}) };
-                  delete m[k];
-                  return { ...l, hiddenRows: Object.keys(m).length ? m : undefined };
-                }),
-              ),
-            )}
+            {showRows.map(([k, label]) => item(`row-${k}`, label, () => setLayout((l) => addBackRow(l, k))))}
           </ul>
         </>
       )}
@@ -1005,19 +1023,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
         <>
           <p className="text-[11px] text-teton-ui-gray px-2 mt-2">Table columns</p>
           <ul>
-            {showCols.map(([k, label]) =>
-              item(`col-${k}`, label, () =>
-                setLayout((l) => {
-                  if (k in DEFAULT_HIDDEN_COLS) return { ...l, shownCols: Array.from(new Set([...(l.shownCols ?? []), k])) };
-                  const m = { ...(l.hiddenCols ?? {}) };
-                  delete m[k];
-                  const table = k.split('.')[0];
-                  const w = { ...(l.colWidths ?? {}) };
-                  if (!Object.keys(m).some((x) => x.split('.')[0] === table)) for (const x of Object.keys(w)) if (x.split('.')[0] === table) delete w[x];
-                  return { ...l, hiddenCols: Object.keys(m).length ? m : undefined, colWidths: Object.keys(w).length ? w : undefined };
-                }),
-              ),
-            )}
+            {showCols.map(([k, label]) => item(`col-${k}`, label, () => setLayout((l) => addBackCol(l, k))))}
           </ul>
         </>
       )}
@@ -1039,7 +1045,9 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
  * proposal, to add back (the side panel is hidden on phones).
  */
 export function RemovedSheetButton({ bothPricing = false, ecallOnly = false, onePagers = null }: { bothPricing?: boolean; ecallOnly?: boolean; onePagers?: OnePagerInfo | null }) {
-  const { editable } = useProposalText();
+  const { editable, layout } = useProposalText();
+  // The business case lists what's removed in its options panel (desktop); phones keep this sheet.
+  const businessCase = layout.format === 'businessCase';
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -1065,7 +1073,13 @@ export function RemovedSheetButton({ bothPricing = false, ecallOnly = false, one
           <RemovedPanel bothPricing={bothPricing} ecallOnly={ecallOnly} onePagers={onePagers} bare onCount={(n) => n !== count && setCount(n)} />
         </div>
       )}
-      <button type="button" className="sm:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={`${businessCase ? '' : 'sm:hidden'} inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => (businessCase && window.matchMedia('(min-width: 640px)').matches ? openInspectorRemoved() : setOpen(true))}
+      >
         Removed
         {count > 0 && <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-white text-teton-ink text-[10.5px] font-bold">{count}</span>}
       </button>

@@ -1290,3 +1290,18 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .bc-op-ot-sys { display: inline; }
   .bc-op-tbl { overflow-x: auto; }
 }
+
+/* Business case options panel (click to select): the selection's outline, a light outline on hover, the row /
+   column hover buttons gone (the panel has them), and the document moved left so the panel doesn't cover it. */
+.bc-doc[data-insp] .bc-block:hover:not([data-insp-sel]) { outline: 1px dashed rgba(63,140,234,.5); outline-offset: 6px; border-radius: 4px; }
+.bc-doc[data-insp] .bc-block[data-insp-sel] { outline: 2px solid #3F8CEA; outline-offset: 6px; border-radius: 4px; }
+.bc-doc[data-insp] table[data-insp-sel] { outline: 2px solid #3F8CEA; outline-offset: -2px; }
+.bc-doc[data-insp] .bc-page[data-insp-sel] { outline: 2px solid #3F8CEA; outline-offset: 4px; }
+.bc-doc[data-insp] table[data-rtable] button[data-edit-ui], .bc-doc[data-insp] table[data-rtable] th span[data-edit-ui] { display: none !important; }
+.insp-hide-empty:has(.insp-slot:empty) { display: none; }
+.proposal-doc { transition: margin .3s ease-out; }
+@media (min-width: 1024px) {
+  html.bc-insp-open .proposal-doc { margin-left: max(16px, calc((100% - 8.5in - 360px) / 2)); margin-right: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .proposal-doc { transition: none; } }
+@media print { .bc-doc [data-insp-sel] { outline: none !important; } .bc-doc .bc-block:hover { outline: none !important; } }
