@@ -100,7 +100,7 @@ export function TemplateMenu({ versionId }: { versionId: number }) {
           <rect x="14" y="12" width="7" height="9" rx="1.5" />
           <rect x="3" y="16" width="7" height="5" rx="1.5" />
         </svg>
-        <span className="hidden sm:inline">Template:</span>
+        <span className="hidden sm:inline lg:hidden xl:inline">Template:</span>
         <span className="max-w-[10rem] truncate">{applied ? applied.name : 'Standard'}</span>
         {edited && <span className="text-[11px] opacity-80">· edited</span>}
         <svg className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
