@@ -27,6 +27,12 @@ import { BulkEditTags, type BulkResult } from './BulkEditTags';
 import { ScopeSummary } from './ScopeSummary';
 import { matchNumbers, type NumberMatch, type PlanLabels } from '@/lib/quote/roomNumbers';
 import { canAutoFocus } from '@/lib/client/focus';
+import { careFromName, fillOf, groupByColor, labelsToTag, legendNames, nearestBadge, skippedWords, type Box, type PlanWord, type RGB } from '@/lib/quote/autoTag';
+import { AutoDraftMarker, AutoTagPanel, type AutoState } from './AutoTag';
+
+/** Where to look for a room's fill color around its number (0–1 of the page across, down). */
+const FILL_SPOTS: Array<[number, number]> = [[-0.022, 0], [0.022, 0], [-0.014, 0.009], [0.014, 0.009], [-0.014, -0.009], [0.014, -0.009], [0, 0.012], [0, -0.012], [-0.03, 0.004], [0.03, 0.004]];
+type Sampler = (x: number, y: number) => RGB | null;
 
 const uid = (p: string) => `${p}-${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
 const CARES = (Object.keys(CARE_LABEL) as CareType[]).filter((c) => c !== 'custom');
@@ -179,6 +185,11 @@ export function ScopeViewer({
   const openAtPage = useRef<number | null>(null);
   // ---- room numbers read from the plan (once someone runs "Fill numbers from plan") ----
   const [planLabels, setPlanLabels] = useState<PlanLabels | null>(null);
+  // ---- auto-tag: drag a box, tag every room number inside it ----
+  const [autoTool, setAutoTool] = useState(false);
+  const [auto, setAuto] = useState<AutoState | null>(null);
+  const [autoUndo, setAutoUndo] = useState<{ marks: Set<string>; types: Set<string>; n: number } | null>(null);
+  const sampler = useRef<Sampler | null>(null);
   const [reading, setReading] = useState<string | null>(null);
   const [fillMsg, setFillMsg] = useState<string | null>(null);
   // Arriving from a notification: go to the note's page and open it in the drawer.
@@ -231,6 +242,7 @@ export function ScopeViewer({
     const esc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (confirmRemove) setConfirmRemove(false);
+      else if (auto) setAuto(null);
       else if (bulk && !bulkMin) setBulkMin(true);
       else if (dupFocus) setDupFocus(null);
       else if (picked.size) setPicked(new Set());
@@ -247,7 +259,7 @@ export function ScopeViewer({
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, bulkMin, picked, dupFocus]);
+  }, [onClose, pop, editType, saving, menu, confirmRemove, noteDraft, noteMode, hover, bulk, bulkMin, picked, dupFocus, auto]);
   useEffect(() => {
     setPage(openAtPage.current ?? 1);
     openAtPage.current = null;
@@ -259,6 +271,8 @@ export function ScopeViewer({
     setBulk(false);
     setFillMsg(null);
     setSummaryOpen(false);
+    setAuto(null);
+    setAutoUndo(null);
   }, [planId]);
   useEffect(() => {
     let live = true;
@@ -460,6 +474,114 @@ export function ScopeViewer({
     setFillMsg(`${count(sure.size)} filled from the plan${check ? ` · ${count(check)} to check (click a tag to see)` : ''}${none ? ` · ${count(none)} not found` : ''}`);
   };
 
+  // ---- auto-tag ----
+  /** The words on this page of a PDF with text (for the legend's names and what was skipped); none for scans. */
+  const pageWords = async (): Promise<PlanWord[]> => {
+    if (plan.mime !== 'application/pdf') return [];
+    try {
+      const pdf = await openPdf(url);
+      const pg = await pdf.getPage(page);
+      const vp = pg.getViewport({ scale: 1 });
+      const tc = await pg.getTextContent();
+      const out: PlanWord[] = [];
+      for (const it of tc.items as Array<{ str?: string; transform?: number[] }>) {
+        if (!it.str?.trim() || !it.transform) continue;
+        const [x, y] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+        const h = Math.hypot(it.transform[2], it.transform[3]) || 8;
+        out.push({ str: it.str, x: x / vp.width, y: (y - h / 2) / vp.height, h: h / vp.height });
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  };
+  const runAuto = async (box: Box) => {
+    setAutoUndo(null);
+    setPop(null);
+    setHover(null);
+    setAuto({ page, busy: planLabels ? 'Finding room numbers…' : 'Reading the room numbers on this plan…', items: [], groups: [], skipped: [], exact: false });
+    const labels = await ensureLabels();
+    if (!labels) return setAuto(null);
+    const lp = labels.pages[String(page)];
+    const all = current().flatMap((t) => t.marks ?? []).filter((m) => m.plan === plan.id);
+    const taken = new Set(all.map((m) => m.label?.trim()).filter(Boolean) as string[]);
+    const found = lp ? labelsToTag(lp, box, all.filter((m) => m.page === page), taken) : [];
+    const sample = sampler.current;
+    const colored = found.map((l, i) => ({ ...l, id: `af${i}`, color: sample ? fillOf(FILL_SPOTS.map(([dx, dy]) => sample(l.x + dx, l.y + dy))) : null }));
+    const { items, groups } = groupByColor(colored);
+    // Hardly any colored rooms: treat them all as one group (a plan without a color legend).
+    const colorful = groups.filter((g) => g.color).reduce((n, g) => n + g.count, 0);
+    const oneGroup = colorful < Math.max(2, items.length * 0.4);
+    const words = await pageWords();
+    const swatched = sample ? words.map((w) => ({ ...w, swatch: sample(w.x - Math.max(0.006, w.h * 0.9), w.y), beyond: sample(w.x - Math.max(0.02, w.h * 2.8), w.y), bg: sample(w.x + 0.003, w.y - w.h * 0.85) })) : [];
+    const names = oneGroup ? {} : legendNames(swatched, groups);
+    const byName = (n: string) => current().find((t) => (t.name || '').trim().toLowerCase() === n.trim().toLowerCase());
+    const finalGroups = (oneGroup ? [{ key: 'all', color: null, count: items.length }] : groups).map((g, k) => {
+      const name = names[g.key] ?? null;
+      const match = name ? byName(name) : undefined;
+      return {
+        key: g.key,
+        color: g.color,
+        name,
+        target: match ? match.id : g.key === 'none' && types.length ? types[0].id : 'new',
+        newName: name ?? (oneGroup || g.key === 'none' ? '' : `Room type ${k + 1}`),
+        care: careFromName(name ?? ''),
+      };
+    });
+    setAuto({
+      page,
+      busy: null,
+      items: items.map((i) => ({ ...i, group: oneGroup ? 'all' : i.group })),
+      groups: finalGroups,
+      skipped: skippedWords(words, box, new Set(Object.values(names).map((n) => n.toLowerCase()))),
+      exact: words.length > 0 && found.length > 0 && found.every((l) => l.sure),
+    });
+  };
+  const placeAuto = () => {
+    if (!auto) return;
+    const at = new Date().toISOString().slice(0, 10);
+    const by = notesApi.me?.name;
+    let next = [...current()];
+    const ids = new Set<string>();
+    const created = new Set<string>();
+    const used = next.map((t, k) => badgeOf(t, k).color);
+    for (const g of auto.groups) {
+      if (g.target === 'skip') continue;
+      const its = auto.items.filter((i) => i.group === g.key && !i.off);
+      if (!its.length) continue;
+      const marks: RoomMark[] = its.map((i) => ({ id: uid('mk'), plan: plan.id, page: auto.page, x: i.x, y: i.y, at, ...(by ? { by } : {}), ...(i.sure ? { label: i.t } : {}) }));
+      marks.forEach((m) => ids.add(m.id));
+      let to = g.target;
+      if (to === 'new') {
+        const name = g.newName.trim().slice(0, 60) || 'Room type';
+        const same = next.find((t) => roomTypeKey(t) === roomTypeKey({ name, care: g.care }));
+        if (same) to = same.id;
+        else {
+          const color = nearestBadge(g.color, used);
+          used.push(color);
+          const t: RoomType = { id: uid('rt'), name, care: g.care, rooms: marks.length, sensors: 1, marks, roomsFromPlan: true, color };
+          created.add(t.id);
+          next = [...next, t];
+          continue;
+        }
+      }
+      next = next.map((t) => (t.id === to ? { ...t, marks: [...(t.marks ?? []), ...marks] } : t));
+    }
+    write(next);
+    setAutoUndo({ marks: ids, types: created, n: ids.size });
+    setAuto(null);
+    setLayer(true);
+  };
+  const undoAuto = () => {
+    if (!autoUndo) return;
+    write(
+      current()
+        .map((t) => ({ ...t, marks: (t.marks ?? []).filter((m) => !autoUndo.marks.has(m.id)) }))
+        .filter((t) => !(autoUndo.types.has(t.id) && !(t.marks ?? []).length)),
+    );
+    setAutoUndo(null);
+  };
+
   // ---- many tags at once ----
   const pickBox = (b: { x0: number; y0: number; x1: number; y1: number; rx: number; ry: number }, add: boolean) => {
     const hit = placed.filter((m) => !(focusType && focusType !== m.typeId) && m.x + b.rx >= b.x0 && m.x - b.rx <= b.x1 && m.y + b.ry >= b.y0 && m.y - b.ry <= b.y1).map((m) => m.id);
@@ -546,20 +668,32 @@ export function ScopeViewer({
               aria-pressed={selectTool}
               title="Drag a box over tags to edit them together (or hold Shift and drag)"
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors duration-200 drawer-in ${selectTool ? 'bg-[#E8F1FD] border-[#3F8CEA] text-[#1F5FB5]' : 'border-teton-pale-gray bg-white hover:bg-teton-almost-white'}`}
-              onClick={() => { setSelectTool((v) => !v); setNoteMode(false); setPop(null); }}
+              onClick={() => { setSelectTool((v) => !v); setAutoTool(false); setAuto(null); setNoteMode(false); setPop(null); }}
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeDasharray="2.5 2" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5" /></svg>
               Select
             </button>
           )}
-          {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); } }} label="Scope Mode" accent />}
+          {scope && acc.scope && (
+            <button
+              type="button"
+              aria-pressed={autoTool}
+              title="Drag a box over part of the plan to tag every room number inside it"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors duration-200 drawer-in ${autoTool ? 'bg-[#E8F1FD] border-[#3F8CEA] text-[#1F5FB5]' : 'border-teton-pale-gray bg-white hover:bg-teton-almost-white'}`}
+              onClick={() => { setAutoTool((v) => !v); setSelectTool(false); setNoteMode(false); setPending([]); setSaving(false); setPop(null); setAuto(null); }}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="1.5" strokeDasharray="2.5 2" /><path d="M8 4.5l.9 1.9 2.1.3-1.5 1.5.4 2.1L8 9.3l-1.9 1 .4-2.1L5 6.7l2.1-.3z" fill="currentColor" stroke="none" /></svg>
+              Auto-tag
+            </button>
+          )}
+          {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); setAutoTool(false); setAuto(null); } }} label="Scope Mode" accent />}
           {/* Notes: with Scope Mode on, or always for people who can't use Scope Mode (anyone can add notes). */}
           {(scope || !acc.scope) && (
             <button
               type="button"
               aria-pressed={noteMode}
               className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors duration-200 drawer-in ${noteMode ? 'bg-[#E0A21B] border-[#E0A21B] text-white' : 'bg-[#FFF6DD] border-[#E9C46A] text-[#8A5A00] hover:bg-[#FFEFC2]'}`}
-              onClick={() => { setNoteMode((m) => !m); setNoteDraft(null); setPending([]); setSaving(false); setPop(null); }}
+              onClick={() => { setNoteMode((m) => !m); setAutoTool(false); setAuto(null); setNoteDraft(null); setPending([]); setSaving(false); setPop(null); }}
             >
               + Note
             </button>
@@ -695,14 +829,21 @@ export function ScopeViewer({
           onPages={setPages}
           scope={scope}
           modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
-          marquee={selectTool && showSaved}
+          marquee={(selectTool && showSaved) || (autoTool && scope)}
+          marqueeLabel={autoTool ? 'Auto-tag · drag a box over rooms' : undefined}
+          sampler={sampler}
           onBox={(b, add) => {
+            if (autoTool && scope) {
+              if (!auto?.busy) void runAuto(b);
+              return;
+            }
             // The tags being edited stay as they are while the panel is open.
             if (bulk) return setBulkMin(true);
             if (showSaved) pickBox(b, add);
           }}
           onTap={(x, y) => {
             if (noteDraft) return;
+            if (autoTool && scope) return;
             if (bulk && !bulkMin) {
               setBulkMin(true);
               return;
@@ -805,6 +946,15 @@ export function ScopeViewer({
                   setMenu(false);
                 }}
                 onMove={(x, y) => acc.scope && moveMark(m.typeId, m.id, x, y)}
+              />
+            ))}
+          {auto && auto.page === page &&
+            auto.items.map((i) => (
+              <AutoDraftMarker
+                key={i.id}
+                item={i}
+                color={auto.groups.find((g) => g.key === i.group)?.color ?? null}
+                onToggle={() => setAuto((a) => (a ? { ...a, items: a.items.map((x) => (x.id === i.id ? { ...x, off: !x.off } : x)) } : a))}
               />
             ))}
           {pendingHere.map((p) => (
@@ -925,9 +1075,24 @@ export function ScopeViewer({
             onMinimize={setBulkMin}
           />
         )}
-        {scope && !noteMode && !noteDraft && !picked.size && !bulk && (
+        {scope && auto && (
+          <div className="absolute right-3 bottom-3 z-30 max-w-[calc(100%-1.5rem)]">
+            <AutoTagPanel state={auto} types={types} onChange={setAuto} onPlace={placeAuto} onCancel={() => setAuto(null)} />
+          </div>
+        )}
+        {scope && !auto && !noteMode && !noteDraft && !picked.size && !bulk && (
           <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 max-w-[calc(100%-1.5rem)]">
-            {saving ? (
+            {autoUndo ? (
+              <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-2 py-2 text-xs shadow-xl whitespace-nowrap drawer-in" role="status">
+                <b>Placed {count(autoUndo.n)} tag{autoUndo.n === 1 ? '' : 's'}</b>
+                <button type="button" className="rounded-md border border-white/30 px-2 py-1 hover:bg-white/10" onClick={undoAuto}>Undo</button>
+                <button type="button" className="text-white/60 hover:text-white px-1" aria-label="Dismiss" onClick={() => setAutoUndo(null)}>✕</button>
+              </div>
+            ) : autoTool ? (
+              <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-3 py-2 text-xs shadow-xl whitespace-nowrap drawer-in">
+                <span className="truncate">{reading ?? 'Drag a box over rooms: every room number inside gets a tag to review'}</span>
+              </div>
+            ) : saving ? (
               <TypeForm
                 products={products}
                 title="New room type"
@@ -1018,6 +1183,8 @@ function PlanStage({
   scope,
   modeLabel,
   marquee,
+  marqueeLabel,
+  sampler,
   onBox,
   onTap,
   children,
@@ -1035,6 +1202,10 @@ function PlanStage({
   onTap: (x: number, y: number) => void;
   /** Dragging draws a selection box (the Select tool; Shift + drag does it any time). */
   marquee?: boolean;
+  /** Replaces the Select tool's label while the box is for something else (auto-tag). */
+  marqueeLabel?: string;
+  /** Set to a function that reads the plan's color at a spot (0–1 across and down), once the plan is drawn. */
+  sampler?: React.MutableRefObject<((x: number, y: number) => [number, number, number] | null) | null>;
   /** The box (0–1 of the page) and how far a badge reaches (rx, ry); add: Shift held (add to the selection). */
   onBox?: (b: { x0: number; y0: number; x1: number; y1: number; rx: number; ry: number }, add: boolean) => void;
   children: React.ReactNode;
@@ -1087,7 +1258,7 @@ function PlanStage({
         c.width = Math.round(vp.width);
         c.height = Math.round(vp.height);
         setAspect(vp.height / vp.width);
-        await pg.render({ canvasContext: c.getContext('2d')!, viewport: vp }).promise;
+        await pg.render({ canvasContext: c.getContext('2d', { willReadFrequently: true })!, viewport: vp }).promise;
         if (live) setState('ready');
       } catch {
         if (live) setState('error');
@@ -1100,6 +1271,42 @@ function PlanStage({
   useEffect(() => {
     if (!isPdf) onPages(1);
   }, [isPdf, onPages]);
+  // Colors on the plan as drawn (auto-tag reads each room's fill). An image is copied to a canvas once.
+  const img = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    if (!sampler) return;
+    if (state !== 'ready') {
+      sampler.current = null;
+      return;
+    }
+    let src: HTMLCanvasElement | null = isPdf ? canvas.current : null;
+    if (!isPdf && img.current?.naturalWidth) {
+      const im = img.current;
+      const c = document.createElement('canvas');
+      const k = Math.min(1, 2600 / Math.max(im.naturalWidth, im.naturalHeight));
+      c.width = Math.round(im.naturalWidth * k);
+      c.height = Math.round(im.naturalHeight * k);
+      try {
+        c.getContext('2d', { willReadFrequently: true })!.drawImage(im, 0, 0, c.width, c.height);
+        src = c;
+      } catch {
+        src = null;
+      }
+    }
+    const ctx = src?.getContext('2d', { willReadFrequently: true });
+    sampler.current =
+      src && ctx
+        ? (x, y) => {
+            if (x < 0 || y < 0 || x > 1 || y > 1) return null;
+            try {
+              const d = ctx.getImageData(Math.min(src!.width - 1, Math.round(x * src!.width)), Math.min(src!.height - 1, Math.round(y * src!.height)), 1, 1).data;
+              return [d[0], d[1], d[2]];
+            } catch {
+              return null;
+            }
+          }
+        : null;
+  }, [state, isPdf, page, url, sampler]);
 
   // Zoom around a point (keeps what's under the cursor in place).
   const zoomAt = useCallback(
@@ -1213,6 +1420,7 @@ function PlanStage({
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img
+                ref={img}
                 src={url}
                 alt={name}
                 draggable={false}
@@ -1239,7 +1447,7 @@ function PlanStage({
       {state !== 'ready' && (
         <p className="absolute inset-x-0 top-1/3 text-center text-sm text-teton-ui-gray pointer-events-none">{state === 'error' ? 'This file can’t be shown here. Download it to view it.' : 'Loading the floor plan…'}</p>
       )}
-      {marquee && <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white bg-[#3F8CEA] drawer-in">Select · drag a box over tags</span>}
+      {marquee && <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white bg-[#3F8CEA] drawer-in">{marqueeLabel ?? 'Select · drag a box over tags'}</span>}
       {scope && !marquee && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
       <div data-plan-ui className="absolute right-3 top-3 flex flex-col rounded-lg border border-teton-off-white bg-white text-sm shadow-sm">
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white rounded-t-lg" aria-label="Zoom in" onClick={() => zoomAt(-2)}>+</button>
