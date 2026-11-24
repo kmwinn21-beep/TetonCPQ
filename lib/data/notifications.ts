@@ -6,6 +6,7 @@ import type { Client } from '@libsql/client';
 import { unreadPlanItems, markPlanItemsRead, type UnreadItem, type Viewer } from './planNotes';
 import { markMentionsRead, unreadMentions, type MentionItem } from './proposalComments';
 import { markTaskNotificationsRead, taskNotifications, todayIso, type TaskNotification } from './tasks';
+import { markProspectNotificationsRead, prospectNotifications, type ProspectNotification } from './shareLinks';
 
 export interface DealNotifications {
   quoteId: number;
@@ -13,6 +14,8 @@ export interface DealNotifications {
   tasks: TaskNotification[];
   mentions: MentionItem[];
   plan: UnreadItem[];
+  /** Prospects on the deal's shared link: their comments, and their first visits (the owner's). */
+  prospect: ProspectNotification[];
 }
 
 async function myDeals(db: Client, v: Viewer): Promise<Array<{ quoteId: number; dealName: string }>> {
@@ -32,11 +35,11 @@ export async function allNotifications(db: Client, v: Viewer, today = todayIso()
   const tasks = await taskNotifications(db, v, undefined, today);
   const deals: DealNotifications[] = [];
   for (const d of await myDeals(db, v)) {
-    const [mentions, plan] = await Promise.all([unreadMentions(db, d.quoteId, v), unreadPlanItems(db, d.quoteId, v)]);
+    const [mentions, plan, prospect] = await Promise.all([unreadMentions(db, d.quoteId, v), unreadPlanItems(db, d.quoteId, v), prospectNotifications(db, v.id, d.quoteId)]);
     const t = tasks.filter((x) => x.quoteId === d.quoteId);
-    if (t.length || mentions.length || plan.length) deals.push({ ...d, tasks: t, mentions, plan });
+    if (t.length || mentions.length || plan.length || prospect.length) deals.push({ ...d, tasks: t, mentions, plan, prospect });
   }
-  return { deals, total: deals.reduce((s, d) => s + d.tasks.length + d.mentions.length + d.plan.length, 0) };
+  return { deals, total: deals.reduce((s, d) => s + d.tasks.length + d.mentions.length + d.plan.length + d.prospect.length, 0) };
 }
 
 export interface ReadRequest {
@@ -45,6 +48,7 @@ export interface ReadRequest {
   tasks?: number[];
   mentions?: number[];
   plan?: Array<{ kind: string; id: number }>;
+  prospect?: number[];
 }
 /** Marks items read: listed ones (plan items need their deal), one deal's everything, or everything. */
 export async function markNotificationsRead(db: Client, v: Viewer, b: ReadRequest): Promise<void> {
@@ -60,4 +64,5 @@ export async function markNotificationsRead(db: Client, v: Viewer, b: ReadReques
   if (b.tasks?.length) await markTaskNotificationsRead(db, v, b.tasks);
   if (b.mentions?.length && b.quoteId) await markMentionsRead(db, b.quoteId, v, b.mentions);
   if (b.plan?.length && b.quoteId) await markPlanItemsRead(db, b.quoteId, v, b.plan);
+  if (b.prospect?.length) await markProspectNotificationsRead(db, v.id, b.prospect);
 }

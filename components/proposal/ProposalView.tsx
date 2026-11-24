@@ -84,7 +84,7 @@ export function ProposalView(p: {
 }
 
 /** The proposal in the format chosen for this version: standard, or business case. */
-function DocumentInFormat(props: ProposalProps) {
+export function DocumentInFormat(props: ProposalProps) {
   const { layout } = useProposalText();
   return layout.format === 'businessCase' ? <BusinessCaseDocument {...props} /> : <ProposalDocument {...props} />;
 }

@@ -1321,3 +1321,7 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .bc-addpop-out { animation: addPopOut .18s ease-in forwards; }
 @media (max-width: 639px) { .bc-addpop-in { animation: sheetUp .25s ease-out; } }
 @media (prefers-reduced-motion: reduce) { .bc-addpop-in, .bc-addpop-out, .bc-addfab, .bc-addpop { animation: none; transition: none; } }
+
+/* A prospect commenting on a shared proposal: what a click would comment on. */
+.prospect-commenting .bc-block:hover { outline: 2px dashed rgba(63,140,234,.7); outline-offset: 6px; border-radius: 4px; cursor: copy; }
+.prospect-commenting .bc-page:hover { outline: 1px dashed rgba(63,140,234,.45); outline-offset: 4px; cursor: copy; }

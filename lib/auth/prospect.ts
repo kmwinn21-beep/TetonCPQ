@@ -1,0 +1,60 @@
+/**
+ * A prospect's access to a shared proposal link: a signed cookie per link, set once their email (and the code, when
+ * the link needs one) matched. Every request re-checks it against the link as it is now: still on, not expired, the
+ * email still listed, the same code. Not an app login: it opens that one link only.
+ */
+import 'server-only';
+import { createHash } from 'node:crypto';
+import { cookies } from 'next/headers';
+import { jwtVerify, SignJWT } from 'jose';
+import { checkAccess, daysLeft, isoDay, type PublicLink } from '@/lib/data/shareLinks';
+
+const MAX_AGE = 60 * 60 * 24 * 30; // 30 days (and never past the link's expiry)
+export const prospectCookieName = (linkId: number) => `teton_p${linkId}`;
+
+function secret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (!s || s.length < 32) throw new Error('JWT_SECRET must be set to at least 32 characters');
+  return new TextEncoder().encode(s);
+}
+/** A changed code ends sessions made with the old one. */
+const codeTag = (code: string | null) => (code ? createHash('sha256').update(`teton-share:${code}`).digest('hex').slice(0, 12) : '');
+
+export interface ProspectSession {
+  email: string;
+  name: string | null;
+}
+
+export async function prospectCookie(l: PublicLink, who: ProspectSession) {
+  const days = Math.max(1, Math.min(30, daysLeft(l.expiresOn, isoDay()) + 1));
+  const token = await new SignJWT({ lid: l.id, em: who.email, nm: who.name ?? '', ct: codeTag(l.accessCode) })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(`${Math.min(MAX_AGE, days * 86400)}s`)
+    .sign(secret());
+  return {
+    name: prospectCookieName(l.id),
+    value: token,
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production' && process.env.INSECURE_COOKIES !== '1',
+    path: '/',
+    maxAge: Math.min(MAX_AGE, days * 86400),
+  };
+}
+
+/** The prospect signed in to this link, if their cookie still matches it. */
+export async function prospectSession(l: PublicLink): Promise<ProspectSession | null> {
+  const raw = cookies().get(prospectCookieName(l.id))?.value;
+  if (!raw) return null;
+  try {
+    const { payload } = await jwtVerify(raw, secret(), { algorithms: ['HS256'] });
+    if (Number(payload.lid) !== l.id || String(payload.ct ?? '') !== codeTag(l.accessCode)) return null;
+    const email = String(payload.em ?? '');
+    // The code was checked when the cookie was made (and is part of it): here, the link's state and the email.
+    if (checkAccess(l, email, l.accessCode) !== 'ok') return null;
+    return { email, name: payload.nm ? String(payload.nm) : null };
+  } catch {
+    return null;
+  }
+}

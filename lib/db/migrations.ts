@@ -440,4 +440,41 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
     name: 'E-Call device price replaced by the system-specific device prices',
     sql: [`DELETE FROM products WHERE sku = 'ECALL-DEVICE'`],
   },
+  {
+    id: 20,
+    name: 'proposal links shared with prospects',
+    sql: [
+      // One link per deal, showing one saved version, for the emails listed (and, optionally, a 6-digit code).
+      `CREATE TABLE share_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        version_id INTEGER NOT NULL REFERENCES quote_versions(id),
+        token TEXT NOT NULL UNIQUE,
+        expires_on TEXT NOT NULL,
+        allow_comments INTEGER NOT NULL DEFAULT 1,
+        allow_pdf INTEGER NOT NULL DEFAULT 1,
+        access_code TEXT,
+        created_by INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        revoked_at TEXT
+      )`,
+      `CREATE INDEX idx_share_links_deal ON share_links(deal_id)`,
+      // Who may open it, and when they did.
+      `CREATE TABLE share_link_emails (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_id INTEGER NOT NULL REFERENCES share_links(id),
+        email TEXT NOT NULL,
+        first_opened_at TEXT,
+        last_opened_at TEXT,
+        views INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (link_id, email)
+      )`,
+      // A prospect's comment (author_id is then the deal's owner, for the joins; prospect_email says who wrote it).
+      // Threads a prospect starts are shared: everyone on the link sees them and the team's replies.
+      `ALTER TABLE proposal_comments ADD COLUMN prospect_email TEXT`,
+      `ALTER TABLE proposal_comments ADD COLUMN prospect_name TEXT`,
+      `ALTER TABLE proposal_comments ADD COLUMN share_link_id INTEGER`,
+    ],
+  },
 ];

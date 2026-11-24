@@ -14,7 +14,8 @@ const BARE = ['/login', '/setup'];
 export function AppShell({ children, user }: { children: React.ReactNode; user: ShellUser | null }) {
   // Sign-in pages stand alone: no app chrome.
   const pathname = usePathname();
-  if (!user || BARE.some((p) => pathname.startsWith(p))) return <>{children}</>;
+  // A proposal link shared with a prospect stands alone too (even for a signed-in rep opening it).
+  if (!user || BARE.some((p) => pathname.startsWith(p)) || pathname.startsWith('/p/')) return <>{children}</>;
   // The proposal is a client-facing document: on desktop it keeps the sidebar beside it (the document scrolls in its
   // own column); on phones and in print it stands alone, with no app chrome, and the window scrolls as before.
   if (pathname.startsWith('/proposal')) {

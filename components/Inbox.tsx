@@ -10,7 +10,9 @@ import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SegGroup } from '@/components/form/SegGroup';
+import { Collapse } from '@/components/form/fields';
 import type { DealNotifications } from '@/lib/data/notifications';
+import type { ProspectNotification } from '@/lib/data/shareLinks';
 import type { Task } from '@/lib/data/tasks';
 import { AuthorPill } from '@/components/quote/PlanNotes';
 import { DueChip, PriorityTag, TaskCheck, TASKS_CHANGED, Who } from '@/components/quote/TasksPanel';
@@ -343,6 +345,14 @@ function NotificationsDrawer({ onClose, onChanged }: { onClose: () => void; onCh
                   () => void read({ quoteId: d.quoteId, plan: [{ kind: u.kind, id: u.id }] }),
                 ),
               )}
+              {d.prospect.map((n) => (
+                <ProspectRow
+                  key={`pr${n.id}`}
+                  n={n}
+                  open={() => go(n.versionId && n.threadId ? `/proposal/${n.versionId}?comment=${n.threadId}` : `/quotes/${d.quoteId}`, { prospect: [n.id] })}
+                  read={() => void read({ prospect: [n.id] })}
+                />
+              ))}
             </ul>
           </section>
         ))}
@@ -350,3 +360,86 @@ function NotificationsDrawer({ onClose, onChanged }: { onClose: () => void; onCh
     </>
   );
 }
+
+/** A prospect's comment on the shared link (reply right here), or their first visit. */
+function ProspectRow({ n, open, read }: { n: ProspectNotification; open: () => void; read: () => void }) {
+  const [reply, setReply] = useState('');
+  const [replying, setReplying] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async () => {
+    if (!reply.trim() || !n.versionId || !n.threadId) return;
+    setSending(true);
+    setError(null);
+    const r = await fetch(`/api/versions/${n.versionId}/comments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ parentId: n.threadId, body: reply }) });
+    setSending(false);
+    if (!r.ok) return setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Couldn’t send. Try again.');
+    setReply('');
+    read();
+  };
+  const tag = <span className="ml-1 rounded-full bg-[#FDF0EE] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.4px] text-[#A63A22] align-middle">Prospect</span>;
+  return (
+    <li className="px-4 py-2.5 bg-[#F5F9FF]">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 w-[22px] h-[22px] flex-shrink-0 rounded-full grid place-items-center text-[11px] font-bold bg-[#FDF0EE] text-[#A63A22]">{n.kind === 'prospect_open' ? '👁' : '💬'}</span>
+        <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
+          {n.kind === 'prospect_open' ? (
+            <>
+              <b>{n.who}</b>
+              {tag} opened your shared proposal
+            </>
+          ) : (
+            <>
+              <b>{n.who}</b>
+              {tag} {n.reply ? 'replied on' : 'commented on'} <b>{n.label}</b>
+            </>
+          )}
+          <span className="block text-[11px] text-teton-ui-gray">{ago(n.createdAt)}</span>
+          {n.body && <p className="mt-1.5 rounded-lg border border-teton-off-white border-l-[3px] border-l-[#D9553F] bg-white px-2.5 py-1.5 text-[12.5px] text-teton-dark-gray whitespace-pre-wrap break-words">{n.body}</p>}
+          {n.kind === 'prospect_comment' && (
+            <Collapse open={replying}>
+              {replying && (
+              <>
+              <div className="mt-2 flex gap-1.5">
+                <textarea
+                  className="flex-1 min-w-0 min-h-[34px] max-h-28 rounded-lg border border-teton-pale-gray px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[#3F8CEA] focus:ring-2 focus:ring-[#3F8CEA]/15 resize-y"
+                  placeholder="Reply… the prospect sees this"
+                  value={reply}
+                  rows={2}
+                  onChange={(e) => setReply(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send();
+                  }}
+                  aria-label={`Reply to ${n.who}`}
+                />
+                <button type="button" className="self-end h-[34px] px-3 rounded-lg bg-teton-ink text-white text-[12px] font-semibold disabled:opacity-50" disabled={sending || !reply.trim()} onClick={() => void send()}>
+                  {sending ? '…' : 'Reply'}
+                </button>
+              </div>
+              {error && <p className="mt-1 text-[11.5px] text-[#B23A26]">{error}</p>}
+              </>
+              )}
+            </Collapse>
+          )}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {n.kind === 'prospect_comment' && !replying && (
+              <button type="button" className="rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] font-semibold text-teton-ink hover:bg-teton-almost-white" onClick={() => setReplying(true)}>
+                Reply
+              </button>
+            )}
+            {n.kind === 'prospect_comment' && (
+              <button type="button" className="rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-teton-almost-white" onClick={open}>
+                Open in proposal ↗
+              </button>
+            )}
+            <button type="button" className="rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-teton-almost-white" onClick={read}>
+              Read
+            </button>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+

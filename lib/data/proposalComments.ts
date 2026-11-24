@@ -20,6 +20,8 @@ export interface ProposalComment {
   draft: boolean;
   mine: boolean;
   canDelete: boolean;
+  /** Written by a prospect on a shared link: their email (else null). */
+  prospect: string | null;
 }
 export type CommentArea = 'deliverable' | 'inputs' | 'task';
 const areaOf = (v: unknown): CommentArea => (v === 'inputs' || v === 'task' ? v : 'deliverable');
@@ -36,6 +38,8 @@ export interface CommentThread extends ProposalComment {
   replies: ProposalComment[];
   /** The viewer may resolve or reopen it. */
   canResolve: boolean;
+  /** Started by a prospect on the deal's shared link: they (and the team's replies) see it there. */
+  shareLinkId: number | null;
 }
 export interface MentionItem {
   id: number;
@@ -77,22 +81,39 @@ async function dealOfVersion(db: Client, versionId: number) {
   return { dealId: Number(r.rows[0].deal_id), versionNo: Number(r.rows[0].version_no), ownerId: r.rows[0].owner_id == null ? null : Number(r.rows[0].owner_id) };
 }
 
-const toComment = (r: Row, v: Viewer): ProposalComment => ({
-  id: Number(r.id),
-  body: String(r.body),
-  author: person(r.author_id, r.author_name),
-  mentions: ids(r.mentions),
-  createdAt: String(r.created_at),
-  updatedAt: String(r.updated_at),
-  versionNo: r.version_no == null ? null : Number(r.version_no),
-  draft: r.area === 'inputs' && r.version_no == null,
-  mine: Number(r.author_id) === v.id,
-  canDelete: Number(r.author_id) === v.id || v.role === 'admin',
-});
+const toComment = (r: Row, v: Viewer): ProposalComment => {
+  // A prospect's comment: stored under the deal's owner (author_id), written by the email it notes.
+  const prospect = r.prospect_email == null ? null : String(r.prospect_email);
+  const who = prospect ? String(r.prospect_name || prospect) : '';
+  return {
+    id: Number(r.id),
+    body: String(r.body),
+    author: prospect ? { id: 0, name: who, initials: initialsOf(who.replace(/@.*/, '').replace(/[._-]+/g, ' ')) } : person(r.author_id, r.author_name),
+    mentions: ids(r.mentions),
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+    versionNo: r.version_no == null ? null : Number(r.version_no),
+    draft: r.area === 'inputs' && r.version_no == null,
+    mine: !prospect && Number(r.author_id) === v.id,
+    canDelete: prospect ? v.role === 'admin' : Number(r.author_id) === v.id || v.role === 'admin',
+    prospect,
+  };
+};
 
 /** The business case's threads (newest first), opened from one of the deal's versions. */
 export async function listComments(db: Client, versionId: number, v: Viewer): Promise<CommentThread[]> {
   return (await threadsOf(db, await dealOfVersion(db, versionId), v)).filter((t) => t.area === 'deliverable');
+}
+
+/**
+ * What a prospect sees on a shared link: the threads started on that link and every reply in them (the team's
+ * included). Nothing to edit, delete or resolve from there.
+ */
+export async function listSharedThreads(db: Client, versionId: number, linkId: number): Promise<CommentThread[]> {
+  const prospectViewer: Viewer = { id: -1, role: 'prospect' } as Viewer;
+  return (await threadsOf(db, await dealOfVersion(db, versionId), prospectViewer))
+    .filter((t) => t.area === 'deliverable' && t.shareLinkId === linkId)
+    .map((t) => ({ ...t, canResolve: false, canDelete: false, mine: false, replies: t.replies.map((c) => ({ ...c, canDelete: false, mine: false })) }));
 }
 
 /** Every thread on the deal, inputs and business case (newest first). */
@@ -125,6 +146,7 @@ async function threadsOf(db: Client, { dealId, ownerId }: DealCtx, v: Viewer): P
         resolvedBy: x.resolved_by == null ? null : person(x.resolved_by, x.resolved_by_name),
         replies: reps,
         canResolve: root.mine || ownerId === v.id || mentioned,
+        shareLinkId: x.share_link_id == null ? null : Number(x.share_link_id),
       };
     })
     .reverse();
@@ -192,8 +214,11 @@ async function insertComment(db: Client, at: { dealId: number; versionId: number
     sql: `INSERT INTO proposal_comments (deal_id, version_id, version_no, parent_id, page, block, target_label, body, mentions, author_id, area) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     args: [dealId, versionId, versionNo, parentId, page, block, label, body, JSON.stringify(mentions), v.id, area],
   });
-  // A reply reopens a resolved thread.
-  if (parentId != null) await db.execute({ sql: 'UPDATE proposal_comments SET resolved_at = NULL, resolved_by = NULL WHERE id = ?', args: [parentId] });
+  // A reply reopens a resolved thread, and goes where its thread is (a prospect's shared thread: they see it).
+  if (parentId != null) {
+    await db.execute({ sql: 'UPDATE proposal_comments SET resolved_at = NULL, resolved_by = NULL WHERE id = ?', args: [parentId] });
+    await db.execute({ sql: 'UPDATE proposal_comments SET share_link_id = (SELECT share_link_id FROM proposal_comments WHERE id = ?) WHERE id = ?', args: [parentId, Number(r.rows[0].id)] });
+  }
   return Number(r.rows[0].id);
 }
 
@@ -213,7 +238,7 @@ async function commentRow(db: Client, scope: CommentScope | number, id: number) 
 /** The author edits their comment (text and who it mentions). */
 export async function editComment(db: Client, versionId: number | CommentScope, id: number, input: { body?: string; mentions?: number[] }, v: Viewer): Promise<void> {
   const { row } = await commentRow(db, versionId, id);
-  if (Number(row.author_id) !== v.id) throw httpError('Only the author can edit this comment', 403);
+  if (row.prospect_email != null || Number(row.author_id) !== v.id) throw httpError('Only the author can edit this comment', 403);
   const body = text(input.body, 4000);
   if (!body) throw httpError('A comment needs some text', 400);
   const mentions = input.mentions === undefined ? ids(row.mentions) : ids(input.mentions).filter((x) => x !== v.id);
@@ -233,7 +258,7 @@ export async function resolveThread(db: Client, versionId: number | CommentScope
 /** Its author or an admin deletes a comment (a thread goes with its replies). */
 export async function deleteComment(db: Client, versionId: number | CommentScope, id: number, v: Viewer): Promise<void> {
   const { row } = await commentRow(db, versionId, id);
-  if (Number(row.author_id) !== v.id && v.role !== 'admin') throw httpError('Only the author or an admin can delete this comment', 403);
+  if ((row.prospect_email != null || Number(row.author_id) !== v.id) && v.role !== 'admin') throw httpError('Only the author or an admin can delete this comment', 403);
   await db.execute({ sql: 'DELETE FROM comment_reads WHERE comment_id IN (SELECT id FROM proposal_comments WHERE id = ? OR parent_id = ?)', args: [id, id] });
   await db.execute({ sql: 'DELETE FROM proposal_comments WHERE id = ? OR parent_id = ?', args: [id, id] });
 }

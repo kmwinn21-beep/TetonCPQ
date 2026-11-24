@@ -65,9 +65,10 @@ function showTarget(page: string | null, block: string | null) {
   setTimeout(() => el.classList.remove('bc-flash'), 1600);
 }
 
-export function CommentsProvider({ versionId, versionNo, quoteId, children }: { versionId: number; versionNo: number; quoteId: number; children: React.ReactNode }) {
+export function CommentsProvider({ versionId, versionNo, quoteId, prospect = null, children }: { versionId: number; versionNo: number; quoteId: number; /** A prospect on a shared link: their API (by the link's token), and whether they may comment. */ prospect?: { token: string; allowComments: boolean } | null; children: React.ReactNode }) {
   const { layout } = useProposalText();
-  const enabled = layout.format === 'businessCase';
+  const enabled = prospect ? prospect.allowComments : layout.format === 'businessCase';
+  const base = prospect ? `/api/share/${prospect.token}/comments` : `/api/versions/${versionId}/comments`;
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [me, setMe] = useState<number | null>(null);
@@ -78,7 +79,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, children }: { 
   const call = useCallback(
     async (path: string, init?: RequestInit) => {
       setError(null);
-      const r = await fetch(`/api/versions/${versionId}/comments${path}`, { ...init, headers: { 'content-type': 'application/json' } });
+      const r = await fetch(`${base}${path}`, { ...init, headers: { 'content-type': 'application/json' } });
       const j = (await r.json().catch(() => ({}))) as { threads?: CommentThread[]; people?: Person[]; me?: number; error?: string; id?: number };
       if (!r.ok) {
         setError(j.error ?? 'Something went wrong. Try again.');
@@ -89,7 +90,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, children }: { 
       if (j.me != null) setMe(j.me);
       return j;
     },
-    [versionId],
+    [base],
   );
 
   useEffect(() => {
@@ -125,6 +126,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, children }: { 
           people={people}
           me={me}
           versionNo={versionNo}
+          audience={prospect ? 'prospect' : 'team'}
           error={error}
           onAdd={async (body, target, parentId) => {
             const j = await call('', { method: 'POST', body: JSON.stringify({ body, mentions: mentionsIn(body, people), parentId, page: target?.page ?? null, block: target?.block ?? null, label: target?.label }) });
@@ -215,6 +217,8 @@ export interface ThreadOps {
   onShow?: (t: CommentThread) => void;
   /** A small tag at the start of the thread (e.g. "Inputs"). */
   tag?: (t: CommentThread) => React.ReactNode;
+  /** Who's reading: the team (prospects' comments tagged), or a prospect on a shared link (the team's tagged). */
+  audience?: 'team' | 'prospect';
 }
 interface DrawerProps {
   state: { target?: CommentTarget; threadId?: number } | null;
@@ -223,6 +227,7 @@ interface DrawerProps {
   people: Person[];
   me: number | null;
   versionNo: number;
+  audience?: 'team' | 'prospect';
   error: string | null;
   onAdd: (body: string, target: CommentTarget | undefined, parentId?: number) => Promise<number | null>;
   onEdit: (id: number, body: string) => Promise<boolean>;
@@ -319,7 +324,7 @@ function CommentsDrawer(p: DrawerProps) {
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           <BubbleIcon />
           <h2 className="font-semibold">Comments</h2>
-          <span className="text-xs text-teton-ui-gray">on this deal’s business case</span>
+          <span className="text-xs text-teton-ui-gray truncate">{p.audience === 'prospect' ? 'seen by you, the others it’s shared with, and Teton' : 'on this deal’s business case'}</span>
           <button type="button" className="ml-auto w-8 h-8 rounded-md text-teton-ui-gray hover:bg-teton-almost-white" aria-label="Close comments" onClick={p.onClose}>
             ✕
           </button>
@@ -346,7 +351,7 @@ function CommentsDrawer(p: DrawerProps) {
                 people={p.people}
                 me={p.me}
                 autoFocus
-                placeholder="Add a comment… type @ to tag someone"
+                placeholder={p.audience === 'prospect' ? 'Add a comment…' : 'Add a comment… type @ to tag someone'}
                 submitLabel="Comment"
                 onCancel={p.clearTarget}
                 onSubmit={async (body) => {
@@ -364,7 +369,7 @@ function CommentsDrawer(p: DrawerProps) {
         <div ref={list} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {!visible.length && (
             <p className="px-4 py-8 text-center text-sm text-teton-ui-gray">
-              {picked.length ? 'No comments on the picked pages.' : filter === 'resolved' ? 'Nothing resolved yet.' : p.threads.length ? 'No open comments.' : 'No comments yet. Hover a page or section and click 💬, or comment on the whole proposal below.'}
+              {picked.length ? 'No comments on the picked pages.' : filter === 'resolved' ? 'Nothing resolved yet.' : p.threads.length ? 'No open comments.' : p.audience === 'prospect' ? 'No comments yet. Click Comment, then a page or section, or comment on the whole proposal below.' : 'No comments yet. Hover a page or section and click 💬, or comment on the whole proposal below.'}
             </p>
           )}
           {keys.map((k) => (
@@ -413,6 +418,11 @@ export function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: Thread
             {spot}
           </button>
         )}
+        {p.audience !== 'prospect' && t.shareLinkId != null && (
+          <span className="flex-shrink-0 rounded-full bg-[#FDF0EE] px-1.5 py-px text-[10px] font-semibold text-[#A63A22]" title="Started by a prospect on the shared link: they see this thread and the replies">
+            Prospect sees this
+          </span>
+        )}
         {t.resolvedAt && <span className="flex-shrink-0 rounded-full bg-teton-pale-green px-1.5 py-px text-[10px] font-semibold text-[#256B41]">✓ Resolved{t.resolvedBy ? ` by ${t.resolvedBy.name.split(' ')[0]}` : ''}</span>}
         <span className="ml-auto" />
         {ro && (
@@ -444,7 +454,7 @@ export function Thread({ t, p, focused, onFocus }: { t: CommentThread; p: Thread
               me={p.me}
               autoFocus
               compact
-              placeholder="Reply… type @ to tag someone"
+              placeholder={p.audience === 'prospect' ? 'Reply…' : t.shareLinkId != null ? 'Reply… the prospect sees this' : 'Reply… type @ to tag someone'}
               submitLabel="Reply"
               onCancel={() => setReplying(false)}
               onSubmit={async (body) => {
@@ -474,8 +484,10 @@ function CommentBody({ c, p }: { c: ProposalComment; p: ThreadOps }) {
       <div className="flex items-center gap-1.5 text-[11px] text-teton-ui-gray">
         <AuthorPill person={c.author} />
         <b className="font-semibold text-teton-ink truncate">{c.author.name}</b>
+        {p.audience !== 'prospect' && c.prospect && <span className="flex-shrink-0 rounded-full bg-[#FDF0EE] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.4px] text-[#A63A22]">Prospect</span>}
+        {p.audience === 'prospect' && !c.prospect && <span className="flex-shrink-0 rounded-full bg-[#EEF8F1] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.4px] text-[#1F6B3A]">Teton</span>}
         <span className="flex-shrink-0">{ago(c.createdAt)}</span>
-        {c.versionNo != null && (
+        {c.versionNo != null && p.audience !== 'prospect' && (
           <span className={`flex-shrink-0 rounded px-1 py-px text-[9.5px] font-semibold ${other ? 'bg-[#FFF1DC] text-[#8A5A00]' : 'bg-teton-almost-white text-teton-ui-gray'}`} title={other ? `Made on version ${c.versionNo}; you’re viewing v${p.versionNo}` : `Made on this version (v${c.versionNo})`}>
             on v{c.versionNo}
           </span>
