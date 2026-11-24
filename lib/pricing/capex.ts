@@ -133,7 +133,7 @@ export interface CapexResult {
 export const isEquipmentCapex = (c: unknown): c is Omit<CapexResult, 'trace'> => !!c && typeof c === 'object' && (c as { model?: string }).model === 'equipment';
 
 /** Renewals inside the ownership period: one each time the term ends before the period does. */
-const renewalsWithin = (months: number, years: number) => Math.max(0, Math.ceil(months / (years * 12)) - 1);
+export const renewalsWithin = (months: number, years: number) => Math.max(0, Math.ceil(months / (years * 12)) - 1);
 
 export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY.capexOwnershipMonths): CapexResult {
   const pricing: CapexPricing = { ...DEFAULT_CAPEX_PRICING, ...(draft.commercial.capex ?? {}) };
