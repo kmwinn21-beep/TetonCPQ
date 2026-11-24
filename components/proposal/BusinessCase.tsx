@@ -1052,36 +1052,100 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const foldAreas = layout.bcSiteAreas === 'fold';
     const anyAreas = scopeSites.some((x) => x.areas.length);
     const cardsMode = scopeMode === 'both' ? layout.bcSiteCards ?? 'both' : scopeMode;
-    const nCols = 3 + (hasMon ? 3 : 0) + (hasEc ? 2 : 0);
+    // With Resident Monitoring: one "Per room" column (sensor dots, then E-Call device dots) and a legend; the totals
+    // sit in the table (default) or in a strip above it, condensed or expanded (split by community).
+    const perRoomOne = hasMon;
+    const totalsOut = hasMon && !!layout.bcSiteTotals;
+    const nCols = 3 + (perRoomOne ? 1 : (hasMon ? 1 : 0) + (hasEc ? 1 : 0)) + (totalsOut ? 0 : (hasMon ? 2 : 0) + (hasEc ? 1 : 0));
     type Cells = { sp?: number; dp?: number; s?: number | null; e?: number | null; dv?: number | null };
     const dots = (n: number, co = false) => (
       <>
         <span className={`bc-dots ${co ? 'bc-dots-co' : ''}`} aria-hidden="true">{'●'.repeat(Math.min(n, 6))}</span> {n}
       </>
     );
+    const perRoomCell = (r: Cells) =>
+      hasEc ? (
+        <span className="bc-pr">
+          <span>{r.sp ? dots(r.sp) : <span className="bc-quiet">–</span>}</span>
+          <span className="bc-pr-sep" aria-hidden="true" />
+          <span>{r.dp ? dots(r.dp, true) : <span className="bc-quiet">–</span>}</span>
+        </span>
+      ) : r.sp ? (
+        dots(r.sp)
+      ) : (
+        '–'
+      );
     const cells = (r: Cells) => (
       <>
-        {hasMon && <td className="bc-r">{r.sp ? dots(r.sp) : '–'}</td>}
-        {hasEc && <td className="bc-r">{r.dp ? dots(r.dp, true) : '–'}</td>}
-        {hasMon && <td className={`bc-hl bc-r ${r.s != null ? 'bc-big' : ''}`}>{r.s != null ? count(r.s) : '–'}</td>}
-        {hasMon && <td className={`bc-hl2 bc-r ${r.e != null ? 'bc-big' : ''}`}>{r.e != null ? count(r.e) : '–'}</td>}
-        {hasEc && <td className={`bc-hl3 bc-r ${r.dv != null ? 'bc-big' : ''}`}>{r.dv != null ? count(r.dv) : '–'}</td>}
+        {perRoomOne ? (
+          <td className="bc-r">{r.sp || r.dp ? perRoomCell(r) : '–'}</td>
+        ) : (
+          <>
+            {hasMon && <td className="bc-r">{r.sp ? dots(r.sp) : '–'}</td>}
+            {hasEc && <td className="bc-r">{r.dp ? dots(r.dp, true) : '–'}</td>}
+          </>
+        )}
+        {!totalsOut && (
+          <>
+            {hasMon && <td className={`bc-hl bc-r ${r.s != null ? 'bc-big' : ''}`}>{r.s != null ? count(r.s) : '–'}</td>}
+            {hasMon && <td className={`bc-hl2 bc-r ${r.e != null ? 'bc-big' : ''}`}>{r.e != null ? count(r.e) : '–'}</td>}
+            {hasEc && <td className={`bc-hl3 bc-r ${r.dv != null ? 'bc-big' : ''}`}>{r.dv != null ? count(r.dv) : '–'}</td>}
+          </>
+        )}
       </>
     );
     // Totals of what the table lists.
     const tot = { rooms: 0, s: 0, e: 0, dv: 0 };
-    for (const x of scopeSites) {
+    // And by community, for the expanded totals strip.
+    const siteTot = scopeSites.map((x) => {
+      const st = { name: d.perCommunity[x.i]?.name || x.c.name, s: 0, e: 0, dv: 0 };
       for (const t of x.types) {
         tot.rooms += t.rooms;
         if (x.p[bedKeyOf(t)].monitoring) {
-          tot.s += t.rooms * t.sensors;
-          tot.e += t.rooms;
+          st.s += t.rooms * t.sensors;
+          st.e += t.rooms;
         }
       }
       if (!x.types.length) tot.rooms += x.pend.rooms;
-      tot.s += x.mon.allowance;
-      tot.dv += x.pend.total;
-    }
+      st.s += x.mon.allowance;
+      st.dv += x.pend.total;
+      tot.s += st.s;
+      tot.e += st.e;
+      tot.dv += st.dv;
+      return st;
+    });
+    const totalsStrip = () => {
+      const expanded = layout.bcSiteTotals === 'expanded' && multi;
+      const items: Array<{ k: 's' | 'e' | 'dv'; icon: React.ReactNode; label: React.ReactNode; v: number }> = [
+        ...(hasMon
+          ? [
+              { k: 's' as const, icon: <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>, label: <T k="bc.site.tot.sensors" d="Sensors" />, v: tot.s },
+              { k: 'e' as const, icon: <svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" /></svg>, label: <T k="bc.site.tot.edge" d="Edge units" />, v: tot.e },
+            ]
+          : []),
+        ...(hasEc ? [{ k: 'dv' as const, icon: <svg viewBox="0 0 24 24"><path d="M12 3v9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><circle cx="12" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="2" /></svg>, label: <T k={`bc.site.tot.dev.${inov ? 'cords' : 'pend'}`} d={DEV.Many} />, v: tot.dv }] : []),
+      ];
+      return (
+        <div className={`bc-sitetot ${expanded ? 'bc-sitetot-x' : ''}`} style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+          {items.map((it) => (
+            <div key={it.k} className={`bc-sitetot-c bc-sitetot-${it.k}`}>
+              <div className="bc-sitetot-top">
+                <span className="bc-sitetot-ic" aria-hidden="true">{it.icon}</span>
+                <b className="bc-sitetot-v">{count(it.v)}</b>
+                <span className="bc-sitetot-k">{it.label}</span>
+              </div>
+              {expanded && (
+                <ul className="bc-sitetot-by">
+                  {siteTot.map((st, i) => (
+                    <li key={i}><span>{st.name}</span><b>{st[it.k] ? count(st[it.k]) : '–'}</b></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    };
     const titleVars = { rooms: count(scopeMode === 'ecall' ? ecRooms : roomsTotal), sensors: count(sensorsTotal), devices: count(devTotal), dev: DEV.many };
     defs.sitescope = (no) => (
       <Page key="sitescope" no={no} crumb={<T k="bc.site.crumb" d="Scope" />}>
@@ -1199,6 +1263,16 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   value={careShort ? 'short' : 'full'}
                   onChange={(v) => setLayout((l) => ({ ...l, bcSiteCare: v }))}
                 />
+                {hasMon && (
+                  <ViewSwitch
+                    field="bcSiteTotals"
+                    position="relative"
+                    label="Totals"
+                    options={[['table', 'Totals: In table'], ['condensed', 'Condensed'], ...(multi ? [['expanded', 'Expanded'] as const] : [])] as ReadonlyArray<readonly ['table' | 'condensed' | 'expanded', string]>}
+                    value={layout.bcSiteTotals === 'expanded' && multi ? 'expanded' : layout.bcSiteTotals === 'condensed' || layout.bcSiteTotals === 'expanded' ? 'condensed' : 'table'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcSiteTotals: v === 'table' ? undefined : v }))}
+                  />
+                )}
                 {anyAreas && (
                   <ViewSwitch
                     field="bcSiteAreas"
@@ -1211,19 +1285,34 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 )}
               </div>
             )}
-            <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
-            <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${hasMon && hasEc ? 'bc-site-8' : ''} ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
+            <div className="bc-site-eb">
+              <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
+              {perRoomOne && (
+                <span className="bc-site-leg">
+                  <span><span className="bc-dots" aria-hidden="true">●</span> <T k="bc.site.leg.sensors" d="Sensors" /></span>
+                  {hasEc && <span><span className="bc-dots bc-dots-co" aria-hidden="true">●</span> <T k={`bc.site.leg.dev.${inov ? 'cords' : 'pend'}`} d={DEV.Many} /></span>}
+                </span>
+              )}
+            </div>
+            {totalsOut && totalsStrip()}
+            <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${hasMon && hasEc && !totalsOut ? 'bc-site-8' : ''} ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
               <RTable>
                 <thead>
                   <tr>
                     <th>Room type</th>
                     <th>Care</th>
                     <th className="bc-r">Rooms</th>
-                    {hasMon && <th className="bc-r">Sensors/rm</th>}
-                    {hasEc && <th className="bc-r">{DEV.rm}</th>}
-                    {hasMon && <th className="bc-hl bc-r">Sensors</th>}
-                    {hasMon && <th className="bc-hl2 bc-r">Edge units</th>}
-                    {hasEc && <th className="bc-hl3 bc-r">{DEV.Many}</th>}
+                    {perRoomOne ? (
+                      <th className="bc-r"><T k="bc.site.perRoom" d="Per room" /></th>
+                    ) : (
+                      <>
+                        {hasMon && <th className="bc-r">Sensors/rm</th>}
+                        {hasEc && <th className="bc-r">{DEV.rm}</th>}
+                      </>
+                    )}
+                    {!totalsOut && hasMon && <th className="bc-hl bc-r">Sensors</th>}
+                    {!totalsOut && hasMon && <th className="bc-hl2 bc-r">Edge units</th>}
+                    {!totalsOut && hasEc && <th className="bc-hl3 bc-r">{DEV.Many}</th>}
                   </tr>
                 </thead>
                 <RTbody id="site" name="Rooms by type">
@@ -1277,7 +1366,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                                 </tr>
                               )),
                             ])}
-                      {(x.mon.allowance > 0 || x.pend.allowance > 0) && (
+                      {!totalsOut && (x.mon.allowance > 0 || x.pend.allowance > 0) && (
                         <tr key="allow">
                           <td className="bc-m bc-quiet">
                             Site-conditions allowance
@@ -1302,11 +1391,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <td className="bc-m">Total</td>
                     <td />
                     <td className="bc-r">{count(tot.rooms)}</td>
-                    {hasMon && <td />}
-                    {hasEc && <td />}
-                    {hasMon && <td className="bc-hl bc-big bc-r">{count(tot.s)}</td>}
-                    {hasMon && <td className="bc-hl2 bc-big bc-r">{count(tot.e)}</td>}
-                    {hasEc && <td className="bc-hl3 bc-big bc-r">{count(tot.dv)}</td>}
+                    {perRoomOne ? <td /> : (
+                      <>
+                        {hasMon && <td />}
+                        {hasEc && <td />}
+                      </>
+                    )}
+                    {!totalsOut && hasMon && <td className="bc-hl bc-big bc-r">{count(tot.s)}</td>}
+                    {!totalsOut && hasMon && <td className="bc-hl2 bc-big bc-r">{count(tot.e)}</td>}
+                    {!totalsOut && hasEc && <td className="bc-hl3 bc-big bc-r">{count(tot.dv)}</td>}
                   </tr>
                 </RTbody>
               </RTable>
