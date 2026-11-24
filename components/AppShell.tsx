@@ -9,12 +9,26 @@ import { Sidebar, type ShellUser } from './Sidebar';
 import { MobileMenu } from './MobileMenu';
 import { InboxProvider } from './Inbox';
 
-const BARE = ['/proposal', '/login', '/setup'];
+const BARE = ['/login', '/setup'];
 
 export function AppShell({ children, user }: { children: React.ReactNode; user: ShellUser | null }) {
-  // The proposal is a client-facing document, and sign-in pages stand alone: no app chrome.
+  // Sign-in pages stand alone: no app chrome.
   const pathname = usePathname();
   if (!user || BARE.some((p) => pathname.startsWith(p))) return <>{children}</>;
+  // The proposal is a client-facing document: on desktop it keeps the sidebar beside it (the document scrolls in its
+  // own column); on phones and in print it stands alone, with no app chrome, and the window scrolls as before.
+  if (pathname.startsWith('/proposal')) {
+    return (
+      <InboxProvider>
+        <div className="lg:flex lg:h-screen lg:supports-[height:100dvh]:h-dvh lg:overflow-hidden print:block print:h-auto print:overflow-visible">
+          <div className="hidden lg:flex print:hidden">
+            <Sidebar user={user} />
+          </div>
+          <main className="lg:flex-1 lg:min-w-0 lg:overflow-y-auto print:overflow-visible">{children}</main>
+        </div>
+      </InboxProvider>
+    );
+  }
   return (
     <InboxProvider>
     <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden">
