@@ -51,6 +51,8 @@ interface Layout {
   after?: string;
   sentBy?: string | null;
   footer: string;
+  /** Tag the parts a rep can edit (data-part="intro" / "name" / "note"), for the Share dialog's live preview. */
+  marks?: boolean;
 }
 
 function layout(l: Layout): string {
@@ -69,7 +71,7 @@ function layout(l: Layout): string {
 <tr><td style="font:700 19px ${FONT};color:${C.ink}"><img src="${l.baseUrl}/teton-logo.png" width="24" height="24" alt="" style="vertical-align:-5px;margin-right:8px;border:0">Teton</td></tr>
 <tr><td style="padding:26px 0 6px;font:800 10.5px ${FONT};letter-spacing:2.5px;text-transform:uppercase;color:${C.coral}">${esc(l.eyebrow)}</td></tr>
 <tr><td style="font:600 23px/1.25 ${FONT};color:${C.ink}">${esc(l.heading)}</td></tr>
-<tr><td style="padding-top:10px;font:400 15px/1.55 ${FONT};color:${C.body}">${para(l.lede)}</td></tr>
+<tr><td${l.marks ? ' data-part="intro"' : ''} style="padding-top:10px;font:400 15px/1.55 ${FONT};color:${C.body}">${para(l.lede)}</td></tr>
 ${l.body}
 ${l.cta ? `<tr><td align="center" style="padding-top:24px"><a href="${esc(l.cta.url)}" style="display:inline-block;background:${C.ink};color:#ffffff;text-decoration:none;font:600 14.5px ${FONT};padding:13px 28px;border-radius:11px">${esc(l.cta.label)}</a></td></tr>` : ''}
 ${l.after ?? ''}
@@ -99,6 +101,8 @@ export interface ShareEmailInput {
   allowPdf: boolean;
   verify: boolean;
   expiresOn: string;
+  /** For the live preview: tag the editable parts. */
+  marks?: boolean;
 }
 export function shareEmail(i: ShareEmailInput) {
   const lede = fillIntro(i.intro, i.first);
@@ -109,10 +113,10 @@ export function shareEmail(i: ShareEmailInput) {
     ...(i.allowPdf ? [['⤓', 'Download a PDF']] : []),
   ];
   const body =
-    (note ? box(`<div style="background:#FBF8F3;border-left:3px solid ${C.coral};border-radius:12px;padding:14px 16px"><div style="font:700 11px ${FONT};letter-spacing:.8px;text-transform:uppercase;color:${C.muted};padding-bottom:4px">A note from ${esc(firstWord(i.repName))}</div><div style="font:400 14px/1.55 ${FONT};color:#2A2F36">${para(note)}</div></div>`) : '') +
+    (note ? box(`<div${i.marks ? ' data-part="note"' : ''} style="background:#FBF8F3;border-left:3px solid ${C.coral};border-radius:12px;padding:14px 16px"><div style="font:700 11px ${FONT};letter-spacing:.8px;text-transform:uppercase;color:${C.muted};padding-bottom:4px">A note from ${esc(firstWord(i.repName))}</div><div style="font:400 14px/1.55 ${FONT};color:#2A2F36">${para(note)}</div></div>`) : '') +
     box(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${C.line};border-radius:12px"><tr>
       <td style="padding:14px 0 14px 16px;width:62px"><img src="${i.baseUrl}/email-proposal.png" width="62" height="80" alt="" style="display:block;border:0;border-radius:6px"></td>
-      <td style="padding:14px 16px;font:600 15px/1.35 ${FONT};color:${C.ink}">${esc(i.proposalName)}${i.preparedOn ? `<div style="font:400 12.5px ${FONT};color:#6B7380;padding-top:3px">Prepared ${esc(longDay(i.preparedOn))}</div>` : ''}</td></tr></table>`) +
+      <td${i.marks ? ' data-part="name"' : ''} style="padding:14px 16px;font:600 15px/1.35 ${FONT};color:${C.ink}">${esc(i.proposalName)}${i.preparedOn ? `<div style="font:400 12.5px ${FONT};color:#6B7380;padding-top:3px">Prepared ${esc(longDay(i.preparedOn))}</div>` : ''}</td></tr></table>`) +
     box(can.map(([ic, t]) => `<div style="font:400 13.5px/1.5 ${FONT};color:#3A3F47;padding-top:6px"><span style="display:inline-block;width:20px;color:${C.blue}">${ic}</span>${esc(t)}</div>`).join(''), 14);
   const after = accessNote([
     `To open it, enter this email: <b style="color:${C.ink}">${esc(i.email)}</b>.${i.verify ? ' We’ll email you a 6-digit code to confirm it’s you.' : ''}`,
@@ -129,6 +133,7 @@ export function shareEmail(i: ShareEmailInput) {
     cta: { label: 'Open the proposal', url: i.url },
     after,
     sentBy: i.repName,
+    marks: i.marks,
     footer: `You’re getting this because ${esc(i.repName)} at Teton shared a proposal with this address.<br>Questions? Reply to this email to reach ${esc(firstWord(i.repName))}.`,
   });
   const text = [

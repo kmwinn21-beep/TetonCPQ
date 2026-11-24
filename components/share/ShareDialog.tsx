@@ -6,8 +6,10 @@
  * default). Then the email they get: the proposal's name, the opening line ("Hey {first name} - …") and a note, sent
  * from here. The link to copy, who was emailed and who opened it, and a way to turn it off.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
+import { SegGroup } from '@/components/form/SegGroup';
+import { EmailPreview, type EmailPart } from './EmailPreview';
 import type { ShareLink } from '@/lib/data/shareLinks';
 
 const DEFAULT_INTRO = 'Hey {first name} - here is your proposal from Teton!';
@@ -75,6 +77,12 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // The email preview: beside the form on wide screens, a second tab on narrower ones.
+  const [me, setMe] = useState({ name: '', email: '' });
+  const [from, setFrom] = useState('tetonproposals@useparlay.app');
+  const [preparedOn, setPreparedOn] = useState<string | null>(null);
+  const [focus, setFocus] = useState<EmailPart | null>(null);
+  const [tab, setTab] = useState<'form' | 'preview'>('form');
 
   const fill = (l: ShareLink | null, deal = dealName) => {
     setLink(l);
@@ -94,10 +102,13 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
     setEmailOpen(l.people.some((x) => !x.emailedAt));
   };
   useEffect(() => {
-    void fetch(`/api/quotes/${quoteId}/share`, { cache: 'no-store' })
+    void fetch(`/api/quotes/${quoteId}/share?version=${versionId}`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((j: { link: ShareLink | null; canEdit?: boolean; dealName?: string }) => {
+      .then((j: { link: ShareLink | null; canEdit?: boolean; dealName?: string; me?: { name: string; email: string }; from?: string; preparedOn?: string | null }) => {
         setDealName(j.dealName ?? '');
+        if (j.me) setMe(j.me);
+        if (j.from) setFrom(j.from);
+        setPreparedOn(j.preparedOn ?? null);
         fill(j.link, j.dealName ?? '');
         setCanEdit(j.canEdit !== false);
         setLoaded(true);
@@ -228,13 +239,20 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
   const label = 'mb-1.5 text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray';
   const field = 'w-full rounded-[10px] border border-[#D5D9DE] px-3 text-[13px] outline-none focus:border-[#3F8CEA] focus:ring-[3px] focus:ring-[#3F8CEA]/15 disabled:bg-teton-almost-white';
   const firstOf = (p: Person) => p.name.trim().split(/\s+/)[0] || 'there';
+  const previewEmail = useMemo(
+    () => ({ url: url || `${typeof window === 'undefined' ? '' : window.location.origin}/p/…`, proposalName: proposalName.trim() || `${dealName} proposal`.trim(), intro, note, preparedOn, allowComments, allowPdf, verify: verifyEmail, expiresOn }),
+    [url, proposalName, dealName, intro, note, preparedOn, allowComments, allowPdf, verifyEmail, expiresOn],
+  );
+  const preview = <EmailPreview people={people} repName={me.name} replyTo={me.email} from={from} focus={focus} email={previewEmail} />;
+  const focusOn = (part: EmailPart) => ({ onFocus: () => setFocus(part), onBlur: () => setFocus((f) => (f === part ? null : f)) });
 
   return (
     <div className="no-print fixed inset-0 z-[90] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Share this proposal" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div className={`absolute inset-0 bg-black/45 transition-opacity duration-200 motion-reduce:transition-none ${closing ? 'opacity-0' : 'opacity-100 [animation:fadeIn_.2s_ease-out]'}`} onClick={close} />
       <div
-        className={`relative w-full sm:w-[600px] max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-white text-teton-ink shadow-[0_24px_60px_rgba(0,0,0,.3)] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${closing ? 'opacity-0 translate-y-3' : 'max-sm:[animation:sheetUp_.25s_ease-out] sm:[animation:fadeScale_.2s_ease-out] motion-reduce:[animation:none]'}`}
+        className={`relative w-full sm:w-[600px] min-[1180px]:w-[1140px] max-h-[92dvh] min-[1180px]:h-[88dvh] flex rounded-t-2xl sm:rounded-2xl bg-white text-teton-ink shadow-[0_24px_60px_rgba(0,0,0,.3)] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${closing ? 'opacity-0 translate-y-3' : 'max-sm:[animation:sheetUp_.25s_ease-out] sm:[animation:fadeScale_.2s_ease-out] motion-reduce:[animation:none]'}`}
       >
+        <div className="flex flex-col min-w-0 flex-1 min-[1180px]:flex-none min-[1180px]:w-[600px]">
         <div className="flex items-start gap-3 px-5 sm:px-6 pt-5 pb-3.5 border-b border-teton-off-white">
           <div className="min-w-0">
             <h2 className="text-[17px] font-bold">Share this proposal</h2>
@@ -246,10 +264,24 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
             ✕
           </button>
         </div>
+        {loaded && (
+          <div className="min-[1180px]:hidden px-5 sm:px-6 pt-3">
+            <SegGroup className="relative flex rounded-[10px] bg-teton-almost-white p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Settings or email preview">
+              {(['form', 'preview'] as const).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={tab === t} onClick={() => setTab(t)} className={`relative z-[1] flex-1 h-8 rounded-[8px] text-[12.5px] font-semibold transition-colors duration-200 ${tab === t ? 'text-teton-ink' : 'text-teton-ui-gray'}`}>
+                  {t === 'form' ? 'Settings' : 'Email preview'}
+                </button>
+              ))}
+            </SegGroup>
+          </div>
+        )}
         {!loaded ? (
           <p className="px-6 py-10 text-center text-sm text-teton-ui-gray">Loading…</p>
-        ) : (
-          <div className="flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 pt-4 pb-2">
+        ) : tab === 'preview' ? (
+          <div className="min-[1180px]:hidden flex-1 min-h-[60dvh] flex flex-col [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]">{preview}</div>
+        ) : null}
+        {loaded && (
+          <div className={`flex-1 overflow-y-auto overscroll-contain px-5 sm:px-6 pt-4 pb-2 ${tab === 'preview' ? 'hidden min-[1180px]:block' : ''}`}>
             <p className={label}>Who can open it</p>
             {people.length > 0 && (
               <ul className="mb-2 rounded-[10px] border border-teton-off-white divide-y divide-teton-off-white">
@@ -343,7 +375,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                 <div className="px-3.5 pb-3.5 space-y-3 min-w-0">
                   <label className="block">
                     <span className="mb-1 block text-[12px] font-semibold">Proposal name</span>
-                    <input className={`${field} h-9`} value={proposalName} maxLength={120} disabled={!canEdit} onChange={(e) => setProposalName(e.target.value)} placeholder="ABC Senior Living proposal" />
+                    <input className={`${field} h-9`} value={proposalName} maxLength={120} disabled={!canEdit} {...focusOn('name')} onChange={(e) => setProposalName(e.target.value)} placeholder="ABC Senior Living proposal" />
                     <span className="mt-1 block text-[11px] text-teton-ui-gray">Shown beside the proposal’s picture, and in the subject line.</span>
                   </label>
                   <label className="block">
@@ -355,7 +387,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                         </button>
                       )}
                     </span>
-                    <input className={`${field} h-9`} value={intro} maxLength={300} disabled={!canEdit} onChange={(e) => setIntro(e.target.value)} />
+                    <input className={`${field} h-9`} value={intro} maxLength={300} disabled={!canEdit} {...focusOn('intro')} onChange={(e) => setIntro(e.target.value)} />
                     <span className="mt-1 block text-[11px] leading-snug text-teton-ui-gray whitespace-normal break-words">
                       <code className="rounded bg-teton-almost-white px-1">{'{first name}'}</code> becomes each person’s first name
                       {people[0] ? <> · e.g. “{(intro.trim() || DEFAULT_INTRO).replace(/\{first name\}/gi, firstOf(people[0]))}”</> : null}
@@ -365,7 +397,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                     <span className="mb-1 block text-[12px] font-semibold">
                       Note <span className="font-normal text-teton-ui-gray">(optional, shown above the proposal)</span>
                     </span>
-                    <textarea className={`${field} py-2 min-h-[72px] resize-y`} value={note} maxLength={2000} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} placeholder="Great talking today. Here’s the proposal we discussed…" />
+                    <textarea className={`${field} py-2 min-h-[72px] resize-y`} value={note} maxLength={2000} disabled={!canEdit} {...focusOn('note')} onChange={(e) => setNote(e.target.value)} placeholder="Great talking today. Here’s the proposal we discussed…" />
                   </label>
                 </div>
               </Collapse>
@@ -411,7 +443,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
           </div>
         )}
         {loaded && (
-          <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-3.5 border-t border-teton-off-white bg-[#FAFAFB] rounded-b-2xl pb-[max(0.875rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-3.5 border-t border-teton-off-white bg-[#FAFAFB] rounded-b-2xl min-[1180px]:rounded-br-none pb-[max(0.875rem,env(safe-area-inset-bottom))]">
             {link && canEdit && (
               <button type="button" className={`${btn} !text-[#C2412D] !border-[#F3D3CC]`} disabled={busy} onClick={() => void turnOff()}>
                 Turn off link
@@ -435,6 +467,12 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
               </button>
             )}
           </div>
+        )}
+        </div>
+        {loaded && (
+          <aside className="hidden min-[1180px]:flex flex-col w-[540px] border-l border-[#ECE7DF] bg-[#F6F4F0] rounded-r-2xl min-h-0" aria-label="Email preview">
+            {preview}
+          </aside>
         )}
       </div>
     </div>
