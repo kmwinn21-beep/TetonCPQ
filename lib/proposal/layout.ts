@@ -79,6 +79,8 @@ export interface ProposalLayout {
   bcSiteCare?: 'full' | 'short';
   /** Business case scope table: common areas folded into one line instead of a row each. */
   bcSiteAreas?: 'fold';
+  /** Business case pilot page: the 'Measuring pilot success' element in its light style (dark by default). */
+  bcPilotMeasure?: 'light';
   /** Business case scope table (Resident Monitoring deals): totals as a strip above the table, condensed or expanded (unset = in the table). */
   bcSiteTotals?: 'condensed' | 'expanded';
   /** Business case scope page, both products: which figure cards show (unset = both). */
@@ -232,6 +234,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecHardware: raw.bcExecHardware === true ? true : undefined,
     bcSiteCare: raw.bcSiteCare === 'full' || raw.bcSiteCare === 'short' ? raw.bcSiteCare : undefined,
     bcSiteAreas: raw.bcSiteAreas === 'fold' ? 'fold' : undefined,
+    bcPilotMeasure: raw.bcPilotMeasure === 'light' ? 'light' : undefined,
     bcSiteTotals: raw.bcSiteTotals === 'condensed' || raw.bcSiteTotals === 'expanded' ? raw.bcSiteTotals : undefined,
     bcSiteCards: raw.bcSiteCards === 'sensors' || raw.bcSiteCards === 'ecall' ? raw.bcSiteCards : undefined,
     bcHwLayout: raw.bcHwLayout === 'beside' ? 'beside' : undefined,

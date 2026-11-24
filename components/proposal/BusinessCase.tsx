@@ -611,6 +611,73 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
   );
 }
 
+/** The pilot's success criteria (from the pilot evaluation criteria): four cards and the ROI case across the bottom. All text editable. */
+const PILOT_MEASURES: Array<{ k: string; tone: 'lav' | 'coral' | 'sky' | 'amber'; title: string; sub: string; icon: React.ReactNode }> = [
+  {
+    k: 'data',
+    tone: 'lav',
+    title: 'Integrated Data-Driven Decisions',
+    sub: '% of care plan adjustments triggered · Insights used in incident review · Workflow integration with at-risk meetings and care conferences',
+    icon: <><circle cx="6" cy="6" r="2.6" /><circle cx="6" cy="18" r="2.6" /><circle cx="18" cy="12" r="2.6" /><path d="M8.4 7.2l7.2 3.6M8.4 16.8l7.2-3.6" /></>,
+  },
+  {
+    k: 'outcomes',
+    tone: 'coral',
+    title: 'Improved Resident Outcomes',
+    sub: 'Reduction in falls · Staff response time · Accurate care plans · Visit time · Resident sleep and wake-ups',
+    icon: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
+  },
+  {
+    k: 'staff',
+    tone: 'sky',
+    title: 'Staff Performance & Engagement',
+    sub: 'Pre- and post-pilot staff survey · Staff time to complete post-event documentation',
+    icon: <><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" /><path d="M18 9v6M15 12h6" /></>,
+  },
+  {
+    k: 'delivery',
+    tone: 'amber',
+    title: 'Consistent & Scalable Delivery',
+    sub: 'Care huddle attendance · Fall clips viewed · Staff time in the system',
+    icon: <><rect x="4" y="11" width="9" height="9" rx="2" /><path d="M11 4h9v9" strokeDasharray="2.5 2" /><path d="M13 11l6-6M15 5h4v4" /></>,
+  },
+];
+const McIcon = ({ children, tone }: { children: React.ReactNode; tone: string }) => (
+  <span className={`bc-msc-ic bc-msc-${tone}`} aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+  </span>
+);
+function PilotMeasures({ light, switcher }: { light: boolean; switcher: React.ReactNode }) {
+  return (
+    <div className="relative group/view">
+      {switcher}
+      <p className="bc-eyebrow bc-gray"><T k="bc.pilot.msc.eyebrow" d="Measuring pilot success" /></p>
+      <div className={`bc-msc ${light ? 'bc-msc-light' : 'bc-msc-dark'}`}>
+        <div className="bc-msc-g">
+          {PILOT_MEASURES.map((m) => (
+            <div key={m.k} className="bc-msc-c">
+              <div className="bc-msc-top">
+                <McIcon tone={m.tone}>{m.icon}</McIcon>
+                <b><T k={`bc.pilot.msc.${m.k}.title`} d={m.title} /></b>
+              </div>
+              <p className="bc-msc-sub"><T k={`bc.pilot.msc.${m.k}.sub`} d={m.sub} /></p>
+            </div>
+          ))}
+        </div>
+        <div className="bc-msc-c bc-msc-roi">
+          <McIcon tone="mint"><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 16v-3M12 16v-5M16 16v-7" /></McIcon>
+          <div className="min-w-0">
+            <b><T k="bc.pilot.msc.roi.title" d="Positive ROI case by month 3" /></b>
+            <p className="bc-msc-sub">
+              <T k="bc.pilot.msc.roi.sub" d="Teton data analytics evaluates ROI with you: hospitalizations, liability, staff time and falls. Measured by pre-pilot data and data gathered throughout the pilot." />
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** What's in scope, as pills: filled when included, dimmed when not. */
 function ScopePills({ ecall, rates, monitoring = true }: { ecall: boolean; rates?: { monitoring: string; ecall: string; ecallUnit?: string }; monitoring?: boolean }) {
   return (
@@ -1656,6 +1723,23 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         <p className="bc-eyebrow bc-gray"><T k="bc.pilot.where" d={pilotSites.length === 1 ? 'Where the pilot runs' : 'Where the pilots run'} /></p>
         {/* Every pilot community in one table: beds by care type and what its pilot costs. */}
           {pilotCommunityTable!('pilot', 'The pilot')}
+        </B>
+        <B id="measure" label="Measuring pilot success">
+          <PilotMeasures
+            light={layout.bcPilotMeasure === 'light'}
+            switcher={
+              editable ? (
+                <ViewSwitch
+                  field="bcPilotMeasure"
+                  position="absolute right-0 -top-1"
+                  label="Measuring pilot success colors"
+                  options={[['dark', 'Dark'], ['light', 'Light']] as const}
+                  value={layout.bcPilotMeasure === 'light' ? 'light' : 'dark'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcPilotMeasure: v === 'light' ? 'light' : undefined }))}
+                />
+              ) : null
+            }
+          />
         </B>
         </Blocks>
       </Page>

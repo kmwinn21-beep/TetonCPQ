@@ -1025,3 +1025,34 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
   .bc-sitetot-c:first-child { border-top: 0; }
   .bc-site-eb { flex-wrap: wrap; }
 }
+
+/* Pilot page: Measuring pilot success (dark band by default, or light cards). Cards in a row share the tallest card's
+   height; a card's measures line takes no space once its text is deleted. */
+.bc-msc { --msc-card: rgba(255, 255, 255, 0.06); --msc-sub: #B9C0C8; --msc-ink: #fff; }
+.bc-msc-dark { background: #14171C; border-radius: 14px; padding: 14px; color: var(--msc-ink); }
+.bc-msc-light { --msc-card: #fff; --msc-sub: #5E6670; --msc-ink: #14171C; color: var(--msc-ink); }
+.bc-msc-g { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.bc-msc-c { background: var(--msc-card); border-radius: 10px; padding: 10px 10px 11px; min-width: 0; }
+.bc-msc-light .bc-msc-c { border: 1px solid #ECE8DF; }
+.bc-msc-top { display: flex; align-items: center; gap: 8px; }
+.bc-msc-top b, .bc-msc-roi b { font-size: 11px; line-height: 1.25; font-weight: 700; }
+.bc-msc-sub { margin: 7px 0 0; font-size: 9.5px; line-height: 1.45; color: var(--msc-sub); }
+.bc-msc-sub:empty { display: none; }
+.bc-msc-roi { margin-top: 8px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.bc-msc-roi b { font-size: 14px; display: block; }
+.bc-msc-roi .bc-msc-sub { margin-top: 3px; font-size: 10px; }
+.bc-msc-ic { width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.bc-msc-ic svg { width: 15px; height: 15px; }
+.bc-msc-roi .bc-msc-ic { width: 34px; height: 34px; border-radius: 9px; }
+.bc-msc-roi .bc-msc-ic svg { width: 18px; height: 18px; }
+.bc-msc-dark .bc-msc-lav { background: rgba(185, 178, 245, 0.18); color: #C4BEFA; }
+.bc-msc-dark .bc-msc-coral { background: rgba(240, 128, 104, 0.18); color: #F49A85; }
+.bc-msc-dark .bc-msc-sky { background: rgba(120, 180, 240, 0.18); color: #8EC3F5; }
+.bc-msc-dark .bc-msc-amber { background: rgba(240, 190, 90, 0.18); color: #F2C86E; }
+.bc-msc-dark .bc-msc-mint { background: rgba(143, 211, 174, 0.18); color: #8FD3AE; }
+.bc-msc-light .bc-msc-lav { background: #EEECFD; color: #5B52C9; }
+.bc-msc-light .bc-msc-coral { background: #FDECE7; color: #C9502F; }
+.bc-msc-light .bc-msc-sky { background: #E8F2FD; color: #2F74C0; }
+.bc-msc-light .bc-msc-amber { background: #FDF3DF; color: #A9751A; }
+.bc-msc-light .bc-msc-mint { background: #E6F5EC; color: #2E8F5A; }
+@media (max-width: 640px) { .bc-msc-g { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
