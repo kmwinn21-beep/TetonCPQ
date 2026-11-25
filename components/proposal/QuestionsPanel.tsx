@@ -65,7 +65,7 @@ export function QuestionsButton({ quoteId, className }: { quoteId: number; class
     <>
       <button type="button" className={className} aria-haspopup="dialog" aria-label="Questions for the prospect" onClick={() => setOpen(true)} title="Questions for the prospect, answered on the shared link">
         <span className="w-4 h-4 rounded-full border-[1.7px] border-current grid place-items-center text-[10px] font-bold leading-none" aria-hidden="true">?</span>
-        <span className="hidden min-[1600px]:inline">Questions</span>
+        <span className="hidden sm:inline lg:hidden xl:inline" data-hide-at="1">Questions</span>
         {count && count.total > 0 && <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-white/20 text-[10.5px] font-bold">{count.answered}/{count.total}</span>}
       </button>
       <QuestionsDrawer quoteId={quoteId} open={open} onClose={() => setOpen(false)} />

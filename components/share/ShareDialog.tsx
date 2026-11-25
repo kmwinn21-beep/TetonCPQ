@@ -39,9 +39,9 @@ export function ShareButton({ quoteId, versionId, versionNo, className }: { quot
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={className} onClick={() => setOpen(true)} aria-haspopup="dialog" title="Share a link to this proposal with your prospect">
+      <button type="button" className={className} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label="Share" title="Share a link to this proposal with your prospect">
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M9 7h8v8" /></svg>
-        Share
+        <span data-hide-at="2">Share</span>
       </button>
       {open && <ShareDialog quoteId={quoteId} versionId={versionId} versionNo={versionNo} onClose={() => setOpen(false)} />}
     </>

@@ -165,7 +165,7 @@ export function CommentsButton() {
   return (
     <button type="button" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" aria-haspopup="dialog" aria-label={`Comments${n ? ` (${n} open)` : ''}`} onClick={() => open()} title="Comments on this business case">
       <BubbleIcon />
-      <span className="hidden sm:inline lg:hidden xl:inline">Comments</span>
+      <span className="hidden sm:inline lg:hidden xl:inline" data-hide-at="2">Comments</span>
       {n > 0 && <span className="inline-flex min-w-[18px] h-[18px] px-1 items-center justify-center rounded-full bg-[#3F8CEA] text-white text-[10.5px] font-bold">{n}</span>}
     </button>
   );

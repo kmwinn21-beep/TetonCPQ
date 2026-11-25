@@ -100,9 +100,9 @@ export function TemplateMenu({ versionId }: { versionId: number }) {
           <rect x="14" y="12" width="7" height="9" rx="1.5" />
           <rect x="3" y="16" width="7" height="5" rx="1.5" />
         </svg>
-        <span className="hidden sm:inline lg:hidden xl:inline">Template:</span>
-        <span className="max-w-[10rem] truncate">{applied ? applied.name : 'Standard'}</span>
-        {edited && <span className="text-[11px] opacity-80">· edited</span>}
+        <span className="hidden sm:inline lg:hidden xl:inline" data-hide-at="1">Template:</span>
+        <span className="max-w-[10rem] truncate" data-hide-at="3">{applied ? applied.name : 'Standard'}</span>
+        {edited && <span className="text-[11px] opacity-80" data-hide-at="2">· edited</span>}
         <svg className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fillRule="evenodd" d="M5.2 7.2a.75.75 0 011.06 0L10 10.94l3.74-3.74a.75.75 0 111.06 1.06l-4.27 4.27a.75.75 0 01-1.06 0L5.2 8.26a.75.75 0 010-1.06z" clipRule="evenodd" />
         </svg>

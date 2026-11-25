@@ -56,8 +56,38 @@ function snapshot(): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${document.title}</title>${links.join('')}<style>${css.join('\n')}</style></head><body class="proposal-page">${doc.outerHTML}</body></html>`;
 }
 
+/**
+ * Keeps the toolbar's buttons on one row inside the space it has (which depends on the sidebar, not just the screen):
+ * when they overflow, labels drop step by step (data-hide-at / data-show-at = 1, 2, 3; see globals.css), and as a
+ * last resort the row wraps.
+ */
+function useFitRow() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = ref.current;
+    if (!row) return;
+    let lastW = -1;
+    const fit = () => {
+      lastW = row.clientWidth;
+      for (let lvl = 0; lvl <= 4; lvl++) {
+        for (let k = 1; k <= 4; k++) row.classList.toggle(`fit-${k}`, k <= lvl);
+        if (row.scrollWidth <= row.clientWidth + 1) break;
+      }
+    };
+    fit();
+    // Refit when its width changes (not its height, which wrapping changes) or its buttons do.
+    const ro = new ResizeObserver(() => row.clientWidth !== lastW && fit());
+    ro.observe(row);
+    const mo = new MutationObserver(fit);
+    mo.observe(row, { childList: true, subtree: true, characterData: true });
+    return () => (ro.disconnect(), mo.disconnect());
+  }, []);
+  return ref;
+}
+
 export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo, sentAt, sentBy, history, pendingChanges = 0, newerVersions = 0, banner, bothPricing = false, ecallOnly = false, onePagers = null }: { versionId: number; quoteId: number; versionNo: number; status: string; sentTo: string | null; sentAt: string | null; sentBy: string | null; history: SentRecord[]; pendingChanges?: number; newerVersions?: number; /** Shown under the toolbar, inside its sticky area (the unsaved-changes bar). */ banner?: React.ReactNode; /** Both pricing options shown (for the Removed list). */ bothPricing?: boolean; /** An E-Call-only deal (for the Removed list). */ ecallOnly?: boolean; /** The one pagers that can be added (for the Removed list). */ onePagers?: OnePagerInfo | null }) {
   const router = useRouter();
+  const fitRow = useFitRow();
   const [open, setOpen] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
   // Phones: the bar's buttons are folded away until opened.
@@ -169,7 +199,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
     <div ref={barRef} className="proposal-bar bg-teton-ink text-sidebar-font">
       {/* Desktop: two rows (buttons; version, changes and save state), at least as tall as the sidebar's header (99px) so
           the bar's bottom edge lines up with the divider under its Collapse button. */}
-      <div className="max-w-[8.5in] xl:max-w-[1120px] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2 lg:max-w-none lg:px-6 lg:py-2 lg:min-h-[99px] lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-center lg:gap-y-[7px]">
+      <div className="max-w-[8.5in] xl:max-w-[1400px] mx-auto px-4 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] flex flex-wrap items-center gap-x-3 gap-y-2 lg:max-w-none lg:px-6 lg:py-2 lg:min-h-[99px] lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-center lg:gap-y-[7px]">
         <div className="contents lg:flex lg:order-last lg:items-center lg:gap-3 lg:min-w-0">
           {/* This line folds the buttons away: expanded to start on desktop, collapsed on phones. */}
           <button type="button" className="flex min-w-0 flex-1 sm:flex-none items-center gap-2 text-left text-sm text-sidebar-font/70 hover:text-sidebar-font lg:text-[11.5px] lg:font-semibold lg:text-sidebar-font/85" aria-expanded={barOpen} aria-controls="proposal-bar-tools" onClick={() => setBarOpen((o) => !o)}>
@@ -205,9 +235,9 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
           onTransitionEnd={(e) => e.target === e.currentTarget && e.propertyName === 'grid-template-rows' && (barOpen || open) && setBarClip(false)}
           className={`w-full grid lg:order-first ${barReady ? 'transition-[grid-template-rows,opacity,visibility] duration-300 ease-out motion-reduce:transition-none' : ''} ${barOpen || open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible -mt-2'}`}
         >
-        <div className={`min-h-0 ${barClip ? 'overflow-hidden' : ''}`}>
-        <div className="space-y-2">
-        <div className="w-full flex flex-wrap items-center gap-2 xl:flex-nowrap lg:gap-1.5 lg:whitespace-nowrap lg:[&>a]:py-[5px] lg:[&>button]:py-[5px] lg:[&>a]:px-[11px] lg:[&>button]:px-[11px] lg:[&>a]:text-[13px] lg:[&>button]:text-[13px] lg:[&>div>button]:py-[5px] lg:[&>div>button]:px-[11px] lg:[&>div>button]:text-[13px] lg:[&_[role=group]_button]:py-[3px] lg:[&_[role=group]]:text-[13px]">
+        <div className={`min-h-0 min-w-0 ${barClip ? 'overflow-hidden' : ''}`}>
+        <div className="space-y-2 min-w-0">
+        <div ref={fitRow} className="w-full min-w-0 flex flex-wrap items-center gap-2 xl:flex-nowrap lg:gap-1.5 lg:whitespace-nowrap lg:[&>a]:py-[5px] lg:[&>button]:py-[5px] lg:[&>a]:px-[11px] lg:[&>button]:px-[11px] lg:[&>a]:text-[13px] lg:[&>button]:text-[13px] lg:[&>div>button]:py-[5px] lg:[&>div>button]:px-[11px] lg:[&>div>button]:text-[13px] lg:[&_[role=group]_button]:py-[3px] lg:[&_[role=group]]:text-[13px]">
           {open ? (
             <>
               <input autoFocus={canAutoFocus()} className="input-field flex-1 min-w-0 sm:flex-none sm:w-64" placeholder="Sent to (name or email)" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Sent to" />
@@ -265,12 +295,12 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
               {text.editable && <ShareButton quoteId={quoteId} versionId={versionId} versionNo={versionNo} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" />}
               {text.editable && <QuestionsButton quoteId={quoteId} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" />}
               {text.editable ? (
-                <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden lg:inline xl:hidden">Sent</span><span className="hidden sm:inline lg:hidden xl:inline">Record as sent</span></button>
+                <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden lg:inline xl:hidden" data-show-at="1">Sent</span><span className="hidden sm:inline lg:hidden xl:inline" data-hide-at="1">Record as sent</span></button>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-[#FFE08A]" title="Ask the deal's owner for Edit Deliverables to change this proposal">🔒 View only</span>
               )}
               {/* Desktop keeps the browser's print; the PDF file works everywhere (and is the main button on phones). */}
-              <button type="button" className="hidden sm:inline-flex px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF"><span className="lg:hidden min-[1440px]:inline">Print / Save as PDF</span><span className="hidden lg:inline min-[1440px]:hidden">Print</span></button>
+              <button type="button" data-hide-at="3" className="hidden sm:inline-flex px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => window.print()} aria-label="Print / Save as PDF"><span className="lg:hidden min-[1440px]:inline" data-hide-at="1">Print / Save as PDF</span><span className="hidden lg:inline min-[1440px]:hidden" data-show-at="1">Print</span></button>
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-white text-teton-ink disabled:opacity-40 disabled:cursor-not-allowed"
@@ -284,7 +314,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
                 ) : (
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
                 )}
-                {pdfBusy ? 'Making PDF…' : <><span className="lg:hidden xl:inline">Download </span>PDF</>}
+                {pdfBusy ? 'Making PDF…' : <><span className="lg:hidden xl:inline" data-hide-at="1">Download </span>PDF</>}
               </button>
             </>
           )}
