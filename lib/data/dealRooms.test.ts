@@ -5,7 +5,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { createDeal, saveVersion } from './quotes';
-import { linkByToken, saveShareLink, type PublicLink } from './shareLinks';
+import { checkAccess, isTeamEmail, linkByToken, saveShareLink, type PublicLink } from './shareLinks';
 import { getProfile, saveProfile, setProfilePhoto } from './profiles';
 import { completeUpload, putChunk, readFile, startUpload } from './storedFiles';
 import { activityFor, addResource, dealOfQuote, deleteResource, getRoom, listResources, logEvent, reorderResources, roomForLink, saveRoom, updateResource } from './dealRooms';
@@ -37,6 +37,20 @@ beforeAll(async () => {
 afterAll(() => {
   db.close();
   rmSync(dir, { recursive: true, force: true });
+});
+
+describe('the deal’s team on the link', () => {
+  it('lets the owner and collaborators in with their own email, as the team', async () => {
+    expect(checkAccess(l, 'priya@teton.ai')).toBe('email');
+    await db.execute({ sql: 'INSERT INTO deal_collaborators (deal_id, user_id, can_inputs) VALUES (?, ?, 1)', args: [dealId, pn] });
+    const l2 = (await linkByToken(db, l.token))!;
+    expect(checkAccess(l2, 'Priya@Teton.ai ')).toBe('ok');
+    expect(checkAccess(l2, 'kevin@teton.ai')).toBe('ok');
+    expect(isTeamEmail(l2, 'kevin@teton.ai')).toBe(true);
+    expect(isTeamEmail(l2, 'dana@abc.com')).toBe(false);
+    expect(checkAccess(l2, 'stranger@abc.com')).toBe('email');
+    await db.execute({ sql: 'DELETE FROM deal_collaborators WHERE deal_id = ?', args: [dealId] });
+  });
 });
 
 describe('profiles', () => {

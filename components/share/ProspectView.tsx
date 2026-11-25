@@ -32,6 +32,8 @@ interface Props {
   edits: Record<string, string>;
   layout: ProposalLayout;
   dealName: string;
+  /** The deal's owner or a collaborator looking at the link: nothing they do counts as the prospect's. */
+  team?: boolean;
   ownerName: string;
   email: string;
   allowComments: boolean;
@@ -60,7 +62,7 @@ function Body(p: Props) {
   const [commenting, setCommenting] = useState(false);
   const contents = useContents();
   const questions = useQuestions(p.token);
-  const rt = useResourcesTab(p.token, contents.current);
+  const rt = useResourcesTab(p.token, contents.current, !!p.team);
   const onProposal = rt.tab === 'proposal';
   // Leaving the proposal closes its contents panel and comment mode.
   useEffect(() => {
@@ -108,7 +110,7 @@ function Body(p: Props) {
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
           </span>
           <span className="flex-1" />
-          <QuestionsButton q={questions} />
+          {!p.team && <QuestionsButton q={questions} />}
           {p.allowComments && (
             <>
               {onProposal && <button type="button" aria-pressed={commenting} className={`${btn} ${commenting ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`} onClick={() => setCommenting((c) => !c)} title="Click a page or a section to comment on it">
@@ -132,6 +134,11 @@ function Body(p: Props) {
             <span className="truncate max-w-[200px]">{p.email}</span>
           </span>
         </div>
+        {p.team && (
+          <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-4 py-1.5 text-center text-[12.5px] text-[#1F4F96]">
+            You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.
+          </p>
+        )}
         {rt.room && (
           <div className="sm:hidden px-3 pb-2.5">
             <TabSwitch rt={rt} className="flex w-full" />

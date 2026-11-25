@@ -311,8 +311,13 @@ function CardList({
           </span>
         </span>
       </button>
-      {d.settings.sections.map((s) => {
+      {d.settings.sections.map((s, si) => {
         const list = d.resources.filter((x) => x.sectionId === s.id);
+        const moveSection = (by: -1 | 1) => {
+          const next = [...d.settings.sections];
+          [next[si], next[si + by]] = [next[si + by], next[si]];
+          setSettings({ sections: next });
+        };
         const custom = !['docs', 'cases', 'plans', 'recordings'].includes(s.id);
         return (
           <div key={s.id} onDragOver={(e) => drag != null && (e.preventDefault(), setOver(s.id))} onDrop={() => drop(s.id, null)} className={`mt-1 rounded-xl transition-colors duration-150 ${over === s.id && drag != null ? 'bg-[#EEF5FE]' : ''}`}>
@@ -333,6 +338,16 @@ function CardList({
                 <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5]" onClick={() => setRenaming(s.id)}>
                   Rename
                 </button>
+              )}
+              {edit && renaming !== s.id && (
+                <span className="flex items-center">
+                  <button type="button" aria-label={`Move ${s.name} up`} title="Move section up" disabled={si === 0} onClick={() => moveSection(-1)} className="w-6 h-6 rounded-md grid place-items-center text-[11px] text-[#5A6270] hover:bg-white disabled:opacity-25">
+                    ▲
+                  </button>
+                  <button type="button" aria-label={`Move ${s.name} down`} title="Move section down" disabled={si === d.settings.sections.length - 1} onClick={() => moveSection(1)} className="w-6 h-6 rounded-md grid place-items-center text-[11px] text-[#5A6270] hover:bg-white disabled:opacity-25">
+                    ▼
+                  </button>
+                </span>
               )}
               {edit && custom && !list.length && (
                 <button type="button" className="text-[11.5px] font-semibold text-[#C2412D]" onClick={() => setSettings({ sections: d.settings.sections.filter((x) => x.id !== s.id) })}>

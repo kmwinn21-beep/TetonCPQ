@@ -8,6 +8,7 @@ import { prospectFor } from '@/lib/resources/server';
 export async function POST(req: Request, { params }: { params: { token: string } }) {
   try {
     const { db, l, who } = await prospectFor(params.token);
+    if (who.team) return NextResponse.json({ ok: true, ignored: true });
     const body = (await req.json().catch(() => ({}))) as { events?: EventInput[] };
     for (const e of (body.events ?? []).slice(0, 20)) await logEvent(db, l, who.email, e, baseUrlOf(req)).catch(() => {});
     return NextResponse.json({ ok: true });

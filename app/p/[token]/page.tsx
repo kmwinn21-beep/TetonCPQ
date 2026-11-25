@@ -35,8 +35,11 @@ export default async function SharedProposalPage({ params }: { params: { token: 
   let lines = await getVersionLines(db, v.id, v.inputs.communities.map((c) => c.name || 'Unnamed community'));
   if (!lines.length) lines = buildPriceLines(v.inputs, toModelInputs(v.inputs), (await loadPriceBook(db)).book);
   const custom = await getProposalCustomization(db, v.id);
-  await recordOpen(db, l, who.email);
-  await markSeen(db, l, who.email).catch(() => {});
+  // The deal's owner and collaborators can look too; their visits aren't the prospect's.
+  if (!who.team) {
+    await recordOpen(db, l, who.email);
+    await markSeen(db, l, who.email).catch(() => {});
+  }
   const left = daysLeft(l.expiresOn);
   return (
     <ProspectView
@@ -51,9 +54,10 @@ export default async function SharedProposalPage({ params }: { params: { token: 
       edits={custom.edits}
       layout={custom.layout}
       dealName={l.dealName}
+      team={!!who.team}
       ownerName={l.ownerName}
       email={who.email}
-      allowComments={l.allowComments}
+      allowComments={l.allowComments && !who.team}
       allowPdf={l.allowPdf}
       expiresOn={l.expiresOn}
       expiryWarning={left <= EXPIRY_WARNING_DAYS ? left : null}

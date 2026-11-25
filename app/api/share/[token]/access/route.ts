@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
 import { jsonError } from '@/lib/db/server';
-import { checkAccess, linkByToken } from '@/lib/data/shareLinks';
+import { checkAccess, isTeamEmail, linkByToken } from '@/lib/data/shareLinks';
 import { checkSignInCode, sendSignInCode } from '@/lib/data/prospectMail';
 import { recordFailure, tooManyAttempts } from '@/lib/auth/server';
 import { prospectCookie } from '@/lib/auth/prospect';
 import { baseUrlOf } from '@/lib/email/send';
 
 /**
- * A prospect opens a shared link: { email, name? }. Their email has to be one the rep listed. When the link verifies
+ * A prospect opens a shared link: { email, name? }. Their email has to be one the rep listed (or the deal's owner's or a
+ * collaborator's: they can see what the prospect sees). When the link verifies
  * emails, a 6-digit code goes to that email first ({ needCode: true }); then { email, code } signs them in. Sets their
  * cookie for this link.
  */
@@ -40,7 +41,7 @@ export async function POST(req: Request, { params }: { params: { token: string }
       }
     }
     const res = NextResponse.json({ ok: true });
-    res.cookies.set(await prospectCookie(l, { email, name: String(b.name ?? '').trim().slice(0, 80) || l.people.find((p) => p.email === email)?.name || null }));
+    res.cookies.set(await prospectCookie(l, { email, name: String(b.name ?? '').trim().slice(0, 80) || l.people.find((p) => p.email === email)?.name || (isTeamEmail(l, email) ? l.team.find((t) => t.email === email)?.name : null) || null }));
     return res;
   } catch (e) {
     return jsonError(e);

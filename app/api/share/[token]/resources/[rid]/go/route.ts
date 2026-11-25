@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: { params: { token: string; r
     const block = bid ? r.blocks.find((b) => b.id === bid && b.type === 'button') : null;
     const url = block && block.type === 'button' ? block.url : r.url;
     if (!url) throw Object.assign(new Error('Not found'), { status: 404 });
-    await logEvent(db, l, who.email, { target: 'item', resourceId: r.id, kind: 'click', detail: block ? 'button' : null });
+    if (!who.team) await logEvent(db, l, who.email, { target: 'item', resourceId: r.id, kind: 'click', detail: block ? 'button' : null });
     return NextResponse.redirect(url, 302);
   } catch (e) {
     return jsonError(e, 404);

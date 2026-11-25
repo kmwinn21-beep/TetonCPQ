@@ -6,7 +6,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { jwtVerify, SignJWT } from 'jose';
-import { checkAccess, daysLeft, isoDay, type PublicLink } from '@/lib/data/shareLinks';
+import { checkAccess, daysLeft, isTeamEmail, isoDay, type PublicLink } from '@/lib/data/shareLinks';
 
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days (and never past the link's expiry)
 export const prospectCookieName = (linkId: number) => `teton_p${linkId}`;
@@ -22,6 +22,8 @@ const codeTag = (l: Pick<PublicLink, 'verifyEmail'>) => (l.verifyEmail ? 'v' : '
 export interface ProspectSession {
   email: string;
   name: string | null;
+  /** The deal's owner or a collaborator viewing the link (not a prospect). */
+  team?: boolean;
 }
 
 export async function prospectCookie(l: PublicLink, who: ProspectSession) {
@@ -52,7 +54,7 @@ export async function prospectSession(l: PublicLink): Promise<ProspectSession | 
     const email = String(payload.em ?? '');
     // The code (if any) was checked when the cookie was made: here, the link's state and the email.
     if (checkAccess(l, email) !== 'ok') return null;
-    return { email, name: payload.nm ? String(payload.nm) : null };
+    return { email, name: payload.nm ? String(payload.nm) : null, team: isTeamEmail(l, email) };
   } catch {
     return null;
   }

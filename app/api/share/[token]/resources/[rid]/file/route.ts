@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: { token: string; r
     const fileId = blockFile ? r.blocks.flatMap((b) => ('fileId' in b && b.fileId === blockFile ? [blockFile] : []))[0] : r.file?.id;
     if (!fileId) throw Object.assign(new Error('Not found'), { status: 404 });
     const dl = q.get('dl') === '1' && (r.allowDownload || !!blockFile);
-    if (dl) await logEvent(db, l, who.email, { target: 'item', resourceId: r.id, kind: 'download', detail: blockFile ? 'attachment' : null });
+    if (dl && !who.team) await logEvent(db, l, who.email, { target: 'item', resourceId: r.id, kind: 'download', detail: blockFile ? 'attachment' : null });
     return fileResponse(await readFile(db, l.dealId, fileId, { download: dl }), req, dl);
   } catch (e) {
     return jsonError(e, 404);

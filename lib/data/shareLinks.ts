@@ -184,6 +184,8 @@ export interface PublicLink extends ShareLink {
   ownerId: number | null;
   ownerName: string;
   ownerEmail: string;
+  /** The deal's owner and collaborators (active users): they can open the link with their own email too. */
+  team: Array<{ userId: number; email: string; name: string }>;
 }
 
 /** A link by its token (turned off ones too, to say so), with who it's from. */
@@ -197,8 +199,13 @@ export async function linkByToken(db: Client, token: string): Promise<PublicLink
   if (!r.rows.length) return null;
   const x = r.rows[0];
   const people = await db.execute({ sql: 'SELECT * FROM share_link_emails WHERE link_id = ? ORDER BY id', args: [Number(x.id)] });
+  const team = await db.execute({
+    sql: `SELECT u.id, u.email, u.name FROM users u WHERE u.active = 1 AND (u.id = (SELECT owner_id FROM deals WHERE id = ?) OR u.id IN (SELECT user_id FROM deal_collaborators WHERE deal_id = ?))`,
+    args: [Number(x.deal_id), Number(x.deal_id)],
+  });
   return {
     ...toLink(x, people.rows),
+    team: team.rows.map((t) => ({ userId: Number(t.id), email: String(t.email).toLowerCase(), name: String(t.name) })),
     revoked: x.revoked_at != null,
     dealName: String(x.customer_name ?? ''),
     ownerId: x.owner_id == null ? null : Number(x.owner_id),
@@ -215,9 +222,14 @@ export function checkAccess(l: PublicLink, email: string, today = isoDay()): 'ok
   const st = linkState(l, today);
   if (st !== 'ok') return st;
   const e = email.trim().toLowerCase();
-  if (!l.people.some((p) => p.email === e)) return 'email';
+  if (!l.people.some((p) => p.email === e) && !isTeamEmail(l, e)) return 'email';
   return 'ok';
 }
+/** The deal's owner or a collaborator (not a prospect): their visits aren't counted as the prospect's. */
+export const isTeamEmail = (l: Pick<PublicLink, 'team' | 'people'>, email: string) => {
+  const e = email.trim().toLowerCase();
+  return !l.people.some((p) => p.email === e) && (l.team ?? []).some((t) => t.email === e);
+};
 
 /** Counts a visit; a person's first one tells the deal's owner. */
 export async function recordOpen(db: Client, l: PublicLink, email: string): Promise<void> {

@@ -67,13 +67,15 @@ function useHeartbeat(push: (e: Record<string, unknown>) => void, target: Target
   }, [key, push]);
 }
 
-export function useResourcesTab(token: string, proposalPage: string | null) {
+export function useResourcesTab(token: string, proposalPage: string | null, team = false) {
   const [room, setRoom] = useState<ProspectRoom | null>(null);
   const [plans, setPlans] = useState<FloorPlanInfo[]>([]);
   const [tab, setTabState] = useState<'proposal' | 'resources'>('proposal');
   const [sel, setSel] = useState<Sel>('team');
   const [seen, setSeen] = useState<Record<string, string>>({});
-  const push = useEvents(token);
+  const send = useEvents(token);
+  // The deal's own team looking at the link: nothing is recorded.
+  const push = useCallback((e: Record<string, unknown>) => (team ? 0 : send(e)), [team, send]);
   useEffect(() => {
     void fetch(`/api/share/${token}/resources`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))

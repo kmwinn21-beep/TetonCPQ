@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
   try {
     const { db, l, who } = await prospect(params.token);
     // They've seen the comments now: anything waiting to be emailed to them isn't sent.
-    await markSeen(db, l, who.email).catch(() => {});
+    if (!who.team) await markSeen(db, l, who.email).catch(() => {});
     return NextResponse.json({ threads: await listSharedThreads(db, l.versionId, l.id), people: [], me: null }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
@@ -30,6 +30,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 export async function POST(req: Request, { params }: { params: { token: string } }) {
   try {
     const { db, l, who } = await prospect(params.token);
+    if (who.team) return NextResponse.json({ error: 'You’re viewing as the Teton team. Comment and answer from the deal in Teton.' }, { status: 403 });
     const id = await addProspectComment(db, l, who, (await req.json()) as ProspectComment);
     return NextResponse.json({ id, threads: await listSharedThreads(db, l.versionId, l.id) });
   } catch (e) {

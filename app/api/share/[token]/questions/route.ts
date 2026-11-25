@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
 export async function POST(req: Request, { params }: { params: { token: string } }) {
   try {
     const { db, l, who } = await prospect(params.token);
+    if (who.team) return NextResponse.json({ error: 'You’re viewing as the Teton team. Comment and answer from the deal in Teton.' }, { status: 403 });
     const b = (await req.json()) as { questionId?: unknown; choice?: unknown; text?: unknown };
     const question = await answerQuestion(db, l, who, Number(b.questionId), { choice: b.choice, text: b.text });
     return NextResponse.json({ question, questions: await listQuestions(db, l.dealId), threads: await listSharedThreads(db, l.versionId, l.id) });
