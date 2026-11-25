@@ -40,6 +40,7 @@ import { revealInvalidSections, SectionsProvider, useSections } from '@/componen
 import { Collapse, ReadOnlyContext, SectionGroup } from '@/components/form/fields';
 import { usePersistedOpen } from '@/components/Sidebar';
 import { canAutoFocus } from '@/lib/client/focus';
+import { DealLinkButtons } from './DealLinkButtons';
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
@@ -375,6 +376,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 <span className="sm:hidden">Proposal</span><span className="hidden sm:inline">View proposal</span>
               </button>
             )}
+            <DealLinkButtons quoteId={initial.quoteId} />
             {!noteOpen && (
               <>
                 {pending.length > 0 && (

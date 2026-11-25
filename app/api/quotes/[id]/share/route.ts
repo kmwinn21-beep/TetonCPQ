@@ -4,6 +4,7 @@ import { idParam, jsonError } from '@/lib/db/server';
 import { requireApiUser } from '@/lib/auth/server';
 import { accessForQuote, need } from '@/lib/data/access';
 import { EMAIL_FROM } from '@/lib/email/send';
+import { dealOfQuote, getRoom } from '@/lib/data/dealRooms';
 import { getDealShareLink, revokeShareLink, saveShareLink, type ShareLinkInput } from '@/lib/data/shareLinks';
 
 /** The deal's shared link (null: none), for anyone who can open the deal. */
@@ -19,7 +20,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const vid = link?.versionId ?? Number(new URL(req.url).searchParams.get('version'));
     const v = vid ? await db.execute({ sql: 'SELECT saved_at FROM quote_versions WHERE id = ? AND quote_id = ?', args: [vid, q] }) : null;
     const preparedOn = v?.rows[0]?.saved_at ? String(v.rows[0].saved_at).slice(0, 10) : null;
-    return NextResponse.json({ link, canEdit: a.deliverables, dealName: String(d.rows[0]?.customer_name ?? ''), me: { name: u.name, email: u.email }, from: EMAIL_FROM, preparedOn }, { headers: { 'cache-control': 'no-store' } });
+    // The deal room is "active" when the link is on and its Resources tab is turned on.
+    const d0 = await dealOfQuote(db, q);
+    const roomEnabled = link ? (await getRoom(db, d0.dealId, d0.ownerId)).enabled : false;
+    return NextResponse.json({ link, roomEnabled, canEdit: a.deliverables, dealName: String(d.rows[0]?.customer_name ?? ''), me: { name: u.name, email: u.email }, from: EMAIL_FROM, preparedOn }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
   }

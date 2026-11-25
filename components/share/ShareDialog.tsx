@@ -11,6 +11,7 @@ import { Collapse } from '@/components/form/fields';
 import { SegGroup } from '@/components/form/SegGroup';
 import { EmailPreview, type EmailPart } from './EmailPreview';
 import { ResourcesSection } from '@/components/resources/ResourcesSection';
+import { ResourcesEditor } from '@/components/resources/ResourcesEditor';
 import type { ShareLink } from '@/lib/data/shareLinks';
 
 const DEFAULT_INTRO = 'Hey {first name} - here is your proposal from Teton!';
@@ -38,6 +39,20 @@ interface Person {
 
 export function ShareButton({ quoteId, versionId, versionNo, className }: { quoteId: number; versionId: number; versionNo: number; className: string }) {
   const [open, setOpen] = useState(false);
+  // Arriving from the deal page's "Deal Room" button (?resources=1): straight into the deal room editor.
+  const [room, setRoom] = useState<string | null | false>(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('resources') !== '1') return;
+    void fetch(`/api/quotes/${quoteId}/share`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { link?: { token: string } | null } | null) => setRoom(j?.link ? `${window.location.origin}/p/${j.link.token}` : null));
+  }, [quoteId]);
+  const closeRoom = () => {
+    setRoom(false);
+    const u = new URL(window.location.href);
+    u.searchParams.delete('resources');
+    window.history.replaceState(null, '', u.toString());
+  };
   return (
     <>
       <button type="button" className={className} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label="Share" title="Share a link to this proposal with your prospect">
@@ -45,6 +60,7 @@ export function ShareButton({ quoteId, versionId, versionNo, className }: { quot
         <span data-hide-at="2">Share</span>
       </button>
       {open && <ShareDialog quoteId={quoteId} versionId={versionId} versionNo={versionNo} onClose={() => setOpen(false)} />}
+      {room !== false && <ResourcesEditor quoteId={quoteId} versionId={versionId} linkUrl={room} onClose={closeRoom} />}
     </>
   );
 }
