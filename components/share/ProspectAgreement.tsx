@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
-import type { AgreementCommunity, AgreementPayload } from '@/lib/data/agreements';
+import type { AgreementCommunity, AgreementPayload, AgreementRequestInfo } from '@/lib/data/agreements';
 import type { Signatory } from '@/lib/data/dealDetails';
 
 interface Info {
@@ -18,6 +18,10 @@ interface Info {
   pilot: boolean;
   communities: AgreementCommunity[];
   requestedAt: string | null;
+  /** The deal's latest request, anyone's on the link. */
+  latest: AgreementRequestInfo | null;
+  /** The signed-in person's email. */
+  me: string;
   ownerName: string;
   ownerEmail: string;
 }
@@ -69,7 +73,7 @@ const Mark = ({ className }: { className: string }) => (
 /** Desktop: the corner button. */
 export function AgreementFab({ a }: { a: AgreementState }) {
   if (!a.info) return null;
-  const dot = !a.info.requestedAt;
+  const dot = !a.info.latest;
   return (
     <div className="no-print hidden sm:block fixed right-6 bottom-6 z-40 group" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <button
@@ -98,7 +102,7 @@ export function AgreementPhoneRow({ a, toggle }: { a: AgreementState; toggle: Re
     return () => clearTimeout(t);
   }, [wide]);
   if (!a.info) return toggle ? <div className="sm:hidden px-3 pb-2 pt-0.5">{toggle}</div> : null;
-  const dot = !a.info.requestedAt;
+  const dot = !a.info.latest;
   return (
     <div className="no-print sm:hidden flex items-center px-3 pb-2 pt-0.5">
       {toggle && (
@@ -205,6 +209,8 @@ export function AgreementDialog({ a }: { a: AgreementState }) {
 function Form({ a }: { a: AgreementState }) {
   const info = a.info!;
   const first = info.ownerName.split(/\s+/)[0] || 'We';
+  // Someone already asked: the form says who and when, and sending becomes an update.
+  const state: 'new' | 'sent' | 'me' | 'other' = !info.latest ? 'new' : info.latest.sentAt ? 'sent' : info.latest.email === info.me ? 'me' : 'other';
   const sig0 = info.signatory;
   // Entity: blank shows an input straight away.
   const [eMode, setEMode] = useState<Mode>('idle');
@@ -247,11 +253,17 @@ function Form({ a }: { a: AgreementState }) {
           ✕
         </button>
         <p className="text-[10.5px] font-extrabold uppercase tracking-[2px] text-[#D9553F]">Next step</p>
-        <h2 className="text-[21px] font-bold leading-tight text-teton-ink mt-1.5 mb-1.5 pr-10">Request the agreement</h2>
+        <h2 className="text-[21px] font-bold leading-tight text-teton-ink mt-1.5 mb-1.5 pr-10">{state === 'sent' ? 'The agreement is on its way' : state === 'me' ? 'Update your request' : 'Request the agreement'}</h2>
         <p className="text-[13.5px] leading-normal text-[#5A6270]">
-          {first} will prepare the {info.pilot ? 'pilot ' : ''}agreement for your review. If you like, confirm the details below so it’s right the first time. Each one is optional.
+          {state === 'sent'
+            ? 'Need a change? Each one below is optional.'
+            : state === 'me'
+              ? `${first} has your request. Each change below is optional.`
+              : state === 'other'
+                ? 'Confirm the details below so the agreement is right the first time. Each one is optional.'
+                : `${first} will prepare the ${info.pilot ? 'pilot ' : ''}agreement for your review. If you like, confirm the details below so it’s right the first time. Each one is optional.`}
         </p>
-        {info.requestedAt && <p className="mt-2 text-[12.5px] text-[#256B41]">✓ You asked for it already. Send again to update {first}.</p>}
+        {info.latest && <AlreadyAsked r={info.latest} state={state as 'sent' | 'me' | 'other'} owner={first} sentTo={info.signatory?.email ?? null} />}
         <div className="mt-3.5 flex items-center gap-2.5 text-[12px] font-semibold text-[#5A6270]">
           <div className="flex-1 h-1.5 rounded-full bg-[#EEF0F2] overflow-hidden">
             <div className="h-full rounded-full bg-[#2E9A5B] transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${(done / parts) * 100}%` }} />
@@ -364,7 +376,7 @@ function Form({ a }: { a: AgreementState }) {
       <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 px-4 sm:px-6 pt-3.5 pb-[max(20px,env(safe-area-inset-bottom))] sm:pb-5 border-t border-[#F0EDE7] mt-3.5">
         <p className="flex-1 text-[12px] leading-snug text-[#8A919C]">Anything you skip, {first} will confirm with you before sending.</p>
         <button type="button" disabled={busy || eMode === 'edit' || sMode === 'edit' || cMode === 'edit'} onClick={() => void send()} className="h-11 px-5 rounded-[10px] bg-teton-ink text-white text-[14px] font-semibold disabled:opacity-50 transition-opacity">
-          {busy ? 'Sending…' : 'Request agreement'}
+          {busy ? 'Sending…' : state === 'sent' ? `Send changes to ${first}` : state === 'me' ? 'Send update' : state === 'other' ? 'Send an update' : 'Request agreement'}
         </button>
       </div>
     </>
@@ -439,6 +451,75 @@ function Sent({ a, p }: { a: AgreementState; p: AgreementPayload }) {
       <button type="button" className="mt-4 w-full h-11 rounded-[10px] bg-teton-ink text-white text-[14px] font-semibold" onClick={() => a.setOpen(false)}>
         Done
       </button>
+    </div>
+  );
+}
+
+const askedWhen = (at: string) => {
+  const d = new Date(`${at.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+};
+const initialsOf = (who: string) => (who.includes('@') ? who.slice(0, 2) : who.split(/\s+/).map((w) => w[0]).join('').slice(0, 2)).toUpperCase();
+
+/** Who already asked for the agreement, when, from which version, what they confirmed, and how far along it is. */
+function AlreadyAsked({ r, state, owner, sentTo }: { r: AgreementRequestInfo; state: 'sent' | 'me' | 'other'; owner: string; sentTo: string | null }) {
+  const tone = state === 'sent' ? 'border-[#BFE3CC] bg-[#F2FAF5]' : state === 'me' ? 'border-[#CFE0F8] bg-[#F1F7FE]' : 'border-[#F1D68A] bg-[#FFF8E6]';
+  const who = r.who.includes('@') ? r.who : r.who;
+  const firstName = who.includes('@') ? who : who.split(/\s+/)[0];
+  const p = r.payload;
+  const chip = (st: string, label: string) => {
+    const cls = st === 'confirmed' ? 'bg-teton-pale-green text-[#256B41]' : st === 'updated' ? 'bg-[#E4EFFD] text-[#1F5FB5]' : 'bg-[#EEF0F2] text-[#5A6270]';
+    const t = st === 'confirmed' ? `✓ ${label} confirmed` : st === 'updated' ? `✎ ${label} updated` : `${label} not confirmed`;
+    return <span key={label} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{t}</span>;
+  };
+  const step = state === 'sent' ? 3 : 2;
+  const Step = ({ n, label }: { n: number; label: string }) => {
+    const done = n < step || (n === 3 && step === 3);
+    const now = n === step && step !== 3;
+    return (
+      <span className={`flex items-center gap-1.5 whitespace-nowrap ${done ? 'text-teton-ink' : now ? 'text-[#B7791F]' : 'text-[#8A919C]'}`}>
+        <b className={`w-4 h-4 rounded-full grid place-items-center text-[9px] ${done ? 'bg-[#2E9A5B] text-white' : now ? 'bg-[#F5B53F] text-white' : 'bg-[#E3E6EA] text-[#5A6270]'}`}>{done ? '✓' : n}</b>
+        {label}
+      </span>
+    );
+  };
+  return (
+    <div className={`mt-3.5 rounded-[14px] border px-3.5 py-3 [animation:fadeUp_.25s_ease-out] motion-reduce:[animation:none] ${tone}`} role="status">
+      <div className="flex items-start gap-2.5">
+        <span className="relative w-[34px] h-[34px] flex-shrink-0 rounded-full bg-teton-ink text-white text-[12px] font-bold grid place-items-center" aria-hidden="true">
+          {state === 'sent' ? initialsOf(owner) : initialsOf(who)}
+          <span className={`absolute -right-1 -bottom-1 w-[18px] h-[18px] rounded-full border-2 border-white text-[9px] grid place-items-center ${state === 'sent' ? 'bg-[#2E9A5B]' : 'bg-[#D9553F]'}`}>{state === 'sent' ? '✓' : '✍'}</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-bold leading-snug text-teton-ink">{state === 'sent' ? `${owner} sent the agreement for review` : state === 'me' ? 'You requested the agreement' : `${who} already requested the agreement`}</p>
+          <p className="mt-0.5 text-[12.5px] leading-snug text-[#5A6270]">
+            {state === 'sent'
+              ? `${r.sentAt ? askedWhen(r.sentAt) : ''}${sentTo ? ` · to ${sentTo}` : ''} · requested by ${who} on ${askedWhen(r.createdAt).replace(/,? \d.*$/, '')}`
+              : `${askedWhen(r.createdAt)}${r.versionNo ? ` · from proposal v${r.versionNo}` : ''}`}
+          </p>
+          {state !== 'sent' && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {chip(p.entity.status, 'Entity')}
+              {chip(p.signatory.status, 'Signatory')}
+              {p.communities.list.length > 0 && chip(p.communities.status, 'Communities')}
+            </div>
+          )}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-semibold">
+            <Step n={1} label="Requested" />
+            <span className="flex-1 min-w-3 border-t-[1.5px] border-dashed border-[#D5D9DE]" aria-hidden="true" />
+            <Step n={2} label={`${owner} preparing`} />
+            <span className="flex-1 min-w-3 border-t-[1.5px] border-dashed border-[#D5D9DE]" aria-hidden="true" />
+            <Step n={3} label="Sent for review" />
+          </div>
+          <p className="mt-2.5 border-t border-black/[.06] pt-2 text-[12.5px] leading-snug text-[#3A3F47]">
+            {state === 'sent'
+              ? `Check your inbox for the agreement. Something to change? Send it below and ${owner} will revise it.`
+              : state === 'me'
+                ? `${owner} is preparing it. Change anything below and send it as an update.`
+                : `The details below include ${firstName}’s changes. You don’t need to send another request; if something’s still wrong, fix it here and ${owner} gets your update too.`}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -381,31 +381,37 @@ function TeamView({ room }: { room: ProspectRoom }) {
       <h1 className="mt-1.5 text-[26px] sm:text-[30px] font-semibold leading-tight tracking-[-.5px]">{room.heading}</h1>
       <p className="mt-2 text-[14px] leading-relaxed text-[#5A6270] max-w-[620px]">The people working with you. Reach any of us directly{first ? `; ${first} is your main point of contact` : ''}.</p>
       {c && (
-        <div className="mt-5 grid sm:grid-cols-[150px_1fr] gap-4 sm:gap-[22px] rounded-[18px] border border-[#E8E4DC] bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgba(0,0,0,.03)]">
-          <PersonPhoto name={c.name} photoUrl={c.photoUrl} size={150} square className="max-sm:!w-24 max-sm:!h-24" />
-          <div className="min-w-0">
-            <span className="inline-block rounded-full bg-[#FDF0EE] px-2 py-0.5 text-[11px] font-semibold text-[#B4442C]">Your main point of contact</span>
-            <h2 className="mt-1 text-[22px] font-semibold tracking-[-.3px]">{c.name}</h2>
-            <p className="text-[13.5px] text-[#5A6270]">{c.title ? `${c.title} · ` : ''}Teton</p>
-            <Contact p={c} />
-            {c.bio && <p className="mt-2 text-[12.5px] leading-relaxed text-[#5A6270]">{c.bio}</p>}
-            {room.note && <p className="mt-3 rounded-r-[10px] border-l-[3px] border-[#D9553F] bg-[#FBF8F3] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#3A4250] whitespace-pre-wrap">{room.note}</p>}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <a href={`mailto:${c.email}`} className="h-[38px] px-4 rounded-[10px] bg-teton-ink text-white text-[13px] font-semibold inline-flex items-center gap-1.5">
-                ✉ Email {first}
-              </a>
-              {room.showBooking && c.schedulingUrl && (
-                <a href={c.schedulingUrl} target="_blank" rel="noopener noreferrer" className="h-[38px] px-4 rounded-[10px] border border-[#D5D9DE] bg-white text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-teton-almost-white">
-                  📅 Book a meeting
-                </a>
-              )}
-              {c.phone && (
-                <a href={`tel:${c.phone.replace(/[^\d+]/g, '')}`} className="h-[38px] px-4 rounded-[10px] border border-[#D5D9DE] bg-white text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-teton-almost-white">
-                  ☏ Call
-                </a>
-              )}
+        <div className="mt-5 rounded-[18px] border border-[#E8E4DC] bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgba(0,0,0,.03)]">
+          <div className="grid sm:grid-cols-[150px_1fr] gap-4 sm:gap-[22px]">
+            <PersonPhoto name={c.name} photoUrl={c.photoUrl} size={150} square className="max-sm:!w-24 max-sm:!h-24" />
+            <div className="min-w-0">
+              {/* The pill and the ways to reach them share a row (same height). */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-block rounded-full bg-[#FDF0EE] p-2 text-[11px] leading-[14px] font-semibold text-[#B4442C]">Your main point of contact</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <a href={`mailto:${c.email}`} className="h-[30px] px-3 rounded-[9px] bg-teton-ink text-white text-[12.5px] font-semibold inline-flex items-center hover:opacity-90 transition-opacity">
+                    Email {first}
+                  </a>
+                  {room.showBooking && c.schedulingUrl && (
+                    <a href={c.schedulingUrl} target="_blank" rel="noopener noreferrer" className="h-[30px] px-3 rounded-[9px] border border-[#D5D9DE] bg-white text-[12.5px] font-semibold inline-flex items-center hover:bg-teton-almost-white transition-colors">
+                      Book a meeting
+                    </a>
+                  )}
+                  {c.phone && (
+                    <a href={`tel:${c.phone.replace(/[^\d+]/g, '')}`} className="h-[30px] px-3 rounded-[9px] border border-[#D5D9DE] bg-white text-[12.5px] font-semibold inline-flex items-center hover:bg-teton-almost-white transition-colors">
+                      Call
+                    </a>
+                  )}
+                </div>
+              </div>
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-.3px]">{c.name}</h2>
+              <p className="text-[13.5px] text-[#5A6270]">{c.title ? `${c.title} · ` : ''}Teton</p>
+              <Contact p={c} />
+              {c.bio && <p className="mt-2 text-[12.5px] leading-relaxed text-[#5A6270]">{c.bio}</p>}
             </div>
           </div>
+          {/* The note runs the card's width, under the photo, lined up with its left edge. */}
+          {room.note && <p className="mt-4 rounded-r-[10px] border-l-[3px] border-[#D9553F] bg-[#FBF8F3] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#3A4250] whitespace-pre-wrap">{room.note}</p>}
         </div>
       )}
       {room.team.length > 0 && (

@@ -28,8 +28,10 @@ export interface AgreementInfo {
   /** True: the deal has a pilot and these are its communities; false: no pilot, so every community. */
   pilot: boolean;
   communities: AgreementCommunity[];
-  /** This person's last request (the red dot goes once they've sent one). */
+  /** This person's last request. */
   requestedAt: string | null;
+  /** The deal's latest request (anyone's on the link): the form says who asked, when, and whether it's been sent. */
+  latest: AgreementRequestInfo | null;
 }
 
 /** What the form shows: the deal's details now, and the communities of the shared version. */
@@ -50,6 +52,7 @@ export async function agreementInfo(db: Client, l: PublicLink, email: string): P
       .filter((c) => !pilot || c.pilot)
       .map((c, i) => ({ id: c.id, name: c.name || `Community ${i + 1}`, place: placeOf(c), beds: pilot && c.pilotUnits ? c.pilotUnits : bedsOf(c), hasPlan: plans.has(c.id) })),
     requestedAt: last.rows.length ? String(last.rows[0].created_at) : null,
+    latest: (await requestsOf(db, l.dealId, 1))[0] ?? null,
   };
 }
 
@@ -116,8 +119,8 @@ export async function requestAgreement(db: Client, l: PublicLink, who: { email: 
     await db.execute({ sql: "UPDATE deals SET details = ?, updated_at = datetime('now') WHERE id = ?", args: [JSON.stringify(next), l.dealId] });
   }
   const r = await db.execute({
-    sql: 'INSERT INTO agreement_requests (deal_id, link_id, email, name, payload) VALUES (?, ?, ?, ?, ?) RETURNING id',
-    args: [l.dealId, l.id, email, who.name ? line(who.name, 80) : null, JSON.stringify(payload)],
+    sql: 'INSERT INTO agreement_requests (deal_id, link_id, version_id, email, name, payload) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+    args: [l.dealId, l.id, l.versionId, email, who.name ? line(who.name, 80) : null, JSON.stringify(payload)],
   });
   const id = Number(r.rows[0].id);
   await db.execute({ sql: "INSERT OR IGNORE INTO user_notifications (user_id, deal_id, kind, task_id) VALUES (?, ?, 'prospect_agreement', ?)", args: [l.ownerId, l.dealId, id] });
@@ -134,4 +137,104 @@ export function describePart(p: AgreementPayload, part: 'entity' | 'signatory' |
   const n = p.communities.list.length;
   const missing = p.communities.list.filter((c) => !c.hasPlan).length;
   return `${n} ${n === 1 ? 'community' : 'communities'}${missing ? ` · ${missing} need${missing === 1 ? 's' : ''} floor plans` : ''}`;
+}
+
+// ---------------------------------------------------------------- the rep's side: who asked, sent, snoozed
+
+export interface AgreementRequestInfo {
+  id: number;
+  email: string;
+  /** Their name, else their email. */
+  who: string;
+  createdAt: string;
+  versionId: number | null;
+  versionNo: number | null;
+  payload: AgreementPayload;
+  sentAt: string | null;
+  sentByName: string | null;
+  snoozedUntil: string | null;
+}
+
+/** A deal's requests, newest first. */
+async function requestsOf(db: Client, dealId: number, limit = 50): Promise<AgreementRequestInfo[]> {
+  const r = await db.execute({
+    sql: `SELECT a.*, v.version_no, u.name AS sent_by_name FROM agreement_requests a LEFT JOIN quote_versions v ON v.id = a.version_id LEFT JOIN users u ON u.id = a.sent_by
+          WHERE a.deal_id = ? ORDER BY a.id DESC LIMIT ?`,
+    args: [dealId, limit],
+  });
+  return r.rows.flatMap((x) => {
+    let payload: AgreementPayload;
+    try {
+      payload = JSON.parse(String(x.payload)) as AgreementPayload;
+    } catch {
+      return [];
+    }
+    return [{
+      id: Number(x.id),
+      email: String(x.email),
+      who: x.name ? String(x.name) : String(x.email),
+      createdAt: String(x.created_at),
+      versionId: x.version_id == null ? null : Number(x.version_id),
+      versionNo: x.version_no == null ? null : Number(x.version_no),
+      payload,
+      sentAt: x.sent_at == null ? null : String(x.sent_at),
+      sentByName: x.sent_by_name == null ? null : String(x.sent_by_name),
+      snoozedUntil: x.snoozed_until == null ? null : String(x.snoozed_until),
+    }];
+  });
+}
+
+/** Days from an SQLite UTC timestamp to now (whole days, rounded down). */
+const daysSince = (at: string, now = new Date()) => Math.floor((now.getTime() - Date.parse(`${at.replace(' ', 'T')}Z`)) / 86_400_000);
+/** After this many days without being marked sent, the alert turns red and can't be snoozed. */
+export const LATE_DAYS = 2;
+
+export interface DealAgreement {
+  /** The newest request still waiting (not marked sent), and who else has asked since the last one was sent. */
+  open: AgreementRequestInfo | null;
+  others: string[];
+  /** Days since the first waiting request; `late` at LATE_DAYS or more. */
+  waitingDays: number;
+  late: boolean;
+  /** Hidden until then (unless late). */
+  snoozedUntil: string | null;
+  /** The last one marked sent (for the "sent" line and its Undo). */
+  lastSent: AgreementRequestInfo | null;
+  /** The newest request per version (the Version History tags). */
+  byVersion: Array<{ versionId: number; versionNo: number | null; who: string; email: string; createdAt: string; payload: AgreementPayload }>;
+  /** The version on the live shared link. */
+  sharedVersionId: number | null;
+}
+
+export async function dealAgreement(db: Client, dealId: number, now = new Date()): Promise<DealAgreement> {
+  const all = await requestsOf(db, dealId);
+  const waiting = all.filter((x) => !x.sentAt);
+  const open = waiting[0] ?? null;
+  const oldest = waiting[waiting.length - 1];
+  const waitingDays = oldest ? daysSince(oldest.createdAt, now) : 0;
+  const byVersion = new Map<number, DealAgreement['byVersion'][number]>();
+  for (const x of all) if (x.versionId != null && !byVersion.has(x.versionId)) byVersion.set(x.versionId, { versionId: x.versionId, versionNo: x.versionNo, who: x.who, email: x.email, createdAt: x.createdAt, payload: x.payload });
+  const link = await db.execute({ sql: 'SELECT version_id FROM share_links WHERE deal_id = ? AND revoked_at IS NULL ORDER BY id DESC LIMIT 1', args: [dealId] });
+  return {
+    open,
+    others: [...new Set(waiting.slice(1).map((x) => x.who))].filter((w) => w !== open?.who),
+    waitingDays,
+    late: !!open && waitingDays >= LATE_DAYS,
+    snoozedUntil: open?.snoozedUntil ?? null,
+    lastSent: all.find((x) => x.sentAt) ?? null,
+    byVersion: [...byVersion.values()],
+    sharedVersionId: link.rows.length ? Number(link.rows[0].version_id) : null,
+  };
+}
+
+/** The rep's actions: mark the waiting requests sent, undo the last "sent", or snooze the alert for a day. */
+export async function agreementAction(db: Client, dealId: number, userId: number, action: 'sent' | 'undo' | 'snooze', now = new Date()): Promise<void> {
+  if (action === 'sent') {
+    await db.execute({ sql: "UPDATE agreement_requests SET sent_at = datetime('now'), sent_by = ? WHERE deal_id = ? AND sent_at IS NULL", args: [userId, dealId] });
+  } else if (action === 'undo') {
+    await db.execute({ sql: 'UPDATE agreement_requests SET sent_at = NULL, sent_by = NULL WHERE deal_id = ? AND sent_at = (SELECT MAX(sent_at) FROM agreement_requests WHERE deal_id = ?)', args: [dealId, dealId] });
+  } else if (action === 'snooze') {
+    const until = new Date(now.getTime() + 86_400_000).toISOString().replace('T', ' ').slice(0, 19);
+    await db.execute({ sql: 'UPDATE agreement_requests SET snoozed_until = ? WHERE deal_id = ? AND sent_at IS NULL', args: [until, dealId] });
+  } else throw httpError('Unknown action');
 }

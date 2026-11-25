@@ -1340,3 +1340,6 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 .fit-1 [data-hide-at="1"], .fit-2 [data-hide-at="2"], .fit-3 [data-hide-at="3"] { display: none !important; }
 .fit-1 [data-show-at="1"], .fit-2 [data-show-at="2"], .fit-3 [data-show-at="3"] { display: inline !important; }
 .fit-4 { flex-wrap: wrap !important; }
+
+/* The agreement alert's red dot: a ring that pulses outward. */
+@keyframes agPulse { 0% { box-shadow: 0 0 0 0 rgba(229,72,77,.55); } 100% { box-shadow: 0 0 0 10px rgba(229,72,77,0); } }

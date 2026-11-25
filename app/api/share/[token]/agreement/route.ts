@@ -20,7 +20,7 @@ async function prospect(token: string) {
 export async function GET(_req: Request, { params }: { params: { token: string } }) {
   try {
     const { db, l, who } = await prospect(params.token);
-    return NextResponse.json({ ...(await agreementInfo(db, l, who.email)), team: !!who.team, ownerName: l.ownerName, ownerEmail: l.ownerEmail }, { headers: { 'cache-control': 'no-store' } });
+    return NextResponse.json({ ...(await agreementInfo(db, l, who.email)), me: who.email.toLowerCase(), team: !!who.team, ownerName: l.ownerName, ownerEmail: l.ownerEmail }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
   }
@@ -49,7 +49,7 @@ export async function POST(req: Request, { params }: { params: { token: string }
         .send({ fromName: 'Teton Proposals', to: l.ownerEmail, replyTo: email, ...msg })
         .catch((e) => console.error('agreement email not sent', e));
     }
-    return NextResponse.json({ ok: true, payload, ...(await agreementInfo(db, l, email)) });
+    return NextResponse.json({ ok: true, payload, me: email, ...(await agreementInfo(db, l, email)) });
   } catch (e) {
     return jsonError(e);
   }

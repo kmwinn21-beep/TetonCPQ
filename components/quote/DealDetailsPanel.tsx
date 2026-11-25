@@ -63,7 +63,7 @@ function StatusPills({ d, days }: { d: DealDetails; days: number | null }) {
 }
 const label = 'block text-[10px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2.5 mb-1';
 
-export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
+export function DealDetailsPanel({ quoteId, prospectUpdated = false }: { quoteId: number; prospectUpdated?: boolean }) {
   const acc = useAccess();
   const canEdit = acc.inputs;
   const [open, setOpen] = useState(false);
@@ -106,6 +106,12 @@ export function DealDetailsPanel({ quoteId }: { quoteId: number }) {
           <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
         </svg>
         <h2 className="text-sm font-semibold whitespace-nowrap">Deal Details</h2>
+        {prospectUpdated && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#FDE3DD] px-2 py-0.5 text-[10.5px] font-bold text-[#B23A26] whitespace-nowrap drawer-in" title="The prospect changed these details when they asked for the agreement">
+            <span className="w-[7px] h-[7px] rounded-full bg-[#E5484D] animate-[agPulse_1.6s_ease-out_infinite] motion-reduce:animate-none" aria-hidden="true" />
+            Updated by prospect
+          </span>
+        )}
       </button>
       {/* Edit (while open): beside the title on phones, at the end of the pill row otherwise. */}
       {open && d && canEdit && !editing && (

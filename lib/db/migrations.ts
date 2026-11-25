@@ -661,4 +661,15 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_agreement_requests ON agreement_requests(deal_id, email)`,
     ],
   },
+  {
+    id: 25,
+    name: 'agreement request follow-up',
+    sql: [
+      // Which saved version the prospect was looking at, and the rep's side: sent (and by whom) or snoozed.
+      `ALTER TABLE agreement_requests ADD COLUMN version_id INTEGER`,
+      `ALTER TABLE agreement_requests ADD COLUMN sent_at TEXT`,
+      `ALTER TABLE agreement_requests ADD COLUMN sent_by INTEGER REFERENCES users(id)`,
+      `ALTER TABLE agreement_requests ADD COLUMN snoozed_until TEXT`,
+    ],
+  },
 ];

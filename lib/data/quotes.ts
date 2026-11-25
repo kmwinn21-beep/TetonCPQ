@@ -35,6 +35,8 @@ export interface DealSummary {
   overdueTasks: number;
   /** For the user asking: their collaborator permissions on it (null when they aren't one). */
   myPerms: { inputs: boolean; scope: boolean; deliverables: boolean } | null;
+  /** A prospect asked for the agreement and nobody has marked it sent yet. */
+  agreementRequested: boolean;
 }
 
 export interface VersionSummary {
@@ -97,7 +99,8 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
            (SELECT inputs_json FROM quote_versions v WHERE v.quote_id = q.id AND v.status = 'draft') AS draft_json,
            (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name,
            (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL) AS open_tasks,
-           (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < date('now')) AS overdue_tasks
+           (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < date('now')) AS overdue_tasks,
+           EXISTS (SELECT 1 FROM agreement_requests a WHERE a.deal_id = d.id AND a.sent_at IS NULL) AS agreement_open
     FROM deals d JOIN quotes q ON q.deal_id = d.id
     LEFT JOIN deal_collaborators c ON c.deal_id = d.id AND c.user_id = ?
     WHERE q.id = (SELECT MIN(id) FROM quotes WHERE deal_id = d.id)
@@ -120,6 +123,7 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
       openTasks: Number(r.open_tasks ?? 0),
       overdueTasks: Number(r.overdue_tasks ?? 0),
       myPerms: r.collab == null ? null : { inputs: Number(r.can_inputs) === 1, scope: Number(r.can_scope) === 1, deliverables: Number(r.can_deliverables) === 1 },
+      agreementRequested: Number(r.agreement_open ?? 0) === 1,
     };
   });
 }

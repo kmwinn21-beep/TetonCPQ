@@ -64,7 +64,7 @@ describe('what the form shows', () => {
 });
 
 describe('shaping a request', () => {
-  const info: AgreementInfo = { entity: 'ABC LLC', signatory: { first: 'Dana', last: 'Lee', title: 'VP', email: 'dana@abc.com' }, pilot: true, communities: [{ id: 'c1', name: 'A', place: '', beds: 10, hasPlan: false }], requestedAt: null };
+  const info: AgreementInfo = { entity: 'ABC LLC', signatory: { first: 'Dana', last: 'Lee', title: 'VP', email: 'dana@abc.com' }, pilot: true, communities: [{ id: 'c1', name: 'A', place: '', beds: 10, hasPlan: false }], requestedAt: null, latest: null };
   it('leaves everything skipped when nothing is ticked (confirming is optional)', () => {
     const p = shapeRequest(info, {});
     expect([p.entity.status, p.signatory.status, p.communities.status]).toEqual(['skipped', 'skipped', 'skipped']);
@@ -109,5 +109,33 @@ describe('sending one', () => {
     expect(m.html).toContain('VP of Operations');
     expect(m.html).toContain('Still to confirm with Dana');
     expect(m.text).toContain('Signatory (Updated): Dana Lee, Chief Operating Officer');
+  });
+});
+
+describe('the rep’s side', () => {
+  it('shows what’s waiting, late after two days, snoozes, marks sent and undoes it', async () => {
+    const { dealAgreement, agreementAction } = await import('./agreements');
+    const { listDeals } = await import('./quotes');
+    let a = await dealAgreement(db, dealId);
+    expect(a.open?.who).toBe('Dana Lee');
+    expect(a.open?.versionId).toBe(l.versionId);
+    expect(a.byVersion[0]).toMatchObject({ versionId: l.versionId, who: 'Dana Lee' });
+    expect(a.sharedVersionId).toBe(l.versionId);
+    expect(a.late).toBe(false);
+    expect((await listDeals(db, kw)).find((d) => d.dealId === dealId)?.agreementRequested).toBe(true);
+    // Two days on, it's late.
+    expect((await dealAgreement(db, dealId, new Date(Date.now() + 2.2 * 86_400_000))).late).toBe(true);
+    await agreementAction(db, dealId, kw, 'snooze');
+    a = await dealAgreement(db, dealId);
+    expect(a.snoozedUntil).not.toBeNull();
+    await agreementAction(db, dealId, kw, 'sent');
+    a = await dealAgreement(db, dealId);
+    expect(a.open).toBeNull();
+    expect(a.lastSent).toMatchObject({ who: 'Dana Lee', sentByName: 'Kevin Winn' });
+    expect((await listDeals(db, kw)).find((d) => d.dealId === dealId)?.agreementRequested).toBe(false);
+    // The prospect's form now says it's been sent.
+    expect((await agreementInfo(db, l, 'someone@abc.com')).latest?.sentAt).not.toBeNull();
+    await agreementAction(db, dealId, kw, 'undo');
+    expect((await dealAgreement(db, dealId)).open?.who).toBe('Dana Lee');
   });
 });

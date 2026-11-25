@@ -41,6 +41,7 @@ import { Collapse, ReadOnlyContext, SectionGroup } from '@/components/form/field
 import { usePersistedOpen } from '@/components/Sidebar';
 import { canAutoFocus } from '@/lib/client/focus';
 import { DealLinkButtons } from './DealLinkButtons';
+import { AgreementAlert, useDealAgreement } from './AgreementAlert';
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
@@ -133,6 +134,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   const access = useAccess();
   // Edit Inputs or Edit Scope: the draft can change (the server checks what changed against what's allowed).
   const canEdit = access.inputs || access.scope;
+  const agreement = useDealAgreement(initial.quoteId);
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const lastSaved = useRef(JSON.stringify(initial.draft));
   // The draft revision this tab last saw; the server refuses saves based on an older one.
@@ -426,6 +428,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <p className="w-full text-sm bg-teton-pale-yellow rounded px-2 py-1">Some fields need attention — they’re highlighted below.</p>
           )}
         </header>
+        <AgreementAlert ag={agreement.data} act={agreement.act} canEdit={access.inputs} />
 
         {/* The inputs and the right panel share the room 1.75 : 1, so both widen when the menus collapse. */}
         <div
@@ -544,12 +547,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
               <CollaboratorsPanel />
-              <DealDetailsPanel quoteId={initial.quoteId} />
+              <DealDetailsPanel quoteId={initial.quoteId} prospectUpdated={!!agreement.data?.open && (agreement.data.open.payload.entity.status === 'updated' || agreement.data.open.payload.signatory.status === 'updated')} />
               <TasksPanel quoteId={initial.quoteId} />
               <FloorPlansPanel />
               <NotificationsPanel />
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
               <VersionsPanel
+                agreement={agreement.data}
                 versions={versions}
                 quoteId={initial.quoteId}
                 activeId={active.id}

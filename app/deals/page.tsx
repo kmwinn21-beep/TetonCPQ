@@ -49,6 +49,7 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
                   <span className="flex items-start gap-3">
                     <span className="block min-w-0 flex-1">
                       <span className="block font-semibold text-base leading-snug">{d.customerName}</span>
+                      <AgreementTag d={d} />
                       <Perms d={d} />
                     </span>
                     <span className="flex flex-col items-center gap-1 flex-shrink-0">
@@ -84,6 +85,7 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
                       <Link href={`/quotes/${d.quoteId}`} className="font-medium hover:underline">
                         {d.customerName}
                       </Link>
+                      <AgreementTag d={d} />
                       <Perms d={d} />
                     </td>
                     <td className="px-4 py-3 text-teton-dark-gray">{d.ownerName ?? '—'}</td>
@@ -134,5 +136,16 @@ export default async function DealsPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** A prospect asked for the agreement and it hasn't been marked sent. */
+function AgreementTag({ d }: { d: DealSummary }) {
+  if (!d.agreementRequested) return null;
+  return (
+    <span className="mt-1 flex w-fit items-center gap-1 rounded-full bg-[#FDE3DD] px-2 py-0.5 text-[10.5px] font-bold text-[#B23A26] whitespace-nowrap">
+      <span className="w-[7px] h-[7px] rounded-full bg-[#E5484D] animate-[agPulse_1.6s_ease-out_infinite] motion-reduce:animate-none" aria-hidden="true" />
+      Agreement requested
+    </span>
   );
 }

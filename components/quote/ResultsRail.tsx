@@ -11,6 +11,8 @@ import type { VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, usd } from '@/lib/format';
 import { panelElId, usePanelOpener } from './panelNav';
+import type { DealAgreement } from '@/lib/data/agreements';
+import { AGREEMENT_OPEN, firstOf, partChips } from './AgreementAlert';
 
 
 /** A titled block of label / value rows in the live preview. */
@@ -115,28 +117,75 @@ const Chevron = ({ open }: { open: boolean }) => (
 );
 
 /** One saved version: its name, when and by whom, and (opened) what changed from the version before it. */
-function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete, readOnly }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void; onDelete: () => void; readOnly?: boolean }) {
+/** The agreement request made from a version (for its tag), and the version on the shared link. */
+interface VersionTag {
+  who: string;
+  email: string;
+  createdAt: string;
+  payload: DealAgreement['byVersion'][number]['payload'];
+  /** Still waiting for the agreement (the summary links to the alert). */
+  waiting: boolean;
+  /** The active version's number when it isn't this one. */
+  activeNo: number | null;
+}
+const tagDate = (at: string) => {
+  const d = new Date(`${at.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete, readOnly, ag, shared }: { v: VersionSummary; quoteId: number; active: boolean; busy: boolean; onMakeActive: () => void; onDelete: () => void; readOnly?: boolean; ag?: VersionTag | null; shared?: boolean }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const name = v.changeNote || `v${v.versionNo}`;
   return (
-    <li className={`rounded-lg border ${active ? 'border-teton-green/60 bg-teton-pale-green/30' : 'border-teton-off-white'} text-sm`}>
+    <li className={`rounded-lg border ${active ? 'border-teton-green/60 bg-teton-pale-green/30' : ag ? 'border-[#EFB2A5] bg-gradient-to-r from-[#FFF5F2] to-white shadow-[inset_3px_0_0_#D9553F]' : 'border-teton-off-white'} text-sm`}>
       <button type="button" className="w-full flex items-start gap-2 px-3 py-2 text-left" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className="mt-0.5"><Chevron open={open} /></span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-medium truncate">{name}</span>
             {v.changeNote && <span className="text-xs text-teton-ui-gray">v{v.versionNo}</span>}
-            {active && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-teton-pale-green text-[#256B41]">Active</span>}
+            <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
+              {active && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-teton-pale-green text-[#256B41]">Active</span>}
+              {shared && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#EAF2FD] text-[#1F5FB5] whitespace-nowrap">🔗 Shared</span>}
+              {ag && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#FDE3DD] text-[#B23A26] whitespace-nowrap">✍ Agreement requested</span>}
+            </span>
           </span>
           <span className="block text-xs text-teton-ui-gray">
             {dateLabel(v.savedAt)}{v.savedByName ? ` · ${v.savedByName}` : ''}
             {v.status === 'sent' && ` · sent ${dateLabel(v.sentAt)}${v.sentByName ? ` by ${v.sentByName}` : ''}`}
           </span>
+          {ag && <span className="block mt-0.5 text-[11.5px] font-medium text-[#B23A26]">{ag.who} requested the agreement on this version · {tagDate(ag.createdAt)}</span>}
         </span>
       </button>
       <Collapse open={open}>
         <div className="px-3 pb-2.5 pl-9">
+          {ag && (
+            <div className="mb-2 rounded-lg border border-[#F3D4CC] bg-[#FFFAF8] px-2.5 py-2 text-xs leading-relaxed text-[#3A3F47]">
+              <b className="font-semibold text-teton-ink">Agreement requested from this version</b> by {ag.who}
+              {ag.who !== ag.email ? ` (${ag.email})` : ''}, {tagDate(ag.createdAt)}.
+              <span className="mt-1 flex flex-wrap gap-1">
+                {partChips(ag.payload, true).map((c) => (
+                  <span key={c.k} className={`rounded-full px-1.5 py-px text-[10.5px] font-semibold ${c.cls}`}>
+                    {c.t}
+                  </span>
+                ))}
+              </span>
+              {ag.waiting && (
+                <button type="button" className="mt-1 font-semibold text-[#1F5FB5] underline" onClick={() => window.dispatchEvent(new Event(AGREEMENT_OPEN))}>
+                  View request
+                </button>
+              )}
+            </div>
+          )}
+          {ag && ag.activeNo != null && (
+            <p className="mb-2 flex gap-1.5 rounded-lg border border-[#F1D68A] bg-teton-pale-yellow px-2 py-1.5 text-[11.5px] leading-snug text-[#8A5A00]" role="note">
+              <span aria-hidden="true">⚠</span>
+              <span>
+                v{ag.activeNo} is the active version, but {firstOf(ag.who)} asked for the agreement from <b>v{v.versionNo}</b>. Write the agreement from v{v.versionNo}, or make it active first.
+              </span>
+            </p>
+          )}
           {v.changes.length ? (
             <ul className="list-disc pl-4 space-y-0.5 text-xs text-teton-dark-gray">
               {v.changes.map((c, i) => <li key={i}>{c}</li>)}
@@ -168,6 +217,7 @@ function VersionCard({ v, quoteId, active, busy, onMakeActive, onDelete, readOnl
           <p>
             Delete <b>{name}</b>{v.changeNote ? ` (v${v.versionNo})` : ''} for good? Its inputs, results and proposal are removed and can’t be recovered.
           </p>
+          {ag && <p className="mt-1.5 rounded bg-[#FDE3DD] px-2 py-1.5 font-semibold text-[#9A2E1C]">✍ {ag.who} requested the agreement on this version. Delete it only if the agreement won’t be based on it.</p>}
           <div className="flex gap-2 mt-1.5">
             <button type="button" className="py-1 px-2.5 rounded-md bg-[#C2412D] text-white font-medium disabled:opacity-50" disabled={busy} onClick={() => { setConfirming(false); onDelete(); }}>
               Delete version
@@ -264,16 +314,21 @@ function UnsavedCard({ u, readOnly }: { u: UnsavedChanges; readOnly?: boolean })
  * Version History: every saved version, the active one first. Collapsed to its
  * header (with the count and the active version) until opened.
  */
-export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false, unsaved }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean; unsaved?: UnsavedChanges | null }) {
+export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMakeActive, onDelete, readOnly = false, unsaved, agreement = null }: { versions: VersionSummary[]; quoteId: number; activeId?: number | null; busy?: boolean; onMakeActive?: (v: VersionSummary) => void; onDelete?: (v: VersionSummary) => void; readOnly?: boolean; unsaved?: UnsavedChanges | null; agreement?: DealAgreement | null }) {
   const [open, setOpen] = useState(false);
   usePanelOpener('version-history', setOpen);
   const active = versions.find((v) => v.id === activeId) ?? null;
   const ordered = active ? [active, ...versions.filter((v) => v !== active)] : versions;
+  // The version the latest agreement request came from (a newer request moves the tag).
+  const req = agreement ? agreement.open ?? agreement.lastSent : null;
+  const tagged = req?.versionId != null ? agreement!.byVersion.find((b) => b.versionId === req.versionId) ?? null : null;
+  const taggedNo = tagged ? versions.find((v) => v.id === tagged.versionId)?.versionNo ?? tagged.versionNo : null;
   return (
     <div className="card" id={panelElId('version-history')}>
       <button type="button" className="w-full flex items-center gap-2 text-left" aria-expanded={open} aria-controls="version-history" onClick={() => setOpen(!open)}>
         <Chevron open={open} />
         <h2 className="text-sm font-semibold flex-1">Version History</h2>
+        {tagged && taggedNo != null && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FDE3DD] text-[#B23A26] whitespace-nowrap">✍ Agreement · v{taggedNo}</span>}
         <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-teton-off-white text-teton-dark-gray whitespace-nowrap">
           {versions.length} {versions.length === 1 ? 'version' : 'versions'}
           {active && ` · v${active.versionNo} active`}
@@ -292,7 +347,18 @@ export function VersionsPanel({ versions, quoteId, activeId, busy = false, onMak
           ) : (
             <ul className="space-y-2">
               {ordered.map((v) => (
-                <VersionCard key={v.id} v={v} quoteId={quoteId} active={v.id === activeId} busy={busy} onMakeActive={() => onMakeActive?.(v)} onDelete={() => onDelete?.(v)} readOnly={readOnly} />
+                <VersionCard
+                  key={v.id}
+                  v={v}
+                  quoteId={quoteId}
+                  active={v.id === activeId}
+                  busy={busy}
+                  onMakeActive={() => onMakeActive?.(v)}
+                  onDelete={() => onDelete?.(v)}
+                  readOnly={readOnly}
+                  shared={agreement?.sharedVersionId === v.id}
+                  ag={tagged && tagged.versionId === v.id ? { ...tagged, waiting: !!agreement?.open, activeNo: v.id === activeId ? null : active?.versionNo ?? null } : null}
+                />
               ))}
             </ul>
           )}
