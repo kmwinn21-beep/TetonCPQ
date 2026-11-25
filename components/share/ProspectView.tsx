@@ -98,7 +98,7 @@ function Body(p: Props) {
     <>
       {!p.allowPdf && <style>{'@media print { [data-prospect] .proposal-doc { display: none !important; } [data-prospect]::after { content: "Printing is turned off for this proposal."; display: block; padding: 40px; font: 14px Inter, sans-serif; } }'}</style>}
       <header className="no-print sticky top-0 z-30 bg-white border-b border-[#ECE8DF]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-6 h-[60px]">
+        <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-6 h-11 sm:h-[60px]">
           <span className="flex items-center gap-2 text-[17px] font-bold text-teton-ink flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/teton-logo.png" alt="Teton" className="w-[22px] h-[22px] object-contain" />
@@ -135,12 +135,13 @@ function Body(p: Props) {
           </span>
         </div>
         {p.team && (
-          <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-4 py-1.5 text-center text-[12.5px] text-[#1F4F96]">
-            You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.
+          <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-3 sm:px-4 py-1 sm:py-1.5 text-center text-[11.5px] sm:text-[12.5px] leading-snug text-[#1F4F96]">
+            <span className="sm:hidden">Viewing as the Teton team · not counted in Activity</span>
+            <span className="hidden sm:inline">You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.</span>
           </p>
         )}
         {rt.room && (
-          <div className="sm:hidden px-3 pb-2.5">
+          <div className="sm:hidden px-3 pb-2 pt-0.5">
             <TabSwitch rt={rt} className="flex w-full" />
           </div>
         )}
