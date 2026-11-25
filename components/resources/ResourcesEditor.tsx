@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SegGroup } from '@/components/form/SegGroup';
+import { Collapse } from '@/components/form/fields';
 import { isOnePager } from '@/lib/proposal/onePager';
 import { uploadResourceFile } from '@/lib/resources/upload';
 import { DEFAULT_HEADING, type Block, type Resource, type RoomSettings, type Section } from '@/lib/resources/model';
@@ -302,6 +303,14 @@ function CardList({
   const [over, setOver] = useState<string | null>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // Sections start collapsed (every time); the selected card's section opens, and dragging over one opens it.
+  const [openSecs, setOpenSecs] = useState<Set<string>>(() => new Set());
+  const openSec = (id: string) => setOpenSecs((o) => (o.has(id) ? o : new Set([...o, id])));
+  const selSection = typeof sel === 'number' ? d.resources.find((x) => x.id === sel)?.sectionId ?? null : null;
+  useEffect(() => {
+    if (selSection) openSec(selSection);
+  }, [selSection]);
+  const allOpen = d.settings.sections.every((s) => openSecs.has(s.id));
   const edit = d.canEdit;
   const drop = (sectionId: string, beforeId: number | null) => {
     if (drag == null) return;
@@ -334,6 +343,11 @@ function CardList({
           </span>
         </span>
       </button>
+      <div className="flex justify-end mx-1 mt-2 -mb-1">
+        <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => setOpenSecs(allOpen ? new Set() : new Set(d.settings.sections.map((x) => x.id)))}>
+          {allOpen ? 'Collapse all' : 'Expand all'}
+        </button>
+      </div>
       {d.settings.sections.map((s, si) => {
         const list = d.resources.filter((x) => x.sectionId === s.id);
         const moveSection = (by: -1 | 1) => {
@@ -342,9 +356,10 @@ function CardList({
           setSettings({ sections: next });
         };
         const custom = !['docs', 'cases', 'plans', 'recordings'].includes(s.id);
+        const isOpen = openSecs.has(s.id);
         return (
-          <div key={s.id} onDragOver={(e) => drag != null && (e.preventDefault(), setOver(s.id))} onDrop={() => drop(s.id, null)} className={`mt-1 rounded-xl transition-colors duration-150 ${over === s.id && drag != null ? 'bg-[#EEF5FE]' : ''}`}>
-            <div className="flex items-center gap-2 mx-1 mt-3.5 mb-2">
+          <div key={s.id} onDragOver={(e) => drag != null && (e.preventDefault(), setOver(s.id), openSec(s.id))} onDrop={() => drop(s.id, null)} className={`mt-1 rounded-xl transition-colors duration-150 ${over === s.id && drag != null ? 'bg-[#EEF5FE]' : ''}`}>
+            <div className="flex items-center gap-1.5 mx-0.5 mt-1.5 mb-1 min-h-[36px]">
               {renaming === s.id ? (
                 <input
                   autoFocus
@@ -355,11 +370,15 @@ function CardList({
                   aria-label="Section name"
                 />
               ) : (
-                <p className="flex-1 text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C]">{s.name}</p>
+                <button type="button" aria-expanded={isOpen} onClick={() => setOpenSecs((o) => { const n = new Set(o); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })} className="flex-1 min-w-0 flex items-center gap-2 rounded-[9px] px-1 py-1.5 text-left hover:bg-white/70">
+                  <span className={`w-5 h-5 grid place-items-center text-[10px] text-[#6B7380] transition-transform duration-300 motion-reduce:transition-none ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                  <span className="flex-1 min-w-0 truncate text-[10.5px] font-extrabold uppercase tracking-[1.4px] text-[#5A6270]">{s.name}</span>
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#E9E5DE] text-[11px] font-bold text-[#5A6270] grid place-items-center">{list.length}</span>
+                </button>
               )}
               {edit && renaming !== s.id && (
-                <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5]" onClick={() => setRenaming(s.id)}>
-                  Rename
+                <button type="button" aria-label={`Rename ${s.name}`} title="Rename section" className="w-6 h-6 rounded-md grid place-items-center text-[12px] text-[#5A6270] hover:bg-white" onClick={() => setRenaming(s.id)}>
+                  ✎
                 </button>
               )}
               {edit && renaming !== s.id && (
@@ -378,6 +397,8 @@ function CardList({
                 </button>
               )}
             </div>
+            <Collapse open={isOpen}>
+              <div className="pb-1">
             {!list.length && <p className="mx-1 mb-1 text-[11px] text-[#A9ADB4]">{drag != null ? 'Drop here' : 'Empty: hidden from the prospect'}</p>}
             {list.map((x) => {
               const m = metaOf(x);
@@ -431,6 +452,8 @@ function CardList({
                 </div>
               );
             })}
+              </div>
+            </Collapse>
           </div>
         );
       })}

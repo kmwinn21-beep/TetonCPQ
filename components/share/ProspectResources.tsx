@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
+import { Collapse } from '@/components/form/fields';
 import { useComments } from '@/components/proposal/Comments';
 import { PersonPhoto } from '@/components/resources/Person';
 import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
@@ -198,6 +199,14 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
     [token, room, rt, booking],
   );
   const people = [room.contact, ...room.team].filter((p): p is RoomPerson => !!p);
+  // Sections start collapsed on every visit; opening a card (from a related link, say) opens its section.
+  const [openSecs, setOpenSecs] = useState<Set<string>>(() => new Set());
+  const toggle = (id: string) => setOpenSecs((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const selSection = rt.sel === 'team' ? null : room.resources.find((x) => x.id === rt.sel)?.sectionId ?? null;
+  useEffect(() => {
+    if (selSection) setOpenSecs((o) => (o.has(selSection) ? o : new Set([...o, selSection])));
+  }, [selSection]);
+  const allOpen = room.sections.every((x) => openSecs.has(x.id));
   const r = rt.sel === 'team' ? null : room.resources.find((x) => x.id === rt.sel) ?? null;
   const icon = (x: Resource) => (x.kind === 'floorplan' ? '▦' : metaOf(x).icon);
   const chipsOf = (x: Resource) => {
@@ -220,16 +229,53 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
             fresh={false}
             onClick={() => rt.select('team')}
           />
-          {room.sections.map((s) => (
-            <div key={s.id} className="contents sm:block">
-              <p className="hidden sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1.5 mt-4 mb-2">{s.name}</p>
-              {room.resources
-                .filter((x) => x.sectionId === s.id)
-                .map((x) => (
-                  <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
-                ))}
-            </div>
+          {/* Phones: every card in one sideways row. */}
+          {room.sections.flatMap((s) => room.resources.filter((x) => x.sectionId === s.id)).map((x) => (
+            <span key={x.id} className="contents sm:hidden">
+              <Card on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+            </span>
           ))}
+          {/* Wider screens: sections, collapsed to start; the selected card's section opens. */}
+          <div className="hidden sm:block">
+            {room.sections.length > 1 && (
+              <div className="flex justify-end mx-1.5 mt-1">
+                <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => setOpenSecs(allOpen ? new Set() : new Set(room.sections.map((x) => x.id)))}>
+                  {allOpen ? 'Collapse all' : 'Expand all'}
+                </button>
+              </div>
+            )}
+            {room.sections.map((s) => {
+              const list = room.resources.filter((x) => x.sectionId === s.id);
+              const open = openSecs.has(s.id);
+              const fresh = list.some((x) => rt.isNew(x));
+              return (
+                <div key={s.id} className="mt-1">
+                  <button type="button" aria-expanded={open} onClick={() => toggle(s.id)} className="w-full flex items-center gap-2 rounded-[11px] px-1.5 py-2.5 text-left hover:bg-white/70 transition-colors duration-150">
+                    <span className={`w-5 h-5 grid place-items-center text-[10px] text-[#6B7380] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                    <span className="flex-1 min-w-0 truncate text-[10.5px] font-extrabold uppercase tracking-[1.4px] text-[#5A6270]">{s.name}</span>
+                    {!open && (
+                      <span className="flex" aria-hidden="true">
+                        {list.slice(0, 3).map((x, i) => (
+                          <span key={x.id} className={`w-5 h-5 rounded-md grid place-items-center text-[10px] border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: metaOf(x).bg, color: metaOf(x).fg }}>
+                            {icon(x)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {!open && fresh && <span className="w-2 h-2 rounded-full bg-[#3F8CEA]" title="Something new" />}
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#E9E5DE] text-[11px] font-bold text-[#5A6270] grid place-items-center">{list.length}</span>
+                  </button>
+                  <Collapse open={open}>
+                    <div className="pt-1 pb-1">
+                      {list.map((x) => (
+                        <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+                      ))}
+                    </div>
+                  </Collapse>
+                </div>
+              );
+            })}
+          </div>
         </nav>
       </aside>
       <main data-res-main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-11 pt-6 sm:pt-8 pb-16">
