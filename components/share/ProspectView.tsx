@@ -15,6 +15,7 @@ import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
 import { CommentsProvider, useComments, BubbleIcon } from '@/components/proposal/Comments';
 import { DocumentInFormat } from '@/components/proposal/ProposalView';
 import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
+import { ResourcesView, TabSwitch, useResourcesTab } from './ProspectResources';
 import { PageQuestionBadges, QuestionsButton, QuestionsPanel, useQuestions } from './ProspectQuestions';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -59,6 +60,12 @@ function Body(p: Props) {
   const [commenting, setCommenting] = useState(false);
   const contents = useContents();
   const questions = useQuestions(p.token);
+  const rt = useResourcesTab(p.token, contents.current);
+  const onProposal = rt.tab === 'proposal';
+  // Leaving the proposal closes its contents panel and comment mode.
+  useEffect(() => {
+    if (!onProposal) setCommenting(false);
+  }, [onProposal]);
   const pageTitles = Object.fromEntries(contents.pages.map((x) => [x.id, x.title]));
   // Comment mode: click a page or a section to comment on it. Esc leaves it.
   useEffect(() => {
@@ -95,18 +102,19 @@ function Body(p: Props) {
             <img src="/teton-logo.png" alt="Teton" className="w-[22px] h-[22px] object-contain" />
             <span className="hidden sm:inline">Teton</span>
           </span>
-          <ContentsButton c={contents} />
-          <span className="hidden md:block min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]">
+          <TabSwitch rt={rt} className="hidden sm:inline-flex" />
+          {onProposal && <ContentsButton c={contents} />}
+          <span className={`${onProposal ? 'hidden lg:block' : 'hidden'} min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]`}>
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
           </span>
           <span className="flex-1" />
           <QuestionsButton q={questions} />
           {p.allowComments && (
             <>
-              <button type="button" aria-pressed={commenting} className={`${btn} ${commenting ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`} onClick={() => setCommenting((c) => !c)} title="Click a page or a section to comment on it">
+              {onProposal && <button type="button" aria-pressed={commenting} className={`${btn} ${commenting ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`} onClick={() => setCommenting((c) => !c)} title="Click a page or a section to comment on it">
                 <BubbleIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">{commenting ? 'Click a page or section' : 'Comment'}</span>
-              </button>
+              </button>}
               <button type="button" className={`${btn} bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white`} onClick={() => comments.open()}>
                 <span className="hidden sm:inline">Comments</span>
                 <span className="sm:hidden">All</span>
@@ -114,16 +122,21 @@ function Body(p: Props) {
               </button>
             </>
           )}
-          {p.allowPdf && (
+          {p.allowPdf && onProposal && (
             <button type="button" className={`${btn} bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white`} onClick={() => window.print()} title="Print, or save as a PDF">
               ⤓ <span className="hidden sm:inline">PDF</span>
             </button>
           )}
-          <span className="hidden lg:flex items-center gap-2 text-[12px] text-[#6B7380] min-w-0" title={p.email}>
+          <span className="hidden xl:flex items-center gap-2 text-[12px] text-[#6B7380] min-w-0" title={p.email}>
             <span className="w-7 h-7 rounded-full bg-[#E7E2FB] text-[#6A5BC7] grid place-items-center text-[11px] font-bold flex-shrink-0">{initials}</span>
             <span className="truncate max-w-[200px]">{p.email}</span>
           </span>
         </div>
+        {rt.room && (
+          <div className="sm:hidden px-3 pb-2.5">
+            <TabSwitch rt={rt} className="flex w-full" />
+          </div>
+        )}
         {commenting && (
           <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-4 py-1.5 text-center text-[12.5px] text-[#1F4F96] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]">
             Click a page or a section to comment on it ·{' '}
@@ -139,10 +152,11 @@ function Body(p: Props) {
           </p>
         )}
       </header>
-      <ContentsPanel c={contents} />
+      {onProposal && <ContentsPanel c={contents} />}
       <QuestionsPanel q={questions} ownerName={p.ownerName} email={p.email} pageTitles={pageTitles} />
       <PageQuestionBadges q={questions} />
-      <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
+      {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} />}
+      <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${onProposal ? '' : 'hidden print:block'} ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>
         <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />
       </div>

@@ -551,4 +551,97 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE proposal_comments ADD COLUMN question_id INTEGER`,
     ],
   },
+  {
+    id: 23,
+    name: 'resources tab and profiles',
+    sql: [
+      // What prospects (and teammates) see of a user: title, contact, scheduling link, a short bio and a photo.
+      `CREATE TABLE user_profiles (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id),
+        title TEXT,
+        phone TEXT,
+        scheduling_url TEXT,
+        linkedin TEXT,
+        bio TEXT,
+        show_phone INTEGER NOT NULL DEFAULT 1,
+        book_default INTEGER NOT NULL DEFAULT 1,
+        email_on_open INTEGER NOT NULL DEFAULT 0,
+        photo BLOB,
+        photo_mime TEXT,
+        photo_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      // A deal's Resources tab: its name, the Your Team page (heading, note, main contact, teammates), its sections.
+      `CREATE TABLE deal_rooms (
+        deal_id INTEGER PRIMARY KEY REFERENCES deals(id),
+        enabled INTEGER NOT NULL DEFAULT 1,
+        tab_name TEXT,
+        heading TEXT,
+        note TEXT,
+        contact_user_id INTEGER REFERENCES users(id),
+        show_booking INTEGER NOT NULL DEFAULT 1,
+        team TEXT NOT NULL DEFAULT '[]',
+        sections TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      // The cards on it: an uploaded file or video, an embedded video, a link, a one pager or a scoped floor plan,
+      // each with the blocks shown under it.
+      `CREATE TABLE deal_resources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        section_id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        hidden INTEGER NOT NULL DEFAULT 0,
+        allow_download INTEGER NOT NULL DEFAULT 1,
+        url TEXT,
+        file_id INTEGER,
+        plan_id INTEGER,
+        page_id TEXT,
+        meta TEXT NOT NULL DEFAULT '{}',
+        blocks TEXT NOT NULL DEFAULT '[]',
+        created_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        deleted_at TEXT
+      )`,
+      `CREATE INDEX idx_deal_resources ON deal_resources(deal_id, section_id, position)`,
+      // Uploaded files: in Cloudflare R2 when it's set up (r2_key), else in the database in chunks.
+      `CREATE TABLE stored_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        r2_key TEXT,
+        chunks INTEGER NOT NULL DEFAULT 0,
+        complete INTEGER NOT NULL DEFAULT 0,
+        created_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE TABLE stored_file_chunks (
+        file_id INTEGER NOT NULL REFERENCES stored_files(id),
+        idx INTEGER NOT NULL,
+        data BLOB NOT NULL,
+        PRIMARY KEY (file_id, idx)
+      )`,
+      // What a signed-in prospect looked at: opens, time (heartbeats), video watched, downloads, link clicks, and
+      // proposal pages. target: team | item | proposal.
+      `CREATE TABLE resource_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        link_id INTEGER NOT NULL REFERENCES share_links(id),
+        deal_id INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        target TEXT NOT NULL,
+        resource_id INTEGER,
+        kind TEXT NOT NULL,
+        value REAL NOT NULL DEFAULT 0,
+        detail TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_resource_events ON resource_events(deal_id, created_at)`,
+    ],
+  },
 ];

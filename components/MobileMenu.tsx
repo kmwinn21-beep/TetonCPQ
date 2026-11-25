@@ -98,7 +98,7 @@ export function MobileMenu({ user }: { user: ShellUser }) {
                 ))}
               </ul>
               <div className="mx-4 my-2 border-t border-teton-off-white" />
-              <Link href="/account" className="flex flex-col justify-center min-h-12 mx-2 px-3 py-2 rounded-lg">
+              <Link href="/profile" className="flex flex-col justify-center min-h-12 mx-2 px-3 py-2 rounded-lg">
                 <span className="text-base font-medium">{user.name}</span>
                 <span className="text-sm text-teton-ui-gray">{user.email}</span>
               </Link>

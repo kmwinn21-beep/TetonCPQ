@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
 import { SegGroup } from '@/components/form/SegGroup';
 import { EmailPreview, type EmailPart } from './EmailPreview';
+import { ResourcesSection } from '@/components/resources/ResourcesSection';
 import type { ShareLink } from '@/lib/data/shareLinks';
 
 const DEFAULT_INTRO = 'Hey {first name} - here is your proposal from Teton!';
@@ -402,6 +403,8 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                 </div>
               </Collapse>
             </div>
+
+            <ResourcesSection quoteId={quoteId} versionId={versionId} linkUrl={link ? url : null} canEdit={canEdit} />
 
             {link && (
               <>

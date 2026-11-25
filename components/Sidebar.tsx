@@ -130,7 +130,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
         )}
       </nav>
       <div className="p-3 border-t border-white/15 text-sidebar-font">
-        <Link href="/account" className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-white/5" title={open ? undefined : `${user.name} · account`}>
+        <Link href="/profile" className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-white/5" title={open ? undefined : `${user.name} · profile`}>
           <span className="w-8 h-8 flex-shrink-0 rounded-full bg-white/15 flex items-center justify-center text-xs font-semibold" aria-hidden="true">
             {user.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
           </span>
