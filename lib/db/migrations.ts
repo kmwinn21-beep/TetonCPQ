@@ -519,4 +519,36 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_prospect_mail ON prospect_mail(link_id, email, status)`,
     ],
   },
+  {
+    id: 22,
+    name: 'questions for prospects',
+    sql: [
+      // Questions the team asks the prospect on the shared link (per deal). Answered by buttons, a text box, or both;
+      // the first answer counts for everyone, and is logged as a prospect comment (answer_comment_id).
+      `CREATE TABLE deal_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        position INTEGER NOT NULL DEFAULT 0,
+        body TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'buttons',
+        options TEXT NOT NULL DEFAULT '[]',
+        page TEXT,
+        page_label TEXT,
+        allow_change INTEGER NOT NULL DEFAULT 1,
+        created_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        deleted_at TEXT,
+        answer_comment_id INTEGER,
+        answer_choice TEXT,
+        answer_text TEXT,
+        answered_email TEXT,
+        answered_name TEXT,
+        answered_at TEXT
+      )`,
+      `CREATE INDEX idx_deal_questions ON deal_questions(deal_id, position)`,
+      // A comment that answers (or changes the answer to) a question.
+      `ALTER TABLE proposal_comments ADD COLUMN question_id INTEGER`,
+    ],
+  },
 ];

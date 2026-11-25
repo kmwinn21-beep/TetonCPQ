@@ -105,7 +105,7 @@ export function ContentsButton({ c }: { c: ReturnType<typeof useContents> }) {
       type="button"
       aria-expanded={c.open}
       onClick={() => c.setOpen((o) => !o)}
-      className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-[10px] border text-[13px] font-semibold transition-colors duration-200 whitespace-nowrap ${c.open ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`}
+      className={`inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-[10px] border text-[13px] font-semibold transition-colors duration-200 whitespace-nowrap ${c.open ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`}
       title="Table of contents"
     >
       <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">

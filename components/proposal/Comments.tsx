@@ -17,6 +17,7 @@ import type { Person } from '@/lib/data/planNotes';
 import { AuthorPill } from '@/components/quote/PlanNotes';
 import { useProposalText } from './EditableText';
 import { canAutoFocus } from '@/lib/client/focus';
+import { parseAnswerBody } from '@/lib/data/questionText';
 
 export interface CommentTarget {
   page: string | null;
@@ -31,6 +32,8 @@ interface Ctx {
   threads: CommentThread[];
   /** Opens the drawer: with a box for a new comment on a spot, or at one thread. */
   open: (o?: { target?: CommentTarget; threadId?: number }) => void;
+  /** Replace the threads (after something else added a comment, e.g. a prospect answering a question). */
+  setThreads?: (t: CommentThread[]) => void;
 }
 const CommentsContext = createContext<Ctx>({ enabled: false, threads: [], open: () => {} });
 export const useComments = () => useContext(CommentsContext);
@@ -117,7 +120,7 @@ export function CommentsProvider({ versionId, versionNo, quoteId, prospect = nul
   }, [drawer, threads, me, quoteId]);
 
   const open = useCallback((o: { target?: CommentTarget; threadId?: number } = {}) => setDrawer(o), []);
-  const value = useMemo(() => ({ enabled, threads, open }), [enabled, threads, open]);
+  const value = useMemo(() => ({ enabled, threads, open, setThreads }), [enabled, threads, open]);
   return (
     <CommentsContext.Provider value={value}>
       {children}
@@ -563,11 +566,33 @@ function CommentBody({ c, p }: { c: ProposalComment; p: ThreadOps }) {
             }}
           />
         </div>
+      ) : c.questionId != null && parseAnswerBody(c.body) ? (
+        <AnswerBody body={c.body} />
       ) : (
         <p className="mt-1 text-[13px] leading-snug whitespace-pre-wrap break-words">
           <WithMentions text={c.body} people={p.people} me={p.me} />
         </p>
       )}
+    </div>
+  );
+}
+
+/** An answer to one of the team's questions: the question quoted, then the answer (or the changed answer). */
+export function AnswerBody({ body }: { body: string }) {
+  const a = parseAnswerBody(body)!;
+  const tag = 'block text-[9.5px] font-bold uppercase tracking-[.6px]';
+  return (
+    <div className="mt-1.5 text-[13px] leading-snug">
+      {a.question != null && (
+        <p className="rounded-r-lg border-l-[3px] border-[#3F8CEA] bg-[#F4F8FE] px-2.5 py-1.5 text-[12.5px] text-[#3A4250] whitespace-pre-wrap break-words">
+          <span className={`${tag} text-[#1F5FB5]`}>Question</span>
+          {a.question}
+        </p>
+      )}
+      <p className="mt-1.5 whitespace-pre-wrap break-words">
+        <span className={`${tag} text-[#256B41]`}>{a.changed ? 'Changed the answer to' : 'Answer'}</span>
+        <b className="font-semibold">{a.answer}</b>
+      </p>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
 import { CommentsProvider, useComments, BubbleIcon } from '@/components/proposal/Comments';
 import { DocumentInFormat } from '@/components/proposal/ProposalView';
 import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
+import { PageQuestionBadges, QuestionsButton, QuestionsPanel, useQuestions } from './ProspectQuestions';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
@@ -57,6 +58,8 @@ function Body(p: Props) {
   const comments = useComments();
   const [commenting, setCommenting] = useState(false);
   const contents = useContents();
+  const questions = useQuestions(p.token);
+  const pageTitles = Object.fromEntries(contents.pages.map((x) => [x.id, x.title]));
   // Comment mode: click a page or a section to comment on it. Esc leaves it.
   useEffect(() => {
     if (!commenting) return;
@@ -80,23 +83,24 @@ function Body(p: Props) {
     };
   }, [commenting, comments]);
   const n = comments.threads.filter((t) => !t.resolvedAt).length;
-  const btn = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-[10px] border text-[13px] font-semibold transition-colors duration-200 whitespace-nowrap';
+  const btn = 'inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-[10px] border text-[13px] font-semibold transition-colors duration-200 whitespace-nowrap';
   const initials = p.email.replace(/@.*/, '').split(/[._-]+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <>
       {!p.allowPdf && <style>{'@media print { [data-prospect] .proposal-doc { display: none !important; } [data-prospect]::after { content: "Printing is turned off for this proposal."; display: block; padding: 40px; font: 14px Inter, sans-serif; } }'}</style>}
       <header className="no-print sticky top-0 z-30 bg-white border-b border-[#ECE8DF]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <div className="flex items-center gap-3 px-4 sm:px-6 h-[60px]">
+        <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-6 h-[60px]">
           <span className="flex items-center gap-2 text-[17px] font-bold text-teton-ink flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/teton-logo.png" alt="" className="w-[22px] h-[22px] object-contain" />
-            Teton
+            <img src="/teton-logo.png" alt="Teton" className="w-[22px] h-[22px] object-contain" />
+            <span className="hidden sm:inline">Teton</span>
           </span>
           <ContentsButton c={contents} />
           <span className="hidden md:block min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]">
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
           </span>
           <span className="flex-1" />
+          <QuestionsButton q={questions} />
           {p.allowComments && (
             <>
               <button type="button" aria-pressed={commenting} className={`${btn} ${commenting ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`} onClick={() => setCommenting((c) => !c)} title="Click a page or a section to comment on it">
@@ -136,6 +140,8 @@ function Body(p: Props) {
         )}
       </header>
       <ContentsPanel c={contents} />
+      <QuestionsPanel q={questions} ownerName={p.ownerName} email={p.email} pageTitles={pageTitles} />
+      <PageQuestionBadges q={questions} />
       <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>
         <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />

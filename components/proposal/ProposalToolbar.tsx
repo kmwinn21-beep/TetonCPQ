@@ -5,6 +5,7 @@
  * that it was sent — which keeps a standalone HTML copy of exactly what was on
  * screen, so "what did we send them in October?" has a literal answer.
  */
+import { QuestionsButton } from './QuestionsPanel';
 import { ShareButton } from '@/components/share/ShareDialog';
 import type { OnePagerInfo } from '@/lib/proposal/onePager';
 import { SegGroup } from '@/components/form/SegGroup';
@@ -262,6 +263,7 @@ export function ProposalToolbar({ versionId, quoteId, versionNo, status, sentTo,
               <RemovedSheetButton bothPricing={bothPricing} ecallOnly={ecallOnly} onePagers={onePagers} />
               <CommentsButton />
               {text.editable && <ShareButton quoteId={quoteId} versionId={versionId} versionNo={versionNo} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" />}
+              {text.editable && <QuestionsButton quoteId={quoteId} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10" />}
               {text.editable ? (
                 <button type="button" className="px-3 py-2 rounded-lg text-sm font-medium border border-white/30 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed" disabled={locked} title={locked ? lockedWhy : undefined} onClick={() => setOpen(true)}><span className="sm:hidden lg:inline xl:hidden">Sent</span><span className="hidden sm:inline lg:hidden xl:inline">Record as sent</span></button>
               ) : (

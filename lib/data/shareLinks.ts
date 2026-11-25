@@ -244,10 +244,11 @@ export interface ProspectComment {
 const text = (v: unknown, max: number) => String(v ?? '').replace(/\r\n?/g, '\n').trim().slice(0, max);
 
 /** A prospect's new thread (on a page, a section, or general) or reply to a thread on their link. Tells the owner. */
-export async function addProspectComment(db: Client, l: PublicLink, who: { email: string; name?: string | null }, input: ProspectComment): Promise<number> {
-  if (!l.allowComments) throw httpError('Comments are turned off for this link', 403);
+export async function addProspectComment(db: Client, l: PublicLink, who: { email: string; name?: string | null }, input: ProspectComment, opts: { questionId?: number } = {}): Promise<number> {
+  // Answers to the team's questions are comments too, even where the link doesn't take comments.
+  if (!l.allowComments && opts.questionId == null) throw httpError('Comments are turned off for this link', 403);
   if (l.ownerId == null) throw httpError('This deal has no owner to reply', 400);
-  const body = text(input.body, 4000);
+  const body = text(input.body, opts.questionId != null ? 6000 : 4000);
   if (!body) throw httpError('Write a comment first', 400);
   let page: string | null = input.page ? text(input.page, 40) : null;
   let block: string | null = input.block ? text(input.block, 60) : null;
@@ -262,9 +263,9 @@ export async function addProspectComment(db: Client, l: PublicLink, who: { email
     label = String(p.rows[0].target_label ?? label);
   }
   const r = await db.execute({
-    sql: `INSERT INTO proposal_comments (deal_id, version_id, version_no, parent_id, page, block, target_label, body, mentions, author_id, area, prospect_email, prospect_name, share_link_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 'deliverable', ?, ?, ?) RETURNING id`,
-    args: [l.dealId, l.versionId, l.versionNo, parentId, page, block, label, body, l.ownerId, who.email.trim().toLowerCase(), who.name ? text(who.name, 80) : null, l.id],
+    sql: `INSERT INTO proposal_comments (deal_id, version_id, version_no, parent_id, page, block, target_label, body, mentions, author_id, area, prospect_email, prospect_name, share_link_id, question_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 'deliverable', ?, ?, ?, ?) RETURNING id`,
+    args: [l.dealId, l.versionId, l.versionNo, parentId, page, block, label, body, l.ownerId, who.email.trim().toLowerCase(), who.name ? text(who.name, 80) : null, l.id, opts.questionId ?? null],
   });
   const id = Number(r.rows[0].id);
   if (parentId != null) await db.execute({ sql: 'UPDATE proposal_comments SET resolved_at = NULL, resolved_by = NULL WHERE id = ?', args: [parentId] });

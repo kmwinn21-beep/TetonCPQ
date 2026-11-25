@@ -22,6 +22,8 @@ export interface ProposalComment {
   canDelete: boolean;
   /** Written by a prospect on a shared link: their email (else null). */
   prospect: string | null;
+  /** An answer to one of the team's questions (body: "Question: …\nAnswer: …", or "Changed the answer to: …"). */
+  questionId: number | null;
 }
 export type CommentArea = 'deliverable' | 'inputs' | 'task';
 const areaOf = (v: unknown): CommentArea => (v === 'inputs' || v === 'task' ? v : 'deliverable');
@@ -97,6 +99,7 @@ const toComment = (r: Row, v: Viewer): ProposalComment => {
     mine: !prospect && Number(r.author_id) === v.id,
     canDelete: prospect ? v.role === 'admin' : Number(r.author_id) === v.id || v.role === 'admin',
     prospect,
+    questionId: r.question_id == null ? null : Number(r.question_id),
   };
 };
 
