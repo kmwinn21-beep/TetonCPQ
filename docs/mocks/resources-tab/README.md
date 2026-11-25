@@ -38,3 +38,8 @@ Photo (upload, position in the circle), name, title, email (sign-in, read-only),
 
 ## Activity view (activity.png)
 Opened from the Resources editor (and the Share dialog's engagement line). KPIs (people visited, total time, resources opened, last visit), a resource × person grid (darker = more time; downloads ⤓, clicks ↗, video watched minutes; proposal shows the most-revisited page), a Recent feed, and "Worth a follow-up" hints (pricing revisits, people who haven't opened, unopened resources). Filters: date range, person; Export.
+
+## Scoped floor plans (fp-*.png)
+- Rep: "+ Add to Resources" → "Add scoped floor plans": a picker of the deal's plans by community (thumbnail, rooms tagged, room-type mix; unscoped plans shown but flagged), with options: room summary under each plan, a community summary card (all floors in one table), room numbers, plan notes (internal unless turned on), download as PDF with badges.
+- Each plan becomes a card in a "Floor plans" section (renamable). Page mode: legend, the plan with badges in a zoomable viewer, the room summary table (room type, care, rooms, sensors per room, sensors, total) and any other blocks (e.g. notes). Badges and counts stay in sync with Scope Mode.
+- Prospect: "Your floor plans" cards (rooms, sensors), the plan viewer with zoom and a level switcher, Download PDF, the room summary and notes; clicking a room comments on it.
