@@ -207,6 +207,12 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
     if (selSection) setOpenSecs((o) => (o.has(selSection) ? o : new Set([...o, selSection])));
   }, [selSection]);
   const allOpen = room.sections.every((x) => openSecs.has(x.id));
+  // Phones: sections start open; the reader can fold any of them away.
+  const [phoneShut, setPhoneShut] = useState<Set<string>>(() => new Set());
+  const togglePhone = (id: string) => setPhoneShut((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  useEffect(() => {
+    if (selSection) setPhoneShut((o) => { if (!o.has(selSection)) return o; const n = new Set(o); n.delete(selSection); return n; });
+  }, [selSection]);
   const r = rt.sel === 'team' ? null : room.resources.find((x) => x.id === rt.sel) ?? null;
   const icon = (x: Resource) => (x.kind === 'floorplan' ? '▦' : metaOf(x).icon);
   const chipsOf = (x: Resource) => {
@@ -218,23 +224,62 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <aside className="no-print sm:w-[316px] flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden sm:overflow-y-auto overscroll-contain">
         <nav aria-label={room.tabName} className="flex sm:block gap-[9px] px-3.5 sm:pl-[18px] sm:pr-3.5 py-3 sm:py-[18px]">
-          <p className="hidden sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1.5 mb-2">Start here</p>
-          <Card
-            on={rt.sel === 'team'}
-            icon="👋"
-            bg="#FDF0EE"
-            title="Your Team"
-            sub={`Who’s working on your ${room.resources.length ? 'project' : 'proposal'}, and how to reach us`}
-            chips={people.length ? [`${people.length} ${people.length === 1 ? 'person' : 'people'}`] : []}
-            fresh={false}
-            onClick={() => rt.select('team')}
-          />
-          {/* Phones: every card in one sideways row. */}
-          {room.sections.flatMap((s) => room.resources.filter((x) => x.sectionId === s.id)).map((x) => (
-            <span key={x.id} className="contents sm:hidden">
-              <Card on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
-            </span>
-          ))}
+          <div className="flex-shrink-0 flex flex-col sm:block">
+            <p className="h-6 sm:h-auto flex items-center sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1 sm:mx-1.5 mb-1.5 sm:mb-2">Start here</p>
+            <div className="flex sm:block">
+              <Card
+                on={rt.sel === 'team'}
+                icon="👋"
+                bg="#FDF0EE"
+                title="Your Team"
+                sub={`Who’s working on your ${room.resources.length ? 'project' : 'proposal'}, and how to reach us`}
+                chips={people.length ? [`${people.length} ${people.length === 1 ? 'person' : 'people'}`] : []}
+                fresh={false}
+                onClick={() => rt.select('team')}
+              />
+            </div>
+          </div>
+          {/* Phones: one sideways row. Each section has an eyebrow that folds its cards away (open to start); a thin line splits sections. */}
+          {room.sections.map((s) => {
+            const list = room.resources.filter((x) => x.sectionId === s.id);
+            if (!list.length) return null;
+            const open = !phoneShut.has(s.id);
+            return (
+              <div key={s.id} className="contents sm:hidden">
+                <span aria-hidden="true" className="flex-shrink-0 w-px self-stretch my-1 mx-0.5 bg-[#DDD7CC]" />
+                <div className="flex-shrink-0 flex flex-col">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => togglePhone(s.id)}
+                    className="h-6 mb-1.5 flex items-center gap-1.5 self-start rounded-md px-1 text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#5A6270] whitespace-nowrap active:bg-white/70"
+                  >
+                    <span className={`text-[8px] text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                    {s.name}
+                    {!open && (
+                      <span className="flex ml-0.5 [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" aria-hidden="true">
+                        {list.slice(0, 3).map((x, i) => (
+                          <span key={x.id} className={`w-[18px] h-[18px] rounded-[5px] grid place-items-center text-[9px] tracking-normal border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: metaOf(x).bg, color: metaOf(x).fg }}>
+                            {icon(x)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#E9E5DE] text-[10px] font-bold tracking-normal text-[#5A6270] grid place-items-center">{list.length}</span>
+                  </button>
+                  <div className={`grid transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0'}`} {...((open ? {} : { inert: '' }) as Record<string, string>)}>
+                    <div className="min-w-0 overflow-hidden -m-1">
+                      <div className="flex gap-[9px] p-1">
+                        {list.map((x) => (
+                          <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           {/* Wider screens: sections, collapsed to start; the selected card's section opens. */}
           <div className="hidden sm:block">
             {room.sections.length > 1 && (
