@@ -672,4 +672,12 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE agreement_requests ADD COLUMN snoozed_until TEXT`,
     ],
   },
+  {
+    id: 26,
+    name: 'deal room novelty mode',
+    sql: [
+      // Teton Novelty Mode: the prospect sees their resources as cards like the Teton dashboard (off by default).
+      `ALTER TABLE deal_rooms ADD COLUMN novelty INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];

@@ -164,7 +164,7 @@ function Body(p: Props) {
       <PageQuestionBadges q={questions} />
       <AgreementFab a={agreement} />
       <AgreementDialog a={agreement} />
-      {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} />}
+      {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} agreement={p.team ? null : agreement} />}
       <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${onProposal ? '' : 'hidden print:block'} ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>
         <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />

@@ -49,7 +49,7 @@ export async function getRoom(db: Client, dealId: number, ownerId: number | null
   const r = await db.execute({ sql: 'SELECT * FROM deal_rooms WHERE deal_id = ?', args: [dealId] });
   const x = r.rows[0];
   const ownerBook = ownerId ? (await getProfile(db, ownerId))?.bookDefault !== false : true;
-  if (!x) return { enabled: true, tabName: DEFAULT_TAB, heading: DEFAULT_HEADING, note: null, contactUserId: ownerId, showBooking: ownerBook, team: [], sections: normalizeSections([]) };
+  if (!x) return { enabled: true, tabName: DEFAULT_TAB, heading: DEFAULT_HEADING, note: null, contactUserId: ownerId, showBooking: ownerBook, team: [], sections: normalizeSections([]), novelty: false };
   return {
     enabled: Number(x.enabled) === 1,
     tabName: String(x.tab_name ?? '') || DEFAULT_TAB,
@@ -59,6 +59,7 @@ export async function getRoom(db: Client, dealId: number, ownerId: number | null
     showBooking: Number(x.show_booking) === 1,
     team: normalizeTeam(json(x.team, [])),
     sections: normalizeSections(json(x.sections, [])),
+    novelty: Number(x.novelty ?? 0) === 1,
   };
 }
 
@@ -74,6 +75,7 @@ export async function saveRoom(db: Client, quoteId: number, patch: Partial<Recor
     showBooking: patch.showBooking === undefined ? cur.showBooking : patch.showBooking !== false,
     team: patch.team === undefined ? cur.team : normalizeTeam(patch.team),
     sections: patch.sections === undefined ? cur.sections : normalizeSections(patch.sections),
+    novelty: patch.novelty === undefined ? cur.novelty : patch.novelty === true,
   };
   // Only real, active users.
   const ids = [...new Set([next.contactUserId, ...next.team.map((t) => t.userId)].filter((n): n is number => n != null))];
@@ -81,11 +83,11 @@ export async function saveRoom(db: Client, quoteId: number, patch: Partial<Recor
   if (next.contactUserId && !known.has(next.contactUserId)) next.contactUserId = d.ownerId;
   next.team = next.team.filter((t) => known.has(t.userId) && t.userId !== next.contactUserId);
   await db.execute({
-    sql: `INSERT INTO deal_rooms (deal_id, enabled, tab_name, heading, note, contact_user_id, show_booking, team, sections, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    sql: `INSERT INTO deal_rooms (deal_id, enabled, tab_name, heading, note, contact_user_id, show_booking, team, sections, novelty, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
           ON CONFLICT(deal_id) DO UPDATE SET enabled = excluded.enabled, tab_name = excluded.tab_name, heading = excluded.heading, note = excluded.note,
-            contact_user_id = excluded.contact_user_id, show_booking = excluded.show_booking, team = excluded.team, sections = excluded.sections, updated_at = excluded.updated_at`,
-    args: [d.dealId, next.enabled ? 1 : 0, next.tabName, next.heading, next.note, next.contactUserId, next.showBooking ? 1 : 0, JSON.stringify(next.team), JSON.stringify(next.sections)],
+            contact_user_id = excluded.contact_user_id, show_booking = excluded.show_booking, team = excluded.team, sections = excluded.sections, novelty = excluded.novelty, updated_at = excluded.updated_at`,
+    args: [d.dealId, next.enabled ? 1 : 0, next.tabName, next.heading, next.note, next.contactUserId, next.showBooking ? 1 : 0, JSON.stringify(next.team), JSON.stringify(next.sections), next.novelty ? 1 : 0],
   });
   return next;
 }
@@ -93,7 +95,7 @@ export async function saveRoom(db: Client, quoteId: number, patch: Partial<Recor
 // ---------------------------------------------------------------- cards
 
 const toResource = (r: Row): Resource => {
-  const meta = json<{ roomNumbers?: boolean; duration?: number }>(r.meta, {});
+  const meta = json<{ roomNumbers?: boolean; duration?: number; recommended?: boolean }>(r.meta, {});
   const kind = String(r.kind) as ResourceKind;
   const url = r.url == null ? null : String(r.url);
   return {
@@ -112,6 +114,7 @@ const toResource = (r: Row): Resource => {
     pageId: r.page_id == null ? null : String(r.page_id),
     roomNumbers: meta.roomNumbers !== false,
     duration: Number(meta.duration) > 0 ? Number(meta.duration) : null,
+    recommended: meta.recommended === true,
     blocks: normalizeBlocks(json(r.blocks, [])),
     updatedAt: String(r.updated_at),
   };
@@ -139,6 +142,7 @@ export interface ResourceInput {
   hidden?: unknown;
   roomNumbers?: unknown;
   duration?: unknown;
+  recommended?: unknown;
   blocks?: unknown;
 }
 
@@ -212,9 +216,11 @@ export async function updateResource(db: Client, quoteId: number, id: number, in
   const meta = {
     roomNumbers: input.roomNumbers === undefined ? cur.roomNumbers : input.roomNumbers !== false,
     duration: input.duration === undefined ? cur.duration : Number(input.duration) > 0 ? Math.round(Number(input.duration)) : null,
+    recommended: input.recommended === undefined ? cur.recommended : input.recommended === true,
   };
   await db.execute({
-    sql: "UPDATE deal_resources SET title = ?, description = ?, section_id = ?, hidden = ?, allow_download = ?, url = ?, file_id = ?, meta = ?, blocks = ?, updated_at = datetime('now') WHERE id = ?",
+    // Starring a card isn't a change to it: it shouldn't look new to the prospect again.
+    sql: `UPDATE deal_resources SET title = ?, description = ?, section_id = ?, hidden = ?, allow_download = ?, url = ?, file_id = ?, meta = ?, blocks = ?${Object.keys(input).every((k) => k === 'recommended') ? '' : ", updated_at = datetime('now')"} WHERE id = ?`,
     args: [
       input.title === undefined ? cur.title : line(input.title, 160) || cur.title,
       input.description === undefined ? cur.description : line(input.description, 240) || null,
@@ -326,6 +332,8 @@ export interface ProspectRoom {
   team: RoomPerson[];
   sections: Array<{ id: string; name: string }>;
   resources: Resource[];
+  /** Teton Novelty Mode: show the cards like the Teton dashboard. */
+  novelty: boolean;
 }
 export async function roomForLink(db: Client, l: PublicLink): Promise<ProspectRoom | null> {
   const room = await getRoom(db, l.dealId, l.ownerId);
@@ -343,6 +351,7 @@ export async function roomForLink(db: Client, l: PublicLink): Promise<ProspectRo
     team: room.team.flatMap((t) => (byId.get(t.userId) ? [person(byId.get(t.userId)!, t.line)] : [])),
     sections: room.sections.filter((s) => resources.some((x) => x.sectionId === s.id)),
     resources,
+    novelty: room.novelty,
   };
 }
 

@@ -14,6 +14,8 @@ import { PersonPhoto } from '@/components/resources/Person';
 import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
 import type { FloorPlanInfo, ProspectRoom, RoomPerson } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
+import { NoveltyPanel } from './ProspectNovelty';
+import type { AgreementState } from './ProspectAgreement';
 
 type Sel = 'team' | number;
 type Target = { target: 'team' | 'proposal' | 'item'; resourceId?: number; detail?: string | null };
@@ -75,8 +77,33 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
   const [sel, setSel] = useState<Sel>('team');
   const [seen, setSeen] = useState<Record<string, string>>({});
   const send = useEvents(token);
+  // Seconds of each uploaded video watched on this device (for "part-watched" in Novelty Mode).
+  const [watched, setWatched] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      setWatched(JSON.parse(localStorage.getItem(`teton-watched-${token}`) ?? '{}') as Record<string, number>);
+    } catch {
+      /* private mode */
+    }
+  }, [token]);
   // The deal's own team looking at the link: nothing is recorded.
-  const push = useCallback((e: Record<string, unknown>) => (team ? 0 : send(e)), [team, send]);
+  const push = useCallback(
+    (e: Record<string, unknown>) => {
+      if (e.kind === 'video' && typeof e.resourceId === 'number' && Number(e.value) > 0) {
+        setWatched((w) => {
+          const next = { ...w, [String(e.resourceId)]: (w[String(e.resourceId)] ?? 0) + Number(e.value) };
+          try {
+            localStorage.setItem(`teton-watched-${token}`, JSON.stringify(next));
+          } catch {
+            /* private mode */
+          }
+          return next;
+        });
+      }
+      return team ? 0 : send(e);
+    },
+    [team, send, token],
+  );
   useEffect(() => {
     void fetch(`/api/share/${token}/resources`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -93,6 +120,10 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
       });
   }, [token]);
   const isNew = useCallback((r: Resource) => seen[r.id] !== r.updatedAt, [seen]);
+  /** Opened at least once (any version) on this device. */
+  const everSeen = useCallback((r: Resource) => seen[r.id] != null, [seen]);
+  /** They've been here before (so a card they've never seen was added since). */
+  const returning = Object.keys(seen).length > 0;
   const markSeen = useCallback(
     (r: Resource) =>
       setSeen((s) => {
@@ -139,7 +170,7 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
   }, [tab, proposalPage, push]);
   useHeartbeat(push, tab === 'proposal' ? { target: 'proposal', detail: proposalPage } : sel === 'team' ? { target: 'team' } : { target: 'item', resourceId: sel });
   const newCount = room ? room.resources.filter(isNew).length : 0;
-  return { room, plans, tab, setTab, sel, select, isNew, newCount, push };
+  return { room, plans, tab, setTab, sel, select, isNew, everSeen, returning, watched, newCount, push };
 }
 export type ResourcesTab = ReturnType<typeof useResourcesTab>;
 
@@ -159,26 +190,103 @@ export function TabSwitch({ rt, className = '' }: { rt: ResourcesTab; className?
 
 const chip = 'inline-flex items-center h-[19px] px-[7px] rounded-full bg-[#F1EEE8] text-[#5A6270] text-[10.5px] font-semibold';
 
-function Card({ on, icon, bg, fg, title, sub, chips, fresh, onClick }: { on: boolean; icon: React.ReactNode; bg: string; fg?: string; title: string; sub: string | null; chips: string[]; fresh: boolean; onClick: () => void }) {
+/** Messages on one card (comments made from it, and the team’s replies) for the people on this link. */
+export interface ItemReplies {
+  /** Comments and replies in its threads. */
+  count: number;
+  /** A team reply this browser hasn't seen (the card wasn't open since). */
+  unread: boolean;
+  /** The latest team reply: who (first name), what, when. */
+  who: string;
+  body: string | null;
+  at: string | null;
+}
+type Thread = ReturnType<typeof useComments>['threads'][number];
+/**
+ * Per card: its conversation. A team reply counts as seen once the card has been open after it (remembered on this
+ * device, like "new").
+ */
+export function useItemReplies(token: string, threads: Thread[], sel: Sel) {
+  const key = `teton-replies-${token}`;
+  const [seen, setSeen] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      setSeen(JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, number>);
+    } catch {
+      /* private mode */
+    }
+  }, [key]);
+  const byItem = useMemo(() => {
+    const m = new Map<number, { count: number; last: Thread['replies'][number] | null }>();
+    for (const t of threads) {
+      const id = /^res:(\d+)$/.exec(t.block ?? '')?.[1];
+      if (!id) continue;
+      const cur = m.get(Number(id)) ?? { count: 0, last: null };
+      cur.count += 1 + t.replies.length;
+      for (const c of t.replies) if (!c.prospect && (!cur.last || c.id > cur.last.id)) cur.last = c;
+      m.set(Number(id), cur);
+    }
+    return m;
+  }, [threads]);
+  // Looking at a card marks its latest reply seen.
+  useEffect(() => {
+    if (sel === 'team') return;
+    const last = byItem.get(sel)?.last;
+    if (!last || (seen[sel] ?? 0) >= last.id) return;
+    const next = { ...seen, [sel]: last.id };
+    setSeen(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      /* private mode */
+    }
+  }, [sel, byItem, seen, key]);
+  return useCallback(
+    (id: number): ItemReplies | null => {
+      const x = byItem.get(id);
+      if (!x) return null;
+      return { count: x.count, unread: !!x.last && (seen[id] ?? 0) < x.last.id && sel !== id, who: x.last ? x.last.author.name.split(/\s+/)[0] : '', body: x.last?.body ?? null, at: x.last?.createdAt ?? null };
+    },
+    [byItem, seen, sel],
+  );
+}
+
+function Card({ on, icon, bg, fg, title, sub, chips, fresh, onClick, rec = false, reply = null }: { on: boolean; icon: React.ReactNode; bg: string; fg?: string; title: string; sub: string | null; chips: string[]; fresh: boolean; onClick: () => void; rec?: boolean; reply?: ItemReplies | null }) {
   return (
     <button type="button" onClick={onClick} aria-current={on ? 'true' : undefined} className={`relative sm:w-full flex-[0_0_236px] sm:flex-none flex gap-[11px] items-start text-left rounded-[13px] border bg-white px-3 py-[11px] sm:mb-2 transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none ${on ? 'border-teton-ink shadow-[0_0_0_1px_#1C2430,0_6px_16px_rgba(0,0,0,.07)]' : 'border-[#E8E4DC] hover:border-[#C9CDD3]'}`}>
       {on && <span className="hidden sm:block absolute -left-[15px] top-3 bottom-3 w-[3px] rounded bg-[#D9553F] [animation:fadeIn_.2s_ease-out]" aria-hidden="true" />}
-      {fresh && <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[#3F8CEA]" title="New" />}
+      {fresh && <span className={`absolute top-2.5 w-2 h-2 rounded-full bg-[#3F8CEA] ${rec ? 'right-7' : 'right-2.5'}`} title="New" />}
+      {rec && (
+        <span className="absolute -top-2 -right-2 w-6 h-6 rounded-[7px] bg-[#8B5CF6] text-white text-[12px] grid place-items-center rotate-[14deg] shadow-[0_3px_6px_rgba(139,92,246,.35)]" title="Recommended" aria-hidden="true">
+          ★
+        </span>
+      )}
       <span className="w-[38px] h-[38px] rounded-[10px] grid place-items-center flex-shrink-0 text-[16px] overflow-hidden" style={{ background: bg, color: fg }}>
         {icon}
       </span>
       <span className="min-w-0">
         <b className="block text-[13px] leading-snug pr-3">{title}</b>
         {sub && <small className="block text-[11.5px] leading-snug text-[#6B7380] mt-0.5 line-clamp-2">{sub}</small>}
-        {chips.length > 0 && <span className="flex flex-wrap gap-1.5 mt-1.5">{chips.map((c) => <span key={c} className={chip}>{c}</span>)}</span>}
+        {(chips.length > 0 || rec || (reply && reply.count > 0)) && (
+          <span className="flex flex-wrap gap-1.5 mt-1.5">
+            {rec && <span className="inline-flex items-center gap-1 h-[19px] px-[7px] rounded-full bg-[#F1EFFF] text-[#5B4BC4] text-[10.5px] font-semibold">★ Recommended</span>}
+            {chips.map((c) => <span key={c} className={chip}>{c}</span>)}
+            {reply && reply.unread ? (
+              <span className="inline-flex items-center gap-1 h-[19px] px-[7px] rounded-full bg-[#EAF2FD] text-[#1F5FB5] text-[10.5px] font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-[#E5484D]" aria-hidden="true" />{reply.who} replied</span>
+            ) : reply && reply.count > 0 ? (
+              <span className={chip} title={`${reply.count} message${reply.count === 1 ? '' : 's'}`}>💬 {reply.count}</span>
+            ) : null}
+          </span>
+        )}
       </span>
     </button>
   );
 }
 
-export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; token: string; allowComments: boolean }) {
+export function ResourcesView({ rt, token, allowComments, agreement = null }: { rt: ResourcesTab; token: string; allowComments: boolean; agreement?: AgreementState | null }) {
   const comments = useComments();
   const room = rt.room!;
+  const replies = useItemReplies(token, comments.threads, rt.sel);
   const booking = room.showBooking ? room.contact?.schedulingUrl ?? null : null;
   const ctx: ViewCtx = useMemo(
     () => ({
@@ -223,6 +331,11 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
   return (
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       <aside className="no-print sm:w-[316px] flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden sm:overflow-y-auto overscroll-contain">
+        {room.novelty ? (
+          <nav aria-label={room.tabName}>
+            <NoveltyPanel rt={rt} room={room} replies={replies} agreement={agreement} />
+          </nav>
+        ) : (
         <nav aria-label={room.tabName} className="flex sm:block gap-[9px] px-3.5 sm:pl-[18px] sm:pr-3.5 py-3 sm:py-[18px]">
           <div className="flex-shrink-0 flex flex-col sm:block">
             <p className="h-6 sm:h-auto flex items-center sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1 sm:mx-1.5 mb-1.5 sm:mb-2">Start here</p>
@@ -271,7 +384,7 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
                     <div className="min-w-0 overflow-hidden -m-1">
                       <div className="flex gap-[9px] p-1">
                         {list.map((x) => (
-                          <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+                          <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
                         ))}
                       </div>
                     </div>
@@ -313,7 +426,7 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
                   <Collapse open={open}>
                     <div className="pt-1 pb-1">
                       {list.map((x) => (
-                        <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+                        <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
                       ))}
                     </div>
                   </Collapse>
@@ -322,6 +435,7 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
             })}
           </div>
         </nav>
+        )}
       </aside>
       <main data-res-main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-11 pt-6 sm:pt-8 pb-16">
         <div className="max-w-[920px] mx-auto">
@@ -332,14 +446,14 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
               ctx={ctx}
               actions={
                 allowComments ? (
-                  <button type="button" onClick={() => comments.open({ target: { page: null, block: null, label: r.title } })} className="h-[38px] px-4 rounded-[10px] border border-[#D5D9DE] bg-white text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-teton-almost-white">
+                  <button type="button" onClick={() => comments.open({ target: { page: null, block: `res:${r.id}`, label: r.title } })} className="h-[38px] px-4 rounded-[10px] border border-[#D5D9DE] bg-white text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-teton-almost-white">
                     💬 Comment
                   </button>
                 ) : null
               }
             />
           ) : (
-            <TeamView room={room} />
+            <TeamView room={room} onOpen={(id) => rt.select(id)} />
           )}
         </div>
       </main>
@@ -372,7 +486,7 @@ function Contact({ p, size = 13 }: { p: RoomPerson; size?: number }) {
   );
 }
 
-function TeamView({ room }: { room: ProspectRoom }) {
+function TeamView({ room, onOpen }: { room: ProspectRoom; onOpen?: (id: number) => void }) {
   const c = room.contact;
   const first = c?.name.split(/\s+/)[0];
   return (
@@ -413,6 +527,27 @@ function TeamView({ room }: { room: ProspectRoom }) {
           {/* The note runs the card's width, under the photo, lined up with its left edge. */}
           {room.note && <p className="mt-4 rounded-r-[10px] border-l-[3px] border-[#D9553F] bg-[#FBF8F3] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#3A4250] whitespace-pre-wrap">{room.note}</p>}
         </div>
+      )}
+      {room.resources.some((x) => x.recommended) && (
+        <>
+          <p className="mt-6 mb-2.5 text-[10.5px] font-extrabold uppercase tracking-[1.6px] text-[#7C6FF0]">★ {first ? `${first} recommends` : 'Recommended'}</p>
+          <div className="grid gap-2.5 md:grid-cols-2">
+            {room.resources
+              .filter((x) => x.recommended)
+              .map((x) => (
+                <button key={x.id} type="button" onClick={() => onOpen?.(x.id)} className="flex items-center gap-3 rounded-[14px] border border-[#E4DFFB] bg-[#FAF9FF] px-3.5 py-3 text-left transition-colors duration-150 hover:border-[#C7C0FF]">
+                  <span className="w-[38px] h-[38px] rounded-[10px] grid place-items-center flex-shrink-0 text-[16px]" style={{ background: metaOf(x).bg, color: metaOf(x).fg }} aria-hidden="true">
+                    {x.kind === 'floorplan' ? '▦' : metaOf(x).icon}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[13.5px] font-semibold">{x.title}</b>
+                    {x.description && <span className="block truncate text-[12px] text-[#6B7380]">{x.description}</span>}
+                  </span>
+                  <span className="flex-shrink-0 text-[12px] font-semibold text-[#5B4BC4]">Open →</span>
+                </button>
+              ))}
+          </div>
+        </>
       )}
       {room.team.length > 0 && (
         <>

@@ -119,6 +119,23 @@ describe('the tab', () => {
   });
 });
 
+describe('Novelty Mode and Recommended', () => {
+  it('turns Novelty Mode on for the link, and stars a card without making it look new', async () => {
+    expect((await getRoom(db, dealId, kw)).novelty).toBe(false);
+    await saveRoom(db, quoteId, { novelty: true });
+    expect((await roomForLink(db, l))?.novelty).toBe(true);
+    const r = await addResource(db, quoteId, { kind: 'link', url: 'https://teton.ai/trust', title: 'Trust Center' }, kw);
+    expect(r.recommended).toBe(false);
+    await db.execute({ sql: "UPDATE deal_resources SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", args: [r.id] });
+    const starred = await updateResource(db, quoteId, r.id, { recommended: true });
+    expect(starred.recommended).toBe(true);
+    expect(starred.updatedAt).toBe('2026-01-01 00:00:00');
+    expect((await updateResource(db, quoteId, r.id, { title: 'Trust Center (security)' })).recommended).toBe(true);
+    await saveRoom(db, quoteId, { novelty: false });
+    await deleteResource(db, quoteId, r.id);
+  });
+});
+
 describe('engagement', () => {
   it('records opens, time, video, downloads and pages, and sums them by resource and person', async () => {
     const [v] = (await listResources(db, dealId)).filter((x) => x.kind === 'embed');

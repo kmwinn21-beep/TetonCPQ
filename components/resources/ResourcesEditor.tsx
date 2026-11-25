@@ -43,6 +43,31 @@ function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (v: 
   );
 }
 
+/** Teton Novelty Mode in the header: the prospect sees the cards like the Teton dashboard. Off by default. */
+function NoveltyToggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  const [tip, setTip] = useState(false);
+  return (
+    <span className="relative">
+      <span className={`flex items-center gap-2 h-9 pl-3 pr-1.5 rounded-[10px] border text-[13px] font-semibold transition-colors duration-200 motion-reduce:transition-none ${on ? 'border-[#F5C518] bg-[#F5C518]/[.08]' : 'border-[#4A4E56]'}`}>
+        <span className="hidden sm:inline">Teton Novelty Mode</span>
+        <span className="sm:hidden">Novelty</span>
+        <button type="button" aria-label="What is Teton Novelty Mode?" aria-expanded={tip} onClick={() => setTip(!tip)} onBlur={() => setTip(false)} className="w-4 h-4 rounded-full border border-[#6B7078] text-[#A9ADB4] text-[10px] font-bold grid place-items-center hover:text-white">
+          ?
+        </button>
+        <button type="button" role="switch" aria-checked={on} aria-label="Teton Novelty Mode" disabled={disabled} onClick={() => onChange(!on)} className={`relative w-9 h-[21px] rounded-full transition-colors duration-200 motion-reduce:transition-none disabled:opacity-40 ${on ? 'bg-[#F5C518]' : 'bg-[#4A4E56]'}`}>
+          <span className={`absolute top-[2.5px] left-[2.5px] w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 motion-reduce:transition-none ${on ? 'translate-x-[15px]' : ''}`} />
+        </button>
+      </span>
+      {tip && (
+        <span role="tooltip" className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 top-[calc(100%+8px)] z-10 w-[280px] rounded-xl bg-white p-3.5 text-left text-[12.5px] font-normal leading-normal text-teton-ink shadow-[0_14px_34px_rgba(0,0,0,.25)] [animation:fadeUp_.18s_ease-out] motion-reduce:[animation:none]">
+          <b className="block mb-1 text-[13px] font-semibold">Teton Novelty Mode</b>
+          The prospect sees their resources as cards like the Teton dashboard: colors for new and needs-you, stickers, and a viewed check. Hovering a card shows its details.
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Calls the Resources API; returns the JSON, or throws its error message. */
 async function api<T>(url: string, method = 'GET', body?: unknown): Promise<T> {
   const r = await fetch(url, { method, headers: body === undefined ? undefined : { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -172,6 +197,7 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
         )}
         <span className="flex-1" />
         <span className="text-[12px] text-[#A9ADB4]" role="status">{state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : d ? 'All changes saved' : ''}</span>
+        {d && <NoveltyToggle on={d.settings.novelty} disabled={!d.canEdit} onChange={(v) => setSettings({ novelty: v })} />}
         {linkUrl && (
           <button type="button" onClick={() => void copyLink()} title="Copy the shared link (it opens on this tab)" className={`h-9 px-3.5 rounded-[10px] border text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors duration-200 motion-reduce:transition-none ${copied ? 'border-[#2E9E5B] bg-[#2E9E5B] text-white' : 'border-[#4A4E56] hover:bg-white/10'}`}>
             {copied ? '✓ Copied' : (
@@ -880,6 +906,13 @@ function ItemSettings({ d, r, activity, setResource, remove, upload }: { d: Data
         <div className={row}>
           <span>Show this card to the prospect</span>
           <Switch on={!r.hidden} disabled={!edit} onChange={(v) => setResource(r.id, { hidden: !v })} label="Show this card to the prospect" />
+        </div>
+        <div className={row}>
+          <span>
+            <b className="font-semibold">★ Recommend this</b>
+            <small className="block text-[11.5px] leading-snug text-teton-ui-gray">Puts a Recommended star on the card, and lists it under Recommended on Your Team.</small>
+          </span>
+          <Switch on={r.recommended} disabled={!edit} onChange={(v) => setResource(r.id, { recommended: v })} label="Recommend this" />
         </div>
       </div>
       <div className={sec}>

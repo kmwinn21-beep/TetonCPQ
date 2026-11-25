@@ -27,6 +27,8 @@ export interface RoomSettings {
   showBooking: boolean;
   team: TeamMember[];
   sections: Section[];
+  /** Teton Novelty Mode: cards like the Teton dashboard for the prospect. */
+  novelty: boolean;
 }
 
 export type Block =
@@ -68,6 +70,8 @@ export interface Resource {
   roomNumbers: boolean;
   /** A video's length in seconds, once known. */
   duration: number | null;
+  /** The team suggests starting here (a ★ on the card, and listed on Your Team). */
+  recommended: boolean;
   blocks: Block[];
   updatedAt: string;
 }
