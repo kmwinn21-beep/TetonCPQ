@@ -60,6 +60,19 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
   const [activity, setActivity] = useState<Activity | null>(null);
   const [showActivity, setShowActivity] = useState(startWithActivity);
   const [closing, setClosing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  // The shared link, opening on this tab.
+  const copyLink = async () => {
+    if (!linkUrl) return;
+    const url = `${linkUrl}?tab=resources`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt('Copy the link:', url);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
 
   useEffect(() => {
     void api<Data>(`${base}?version=${versionId}`).then(setD, (e: Error) => setError(e.message));
@@ -158,6 +171,16 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
         )}
         <span className="flex-1" />
         <span className="text-[12px] text-[#A9ADB4]" role="status">{state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : d ? 'All changes saved' : ''}</span>
+        {linkUrl && (
+          <button type="button" onClick={() => void copyLink()} title="Copy the shared link (it opens on this tab)" className={`h-9 px-3.5 rounded-[10px] border text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors duration-200 motion-reduce:transition-none ${copied ? 'border-[#2E9E5B] bg-[#2E9E5B] text-white' : 'border-[#4A4E56] hover:bg-white/10'}`}>
+            {copied ? '✓ Copied' : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6" /><path d="M10.5 5.5V3.6c0-.6-.5-1.1-1.1-1.1H3.6c-.6 0-1.1.5-1.1 1.1v5.8c0 .6.5 1.1 1.1 1.1h1.9" /></svg>
+                Copy link
+              </>
+            )}
+          </button>
+        )}
         {linkUrl ? (
           <a href={`${linkUrl}?tab=resources`} target="_blank" rel="noopener noreferrer" className="h-9 px-3.5 rounded-[10px] border border-[#4A4E56] text-[13px] font-semibold inline-flex items-center gap-1.5 hover:bg-white/10" title="Opens the shared link (sign in with one of its emails)">
             👁 Preview<span className="hidden sm:inline"> as prospect</span>
