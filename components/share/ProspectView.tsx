@@ -16,6 +16,7 @@ import { CommentsProvider, useComments, BubbleIcon } from '@/components/proposal
 import { DocumentInFormat } from '@/components/proposal/ProposalView';
 import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
 import { ResourcesView, TabSwitch, useResourcesTab } from './ProspectResources';
+import { AgreementDialog, AgreementFab, AgreementPhoneRow, useAgreement } from './ProspectAgreement';
 import { PageQuestionBadges, QuestionsButton, QuestionsPanel, useQuestions } from './ProspectQuestions';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -63,6 +64,7 @@ function Body(p: Props) {
   const contents = useContents();
   const questions = useQuestions(p.token);
   const rt = useResourcesTab(p.token, contents.current, !!p.team);
+  const agreement = useAgreement(p.token, !!p.team);
   const onProposal = rt.tab === 'proposal';
   // Leaving the proposal closes its contents panel and comment mode.
   useEffect(() => {
@@ -140,11 +142,8 @@ function Body(p: Props) {
             <span className="hidden sm:inline">You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.</span>
           </p>
         )}
-        {rt.room && (
-          <div className="sm:hidden px-3 pb-2 pt-0.5">
-            <TabSwitch rt={rt} className="flex w-full" />
-          </div>
-        )}
+        {/* Phones: the Proposal / Resources switch, with the agreement button beside it. */}
+        <AgreementPhoneRow a={agreement} toggle={rt.room ? <TabSwitch rt={rt} className="flex w-full" /> : null} />
         {commenting && (
           <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-4 py-1.5 text-center text-[12.5px] text-[#1F4F96] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]">
             Click a page or a section to comment on it ·{' '}
@@ -163,6 +162,8 @@ function Body(p: Props) {
       {onProposal && <ContentsPanel c={contents} />}
       <QuestionsPanel q={questions} ownerName={p.ownerName} email={p.email} pageTitles={pageTitles} />
       <PageQuestionBadges q={questions} />
+      <AgreementFab a={agreement} />
+      <AgreementDialog a={agreement} />
       {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} />}
       <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${onProposal ? '' : 'hidden print:block'} ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>

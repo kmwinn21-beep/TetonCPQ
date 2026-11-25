@@ -240,3 +240,80 @@ export function codeEmail(i: { baseUrl: string; first: string | null; code: stri
   });
   return { subject: `Your code to open ${i.proposalName}: ${i.code}`, html, text: `${lede}\n\nYour code: ${i.code}\nIt works for 10 minutes. If you didn’t ask for it, you can ignore this email.` };
 }
+
+// ---------------------------------------------------------------- to the deal's owner: the agreement was requested
+
+export interface AgreementEmailInput {
+  baseUrl: string;
+  /** Opens the deal (its details). */
+  url: string;
+  who: string;
+  first: string | null;
+  dealName: string;
+  ownerName: string;
+  payload: import('@/lib/data/agreements').AgreementPayload;
+}
+export function agreementEmail(i: AgreementEmailInput) {
+  const p = i.payload;
+  const them = i.first ?? 'They';
+  const pill = (bg: string, fg: string, t: string) => `<span style="display:inline-block;background:${bg};color:${fg};border-radius:999px;padding:3px 9px;font:600 12px ${FONT};white-space:nowrap">${t}</span>`;
+  const status = (s: string) => (s === 'confirmed' ? pill('#DDF3E5', '#256B41', '✓ Confirmed') : s === 'updated' ? pill('#EEF5FE', '#1F5FB5', '✎ Updated') : pill('#F1F2F4', C.muted, 'Not confirmed'));
+  const lab = (t: string) => `<div style="font:700 10.5px ${FONT};letter-spacing:1.2px;text-transform:uppercase;color:${C.muted};padding-bottom:2px">${t}</div>`;
+  const was = (t: string) => (t ? ` <span style="color:${C.muted};text-decoration:line-through">${esc(t)}</span>` : '');
+  const sig = p.signatory.value;
+  const sigWas = p.signatory.was;
+  const sigHtml = sig
+    ? `${esc(`${sig.first} ${sig.last}`.trim())}${sig.title ? ` · <b style="color:${C.ink}">${esc(sig.title)}</b>` : ''}${p.signatory.status === 'updated' && sigWas && sigWas.title !== sig.title ? was(sigWas.title) : ''}${sig.email ? `<br>${esc(sig.email)}` : ''}${p.signatory.status === 'updated' && sigWas && sigWas.email !== sig.email ? `<br>${was(sigWas.email)}` : ''}${p.signatory.status === 'updated' && sigWas && `${sigWas.first} ${sigWas.last}` !== `${sig.first} ${sig.last}` ? `<br><span style="color:${C.muted}">Was ${esc(`${sigWas.first} ${sigWas.last}`.trim())}</span>` : ''}`
+    : `<span style="color:${C.muted}">Not given</span>`;
+  const coms = p.communities.list.length
+    ? p.communities.list
+        .map((c) => `${esc(c.name)}${c.beds ? ` · ${c.beds} beds` : ''} ${c.hasPlan ? pill('#DDF3E5', '#256B41', '✓ Floor plan') : pill('#F8D3CC', '#9A2E1C', 'Floor plans needed')}`)
+        .join('<br>')
+    : `<span style="color:${C.muted}">None on the proposal</span>`;
+  const row = (first: boolean, label: string, inner: string, st: string) =>
+    `<tr><td style="padding:13px 16px;${first ? '' : `border-top:1px solid ${C.line};`}font:400 13.5px/1.6 ${FONT};color:#3A3F47">${lab(label)}${inner}</td><td align="right" style="padding:13px 16px;${first ? '' : `border-top:1px solid ${C.line};`}vertical-align:top">${status(st)}</td></tr>`;
+  const table = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${C.line};border-radius:12px">
+    ${row(true, 'Legal entity name', p.entity.value ? `${esc(p.entity.value)}${p.entity.status === 'updated' ? was(p.entity.was) : ''}` : `<span style="color:${C.muted}">Not given</span>`, p.entity.status)}
+    ${row(false, 'Signatory', sigHtml, p.signatory.status)}
+    ${row(false, p.communities.pilot ? 'Pilot communities' : 'Communities', `${coms}${p.communities.change ? `<div style="margin-top:8px;background:#FBF8F3;border-radius:8px;padding:8px 10px;color:#2A2F36"><b>What should change:</b> ${para(p.communities.change)}</div>` : ''}`, p.communities.status)}
+  </table>`;
+  const note = p.note ? box(`<div style="background:#FBF8F3;border-left:3px solid ${C.coral};border-radius:12px;padding:14px 16px"><div style="font:700 11px ${FONT};letter-spacing:.8px;text-transform:uppercase;color:${C.muted};padding-bottom:4px">A note from ${esc(i.first ?? i.who)}</div><div style="font:400 14px/1.55 ${FONT};color:#2A2F36">${para(p.note)}</div></div>`, 14) : '';
+  const left = [
+    p.entity.status === 'skipped' ? 'legal entity name' : null,
+    p.signatory.status === 'skipped' ? 'signatory' : null,
+    p.communities.status === 'skipped' ? (p.communities.pilot ? 'pilot communities' : 'communities') : null,
+  ].filter((x): x is string => !!x);
+  const noPlan = p.communities.list.filter((c) => !c.hasPlan).map((c) => c.name);
+  const changed = p.entity.status === 'updated' || p.signatory.status === 'updated';
+  const lede = `${them === 'They' ? i.who : them} asked for the ${p.communities.pilot ? 'pilot ' : ''}agreement for ${i.dealName}.${changed ? ' Their changes are already saved to the deal’s details.' : ''}`;
+  const after = left.length || noPlan.length
+    ? accessNote([
+        ...(left.length ? [`Still to confirm with ${esc(i.first ?? i.who)}: <b style="color:${C.ink}">${left.join(', ')}</b>.`] : []),
+        ...(noPlan.length ? [`No floor plan yet: <b style="color:${C.ink}">${esc(noPlan.join(', '))}</b>.`] : []),
+      ])
+    : '';
+  const html = layout({
+    baseUrl: i.baseUrl,
+    preheader: `${i.who} is ready for the agreement.`,
+    eyebrow: 'Agreement requested',
+    heading: `${i.who} is ready for the agreement`,
+    lede,
+    body: box(table) + note,
+    cta: { label: 'Open the deal details', url: i.url },
+    after,
+    footer: `You’re getting this because you own this deal in Teton Proposals.<br>Reply to this email to reach ${esc(i.first ?? i.who)} directly.`,
+  });
+  const word = (s: string) => (s === 'confirmed' ? 'Confirmed' : s === 'updated' ? 'Updated' : 'Not confirmed');
+  const text = [
+    lede,
+    '',
+    `Legal entity name (${word(p.entity.status)}): ${p.entity.value || 'Not given'}`,
+    `Signatory (${word(p.signatory.status)}): ${sig ? [`${sig.first} ${sig.last}`.trim(), sig.title, sig.email].filter(Boolean).join(', ') : 'Not given'}`,
+    `${p.communities.pilot ? 'Pilot communities' : 'Communities'} (${word(p.communities.status)}): ${p.communities.list.map((c) => `${c.name}${c.hasPlan ? '' : ' (floor plans needed)'}`).join('; ') || 'None'}`,
+    ...(p.communities.change ? [`What should change: ${p.communities.change}`] : []),
+    ...(p.note ? ['', `Note: ${p.note}`] : []),
+    '',
+    `Open the deal: ${i.url}`,
+  ].join('\n');
+  return { subject: `${i.who} requested the agreement: ${i.dealName}`, html, text };
+}

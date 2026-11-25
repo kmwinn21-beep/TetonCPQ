@@ -4,6 +4,7 @@
  * (30 days by default) and can be turned off. Prospects comment on the business case (a page, a section, or the
  * whole proposal); the deal's owner gets an in-app notification for each comment and for each person's first visit.
  */
+import type { AgreementPayload } from './agreements';
 import { randomBytes, randomInt } from 'node:crypto';
 import type { Client, Row } from '@libsql/client';
 
@@ -289,7 +290,7 @@ export async function addProspectComment(db: Client, l: PublicLink, who: { email
 
 export interface ProspectNotification {
   id: number;
-  kind: 'prospect_comment' | 'prospect_open';
+  kind: 'prospect_comment' | 'prospect_open' | 'prospect_agreement';
   /** Who: the prospect's name, or their email. */
   who: string;
   email: string;
@@ -301,22 +302,34 @@ export interface ProspectNotification {
   body: string | null;
   reply: boolean;
   versionId: number | null;
+  /** Agreement requests: what they confirmed or changed. */
+  agreement?: AgreementPayload | null;
 }
 
 /** Unread prospect notifications for a user on one deal (newest first). */
 export async function prospectNotifications(db: Client, userId: number, quoteId: number): Promise<ProspectNotification[]> {
   const r = await db.execute({
-    sql: `SELECT n.id, n.kind, n.created_at, c.id AS comment_id, c.parent_id, c.target_label, c.body, c.prospect_email, c.prospect_name, c.version_id, e.email AS open_email
+    sql: `SELECT n.id, n.kind, n.created_at, c.id AS comment_id, c.parent_id, c.target_label, c.body, c.prospect_email, c.prospect_name, c.version_id, e.email AS open_email,
+                 a.email AS ag_email, a.name AS ag_name, a.payload AS ag_payload
           FROM user_notifications n
           LEFT JOIN proposal_comments c ON n.kind = 'prospect_comment' AND c.id = n.task_id
           LEFT JOIN share_link_emails e ON n.kind = 'prospect_open' AND e.id = n.task_id
-          WHERE n.user_id = ? AND n.read_at IS NULL AND n.kind IN ('prospect_comment', 'prospect_open') AND n.deal_id = (SELECT deal_id FROM quotes WHERE id = ?)
+          LEFT JOIN agreement_requests a ON n.kind = 'prospect_agreement' AND a.id = n.task_id
+          WHERE n.user_id = ? AND n.read_at IS NULL AND n.kind IN ('prospect_comment', 'prospect_open', 'prospect_agreement') AND n.deal_id = (SELECT deal_id FROM quotes WHERE id = ?)
           ORDER BY n.created_at DESC, n.id DESC`,
     args: [userId, quoteId],
   });
   return r.rows
-    .filter((x) => (x.kind === 'prospect_comment' ? x.comment_id != null : x.open_email != null))
-    .map((x) => {
+    .filter((x) => (x.kind === 'prospect_comment' ? x.comment_id != null : x.kind === 'prospect_agreement' ? x.ag_payload != null : x.open_email != null))
+    .map((x): ProspectNotification => {
+      if (x.kind === 'prospect_agreement') {
+        let agreement: AgreementPayload | null = null;
+        try {
+          agreement = JSON.parse(String(x.ag_payload)) as AgreementPayload;
+        } catch {}
+        const email = String(x.ag_email);
+        return { id: Number(x.id), kind: 'prospect_agreement', who: x.ag_name ? String(x.ag_name) : email, email, createdAt: String(x.created_at), commentId: null, threadId: null, label: null, body: agreement?.note || null, reply: false, versionId: null, agreement };
+      }
       const comment = x.kind === 'prospect_comment';
       const email = String(comment ? x.prospect_email : x.open_email);
       return {

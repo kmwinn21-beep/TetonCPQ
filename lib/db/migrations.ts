@@ -644,4 +644,21 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_resource_events ON resource_events(deal_id, created_at)`,
     ],
   },
+  {
+    id: 24,
+    name: 'agreement requests',
+    sql: [
+      // A prospect asking for the agreement from the shared link: what they confirmed or changed (JSON), and a note.
+      `CREATE TABLE agreement_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        link_id INTEGER NOT NULL REFERENCES share_links(id),
+        email TEXT NOT NULL,
+        name TEXT,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_agreement_requests ON agreement_requests(deal_id, email)`,
+    ],
+  },
 ];

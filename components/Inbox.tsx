@@ -345,19 +345,89 @@ function NotificationsDrawer({ onClose, onChanged }: { onClose: () => void; onCh
                   () => void read({ quoteId: d.quoteId, plan: [{ kind: u.kind, id: u.id }] }),
                 ),
               )}
-              {d.prospect.map((n) => (
+              {d.prospect.map((n) =>
+                n.kind === 'prospect_agreement' ? (
+                  <AgreementRow key={`pr${n.id}`} n={n} dealName={d.dealName} open={() => go(`/quotes/${d.quoteId}`, { prospect: [n.id] })} read={() => void read({ prospect: [n.id] })} />
+                ) : (
                 <ProspectRow
                   key={`pr${n.id}`}
                   n={n}
                   open={() => go(n.versionId && n.threadId ? `/proposal/${n.versionId}?comment=${n.threadId}` : `/quotes/${d.quoteId}`, { prospect: [n.id] })}
                   read={() => void read({ prospect: [n.id] })}
                 />
-              ))}
+                ),
+              )}
             </ul>
           </section>
         ))}
       </div>
     </>
+  );
+}
+
+/** A prospect asked for the agreement: what they confirmed or changed, and their note. */
+function AgreementRow({ n, dealName, open, read }: { n: ProspectNotification; dealName: string; open: () => void; read: () => void }) {
+  const a = n.agreement;
+  const st = (s: string | undefined) =>
+    s === 'confirmed' ? <span className="text-[#256B41]">✓ Confirmed</span> : s === 'updated' ? <span className="text-[#1F5FB5]">✎ Updated</span> : <span className="text-teton-ui-gray">Not confirmed</span>;
+  const sig = a?.signatory.value;
+  const was = a?.signatory.status === 'updated' ? a.signatory.was : null;
+  const missing = a?.communities.list.filter((c) => !c.hasPlan).map((c) => c.name) ?? [];
+  const lines: Array<[string, React.ReactNode, string | undefined]> = a
+    ? [
+        ['Legal entity', <>{a.entity.value || '—'}{a.entity.status === 'updated' && a.entity.was && <span className="block text-[11px] text-teton-ui-gray line-through">{a.entity.was}</span>}</>, a.entity.status],
+        [
+          'Signatory',
+          <>
+            {sig ? [`${sig.first} ${sig.last}`.trim(), sig.title].filter(Boolean).join(', ') : '—'}
+            {was && <span className="block text-[11px] text-teton-ui-gray line-through">{[`${was.first} ${was.last}`.trim(), was.title, was.email !== sig?.email ? was.email : ''].filter(Boolean).join(', ')}</span>}
+          </>,
+          a.signatory.status,
+        ],
+        [
+          a.communities.pilot ? 'Pilot communities' : 'Communities',
+          <>
+            {a.communities.list.length}
+            {missing.length > 0 && <span className="text-[#9A2E1C]"> · {missing.join(', ')} {missing.length === 1 ? 'needs' : 'need'} floor plans</span>}
+            {a.communities.change && <span className="block text-[11.5px] text-teton-dark-gray">“{a.communities.change}”</span>}
+          </>,
+          a.communities.status,
+        ],
+      ]
+    : [];
+  const tag = <span className="ml-1 rounded-full bg-[#FDF0EE] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[.4px] text-[#A63A22] align-middle">Prospect</span>;
+  return (
+    <li className="px-4 py-2.5 bg-[#F5F9FF]">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 w-[22px] h-[22px] flex-shrink-0 rounded-full grid place-items-center text-[11px] bg-[#FDF0EE]" aria-hidden="true">✍</span>
+        <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
+          <b>{n.who}</b>
+          {tag} requested the agreement for review on <b>{dealName}</b>
+          <span className="block text-[11px] text-teton-ui-gray">{ago(n.createdAt)}</span>
+          {lines.length > 0 && (
+            <div className="mt-2 rounded-lg border border-teton-off-white border-l-[3px] border-l-[#2E9A5B] bg-white px-2.5 py-0.5">
+              {lines.map(([k, v, s], i) => (
+                <div key={k} className={`flex gap-2 py-1.5 text-[12px] text-teton-dark-gray ${i ? 'border-t border-teton-off-white' : ''}`}>
+                  <span className="min-w-0 flex-1">
+                    <b className="font-semibold text-teton-ink">{k}</b> · {v}
+                  </span>
+                  <span className="flex-shrink-0 text-[11px] font-semibold">{st(s)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {n.body && <p className="mt-1.5 rounded-lg border border-teton-off-white border-l-[3px] border-l-[#D9553F] bg-white px-2.5 py-1.5 text-[12.5px] text-teton-dark-gray whitespace-pre-wrap break-words">{n.body}</p>}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button type="button" className="rounded-md bg-teton-ink px-2 py-0.5 text-[11px] font-semibold text-white hover:opacity-90" onClick={open}>
+              Open deal details ↗
+            </button>
+            <button type="button" className="rounded-md border border-teton-pale-gray bg-white px-2 py-0.5 text-[11px] font-medium text-teton-dark-gray hover:bg-teton-almost-white" onClick={read}>
+              Read
+            </button>
+          </div>
+        </div>
+      </div>
+    </li>
   );
 }
 
