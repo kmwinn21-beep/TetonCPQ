@@ -369,11 +369,12 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
       {inner}
     </span>
   );
-  const status = c.sticker === 'todo' ? stk('bg-[#E5484D]', BANG) : c.sticker === 'new' ? stk('bg-[#F97316] text-white text-[8px] font-extrabold', 'NEW') : c.sticker === 'mine' ? stk('bg-[#F5C518] text-teton-ink text-[12px]', '★') : null;
+  const at = '-top-[9px] -right-2 rotate-[16deg]';
+  const status = c.sticker === 'todo' ? stk('bg-[#E5484D]', BANG, at) : c.sticker === 'new' ? stk('bg-[#F97316] text-white text-[8px] font-extrabold', 'NEW', at) : c.sticker === 'mine' ? stk('bg-[#F5C518] text-teton-ink text-[12px]', '★', at) : null;
   const align = col === 0 ? 'left-0 origin-top-left' : col === 2 ? 'right-0 origin-top-right' : 'left-1/2 -translate-x-1/2 origin-top';
   const words = [c.label, c.tip.slice(1).map((t) => t[1]).join(', ')].filter(Boolean).join('. ');
   return (
-    <div className={`relative w-[78px] h-[136px] ${tip ? 'z-30' : ''}`} onMouseEnter={() => !noTip && setTip(true)} onMouseLeave={() => setTip(false)}>
+    <div className="relative w-[78px] h-[136px]" onMouseEnter={() => !noTip && setTip(true)} onMouseLeave={() => setTip(false)}>
       <button
         type="button"
         onClick={() => (setTip(false), c.onOpen())}
@@ -391,7 +392,7 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
         {c.progress != null && <span className="absolute left-0 bottom-0 h-[3px] bg-[#3F8CEA]" style={{ width: `${Math.round(c.progress * 100)}%` }} aria-hidden="true" />}
       </button>
       {c.rec && stk('bg-[#8B5CF6] text-white text-[12px]', '★', status ? '-top-[11px] right-[14px] -rotate-12 !z-[1]' : '-top-[9px] -right-2 rotate-[16deg]')}
-      {status && <span className="absolute -top-[9px] -right-2 z-[2] rotate-[16deg]">{status}</span>}
+      {status}
       {c.talk && (c.talk.unread || c.talk.count > 0) && (
         <span className="absolute -bottom-[9px] -left-2 z-[2] drop-shadow-[0_3px_4px_rgba(0,0,0,.2)]" aria-hidden="true">
           <span className={`relative grid place-items-center w-7 h-[26px] rounded-[9px_9px_9px_3px] ${c.talk.unread ? 'bg-[#3F8CEA]' : 'bg-white shadow-[0_0_0_1.5px_#D4D4D8]'}`}>
@@ -409,7 +410,7 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
       {!noTip && (
         <div
           role="tooltip"
-          className={`absolute top-[calc(100%+20px)] ${align} z-[3] w-[236px] rounded-2xl bg-white px-1 py-1.5 text-left shadow-[0_0_0_1px_#E4E4E7,0_16px_36px_rgba(24,24,27,.18)] transition-[opacity,transform] motion-reduce:transition-opacity ${
+          className={`absolute top-[calc(100%+20px)] ${align} z-[40] w-[236px] rounded-2xl bg-white px-1 py-1.5 text-left shadow-[0_0_0_1px_#E4E4E7,0_16px_36px_rgba(24,24,27,.18)] transition-[opacity,transform] motion-reduce:transition-opacity ${
             tip ? 'opacity-100 translate-y-0 scale-100 duration-200 ease-out' : 'opacity-0 -translate-y-1.5 scale-[.97] pointer-events-none duration-150 ease-in'
           }`}
         >
