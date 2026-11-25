@@ -32,3 +32,9 @@ A lite deal room beside the proposal on the prospect's link.
 
 ## Video storage (from Parlay)
 Parlay stores videos in Cloudflare R2: the browser asks our API for a presigned PUT URL (S3 client against `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, checksum off) and uploads straight to R2, which avoids Vercel's ~4.5 MB request limit; 500 MB cap; played with <video> for files and an iframe for YouTube/Vimeo (lib/videoEmbed.ts). Reuse the same pattern and R2 account here, with one change: prospect videos should be served through short-lived signed GET URLs (or a private bucket behind our API) rather than a public R2 URL, since proposals are private.
+
+## Profile page (profile.png)
+Photo (upload, position in the circle), name, title, email (sign-in, read-only), phone, scheduling link (powers "Book a meeting"), LinkedIn, short bio; switches for showing the phone, Book a meeting by default, and emailing on resource opens. Live preview: as main contact, on someone else's deal, and the "Sent by" line in emails. Reached from the user block in the sidebar.
+
+## Activity view (activity.png)
+Opened from the Resources editor (and the Share dialog's engagement line). KPIs (people visited, total time, resources opened, last visit), a resource × person grid (darker = more time; downloads ⤓, clicks ↗, video watched minutes; proposal shows the most-revisited page), a Recent feed, and "Worth a follow-up" hints (pricing revisits, people who haven't opened, unopened resources). Filters: date range, person; Export.
