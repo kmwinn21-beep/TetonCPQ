@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import { useComments } from '@/components/proposal/Comments';
 import { PersonPhoto } from '@/components/resources/Person';
-import { KIND_META, ResourceView, fileKind, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
+import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
 import type { FloorPlanInfo, ProspectRoom, RoomPerson } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
 
@@ -197,11 +197,11 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
   );
   const people = [room.contact, ...room.team].filter((p): p is RoomPerson => !!p);
   const r = rt.sel === 'team' ? null : room.resources.find((x) => x.id === rt.sel) ?? null;
-  const icon = (x: Resource) => (x.kind === 'floorplan' ? '▦' : KIND_META[x.kind].icon);
+  const icon = (x: Resource) => (x.kind === 'floorplan' ? '▦' : metaOf(x).icon);
   const chipsOf = (x: Resource) => {
     const info = x.kind === 'floorplan' ? rt.plans.find((p) => p.planId === x.planId) : null;
     if (info) return [`${info.roomsTagged} rooms`];
-    return [fileKind(x), x.file && x.file.mime !== 'video/mp4' && !x.file.mime.startsWith('video/') ? sizeOf(x.file.size) : null, x.duration ? `${Math.round(x.duration / 60)} min` : null, x.kind === 'link' ? 'Link' : null, x.file && x.allowDownload && x.kind === 'file' ? '⤓ Download' : null].filter((c): c is string => !!c);
+    return [fileKind(x), x.file && x.file.mime !== 'video/mp4' && !x.file.mime.startsWith('video/') ? sizeOf(x.file.size) : null, x.duration ? `${Math.round(x.duration / 60)} min` : null, x.kind === 'link' ? 'Link' : null, x.kind === 'embed' && metaOf(x).label === 'Deck' ? 'Deck' : null, x.file && x.allowDownload && x.kind === 'file' ? '⤓ Download' : null].filter((c): c is string => !!c);
   };
   return (
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -224,7 +224,7 @@ export function ResourcesView({ rt, token, allowComments }: { rt: ResourcesTab; 
               {room.resources
                 .filter((x) => x.sectionId === s.id)
                 .map((x) => (
-                  <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={KIND_META[x.kind].bg} fg={KIND_META[x.kind].fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
+                  <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} onClick={() => rt.select(x.id)} />
                 ))}
             </div>
           ))}
@@ -268,8 +268,11 @@ function Contact({ p, size = 13 }: { p: RoomPerson; size?: number }) {
         </a>
       )}
       {p.linkedin && (
-        <a href={p.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex gap-1.5 items-center text-[#1F5FB5] hover:underline">
-          in LinkedIn
+        <a href={p.linkedin} target="_blank" rel="noopener noreferrer" aria-label={`${p.name} on LinkedIn`} title={`${p.name} on LinkedIn`} className="inline-flex items-center rounded-[4px] transition-opacity hover:opacity-80">
+          <svg viewBox="0 0 24 24" width={size + 5} height={size + 5} aria-hidden="true">
+            <rect width="24" height="24" rx="4" fill="#0A66C2" />
+            <path fill="#fff" d="M6.94 9.5H4.56V19h2.38V9.5ZM5.75 5.5a1.38 1.38 0 1 0 0 2.76 1.38 1.38 0 0 0 0-2.76ZM19.44 13.6c0-2.56-.55-4.3-3.52-4.3-1.43 0-2.39.78-2.78 1.53h-.04V9.5H10.8V19h2.37v-4.7c0-1.24.24-2.44 1.77-2.44 1.51 0 1.53 1.42 1.53 2.52V19h2.38v-5.4Z" />
+          </svg>
         </a>
       )}
     </p>

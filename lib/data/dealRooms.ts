@@ -10,6 +10,7 @@ import { mailer } from '@/lib/email/send';
 import { getProfile, listProfiles, type Profile } from './profiles';
 import { deleteFile } from './storedFiles';
 import type { PublicLink } from './shareLinks';
+import { embedInput, isDeckEmbed } from '@/lib/resources/embed';
 import {
   DEFAULT_HEADING,
   DEFAULT_TAB,
@@ -158,9 +159,9 @@ export async function addResource(db: Client, quoteId: number, input: ResourceIn
     kind = String(f.rows[0].mime).startsWith('video/') ? 'video' : 'file';
     title ||= String(f.rows[0].name).replace(/\.[a-z0-9]{1,6}$/i, '');
   } else if (kind === 'embed') {
-    url = safeUrl(input.url);
-    if (!url || !embedOf(url)) throw httpError('That link can’t play inside the page. Use a YouTube, Vimeo, Loom or Wistia link, or add it as a link instead.', 400);
-    title ||= 'Video';
+    url = safeUrl(embedInput(String(input.url ?? '')));
+    if (!url || !embedOf(url)) throw httpError('That link can’t be shown inside the page. Use a Canva, Google Slides or Pitch link for a deck, or a YouTube, Vimeo, Loom or Wistia link for a video; or add it as a link instead.', 400);
+    title ||= isDeckEmbed(embedOf(url)) ? 'Deck' : 'Video';
   } else if (kind === 'link') {
     url = safeUrl(input.url);
     if (!url) throw httpError('Enter a web address', 400);
@@ -178,7 +179,7 @@ export async function addResource(db: Client, quoteId: number, input: ResourceIn
   }
   const room = await getRoom(db, d.dealId, d.ownerId);
   const want = line(input.sectionId, 40);
-  const sectionId = room.sections.some((s) => s.id === want) ? want : sectionFor(kind);
+  const sectionId = room.sections.some((s) => s.id === want) ? want : kind === 'embed' && isDeckEmbed(embedOf(url)) ? 'docs' : sectionFor(kind);
   const meta = { roomNumbers: input.roomNumbers !== false };
   const r = await db.execute({
     sql: `INSERT INTO deal_resources (deal_id, section_id, position, kind, title, description, allow_download, url, file_id, plan_id, page_id, meta, blocks, created_by)
@@ -195,9 +196,9 @@ export async function updateResource(db: Client, quoteId: number, id: number, in
   const room = await getRoom(db, d.dealId, d.ownerId);
   let url = cur.url;
   if (input.url !== undefined && (cur.kind === 'link' || cur.kind === 'embed')) {
-    url = safeUrl(input.url);
+    url = safeUrl(embedInput(String(input.url ?? '')));
     if (!url) throw httpError('Enter a web address', 400);
-    if (cur.kind === 'embed' && !embedOf(url)) throw httpError('That link can’t play inside the page', 400);
+    if (cur.kind === 'embed' && !embedOf(url)) throw httpError('That link can’t be shown inside the page', 400);
   }
   // A replaced file (same kind: a document stays a document, a video a video).
   let fileId = cur.file?.id ?? null;

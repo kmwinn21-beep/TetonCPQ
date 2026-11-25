@@ -61,10 +61,16 @@ describe('the tab', () => {
     expect(s.sections.map((x) => x.id)).toEqual(['x', 'docs', 'cases', 'plans', 'recordings']);
   });
 
+  it('puts an embedded Canva deck under Decks & documents', async () => {
+    const r = await addResource(db, quoteId, { kind: 'embed', url: '<iframe src="https://www.canva.com/design/DAGabc123XY/view?embed"></iframe>' }, kw);
+    expect(r).toMatchObject({ sectionId: 'docs', title: 'Deck', embed: { provider: 'canva' } });
+    await deleteResource(db, quoteId, r.id);
+  });
+
   it('adds cards of each kind; embeds must play in the page', async () => {
     const link = await addResource(db, quoteId, { kind: 'link', url: 'teton.ai/case-studies/sunrise', title: 'Sunrise Gardens' }, kw);
     expect(link).toMatchObject({ kind: 'link', url: 'https://teton.ai/case-studies/sunrise', sectionId: 'cases' });
-    await expect(addResource(db, quoteId, { kind: 'embed', url: 'https://example.com/video' }, kw)).rejects.toThrow('can’t play inside the page');
+    await expect(addResource(db, quoteId, { kind: 'embed', url: 'https://example.com/video' }, kw)).rejects.toThrow('can’t be shown inside the page');
     const v = await addResource(db, quoteId, { kind: 'embed', url: 'https://www.loom.com/share/0123456789abcdef0123456789abcdef', title: 'Product demo' }, kw);
     expect(v.embed).toEqual({ provider: 'loom', src: 'https://www.loom.com/embed/0123456789abcdef0123456789abcdef' });
     expect(v.sectionId).toBe('recordings');
@@ -122,6 +128,12 @@ describe('helpers', () => {
     expect(resolveEmbed('https://youtu.be/dQw4w9WgXcQ')?.provider).toBe('youtube');
     expect(resolveEmbed('https://vimeo.com/123456789')?.src).toBe('https://player.vimeo.com/video/123456789');
     expect(resolveEmbed('https://zoom.us/rec/share/abc')).toBeNull();
+    // Decks: Canva (smart embed link, view link, or the embed HTML), Google Slides, Pitch.
+    expect(resolveEmbed('https://www.canva.com/design/DAGabc123XY/view?embed')).toEqual({ provider: 'canva', src: 'https://www.canva.com/design/DAGabc123XY/view?embed' });
+    expect(resolveEmbed('https://www.canva.com/design/DAGabc123XY/kQ9xYz_shareKey/view?utm_content=x')?.src).toBe('https://www.canva.com/design/DAGabc123XY/kQ9xYz_shareKey/view?embed');
+    expect(resolveEmbed('<div><iframe loading="lazy" src="https://www.canva.com/design/DAGabc123XY/view?embed" allowfullscreen></iframe></div>')?.provider).toBe('canva');
+    expect(resolveEmbed('https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOp/edit#slide=id.p')?.src).toBe('https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOp/embed?start=false&loop=false');
+    expect(resolveEmbed('https://pitch.com/v/teton-overview-abc123')?.provider).toBe('pitch');
     expect(parseTime('13:02')).toBe(782);
     expect(parseTime('1:02:05')).toBe(3725);
     process.env.R2_ACCOUNT_ID = 'acct';

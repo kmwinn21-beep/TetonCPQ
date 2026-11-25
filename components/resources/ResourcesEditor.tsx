@@ -17,7 +17,7 @@ import { DEFAULT_HEADING, type Block, type Resource, type RoomSettings, type Sec
 import type { Activity, FloorPlanInfo } from '@/lib/data/dealRooms';
 import type { Profile } from '@/lib/data/profiles';
 import { PersonPhoto } from './Person';
-import { KIND_META, ResourceView, fileKind, sizeOf, type ViewCtx } from './Viewers';
+import { KIND_META, ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from './Viewers';
 import { ActivityView, engagementLine, fmtDur } from './ActivityView';
 
 interface Data {
@@ -193,7 +193,7 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
                 <>
                   <div className="flex flex-wrap items-end gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10.5px] font-extrabold uppercase tracking-[2px] text-teton-ui-gray">{d.settings.sections.find((s) => s.id === r.sectionId)?.name ?? KIND_META[r.kind].label}</p>
+                      <p className="text-[10.5px] font-extrabold uppercase tracking-[2px] text-teton-ui-gray">{d.settings.sections.find((s) => s.id === r.sectionId)?.name ?? metaOf(r).label}</p>
                       <h2 className="mt-1 text-[22px] font-semibold tracking-[-.3px] break-words">{r.title}</h2>
                       <p className="mt-1 text-[13px] text-teton-ui-gray">{mode === 'page' ? 'Click anything below the main view to change it; hover a block to move or remove it.' : 'The card and where it comes from.'}</p>
                     </div>
@@ -342,7 +342,7 @@ function CardList({
             </div>
             {!list.length && <p className="mx-1 mb-1 text-[11px] text-[#A9ADB4]">{drag != null ? 'Drop here' : 'Empty: hidden from the prospect'}</p>}
             {list.map((x) => {
-              const m = KIND_META[x.kind];
+              const m = metaOf(x);
               const st = stats(x);
               return (
                 <div
@@ -361,7 +361,7 @@ function CardList({
                     </span>
                     <span className="min-w-0">
                       <b className="block text-[12.5px] leading-snug break-words">{x.title}</b>
-                      <small className="block text-[11px] text-[#6B7380]">{x.hidden ? 'Hidden from the prospect' : [x.kind === 'embed' ? `Embedded · ${x.embed?.provider ?? 'video'}` : x.kind === 'link' ? 'Link' : x.kind === 'floorplan' ? 'Scoped floor plan' : x.kind === 'onepager' ? 'From the proposal' : `Uploaded ${fileKind(x) ?? ''}`, x.file && sizeOf(x.file.size)].filter(Boolean).join(' · ')}</small>
+                      <small className="block text-[11px] text-[#6B7380]">{x.hidden ? 'Hidden from the prospect' : [x.kind === 'embed' ? `Embedded · ${({ canva: 'Canva', gslides: 'Google Slides', pitch: 'Pitch', youtube: 'YouTube', vimeo: 'Vimeo', loom: 'Loom', wistia: 'Wistia' } as Record<string, string>)[x.embed?.provider ?? ''] ?? 'video'}` : x.kind === 'link' ? 'Link' : x.kind === 'floorplan' ? 'Scoped floor plan' : x.kind === 'onepager' ? 'From the proposal' : `Uploaded ${fileKind(x) ?? ''}`, x.file && sizeOf(x.file.size)].filter(Boolean).join(' · ')}</small>
                       {st && <small className={`block mt-1 text-[10.5px] ${st.hot ? 'font-semibold text-[#256B41]' : 'text-[#5A6270]'}`}>{st.text}</small>}
                     </span>
                   </button>
@@ -405,12 +405,17 @@ function CardList({
 
 function AddMenu({ d, addResource, setSettings, upload }: { d: Data; addResource: (b: Record<string, unknown>) => Promise<Resource | null>; setSettings: (p: Partial<RoomSettings>) => void; upload: (f: File) => Promise<number | null> }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<null | 'embed' | 'link' | 'onepager' | 'section'>(null);
+  const [form, setForm] = useState<null | 'embed' | 'deck' | 'link' | 'onepager' | 'section'>(null);
   const [plans, setPlans] = useState(false);
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // The menu opens in the list, above the button: bring all of it into view.
+  useEffect(() => {
+    if (open) menuRef.current?.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [open, form]);
   const reset = () => (setOpen(false), setForm(null), setUrl(''), setTitle(''));
   const onePagers = useMemo(
     () => (form === 'onepager' ? [...document.querySelectorAll<HTMLElement>('article#proposal [data-bc-page][data-bc-title]')].filter((el) => isOnePager(el.dataset.bcPage!)).map((el) => ({ id: el.dataset.bcPage!, title: el.dataset.bcTitle! })) : []),
@@ -418,6 +423,7 @@ function AddMenu({ d, addResource, setSettings, upload }: { d: Data; addResource
   );
   const items: Array<[string, string, string, string, () => void]> = [
     ['⤒', '#E7E2FB', 'Upload a file', `PDF, deck, document, image, or a video (MP4, MOV) up to ${d.r2 ? '500' : '60'} MB.`, () => fileRef.current?.click()],
+    ['▤', '#E7E2FB', 'Embed a deck', 'A Canva, Google Slides or Pitch link (or Canva’s embed code); it shows right on the page.', () => setForm('deck')],
     ['▶', '#1C2430', 'Embed a video', 'A YouTube, Vimeo, Loom or Wistia link; it plays right on the page.', () => setForm('embed')],
     ['↗', '#FFF4D6', 'Add a link', 'Any web page (a case study, an article). Opens in a new tab.', () => setForm('link')],
     ['✓', '#EEF8F1', 'Add a one pager', 'One of this proposal’s one pagers, always current.', () => setForm('onepager')],
@@ -426,7 +432,7 @@ function AddMenu({ d, addResource, setSettings, upload }: { d: Data; addResource
   ];
   const field = 'w-full h-9 rounded-[9px] border border-[#D5D9DE] px-2.5 text-[12.5px] outline-none focus:border-[#3F8CEA]';
   return (
-    <div className="relative mt-2">
+    <div className="mt-2 flex flex-col-reverse">
       {busy && <p className="mb-2 rounded-xl border border-[#E8E4DC] bg-white px-3 py-2 text-[12px] text-[#5A6270]">{busy}</p>}
       <button type="button" aria-expanded={open} onClick={() => (open ? reset() : setOpen(true))} className="w-full h-10 rounded-[10px] border border-dashed border-[#B9BFC7] text-[13px] font-semibold text-[#5A6270] hover:bg-white">
         + Add to Resources
@@ -448,7 +454,7 @@ function AddMenu({ d, addResource, setSettings, upload }: { d: Data; addResource
         }}
       />
       {open && (
-        <div className="absolute left-0 right-0 bottom-12 z-30 rounded-[13px] border border-[#ECE8DF] bg-white p-1.5 shadow-[0_16px_40px_rgba(0,0,0,.18)] [animation:fadeScale_.15s_ease-out] motion-reduce:[animation:none]">
+        <div ref={menuRef} className="mb-2 rounded-[13px] border border-[#ECE8DF] bg-white p-1.5 shadow-[0_16px_40px_rgba(0,0,0,.18)] [animation:fadeScale_.15s_ease-out] motion-reduce:[animation:none]">
           {!form &&
             items.map(([ic, bg, name, hint, fn]) => (
               <button key={name} type="button" onClick={fn} className="w-full flex gap-2.5 items-start rounded-[9px] px-2.5 py-2 text-left hover:bg-[#F3F7FD]">
@@ -461,17 +467,18 @@ function AddMenu({ d, addResource, setSettings, upload }: { d: Data; addResource
                 </span>
               </button>
             ))}
-          {(form === 'embed' || form === 'link') && (
+          {(form === 'embed' || form === 'deck' || form === 'link') && (
             <form
               className="p-2 space-y-2"
               onSubmit={async (e) => {
                 e.preventDefault();
-                const ok = await addResource({ kind: form, url, title });
+                const ok = await addResource({ kind: form === 'deck' ? 'embed' : form, url, title });
                 if (ok) reset();
               }}
             >
-              <b className="block text-[12.5px]">{form === 'embed' ? 'Embed a video' : 'Add a link'}</b>
-              <input autoFocus className={field} value={url} onChange={(e) => setUrl(e.target.value)} placeholder={form === 'embed' ? 'https://www.loom.com/share/… or a YouTube / Vimeo link' : 'https://…'} aria-label="Link" />
+              <b className="block text-[12.5px]">{form === 'embed' ? 'Embed a video' : form === 'deck' ? 'Embed a deck' : 'Add a link'}</b>
+              <input autoFocus className={field} value={url} onChange={(e) => setUrl(e.target.value)} placeholder={form === 'embed' ? 'https://www.loom.com/share/… or a YouTube / Vimeo link' : form === 'deck' ? 'https://www.canva.com/design/…/view?embed' : 'https://…'} aria-label="Link" />
+              {form === 'deck' && <p className="text-[11px] leading-snug text-teton-ui-gray">In Canva: Share → More → Embed, and copy the smart embed link (or the HTML). The design has to be shared with “Anyone with the link”.</p>}
               <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" aria-label="Title" />
               <div className="flex justify-end gap-2">
                 <button type="button" className="h-8 px-3 rounded-lg border border-[#D5D9DE] text-[12.5px] font-semibold" onClick={() => setForm(null)}>
@@ -759,8 +766,8 @@ function ItemSettings({ d, r, activity, setResource, remove, upload }: { d: Data
         </label>
         <span className="mt-3 mb-1 block text-[12px] font-semibold">Source</span>
         <div className="flex flex-wrap items-center gap-3 rounded-[11px] border border-[#E3DFD8] bg-[#FBF8F3] px-3 py-2.5">
-          <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0" style={{ background: KIND_META[r.kind].bg, color: KIND_META[r.kind].fg }}>
-            {KIND_META[r.kind].icon}
+          <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0" style={{ background: metaOf(r).bg, color: metaOf(r).fg }}>
+            {metaOf(r).icon}
           </span>
           <span className="min-w-0 flex-1">
             {r.file ? (
@@ -837,7 +844,7 @@ function ItemSettings({ d, r, activity, setResource, remove, upload }: { d: Data
             );
           })
         )}
-        <p className="mt-2 text-[11.5px] text-teton-ui-gray">From who’s signed in to the link. {r.kind === 'embed' ? 'Embedded videos show time on the card, not how much was played.' : ''}</p>
+        <p className="mt-2 text-[11.5px] text-teton-ui-gray">From who’s signed in to the link. {r.kind === 'embed' ? (metaOf(r).label === 'Deck' ? 'Embedded decks show time on the card.' : 'Embedded videos show time on the card, not how much was played.') : ''}</p>
       </div>
       {edit && (
         <div className="mt-4 flex justify-end">

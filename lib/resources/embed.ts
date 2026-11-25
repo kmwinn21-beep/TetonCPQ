@@ -3,14 +3,22 @@
  * null when the site can't be embedded (then it opens in a new tab). Adapted from Parlay's lib/videoEmbed.ts.
  */
 export interface Embed {
-  provider: 'youtube' | 'vimeo' | 'loom' | 'wistia';
+  provider: 'youtube' | 'vimeo' | 'loom' | 'wistia' | 'canva' | 'gslides' | 'pitch';
   src: string;
 }
+/** Decks and slides (shown in a slide frame, under Decks & documents), not videos. */
+export const isDeckEmbed = (e: Embed | null | undefined) => !!e && (e.provider === 'canva' || e.provider === 'gslides' || e.provider === 'pitch');
 
-export function resolveEmbed(url: string): Embed | null {
+/** A pasted link, or the embed code a site gives (<iframe src="…">): the address in it. */
+export function embedInput(v: string): string {
+  const m = /<iframe[^>]*\ssrc=["']([^"']+)["']/i.exec(v);
+  return (m ? m[1] : v).replace(/&amp;/g, '&').trim();
+}
+
+export function resolveEmbed(raw: string): Embed | null {
   let u: URL;
   try {
-    u = new URL(url.trim());
+    u = new URL(embedInput(raw));
   } catch {
     return null;
   }
@@ -33,6 +41,21 @@ export function resolveEmbed(url: string): Embed | null {
   if (host.endsWith('wistia.com') || host.endsWith('wistia.net') || host.endsWith('wi.st')) {
     const id = u.pathname.match(/\/(?:medias|iframe)\/([a-z0-9]{6,})/i)?.[1];
     return id ? { provider: 'wistia', src: `https://fast.wistia.net/embed/iframe/${id}` } : null;
+  }
+  // Canva: a design's share, view or embed link → its embed view (the design must be shared "Anyone with the link").
+  if (host === 'canva.com' || host.endsWith('.canva.com') || host === 'canva.site') {
+    const m = u.pathname.match(/\/design\/([A-Za-z0-9_-]{6,})(?:\/([A-Za-z0-9_-]{4,}))?/);
+    if (m) return { provider: 'canva', src: `https://www.canva.com/design/${m[1]}/${m[2] && !/^(view|edit|watch)$/.test(m[2]) ? `${m[2]}/` : ''}view?embed` };
+    return null;
+  }
+  // Google Slides: any presentation link → its embed (published to the web, or shared with them).
+  if (host === 'docs.google.com') {
+    const id = u.pathname.match(/\/presentation\/d\/(e\/)?([A-Za-z0-9_-]{10,})/);
+    return id ? { provider: 'gslides', src: `https://docs.google.com/presentation/d/${id[1] ?? ''}${id[2]}/${id[1] ? 'pub' : 'embed'}?start=false&loop=false` } : null;
+  }
+  if (host === 'pitch.com') {
+    const id = u.pathname.match(/\/(?:v|public|embed)\/([A-Za-z0-9-]{8,})(?:\/([A-Za-z0-9-]+))?/);
+    return id ? { provider: 'pitch', src: `https://pitch.com/embed/${id[1]}${id[2] ? `/${id[2]}` : ''}` } : null;
   }
   return null;
 }

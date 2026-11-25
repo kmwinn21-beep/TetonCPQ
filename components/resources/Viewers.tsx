@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { badgeOf, sensorsPerRoom } from '@/lib/quote/roomTypes';
 import { BLOCK_TYPES, newBlock, type Block, type BlockType, type Resource } from '@/lib/resources/model';
-import { fmtTime, parseTime, type Embed } from '@/lib/resources/embed';
+import { fmtTime, isDeckEmbed, parseTime, type Embed } from '@/lib/resources/embed';
 import type { FloorPlanInfo } from '@/lib/data/dealRooms';
 import { PdfPages } from './PdfPages';
 
@@ -21,6 +21,8 @@ export const KIND_META: Record<Resource['kind'], { icon: string; bg: string; fg?
   onepager: { icon: '✓', bg: '#EEF8F1', label: 'One pager' },
   floorplan: { icon: '▦', bg: '#EEF5FE', fg: '#1F5FB5', label: 'Floor plan' },
 };
+/** A card's icon and label (an embedded Canva / Slides / Pitch deck reads as a deck, not a video). */
+export const metaOf = (r: Pick<Resource, 'kind' | 'embed'>) => (r.kind === 'embed' && isDeckEmbed(r.embed) ? { icon: '▤', bg: '#E7E2FB', label: 'Deck' } : KIND_META[r.kind]);
 export const fileKind = (r: Resource) => (r.file?.mime === 'application/pdf' ? 'PDF' : r.file?.mime.startsWith('image/') ? 'Image' : r.file?.mime.startsWith('video/') ? 'Video' : r.file ? (r.file.name.split('.').pop() ?? 'File').toUpperCase() : null);
 export const sizeOf = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(n > 10485760 ? 0 : 1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -181,7 +183,8 @@ export function ResourceView({ r, ctx, actions }: { r: Resource; ctx: ViewCtx; a
   const video = useRef<HTMLVideoElement>(null);
   const [seek, setSeek] = useState<number | null>(null);
   const [now, setNow] = useState(0);
-  const meta = KIND_META[r.kind];
+  const meta = metaOf(r);
+  const deck = r.kind === 'embed' && isDeckEmbed(r.embed);
   const info = r.kind === 'floorplan' ? ctx.plans.find((p) => p.planId === r.planId) ?? null : null;
   const jump = (t: number) => {
     if (video.current) {
@@ -264,9 +267,18 @@ export function ResourceView({ r, ctx, actions }: { r: Resource; ctx: ViewCtx; a
           />
         )}
         {r.kind === 'embed' && r.embed && (
-          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black">
-            <iframe title={r.title} src={seek == null ? r.embed.src : seekSrc(r.embed, seek)} key={seek ?? 'start'} className="absolute inset-0 w-full h-full" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen />
+          <div className={`relative w-full aspect-video rounded-2xl overflow-hidden ${deck ? 'bg-[#EDEAE4] border border-[#E8E4DC]' : 'bg-black'}`}>
+            <iframe title={r.title} src={seek == null || deck ? r.embed.src : seekSrc(r.embed, seek)} key={seek ?? 'start'} className="absolute inset-0 w-full h-full" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen />
           </div>
+        )}
+        {deck && r.url && (
+          <p className="mt-2 text-[12px] text-teton-ui-gray">
+            Use the full-screen button on the deck to present it, or{' '}
+            <a href={ctx.goUrl(r)} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#1F5FB5] hover:underline">
+              open it in a new tab
+            </a>
+            .
+          </p>
         )}
         {r.kind === 'link' && r.url && (
           <a href={ctx.goUrl(r)} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-4 rounded-2xl border border-[#E8E4DC] bg-white px-5 py-5 hover:border-teton-ink transition-colors">
@@ -321,7 +333,7 @@ function Blocks({ r, ctx, info, jump, now, canSeek }: { r: Resource; ctx: ViewCt
     edit?.onBlocks(next);
     setMenu(null);
   };
-  const types = BLOCK_TYPES.filter((t) => !t.kinds || t.kinds.includes(r.kind));
+  const types = BLOCK_TYPES.filter((t) => (!t.kinds || t.kinds.includes(r.kind)) && !(t.type === 'moments' && r.kind === 'embed' && isDeckEmbed(r.embed)));
   // Side by side on wide screens: key moments next to a text block, as in the mock.
   const addMenu = (at: number) => (
     <div className="my-4">
@@ -462,8 +474,8 @@ function BlockView({ b, r, ctx, info, jump }: { b: Block; r: Resource; ctx: View
           <div className="grid gap-2.5 sm:grid-cols-2">
             {items.map((x) => (
               <button key={x.id} type="button" onClick={() => ctx.onSelect?.(x.id)} className="flex items-center gap-3 rounded-xl border border-[#E8E4DC] bg-white px-3 py-2.5 text-left hover:border-teton-ink transition-colors">
-                <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0" style={{ background: KIND_META[x.kind].bg, color: KIND_META[x.kind].fg }}>
-                  {KIND_META[x.kind].icon}
+                <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0" style={{ background: metaOf(x).bg, color: metaOf(x).fg }}>
+                  {metaOf(x).icon}
                 </span>
                 <span className="min-w-0">
                   <b className="block text-[13px] truncate">{x.title}</b>
