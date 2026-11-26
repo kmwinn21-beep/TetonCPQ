@@ -465,10 +465,12 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
  * The panel's scroll area: no scrollbar. The edges fade where there's more to see, a ⌃ / ⌄ button jumps a section
  * up or down, and dots on the right show (and jump to) each section. The wheel and trackpad still scroll it.
  */
-export function ScrollPanel({ names, children, phone = false }: { names: string[]; children: React.ReactNode; phone?: boolean }) {
+export function ScrollPanel({ names, children, phone = false, fade = '#F6F3EE', className = '' }: { names: string[]; children: React.ReactNode; phone?: boolean; fade?: string; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [st, setSt] = useState({ top: true, bottom: true, cur: 0 });
   const secs = () => [...(ref.current?.querySelectorAll<HTMLElement>('[data-nv-sec]') ?? [])];
+  // A section's position in the scrolled content (works for table rows too, whose offsetTop is relative to the table).
+  const topOf = (s: HTMLElement, el: HTMLElement) => s.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
   const measure = useCallback(() => {
     const el = ref.current;
     if (!el) return;
@@ -476,7 +478,7 @@ export function ScrollPanel({ names, children, phone = false }: { names: string[
     const list = secs();
     let cur = 0;
     list.forEach((s, i) => {
-      if (s.offsetTop - 60 <= y) cur = i;
+      if (topOf(s, el) - 60 <= y) cur = i;
     });
     const bottom = y + el.clientHeight >= el.scrollHeight - 4;
     if (bottom) cur = list.length - 1;
@@ -497,7 +499,7 @@ export function ScrollPanel({ names, children, phone = false }: { names: string[
     if (!el || !list.length) return;
     const k = Math.max(0, Math.min(list.length - 1, i));
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    el.scrollTo({ top: k === 0 ? 0 : list[k].offsetTop - 48, behavior: reduce ? 'auto' : 'smooth' });
+    el.scrollTo({ top: k === 0 ? 0 : topOf(list[k], el) - 48, behavior: reduce ? 'auto' : 'smooth' });
   };
   const fits = st.top && st.bottom;
   const chev = (dir: 'up' | 'down', show: boolean) => (
@@ -515,12 +517,12 @@ export function ScrollPanel({ names, children, phone = false }: { names: string[
   );
   return (
     // `phone`: the children also show on phones, where the page scrolls as usual and none of the extras appear.
-    <div className={phone ? 'relative sm:h-full' : 'hidden sm:block relative h-full'}>
+    <div className={`${phone ? 'relative sm:h-full' : 'hidden sm:block relative h-full'} ${className}`}>
       <div ref={ref} onScroll={measure} data-nv-scroll className={phone ? 'sm:h-full sm:overflow-y-auto sm:overflow-x-hidden no-scrollbar sm:overscroll-contain' : 'h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain'}>
         {children}
       </div>
-      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] bg-gradient-to-b from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
-      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-12 z-[44] bg-gradient-to-t from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.bottom ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
+      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} style={{ background: `linear-gradient(to bottom, ${fade}, transparent)` }} aria-hidden="true" />
+      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-12 z-[44] transition-opacity duration-200 ${st.bottom ? 'opacity-0' : 'opacity-100'}`} style={{ background: `linear-gradient(to top, ${fade}, transparent)` }} aria-hidden="true" />
       {chev('up', !st.top)}
       {chev('down', !st.bottom)}
       {!fits && names.length > 1 && (

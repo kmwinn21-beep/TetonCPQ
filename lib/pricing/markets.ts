@@ -101,3 +101,37 @@ export const CATALOG: Record<string, CatalogPlace> = {
   'FINISH-STANDARD-CREDIT': { category: 'Installation finish', sub: 'Concealed installation', icon: 'pricing', tint: 'stone' },
 };
 export const placeOf = (sku: string): CatalogPlace => CATALOG[sku] ?? { category: 'Add-ons', sub: 'Other', icon: 'document', tint: 'stone' };
+
+/** The price book's SKUs (what reps and the sheet call each item). Editable; the system key stays the same. */
+export const ITEM_CODES: Record<string, string> = {
+  'TETON-PLATFORM': 'TT-PLT-ONE',
+  'TETON-SNF': 'TT-PLT-SNF',
+  'BUNDLE-ECALL-BLE': 'TT-PLT-BBL',
+  'BUNDLE-ECALL-INOVONICS': 'TT-PLT-BIN',
+  'TETON-INSTALL': 'TT-PLT-SET',
+  'ECALL-BLE': 'TT-ADD-001',
+  'ECALL-INOVONICS': 'TT-ADD-002',
+  'COMMON-AREA-SETUP': 'TT-ADD-003',
+  'COMMON-AREA-MONTHLY': 'TT-ADD-004',
+  'SENSOR-ADDITIONAL': 'TT-ADD-005',
+  'COVERAGE-FULL-FACILITY': 'TT-ADD-006',
+  'ECALL-BLE-BUTTON': 'TT-ADD-007',
+  'ECALL-INOVONICS-PENDANT': 'TT-ADD-008',
+  'ECALL-INOVONICS-PULLCORD': 'TT-ADD-009',
+  'CAPEX-BASE': 'TT-CAP-001',
+  'CAPEX-BASE-ECALL-BLE': 'TT-CAP-002',
+  'CAPEX-BASE-ECALL-INOVONICS': 'TT-CAP-003',
+  'CAPEX-SENSOR': 'TT-CAP-004',
+  'CAPEX-SOFTWARE': 'TT-CAP-005',
+  'CAPEX-SOFTWARE-UPFRONT': 'TT-CAP-006',
+  'CAPEX-ECALL-INSTALL-BLE': 'TT-CAP-007',
+  'CAPEX-ECALL-INSTALL-INOVONICS': 'TT-CAP-008',
+  'CAPEX-ECALL-SOFTWARE': 'TT-CAP-009',
+  'CAPEX-ECALL-SOFTWARE-UPFRONT': 'TT-CAP-010',
+  'CAPEX-ECALL-DEVICE': 'TT-CAP-011',
+  'CAPEX-ECALL-BLE-RENEWAL': 'TT-CAP-012',
+  'CAPEX-ECALL-INOVONICS-RENEWAL': 'TT-CAP-013',
+  'FINISH-CONCEALED-LOW': 'TT-FIN-001',
+  'FINISH-CONCEALED-HIGH': 'TT-FIN-002',
+  'FINISH-STANDARD-CREDIT': 'TT-FIN-003',
+};

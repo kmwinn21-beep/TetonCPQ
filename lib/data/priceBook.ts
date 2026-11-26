@@ -24,6 +24,20 @@ export interface PriceBookRow extends Product {
   markets: Record<string, MarketPrice>;
   /** Saved versions (and deals) with this product on their price lines. */
   usage: { versions: number; deals: number };
+  /** The SKU reps see (editable); `sku` is the system key. */
+  itemCode: string | null;
+  /** Changes, newest first. */
+  history: PriceBookChange[];
+}
+
+export interface PriceBookChange {
+  id: number;
+  /** 'sku', 'list' (US list price) or 'market:UK' (a reference price). */
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  by: string | null;
+  at: string;
 }
 
 const LIMITS: Record<PricingModel, { min: number; max: number; decimals: number }> = {
@@ -55,7 +69,7 @@ export function defaultListPrice(sku: string): number | null {
 
 export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
   const rs = await db.execute(`
-    SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at,
+    SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at, p.item_code,
            (SELECT name FROM users u WHERE u.id = p.updated_by) AS updated_by_name
     FROM products p WHERE p.active = 1 ORDER BY p.rowid`);
   // In price book order (products added later are stored after the rest).
@@ -65,6 +79,7 @@ export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
   };
   const markets = await marketPrices(db);
   const usage = await usageBySku(db);
+  const history = await historyBySku(db);
   return [...rs.rows].sort((a, b) => at(String(a.sku)) - at(String(b.sku))).map((r) => ({
     sku: String(r.sku),
     name: String(r.name),
@@ -76,14 +91,17 @@ export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
     updatedByName: r.updated_by_name ? String(r.updated_by_name) : null,
     markets: markets[String(r.sku)] ?? {},
     usage: usage[String(r.sku)] ?? { versions: 0, deals: 0 },
+    itemCode: r.item_code == null ? null : String(r.item_code),
+    history: history[String(r.sku)] ?? [],
   }));
 }
 
 /** Set a product's list price, or put it back to the default with `list: 'default'`. */
 export async function setListPrice(db: Client, sku: string, list: unknown, userId: number | null): Promise<PriceBookRow> {
-  const cur = await db.execute({ sql: 'SELECT pricing_model FROM products WHERE sku = ? AND active = 1', args: [sku] });
+  const cur = await db.execute({ sql: 'SELECT pricing_model, list_price FROM products WHERE sku = ? AND active = 1', args: [sku] });
   if (!cur.rows.length) throw new Error('Product not found');
   const model = String(cur.rows[0].pricing_model) as PricingModel;
+  const was = Number(cur.rows[0].list_price);
   let value: number;
   if (list === 'default') {
     const d = defaultListPrice(sku);
@@ -96,6 +114,7 @@ export async function setListPrice(db: Client, sku: string, list: unknown, userI
     sql: "UPDATE products SET list_price = ?, updated_by = ?, updated_at = datetime('now') WHERE sku = ?",
     args: [value, userId, sku],
   });
+  if (value !== was) await logChange(db, sku, 'list', String(was), String(value), userId);
   const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
   if (!row) throw new Error('Product not found');
   return row;
@@ -161,6 +180,9 @@ export async function setMarketPrice(db: Client, sku: string, market: string, va
   const cur = await db.execute({ sql: 'SELECT pricing_model FROM products WHERE sku = ? AND active = 1', args: [sku] });
   if (!cur.rows.length) throw new Error('Product not found');
   const model = String(cur.rows[0].pricing_model) as PricingModel;
+  const before = await db.execute({ sql: 'SELECT price, not_sold FROM product_market_prices WHERE sku = ? AND market = ?', args: [sku, market] });
+  const show = (x: { price: number | null; notSold: boolean } | null) => (!x ? null : x.notSold ? 'not sold' : x.price == null ? null : String(x.price));
+  const was = before.rows.length ? show({ price: before.rows[0].price == null ? null : Number(before.rows[0].price), notSold: Number(before.rows[0].not_sold) === 1 }) : null;
   let next: MarketPrice;
   if (value === 'default') next = defaultMarketPrice(sku, market) ?? { price: null, notSold: false };
   else if (value === 'not_sold') next = { price: null, notSold: true };
@@ -177,6 +199,44 @@ export async function setMarketPrice(db: Client, sku: string, market: string, va
           ON CONFLICT(sku, market) DO UPDATE SET price = excluded.price, not_sold = excluded.not_sold, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
     args: [sku, market, next.price, next.notSold ? 1 : 0, userId],
   });
+  if (show(next) !== was) await logChange(db, sku, `market:${market}`, was, show(next), userId);
+  const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
+  if (!row) throw new Error('Product not found');
+  return row;
+}
+
+async function logChange(db: Client, sku: string, field: string, oldValue: string | null, newValue: string | null, userId: number | null) {
+  await db.execute({ sql: 'INSERT INTO product_history (sku, field, old_value, new_value, user_id) VALUES (?, ?, ?, ?, ?)', args: [sku, field, oldValue, newValue, userId] });
+}
+
+async function historyBySku(db: Client): Promise<Record<string, PriceBookChange[]>> {
+  const out: Record<string, PriceBookChange[]> = {};
+  try {
+    const rs = await db.execute(`SELECT h.id, h.sku, h.field, h.old_value, h.new_value, h.created_at, u.name AS by_name
+      FROM product_history h LEFT JOIN users u ON u.id = h.user_id ORDER BY h.id DESC`);
+    for (const r of rs.rows) {
+      const list = (out[String(r.sku)] ??= []);
+      if (list.length < 50) list.push({ id: Number(r.id), field: String(r.field), oldValue: r.old_value == null ? null : String(r.old_value), newValue: r.new_value == null ? null : String(r.new_value), by: r.by_name == null ? null : String(r.by_name), at: String(r.created_at) });
+    }
+  } catch {
+    // Before the migration: no history.
+  }
+  return out;
+}
+
+/** Change an item's SKU (letters, digits and dashes; unique). Recorded in its history. */
+export async function setItemCode(db: Client, sku: string, code: unknown, userId: number | null): Promise<PriceBookRow> {
+  const next = String(code ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9-]{1,31}$/.test(next)) throw new Error('Use 2–32 letters, digits and dashes');
+  const cur = await db.execute({ sql: 'SELECT item_code FROM products WHERE sku = ? AND active = 1', args: [sku] });
+  if (!cur.rows.length) throw new Error('Product not found');
+  const was = cur.rows[0].item_code == null ? null : String(cur.rows[0].item_code);
+  if (was !== next) {
+    const taken = await db.execute({ sql: 'SELECT name FROM products WHERE item_code = ? AND sku <> ?', args: [next, sku] });
+    if (taken.rows.length) throw new Error(`${next} is already used by ${String(taken.rows[0].name)}`);
+    await db.execute({ sql: "UPDATE products SET item_code = ?, updated_by = ?, updated_at = datetime('now') WHERE sku = ?", args: [next, userId, sku] });
+    await logChange(db, sku, 'sku', was, next, userId);
+  }
   const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
   if (!row) throw new Error('Product not found');
   return row;

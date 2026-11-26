@@ -735,4 +735,24 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 30,
+    name: 'price book SKUs and history',
+    sql: [
+      // The SKU reps see (editable); products.sku stays the system key the pricing uses.
+      `ALTER TABLE products ADD COLUMN item_code TEXT`,
+      `CREATE UNIQUE INDEX idx_products_item_code ON products(item_code)`,
+      // Every change to an item: its SKU, its US list price, or a market's reference price.
+      `CREATE TABLE product_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sku TEXT NOT NULL,
+        field TEXT NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        user_id INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE INDEX idx_product_history ON product_history(sku, id)`,
+    ],
+  },
 ];

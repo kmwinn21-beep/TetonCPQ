@@ -10,6 +10,7 @@ import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
+import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { PackSvg } from '@/components/resources/CardIcon';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
 import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeOf } from '@/lib/pricing/markets';
@@ -72,7 +73,7 @@ function Status({ r, market }: { r: PriceBookRow; market: string }) {
               ? ['bg-[#E3A500]', 'text-[#8A5A00]', 'US only']
               : ['bg-[#E3A500]', 'text-[#8A5A00]', 'Some markets'];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[11.5px] font-semibold whitespace-nowrap ${color}`}>
+    <span className={`inline-flex items-center gap-1.5 min-w-0 text-[11.5px] font-semibold whitespace-nowrap ${color}`}>
       <span className={`w-[7px] h-[7px] rounded-full ${dot}`} aria-hidden="true" />
       {text}
     </span>
@@ -81,10 +82,10 @@ function Status({ r, market }: { r: PriceBookRow; market: string }) {
 
 function Dots({ r }: { r: PriceBookRow }) {
   return (
-    <span className="flex items-center gap-[3px]" aria-label={`Priced in ${soldCount(r)} of ${MARKETS.length} markets`}>
+    <span className="flex items-center gap-[2px]" aria-label={`Priced in ${soldCount(r)} of ${MARKETS.length} markets`}>
       {MARKETS.map((m) => {
         const p = priceIn(r, m.code);
-        return <i key={m.code} title={`${m.name}: ${p.notSold ? 'not sold' : p.price == null ? 'no price' : fmt(r, m.code, p.price)}`} className={`w-[11px] h-[11px] rounded-[3px] ${p.notSold ? 'bg-[#E9E5DE]' : p.price == null ? 'bg-[repeating-linear-gradient(45deg,#F1EEE7_0_2px,#fff_2px_4px)] shadow-[inset_0_0_0_1px_#E9E5DE]' : 'bg-[#46A951]'}`} />;
+        return <i key={m.code} title={`${m.name}: ${p.notSold ? 'not sold' : p.price == null ? 'no price' : fmt(r, m.code, p.price)}`} className={`w-[10px] h-[10px] rounded-[3px] flex-shrink-0 ${p.notSold ? 'bg-[#E9E5DE]' : p.price == null ? 'bg-[repeating-linear-gradient(45deg,#F1EEE7_0_2px,#fff_2px_4px)] shadow-[inset_0_0_0_1px_#E9E5DE]' : 'bg-[#46A951]'}`} />;
       })}
       <small className="ml-1.5 text-[11px] text-[#6B7380] tabular-nums">
         {soldCount(r)}/{MARKETS.length}
@@ -127,7 +128,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
     const s = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (!inCat(r)) return false;
-      if (s && !`${r.name} ${r.sku} ${r.description}`.toLowerCase().includes(s)) return false;
+      if (s && !`${r.name} ${r.itemCode ?? ''} ${r.sku} ${r.description}`.toLowerCase().includes(s)) return false;
       if (billing === 'monthly' && !isMonthly(r.pricingModel)) return false;
       if (billing === 'once' && !isOnce(r.pricingModel)) return false;
       if (avail === 'everywhere' && soldCount(r) !== MARKETS.length) return false;
@@ -161,10 +162,10 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
   };
 
   const exportCsv = () => {
-    const head = ['SKU', 'Item', 'Category', 'Subcategory', 'Unit', ...MARKETS.map((x) => `${x.code} (${x.currency})`)];
+    const head = ['SKU', 'Item', 'System key', 'Category', 'Subcategory', 'Unit', ...MARKETS.map((x) => `${x.code} (${x.currency})`)];
     const lines = list.map((r) => {
       const p = placeOf(r.sku);
-      return [r.sku, r.name, p.category, p.sub, UNIT[r.pricingModel], ...MARKETS.map((x) => {
+      return [r.itemCode ?? '', r.name, r.sku, p.category, p.sub, UNIT[r.pricingModel], ...MARKETS.map((x) => {
         const v = priceIn(r, x.code);
         return v.notSold ? 'not sold' : v.price == null ? '' : String(v.price);
       })];
@@ -191,13 +192,15 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
   const catIcon: Record<string, string> = { Platform: 'TETON-PLATFORM', 'Add-ons': 'COMMON-AREA-SETUP', 'Capital purchase': 'CAPEX-BASE', 'Installation finish': 'FINISH-CONCEALED-LOW' };
 
   const panel = (
-    <aside className="w-[268px] flex-shrink-0 border-r border-[#ECE8DF] bg-[#F6F3EE] overflow-y-auto overscroll-contain px-3 pt-5 pb-8">
+    <aside className="w-[268px] flex-shrink-0 border-r border-[#ECE8DF] bg-[#F6F3EE]">
+     <ScrollPanel names={['Catalog', 'Market', 'Billing', 'Availability', 'Saved views']}>
+     <div className="pl-3 pr-7 pt-5 pb-8">
       <div className="px-1.5">
         <b className="block text-[16px]">Price Book</b>
         <small className="text-[12px] text-[#6B7380]">US prices deals · 8 markets for reference</small>
       </div>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items, SKUs…" aria-label="Search the price book" className="mt-3 w-full h-9 rounded-[10px] border border-[#E3DFD8] bg-white px-3 text-[13px] outline-none focus:border-[#3F8CEA] focus:ring-[3px] focus:ring-[#3F8CEA]/15" />
-      <p className={eb}>Catalog</p>
+      <p data-nv-sec className={eb}>Catalog</p>
       <button type="button" className={node(!cat)} onClick={() => (setCat(null), setSub(null))}>
         <span className="w-6 h-6 rounded-[7px] grid place-items-center bg-[#F1EEE7] text-[#3F4753] text-[12px]" aria-hidden="true">▦</span>
         All items
@@ -226,7 +229,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
           </div>
         );
       })}
-      <p className={eb}>Market</p>
+      <p data-nv-sec className={eb}>Market</p>
       <div role="radiogroup" aria-label="Market">
         {MARKETS.map((x) => (
           <button key={x.code} type="button" role="radio" aria-checked={market === x.code} onClick={() => setMarket(x.code)} className={`w-full flex items-center gap-2 px-2 py-[5px] rounded-[8px] text-[12.5px] text-left transition-colors duration-150 ${market === x.code ? 'bg-white shadow-[0_0_0_1px_#E3DFD8] text-teton-ink font-semibold' : 'text-[#3F4753] hover:bg-white/70'}`}>
@@ -236,7 +239,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
           </button>
         ))}
       </div>
-      <p className={eb}>Billing</p>
+      <p data-nv-sec className={eb}>Billing</p>
       <SegGroup className="relative inline-flex flex-wrap gap-1 px-1" thumbClass="bg-teton-ink rounded-full" label="Billing">
         {(
           [
@@ -250,7 +253,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
           </button>
         ))}
       </SegGroup>
-      <p className={eb}>Availability</p>
+      <p data-nv-sec className={eb}>Availability</p>
       <SegGroup className="relative inline-flex flex-wrap gap-1 px-1" thumbClass="bg-teton-ink rounded-full" label="Availability">
         {(
           [
@@ -265,7 +268,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
           </button>
         ))}
       </SegGroup>
-      <p className={eb}>Saved views</p>
+      <p data-nv-sec className={eb}>Saved views</p>
       {(
         [
           ['us', 'US subscription prices'],
@@ -277,6 +280,8 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
           <span className="text-[#B7791F]" aria-hidden="true">★</span> {l}
         </button>
       ))}
+     </div>
+     </ScrollPanel>
     </aside>
   );
 
@@ -300,7 +305,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
     </div>
   );
 
-  const cols = 'grid grid-cols-[minmax(200px,2.4fr)_minmax(110px,.9fr)_92px_minmax(96px,.8fr)_172px_104px] gap-3 items-center px-4';
+  const cols = 'grid grid-cols-[minmax(170px,2.4fr)_minmax(88px,.8fr)_82px_minmax(72px,.7fr)_146px_minmax(92px,.8fr)] gap-2.5 items-center px-4';
   const table = (
     <div className="rounded-2xl border border-[#E8E4DC] bg-white overflow-hidden">
       <div className={`${cols} h-10 bg-[#FAF8F4] border-b border-[#ECE8DF] text-[10px] font-extrabold uppercase tracking-[1px] text-[#8A919C]`}>
@@ -316,7 +321,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
         return (
           <div key={g.key}>
             {g.title && (
-              <button type="button" aria-expanded={open} onClick={() => setShut((s) => { const x = new Set(s); if (x.has(g.key)) x.delete(g.key); else x.add(g.key); return x; })} className="w-full flex items-center gap-2 px-4 py-2 bg-[#FCFBF8] border-b border-[#F1EEE7] text-left text-[10.5px] font-extrabold uppercase tracking-[1.2px] text-[#5A6270]">
+              <button type="button" data-nv-sec aria-expanded={open} onClick={() => setShut((s) => { const x = new Set(s); if (x.has(g.key)) x.delete(g.key); else x.add(g.key); return x; })} className="w-full flex items-center gap-2 px-4 py-2 bg-[#FCFBF8] border-b border-[#F1EEE7] text-left text-[10.5px] font-extrabold uppercase tracking-[1.2px] text-[#5A6270]">
                 <span className={`text-[8px] text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
                 {g.title}
                 <span className="min-w-[20px] h-[18px] px-1.5 rounded-full bg-[#E9E5DE] text-[10.5px] tracking-normal grid place-items-center">{g.items.length}</span>
@@ -334,7 +339,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
                         <small className="block truncate text-[11.5px] text-[#6B7380]">{UNIT[r.pricingModel]}</small>
                       </span>
                     </span>
-                    <span className="truncate font-mono text-[11px] text-[#5A6270]">{r.sku}</span>
+                    <span className="truncate font-mono text-[11px] text-[#5A6270]" title={`System key ${r.sku}`}>{r.itemCode ?? r.sku}</span>
                     <span>
                       <span className={`inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold ${isMonthly(r.pricingModel) ? 'bg-[#EAF2FD] text-[#1F5FB5]' : isOnce(r.pricingModel) ? 'bg-[#FFF4D6] text-[#8A5A00]' : 'bg-[#F1EEE7] text-[#5A6270]'}`}>{isMonthly(r.pricingModel) ? 'Monthly' : isOnce(r.pricingModel) ? 'One-time' : 'Multiplier'}</span>
                     </span>
@@ -371,7 +376,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
         <tbody>
           {groups.map((g) => [
             g.title ? (
-              <tr key={`${g.key}-h`}>
+              <tr key={`${g.key}-h`} data-nv-sec>
                 <td colSpan={MARKETS.length + 1} className="px-4 py-2 bg-[#FCFBF8] border-y border-[#F1EEE7] text-[10.5px] font-extrabold uppercase tracking-[1.2px] text-[#5A6270]">{g.title}</td>
               </tr>
             ) : null,
@@ -433,7 +438,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
                 <span className="min-w-0 flex-1">
                   <b className="block text-[13.5px] font-semibold">{r.name}</b>
                   <small className="block text-[11.5px] text-[#6B7380]">
-                    {r.sku} · {UNIT[r.pricingModel]}
+                    {r.itemCode ?? r.sku} · {UNIT[r.pricingModel]}
                   </small>
                   <span className="block mt-1.5">
                     <Dots r={r} />
@@ -449,7 +454,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
   );
 
   const header = (
-    <div className="flex flex-wrap items-end gap-3">
+    <div data-nv-sec className="flex flex-wrap items-end gap-3">
       <div className="min-w-0 flex-1">
         <h1 className="text-[22px] font-semibold tracking-[-.3px]">{title}</h1>
         <p className="mt-1 text-[13px] text-[#6B7380]">
@@ -460,26 +465,9 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
     </div>
   );
 
-  const body = (
-    <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 lg:px-6 py-3 border-b border-[#ECE8DF] bg-white">
-        <span className="text-[12px] text-[#8A919C] hidden sm:inline">
-          Settings / <b className="text-teton-ink">Price Book</b>
-        </span>
-        <span className="flex-1" />
-        <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="View">
-          <button type="button" role="radio" aria-checked={view === 'list'} onClick={() => setView('list')} className={pill(view === 'list')}>
-            List
-          </button>
-          <button type="button" role="radio" aria-checked={view === 'compare'} onClick={() => setView('compare')} className={pill(view === 'compare')}>
-            Compare markets
-          </button>
-        </SegGroup>
-        <button type="button" onClick={exportCsv} className="h-9 px-3 rounded-[10px] border border-[#D5D9DE] bg-white text-[12.5px] font-semibold hover:bg-teton-almost-white">
-          ⤓ Export
-        </button>
-      </div>
-      <div className="flex-1 lg:overflow-y-auto px-4 lg:px-6 pt-5 pb-12">
+  const sectionNames = ['Overview', ...groups.filter((g) => g.title).map((g) => g.title), ...(policy ? ['Settings & policy'] : [])];
+  const content = (
+    <>
         {phone && view === 'list' ? (
           <>
             {header}
@@ -514,8 +502,38 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
             )}
           </>
         )}
-        {policy && <div className="mt-8 space-y-4">{policy}</div>}
+        {policy && <div data-nv-sec className="mt-8 space-y-4">{policy}</div>}
+    </>
+  );
+
+  const body = (
+    <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 lg:px-6 py-3 border-b border-[#ECE8DF] bg-white">
+        <span className="text-[12px] text-[#8A919C] hidden sm:inline">
+          Settings / <b className="text-teton-ink">Price Book</b>
+        </span>
+        <span className="flex-1" />
+        <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="View">
+          <button type="button" role="radio" aria-checked={view === 'list'} onClick={() => setView('list')} className={pill(view === 'list')}>
+            List
+          </button>
+          <button type="button" role="radio" aria-checked={view === 'compare'} onClick={() => setView('compare')} className={pill(view === 'compare')}>
+            Compare markets
+          </button>
+        </SegGroup>
+        <button type="button" onClick={exportCsv} className="h-9 px-3 rounded-[10px] border border-[#D5D9DE] bg-white text-[12.5px] font-semibold hover:bg-teton-almost-white">
+          ⤓ Export
+        </button>
       </div>
+      {phone ? (
+        <div className="flex-1 px-4 pt-5 pb-12">{content}</div>
+      ) : (
+        <div className="flex-1 min-h-0">
+          <ScrollPanel names={sectionNames} fade="#FBF8F3">
+            <div className="pl-6 pr-12 pt-5 pb-12">{content}</div>
+          </ScrollPanel>
+        </div>
+      )}
     </div>
   );
 
@@ -529,7 +547,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
         </div>
       )}
       {phone && (
-        <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.sku} title={shownRow?.name ?? ''}>
+        <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={shownRow?.name ?? ''}>
           {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} bare />}
         </SwipeSheet>
       )}
@@ -605,7 +623,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
       {!bare && (
         <div className="px-[18px] pt-4 pb-3 border-b border-[#F1EEE7]">
           <div className="flex items-start gap-2">
-            <span className="font-mono text-[11px] text-[#5A6270]">{r.sku}</span>
+            <SkuField r={r} canEdit={canEdit} onSaved={onSaved} />
             <button type="button" onClick={onClose} aria-label="Close" className="ml-auto w-8 h-8 rounded-full bg-[#F1EEE8] text-[#5A6270] grid place-items-center hover:bg-[#E9E4DB]">
               ✕
             </button>
@@ -641,7 +659,9 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
           ))}
         </SegGroup>
       </div>
-      <div className={`${bare ? '' : 'flex-1 overflow-y-auto px-[18px] pt-3 pb-6'} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`} key={tab}>
+      {bare && <SkuField r={r} canEdit={canEdit} onSaved={onSaved} />}
+      <Scroll bare={bare}>
+      <div className={`${bare ? 'mt-3' : 'pl-[18px] pr-8 pt-3 pb-6'} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`} key={tab}>
         <p className="mb-3 text-[12.5px] leading-relaxed text-[#3F4753]">{r.description}</p>
         {err && <p className="mb-3 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
         {tab === 'pricing' && (
@@ -720,27 +740,138 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
           </div>
         )}
         {tab === 'history' && (
-          <div className={box}>
-            <p className={h4}>History</p>
-            <div className="grid grid-cols-[1fr_auto] gap-y-1.5 text-[12.5px]">
-              <span className="text-[#6B7380]">Current list (US)</span>
-              <b className="tabular-nums">{fmt(r, 'US', r.list)}</b>
-              <span className="text-[#6B7380]">Standard price</span>
-              <b className="tabular-nums">{r.defaultList == null ? '—' : fmt(r, 'US', r.defaultList)}</b>
-              <span className="text-[#6B7380]">Last changed</span>
-              <b>
-                {when(r.updatedAt)}
-                {r.updatedByName ? ` · ${r.updatedByName}` : ''}
-              </b>
+          <>
+            <div className={box}>
+              <p className={h4}>Changes</p>
+              {r.history.length ? (
+                <ol className="space-y-2.5">
+                  {r.history.map((h) => (
+                    <li key={h.id} className="flex gap-2.5 text-[12.5px]">
+                      <span className="mt-1.5 w-2 h-2 rounded-full bg-[#3F8CEA] flex-shrink-0" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <b className="font-semibold">{changeLabel(h.field)}</b>{' '}
+                        <span className="tabular-nums">
+                          {changeValue(r, h.field, h.oldValue)} → {changeValue(r, h.field, h.newValue)}
+                        </span>
+                        <small className="block text-[11px] text-[#8A919C]">
+                          {when(h.at)}
+                          {h.by ? ` · ${h.by}` : ''}
+                        </small>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-[12.5px] text-[#6B7380]">No changes yet. Edits to the SKU, the US list price or a market’s price show here.</p>
+              )}
             </div>
-            {canEdit && r.defaultList != null && r.list !== r.defaultList && (
-              <button type="button" onClick={() => save(LIVE_MARKET, 'default')} disabled={busy === LIVE_MARKET} className="mt-3 h-8 px-3 rounded-[9px] border border-[#D5D9DE] text-[12px] font-semibold hover:bg-teton-almost-white">
-                Reset to {fmt(r, 'US', r.defaultList)}
-              </button>
-            )}
-          </div>
+            <div className={box}>
+              <p className={h4}>Price</p>
+              <div className="grid grid-cols-[1fr_auto] gap-y-1.5 text-[12.5px]">
+                <span className="text-[#6B7380]">Current list (US)</span>
+                <b className="tabular-nums">{fmt(r, 'US', r.list)}</b>
+                <span className="text-[#6B7380]">Standard price</span>
+                <b className="tabular-nums">{r.defaultList == null ? '—' : fmt(r, 'US', r.defaultList)}</b>
+                <span className="text-[#6B7380]">System key</span>
+                <b className="font-mono text-[11.5px]">{r.sku}</b>
+              </div>
+              {canEdit && r.defaultList != null && r.list !== r.defaultList && (
+                <button type="button" onClick={() => save(LIVE_MARKET, 'default')} disabled={busy === LIVE_MARKET} className="mt-3 h-8 px-3 rounded-[9px] border border-[#D5D9DE] text-[12px] font-semibold hover:bg-teton-almost-white">
+                  Reset to {fmt(r, 'US', r.defaultList)}
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
+      </Scroll>
     </div>
   );
 }
+
+/** The drawer's scroll area: fades and chevrons instead of a scrollbar (phones: the sheet scrolls). */
+function Scroll({ bare, children }: { bare: boolean; children: React.ReactNode }) {
+  if (bare) return <>{children}</>;
+  return (
+    <div className="flex-1 min-h-0">
+      <ScrollPanel names={[]} fade="#FFFFFF">
+        {children}
+      </ScrollPanel>
+    </div>
+  );
+}
+
+const changeLabel = (field: string) => {
+  if (field === 'sku') return 'SKU';
+  if (field === 'list') return 'US list price';
+  const code = field.replace('market:', '');
+  return `${MARKETS.find((m) => m.code === code)?.name ?? code} price`;
+};
+const changeValue = (r: PriceBookRow, field: string, v: string | null) => {
+  if (v == null) return '—';
+  if (field === 'sku' || v === 'not sold') return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? fmt(r, field === 'list' ? 'US' : field.replace('market:', ''), n) : v;
+};
+
+/** The item's SKU; admins click it to change it (recorded in History). */
+function SkuField({ r, canEdit, onSaved }: { r: PriceBookRow; canEdit: boolean; onSaved: (r: PriceBookRow) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(r.itemCode ?? '');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const next = v.trim().toUpperCase();
+    if (next === (r.itemCode ?? '')) return setEditing(false);
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/catalog/${encodeURIComponent(r.sku)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ itemCode: next }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Could not save');
+      onSaved(j as PriceBookRow);
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing)
+    return (
+      <span className="min-w-0">
+        {canEdit ? (
+          <button type="button" onClick={() => (setV(r.itemCode ?? ''), setEditing(true))} className="group inline-flex items-center gap-1.5 font-mono text-[11.5px] text-[#5A6270] hover:text-teton-ink" title="Change the SKU" aria-label={`Change SKU ${r.itemCode ?? ""}`.trim()}>
+            {r.itemCode ?? 'Add a SKU'}
+            <span className="text-[11px] opacity-50 group-hover:opacity-100" aria-hidden="true">✎</span>
+          </button>
+        ) : (
+          <span className="font-mono text-[11.5px] text-[#5A6270]">{r.itemCode ?? r.sku}</span>
+        )}
+      </span>
+    );
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={v}
+          onChange={(e) => setV(e.target.value.toUpperCase())}
+          onKeyDown={(e) => (e.key === 'Enter' ? void save() : e.key === 'Escape' ? setEditing(false) : null)}
+          maxLength={32}
+          aria-label="SKU"
+          disabled={busy}
+          className="h-8 w-[150px] rounded-[8px] border border-[#3F8CEA] px-2 font-mono text-[12px] outline-none ring-[3px] ring-[#3F8CEA]/15"
+        />
+        <button type="button" onClick={() => void save()} disabled={busy} className="h-8 px-2.5 rounded-[8px] bg-teton-ink text-white text-[12px] font-semibold">
+          Save
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="h-8 px-2 rounded-[8px] text-[12px] text-[#6B7380] hover:bg-[#F6F3EE]">
+          Cancel
+        </button>
+      </span>
+      {err && <small className="block mt-1 text-[11px] text-[#B4442C]">{err}</small>}
+    </span>
+  );
+}
+

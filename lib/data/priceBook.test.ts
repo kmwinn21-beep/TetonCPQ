@@ -5,7 +5,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { SKU } from '@/lib/pricing/catalog';
-import { cleanListPrice, listPriceBookRows, setListPrice, setMarketPrice } from './priceBook';
+import { cleanListPrice, listPriceBookRows, setItemCode, setListPrice, setMarketPrice } from './priceBook';
 import { createDeal, getQuoteEditor } from './quotes';
 
 let db: Client;
@@ -66,5 +66,29 @@ describe('reference prices outside the US', () => {
     expect((await listPriceBookRows(db)).find((r) => r.sku === SKU.platform)!.markets.DE.price).toBe(77);
     await expect(setMarketPrice(db, SKU.platform, 'US', 1, null)).rejects.toThrow('Unknown market');
     await expect(setMarketPrice(db, SKU.platform, 'UK', -3, null)).rejects.toThrow('Enter a price');
+  });
+});
+
+describe('SKUs and history', () => {
+  it('seeds a SKU for every product, edits it (unique), and records SKU and price changes', async () => {
+    const rows = await listPriceBookRows(db);
+    expect(rows.every((r) => r.itemCode)).toBe(true);
+    expect(rows.find((r) => r.sku === SKU.platform)!.itemCode).toBe('TT-PLT-ONE');
+    let row = await setItemCode(db, SKU.platform, 'tt-plt-001', null);
+    expect(row.itemCode).toBe('TT-PLT-001');
+    await expect(setItemCode(db, SKU.snf, 'TT-PLT-001', null)).rejects.toThrow('already used');
+    await expect(setItemCode(db, SKU.snf, 'bad code!', null)).rejects.toThrow('letters, digits and dashes');
+    // Kept through a re-migrate (only empty SKUs are filled).
+    await migrate(db);
+    row = (await listPriceBookRows(db)).find((r) => r.sku === SKU.platform)!;
+    expect(row.itemCode).toBe('TT-PLT-001');
+    await setListPrice(db, SKU.snf, 45, null);
+    await setMarketPrice(db, SKU.snf, 'UK', 40, null);
+    const snf = (await listPriceBookRows(db)).find((r) => r.sku === SKU.snf)!;
+    expect(snf.history.map((h) => [h.field, h.oldValue, h.newValue])).toEqual([
+      ['market:UK', 'not sold', '40'],
+      ['list', '49', '45'],
+    ]);
+    expect(row.history[0]).toMatchObject({ field: 'sku', oldValue: 'TT-PLT-ONE', newValue: 'TT-PLT-001' });
   });
 });

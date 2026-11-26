@@ -1,6 +1,6 @@
 import type { Client } from '@libsql/client';
 import { SEED_PRODUCTS } from '@/lib/pricing/catalog';
-import { MARKET_SEED } from '@/lib/pricing/markets';
+import { ITEM_CODES, MARKET_SEED } from '@/lib/pricing/markets';
 import { MIGRATIONS } from './migrations';
 
 const appliedIds = async (db: Client) => new Set((await db.execute('SELECT id FROM _migrations')).rows.map((r) => Number(r.id)));
@@ -39,6 +39,14 @@ export async function migrate(db: Client): Promise<void> {
     SEED_PRODUCTS.map((p) => ({
       sql: 'INSERT OR IGNORE INTO products (sku, name, pricing_model, list_price, description) VALUES (?, ?, ?, ?, ?)',
       args: [p.sku, p.name, p.pricingModel, p.list, p.description],
+    })),
+    'write',
+  );
+  // SKUs: filled in where a product has none (edits are kept).
+  await db.batch(
+    Object.entries(ITEM_CODES).map(([sku, code]) => ({
+      sql: 'UPDATE products SET item_code = ? WHERE sku = ? AND item_code IS NULL AND NOT EXISTS (SELECT 1 FROM products x WHERE x.item_code = ?)',
+      args: [code, sku, code],
     })),
     'write',
   );
