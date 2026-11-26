@@ -14,7 +14,7 @@ import { PersonPhoto } from '@/components/resources/Person';
 import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
 import type { FloorPlanInfo, ProspectRoom, RoomPerson } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
-import { NoveltyPanel } from './ProspectNovelty';
+import { NoveltyPanel, ScrollPanel } from './ProspectNovelty';
 import type { AgreementState } from './ProspectAgreement';
 
 type Sel = 'team' | number;
@@ -330,14 +330,15 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
   };
   return (
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <aside className={`no-print flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden overscroll-contain ${room.novelty ? 'sm:w-[348px] sm:overflow-y-hidden' : 'sm:w-[316px] sm:overflow-y-auto'}`}>
+      <aside className={`no-print flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden overscroll-contain sm:overflow-y-hidden ${room.novelty ? 'sm:w-[348px]' : 'sm:w-[332px]'}`}>
         {room.novelty ? (
           <nav aria-label={room.tabName} className="sm:h-full">
             <NoveltyPanel rt={rt} room={room} replies={replies} agreement={agreement} />
           </nav>
         ) : (
-        <nav aria-label={room.tabName} className="flex sm:block gap-[9px] px-3.5 sm:pl-[18px] sm:pr-3.5 py-3 sm:py-[18px]">
-          <div className="flex-shrink-0 flex flex-col sm:block">
+        <ScrollPanel phone names={['Start here', ...room.sections.map((s) => s.name)]}>
+        <nav aria-label={room.tabName} className="flex sm:block gap-[9px] px-3.5 sm:pl-[18px] sm:pr-7 py-3 sm:py-[18px]">
+          <div data-nv-sec className="flex-shrink-0 flex flex-col sm:block">
             <p className="h-6 sm:h-auto flex items-center sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1 sm:mx-1.5 mb-1.5 sm:mb-2">Start here</p>
             <div className="flex sm:block">
               <Card
@@ -407,7 +408,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
               const open = openSecs.has(s.id);
               const fresh = list.some((x) => rt.isNew(x));
               return (
-                <div key={s.id} className="mt-1">
+                <div key={s.id} data-nv-sec className="mt-1">
                   <button type="button" aria-expanded={open} onClick={() => toggle(s.id)} className="w-full flex items-center gap-2 rounded-[11px] px-1.5 py-2.5 text-left hover:bg-white/70 transition-colors duration-150">
                     <span className={`w-5 h-5 grid place-items-center text-[10px] text-[#6B7380] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
                     <span className="flex-1 min-w-0 truncate text-[10.5px] font-extrabold uppercase tracking-[1.4px] text-[#5A6270]">{s.name}</span>
@@ -435,6 +436,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
             })}
           </div>
         </nav>
+        </ScrollPanel>
         )}
       </aside>
       <main data-res-main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-11 pt-6 sm:pt-8 pb-16">

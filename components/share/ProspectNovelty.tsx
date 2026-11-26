@@ -477,7 +477,7 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
  * The panel's scroll area: no scrollbar. The edges fade where there's more to see, a ⌃ / ⌄ button jumps a section
  * up or down, and dots on the right show (and jump to) each section. The wheel and trackpad still scroll it.
  */
-function ScrollPanel({ names, children }: { names: string[]; children: React.ReactNode }) {
+export function ScrollPanel({ names, children, phone = false }: { names: string[]; children: React.ReactNode; phone?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [st, setSt] = useState({ top: true, bottom: true, cur: 0 });
   const secs = () => [...(ref.current?.querySelectorAll<HTMLElement>('[data-nv-sec]') ?? [])];
@@ -518,7 +518,7 @@ function ScrollPanel({ names, children }: { names: string[]; children: React.Rea
       aria-label={dir === 'up' ? 'Scroll up a section' : 'Scroll down a section'}
       tabIndex={show ? 0 : -1}
       onClick={() => go(dir === 'up' ? st.cur - 1 : st.cur + 1)}
-      className={`absolute left-[calc(50%-10px)] -translate-x-1/2 z-[45] w-[46px] h-[30px] rounded-full border border-[#E4E4E7] bg-white/95 shadow-[0_4px_12px_rgba(24,24,27,.12)] grid place-items-center text-teton-ink hover:bg-teton-ink hover:border-teton-ink hover:text-white transition-[opacity,background-color,color] duration-200 motion-reduce:transition-none ${dir === 'up' ? 'top-2' : 'bottom-2.5'} ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      className={`max-sm:hidden absolute left-[calc(50%-10px)] -translate-x-1/2 z-[45] w-[46px] h-[30px] rounded-full border border-[#E4E4E7] bg-white/95 shadow-[0_4px_12px_rgba(24,24,27,.12)] grid place-items-center text-teton-ink hover:bg-teton-ink hover:border-teton-ink hover:text-white transition-[opacity,background-color,color] duration-200 motion-reduce:transition-none ${dir === 'up' ? 'top-2' : 'bottom-2.5'} ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
     >
       <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" aria-hidden="true">
         <path d={dir === 'up' ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -526,19 +526,20 @@ function ScrollPanel({ names, children }: { names: string[]; children: React.Rea
     </button>
   );
   return (
-    <div className="hidden sm:block relative h-full">
-      <div ref={ref} onScroll={measure} data-nv-scroll className="h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain">
+    // `phone`: the children also show on phones, where the page scrolls as usual and none of the extras appear.
+    <div className={phone ? 'relative sm:h-full' : 'hidden sm:block relative h-full'}>
+      <div ref={ref} onScroll={measure} data-nv-scroll className={phone ? 'sm:h-full sm:overflow-y-auto sm:overflow-x-hidden no-scrollbar sm:overscroll-contain' : 'h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain'}>
         {children}
       </div>
-      <span className={`pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] bg-gradient-to-b from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
-      <span className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 z-[44] bg-gradient-to-t from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.bottom ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
+      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] bg-gradient-to-b from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
+      <span className={`max-sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-12 z-[44] bg-gradient-to-t from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.bottom ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
       {chev('up', !st.top)}
       {chev('down', !st.bottom)}
       {!fits && names.length > 1 && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[45] flex flex-col items-center gap-2" role="group" aria-label="Sections">
+        <div className="max-sm:hidden absolute right-2 top-1/2 -translate-y-1/2 z-[45] flex flex-col items-center gap-2" role="group" aria-label="Sections">
           {names.map((n, i) => (
             <button
-              key={n}
+              key={i}
               type="button"
               title={n}
               aria-label={`Go to ${n}`}
