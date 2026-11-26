@@ -547,7 +547,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
         </div>
       )}
       {phone && (
-        <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={shownRow?.name ?? ''}>
+        <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
           {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} bare />}
         </SwipeSheet>
       )}
@@ -631,7 +631,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
           <div className="flex items-center gap-3 mt-1">
             <Icon sku={r.sku} size="w-11 h-11" />
             <span className="min-w-0">
-              <b className="block text-[16.5px] font-semibold">{r.name}</b>
+              <NameField r={r} canEdit={canEdit} onSaved={onSaved} />
               <small className="text-[12px] text-[#6B7380]">{UNIT[r.pricingModel]}</small>
             </span>
           </div>
@@ -659,6 +659,11 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
           ))}
         </SegGroup>
       </div>
+      {bare && canEdit && (
+        <div className="mb-2">
+          <NameField r={r} canEdit onSaved={onSaved} />
+        </div>
+      )}
       {bare && <SkuField r={r} canEdit={canEdit} onSaved={onSaved} />}
       <Scroll bare={bare}>
       <div className={`${bare ? 'mt-3' : 'pl-[18px] pr-8 pt-3 pb-6'} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`} key={tab}>
@@ -762,7 +767,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
                   ))}
                 </ol>
               ) : (
-                <p className="text-[12.5px] text-[#6B7380]">No changes yet. Edits to the SKU, the US list price or a market’s price show here.</p>
+                <p className="text-[12.5px] text-[#6B7380]">No changes yet. Edits to the name, the SKU, the US list price or a market’s price show here.</p>
               )}
             </div>
             <div className={box}>
@@ -803,13 +808,14 @@ function Scroll({ bare, children }: { bare: boolean; children: React.ReactNode }
 
 const changeLabel = (field: string) => {
   if (field === 'sku') return 'SKU';
+  if (field === 'name') return 'Name';
   if (field === 'list') return 'US list price';
   const code = field.replace('market:', '');
   return `${MARKETS.find((m) => m.code === code)?.name ?? code} price`;
 };
 const changeValue = (r: PriceBookRow, field: string, v: string | null) => {
   if (v == null) return '—';
-  if (field === 'sku' || v === 'not sold') return v;
+  if (field === 'sku' || field === 'name' || v === 'not sold') return v;
   const n = Number(v);
   return Number.isFinite(n) ? fmt(r, field === 'list' ? 'US' : field.replace('market:', ''), n) : v;
 };
@@ -875,3 +881,60 @@ function SkuField({ r, canEdit, onSaved }: { r: PriceBookRow; canEdit: boolean; 
   );
 }
 
+
+/** The item's name; admins click it to rename it (unique, recorded in History). */
+function NameField({ r, canEdit, onSaved }: { r: PriceBookRow; canEdit: boolean; onSaved: (r: PriceBookRow) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(r.name);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const next = v.trim().replace(/\s+/g, ' ');
+    if (next === r.name) return setEditing(false);
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/catalog/${encodeURIComponent(r.sku)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: next }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Could not save');
+      onSaved(j as PriceBookRow);
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing)
+    return canEdit ? (
+      <button type="button" onClick={() => (setV(r.name), setErr(null), setEditing(true))} className="group flex items-start gap-1.5 text-left text-[16.5px] font-semibold leading-snug hover:text-[#1F5FB5]" aria-label={`Rename ${r.name}`}>
+        {r.name}
+        <span className="mt-1 text-[12px] font-normal opacity-40 group-hover:opacity-100" aria-hidden="true">✎</span>
+      </button>
+    ) : (
+      <b className="block text-[16.5px] font-semibold">{r.name}</b>
+    );
+  return (
+    <span className="block">
+      <span className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => (e.key === 'Enter' ? void save() : e.key === 'Escape' ? setEditing(false) : null)}
+          maxLength={80}
+          aria-label="Product name"
+          disabled={busy}
+          className="h-9 min-w-0 flex-1 rounded-[8px] border border-[#3F8CEA] px-2 text-[14px] font-semibold outline-none ring-[3px] ring-[#3F8CEA]/15"
+        />
+        <button type="button" onClick={() => void save()} disabled={busy} className="h-9 px-2.5 rounded-[8px] bg-teton-ink text-white text-[12px] font-semibold">
+          Save
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="h-9 px-2 rounded-[8px] text-[12px] text-[#6B7380] hover:bg-[#F6F3EE]">
+          Cancel
+        </button>
+      </span>
+      {err && <small className="block mt-1 text-[11px] font-normal text-[#B4442C]">{err}</small>}
+    </span>
+  );
+}

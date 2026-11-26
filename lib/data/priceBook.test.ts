@@ -5,7 +5,7 @@ import { createClient, type Client } from '@libsql/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '@/lib/db/migrate';
 import { SKU } from '@/lib/pricing/catalog';
-import { cleanListPrice, listPriceBookRows, setItemCode, setListPrice, setMarketPrice } from './priceBook';
+import { cleanListPrice, listPriceBookRows, setItemCode, setProductName, setListPrice, setMarketPrice } from './priceBook';
 import { createDeal, getQuoteEditor } from './quotes';
 
 let db: Client;
@@ -90,5 +90,17 @@ describe('SKUs and history', () => {
       ['list', '49', '45'],
     ]);
     expect(row.history[0]).toMatchObject({ field: 'sku', oldValue: 'TT-PLT-ONE', newValue: 'TT-PLT-001' });
+  });
+
+  it('renames items and rejects duplicate names and SKUs regardless of case or spacing', async () => {
+    const rows = await listPriceBookRows(db);
+    const other = rows.find((r) => r.sku === SKU.snf)!;
+    const row = await setProductName(db, SKU.platform, '  Teton   One  ', null);
+    expect(row.name).toBe('Teton One');
+    expect(row.history[0]).toMatchObject({ field: 'name', newValue: 'Teton One' });
+    await expect(setProductName(db, SKU.snf, 'teton one', null)).rejects.toThrow('already exists');
+    await expect(setProductName(db, SKU.snf, ` ${other.name.toUpperCase()} `, null)).resolves.toBeTruthy(); // its own name, other case
+    await expect(setItemCode(db, SKU.snf, row.itemCode!.toLowerCase(), null)).rejects.toThrow('already used');
+    await expect(setProductName(db, SKU.snf, 'x', null)).rejects.toThrow('2–80');
   });
 });

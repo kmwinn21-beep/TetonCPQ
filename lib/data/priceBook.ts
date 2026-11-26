@@ -232,10 +232,36 @@ export async function setItemCode(db: Client, sku: string, code: unknown, userId
   if (!cur.rows.length) throw new Error('Product not found');
   const was = cur.rows[0].item_code == null ? null : String(cur.rows[0].item_code);
   if (was !== next) {
-    const taken = await db.execute({ sql: 'SELECT name FROM products WHERE item_code = ? AND sku <> ?', args: [next, sku] });
-    if (taken.rows.length) throw new Error(`${next} is already used by ${String(taken.rows[0].name)}`);
+    const taken = (await otherProducts(db, sku)).find((o) => o.code != null && norm(o.code) === norm(next));
+    if (taken) throw new Error(`${next} is already used by ${taken.name}`);
     await db.execute({ sql: "UPDATE products SET item_code = ?, updated_by = ?, updated_at = datetime('now') WHERE sku = ?", args: [next, userId, sku] });
     await logChange(db, sku, 'sku', was, next, userId);
+  }
+  const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
+  if (!row) throw new Error('Product not found');
+  return row;
+}
+
+/** How duplicates are compared: lower case, trimmed, single spaces. */
+export const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+
+async function otherProducts(db: Client, sku: string): Promise<Array<{ name: string; code: string | null }>> {
+  const rs = await db.execute({ sql: 'SELECT name, item_code FROM products WHERE sku <> ?', args: [sku] });
+  return rs.rows.map((r) => ({ name: String(r.name), code: r.item_code == null ? null : String(r.item_code) }));
+}
+
+/** Rename an item (unique, ignoring case and extra spaces). Recorded in its history. */
+export async function setProductName(db: Client, sku: string, name: unknown, userId: number | null): Promise<PriceBookRow> {
+  const next = String(name ?? '').trim().replace(/\s+/g, ' ');
+  if (next.length < 2 || next.length > 80) throw new Error('Use 2–80 characters');
+  const cur = await db.execute({ sql: 'SELECT name FROM products WHERE sku = ? AND active = 1', args: [sku] });
+  if (!cur.rows.length) throw new Error('Product not found');
+  const was = String(cur.rows[0].name);
+  if (was !== next) {
+    const taken = (await otherProducts(db, sku)).find((o) => norm(o.name) === norm(next));
+    if (taken) throw new Error(`“${taken.name}” already exists`);
+    await db.execute({ sql: "UPDATE products SET name = ?, updated_by = ?, updated_at = datetime('now') WHERE sku = ?", args: [next, userId, sku] });
+    await logChange(db, sku, 'name', was, next, userId);
   }
   const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
   if (!row) throw new Error('Product not found');
