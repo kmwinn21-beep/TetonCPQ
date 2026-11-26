@@ -151,7 +151,9 @@ interface CardModel {
   progress: number | null;
   talk: ItemReplies | null;
   /** The details shown on hover: [icon, bold line, small line]. */
-  tip: Array<[React.ReactNode, string, string]>;
+  tip: Array<[React.ReactNode, string, React.ReactNode]>;
+  /** Videos: how many key moments (the yellow count, bottom right). */
+  moments: number | null;
   label: string;
   onOpen: () => void;
 }
@@ -199,7 +201,17 @@ function cardFor(r: Resource, rt: ResourcesTab, plans: FloorPlanInfo[], talk: It
   const seen = rt.everSeen(r);
   const vid = r.kind === 'video' && r.duration ? Math.min(1, (rt.watched[String(r.id)] ?? 0) / r.duration) : null;
   const part = vid != null && vid > 0.02 && vid < 0.9;
-  const tip: CardModel['tip'] = [[<span key="k" className="text-[15px]">{r.kind === 'floorplan' ? '▦' : metaOf(r).icon}</span>, r.title, kindLine(r, plans)]];
+  const isVideo = r.kind === 'video' || (r.kind === 'embed' && metaOf(r).label !== 'Deck');
+  const moments = isVideo ? r.blocks.reduce((n, b) => n + (b.type === 'moments' ? b.items.length : 0), 0) : 0;
+  const sub: React.ReactNode = moments ? (
+    <span className="flex items-center gap-1.5 mt-0.5 font-medium text-[#3F3F46]">
+      <MomentsBadge n={moments} small />
+      Key moments{r.duration ? ` · ${Math.round(r.duration / 60)} min` : ''}
+    </span>
+  ) : (
+    kindLine(r, plans)
+  );
+  const tip: CardModel['tip'] = [[<span key="k" className="text-[15px]">{r.kind === 'floorplan' ? '▦' : metaOf(r).icon}</span>, r.title, sub]];
   if (r.recommended) tip.push([<span key="r" className="text-[#7C6FF0]">★</span>, `Recommended by ${owner}`, 'A good place to start']);
   if (talk && talk.at) tip.push([<span key="t">💬</span>, `${talk.who} replied · ${ago(talk.at)}`, talk.body ? `“${talk.body.length > 90 ? `${talk.body.slice(0, 88)}…` : talk.body}”` : '']);
   else if (talk && talk.count) tip.push([<span key="t">💬</span>, `${talk.count} message${talk.count === 1 ? '' : 's'}`, 'Open it to read them']);
@@ -220,6 +232,7 @@ function cardFor(r: Resource, rt: ResourcesTab, plans: FloorPlanInfo[], talk: It
     progress: part ? vid : null,
     talk,
     tip,
+    moments: moments || null,
     label: r.title,
     onOpen: () => rt.select(r.id),
   };
@@ -252,6 +265,7 @@ export function NoveltyPanel({ rt, room, replies, agreement }: { rt: ResourcesTa
     bubble: rt.returning ? 'ok' : null,
     progress: null,
     talk: null,
+    moments: null,
     tip: [
       [<span key="t">👋</span>, 'Your Team', `${people.length} ${people.length === 1 ? 'person' : 'people'}${room.contact ? ` · ${owner} is your main contact` : ''}`],
       [<span key="s" className="text-[#B7791F]">★</span>, 'Start here', 'Who’s working with you, and how to reach them'],
@@ -275,6 +289,7 @@ export function NoveltyPanel({ rt, room, replies, agreement }: { rt: ResourcesTa
           bubble: ai.latest ? 'ok' : null,
           progress: null,
           talk: null,
+          moments: null,
           tip: ai.latest
             ? [
                 [<span key="a">✍</span>, 'Agreement', ai.latest.sentAt ? `Sent for review ${shortDate(ai.latest.sentAt)}` : `Requested by ${ai.latest.who} · ${shortDate(ai.latest.createdAt)}`],
@@ -390,7 +405,7 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
   const at = '-top-[9px] -right-2 rotate-[16deg]';
   const status = c.sticker === 'todo' ? stk('bg-[#E5484D]', BANG, at) : c.sticker === 'new' ? stk('bg-[#F97316] text-white text-[8px] font-extrabold', 'NEW', at) : c.sticker === 'mine' ? stk('bg-[#F5C518] text-teton-ink text-[12px]', '★', at) : null;
   const align = `${col === 0 ? 'left-0' : col === 2 ? 'right-0' : 'left-1/2 -translate-x-1/2'} ${up ? (col === 0 ? 'origin-bottom-left' : col === 2 ? 'origin-bottom-right' : 'origin-bottom') : col === 0 ? 'origin-top-left' : col === 2 ? 'origin-top-right' : 'origin-top'}`;
-  const words = [c.label, c.tip.slice(1).map((t) => t[1]).join(', ')].filter(Boolean).join('. ');
+  const words = [c.label, c.moments ? `${c.moments} key moments` : '', c.tip.slice(1).map((t) => t[1]).join(', ')].filter(Boolean).join('. ');
   return (
     <div ref={box} className="relative w-[78px] h-[136px]" onMouseEnter={show} onMouseLeave={() => setTip(false)}>
       <button
@@ -418,6 +433,11 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
             {c.talk.unread && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#E5484D] border-2 border-white" />}
           </span>
           {!c.talk.unread && c.talk.count > 0 && <em className="absolute -top-1.5 -right-[7px] min-w-[15px] h-[15px] px-[3px] rounded-full bg-teton-ink text-white text-[9px] font-bold leading-[15px] text-center not-italic">{c.talk.count}</em>}
+        </span>
+      )}
+      {c.moments != null && (
+        <span className="absolute -bottom-[9px] -right-2 z-[2]" aria-hidden="true">
+          <MomentsBadge n={c.moments} />
         </span>
       )}
       {c.bubble && (
@@ -530,5 +550,20 @@ function ScrollPanel({ names, children }: { names: string[]; children: React.Rea
         </div>
       )}
     </div>
+  );
+}
+
+/** Key moments in a video: Teton yellow, the count in black over a little timeline. */
+function MomentsBadge({ n, small = false }: { n: number; small?: boolean }) {
+  return (
+    <span className={`relative inline-grid place-items-center flex-shrink-0 bg-[#F5C518] text-teton-ink font-extrabold leading-none ${small ? 'w-5 h-5 rounded-md text-[10px]' : 'w-[26px] h-[26px] rounded-lg text-[12px] drop-shadow-[0_3px_4px_rgba(0,0,0,.25)]'}`}>
+      <svg viewBox="0 0 26 26" className="absolute inset-0 w-full h-full" aria-hidden="true">
+        <path d="M6 20.5h14" stroke="#18181B" strokeOpacity=".35" strokeWidth="1.6" strokeLinecap="round" />
+        {[8, 13, 18].map((x) => (
+          <circle key={x} cx={x} cy="20.5" r="1.6" fill="#18181B" />
+        ))}
+      </svg>
+      <b className={`relative ${small ? '-top-0.5' : '-top-[3px]'}`}>{n}</b>
+    </span>
   );
 }
