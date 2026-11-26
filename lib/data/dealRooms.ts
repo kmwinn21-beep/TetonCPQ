@@ -9,6 +9,8 @@ import { normalizeAllowance, type RoomType } from '@/lib/quote/roomTypes';
 import { mailer } from '@/lib/email/send';
 import { getProfile, listProfiles, type Profile } from './profiles';
 import { deleteFile } from './storedFiles';
+import { cardImageExists } from './cardImages';
+import { PACK_IDS, TINT_IDS } from '@/lib/resources/iconPack';
 import type { PublicLink } from './shareLinks';
 import { embedInput, isDeckEmbed } from '@/lib/resources/embed';
 import {
@@ -20,6 +22,7 @@ import {
   normalizeTeam,
   safeUrl,
   sectionFor,
+  type CardIconChoice,
   type Resource,
   type ResourceKind,
   type RoomSettings,
@@ -94,8 +97,17 @@ export async function saveRoom(db: Client, quoteId: number, patch: Partial<Recor
 
 // ---------------------------------------------------------------- cards
 
+/** A card icon as saved: a known pack icon and tint, or a saved image's key. Anything else means "by type". */
+export function iconChoice(v: unknown): CardIconChoice | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.pack === 'string' && PACK_IDS.has(o.pack)) return { pack: o.pack, tint: typeof o.tint === 'string' && TINT_IDS.has(o.tint) ? o.tint : 'sand' };
+  if (typeof o.image === 'string' && /^[0-9a-f]{24}$/.test(o.image)) return { image: o.image, fit: o.fit === 'fit' ? 'fit' : 'fill' };
+  return null;
+}
+
 const toResource = (r: Row): Resource => {
-  const meta = json<{ roomNumbers?: boolean; duration?: number; recommended?: boolean }>(r.meta, {});
+  const meta = json<{ roomNumbers?: boolean; duration?: number; recommended?: boolean; icon?: unknown }>(r.meta, {});
   const kind = String(r.kind) as ResourceKind;
   const url = r.url == null ? null : String(r.url);
   return {
@@ -115,6 +127,7 @@ const toResource = (r: Row): Resource => {
     roomNumbers: meta.roomNumbers !== false,
     duration: Number(meta.duration) > 0 ? Number(meta.duration) : null,
     recommended: meta.recommended === true,
+    icon: iconChoice(meta.icon),
     blocks: normalizeBlocks(json(r.blocks, [])),
     updatedAt: String(r.updated_at),
   };
@@ -143,6 +156,7 @@ export interface ResourceInput {
   roomNumbers?: unknown;
   duration?: unknown;
   recommended?: unknown;
+  icon?: unknown;
   blocks?: unknown;
 }
 
@@ -217,10 +231,12 @@ export async function updateResource(db: Client, quoteId: number, id: number, in
     roomNumbers: input.roomNumbers === undefined ? cur.roomNumbers : input.roomNumbers !== false,
     duration: input.duration === undefined ? cur.duration : Number(input.duration) > 0 ? Math.round(Number(input.duration)) : null,
     recommended: input.recommended === undefined ? cur.recommended : input.recommended === true,
+    icon: input.icon === undefined ? cur.icon : iconChoice(input.icon),
   };
+  if (input.icon !== undefined && meta.icon && 'image' in meta.icon && !(await cardImageExists(db, meta.icon.image))) throw httpError('That image wasn’t found', 400);
   await db.execute({
-    // Starring a card isn't a change to it: it shouldn't look new to the prospect again.
-    sql: `UPDATE deal_resources SET title = ?, description = ?, section_id = ?, hidden = ?, allow_download = ?, url = ?, file_id = ?, meta = ?, blocks = ?${Object.keys(input).every((k) => k === 'recommended') ? '' : ", updated_at = datetime('now')"} WHERE id = ?`,
+    // Starring a card, or changing its icon, isn't a change to it: it shouldn't look new to the prospect again.
+    sql: `UPDATE deal_resources SET title = ?, description = ?, section_id = ?, hidden = ?, allow_download = ?, url = ?, file_id = ?, meta = ?, blocks = ?${Object.keys(input).every((k) => k === 'recommended' || k === 'icon') ? '' : ", updated_at = datetime('now')"} WHERE id = ?`,
     args: [
       input.title === undefined ? cur.title : line(input.title, 160) || cur.title,
       input.description === undefined ? cur.description : line(input.description, 240) || null,

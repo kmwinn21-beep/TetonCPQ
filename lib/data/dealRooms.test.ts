@@ -11,6 +11,8 @@ import { completeUpload, putChunk, readFile, startUpload } from './storedFiles';
 import { activityFor, addResource, dealOfQuote, deleteResource, getRoom, listResources, logEvent, reorderResources, roomForLink, saveRoom, updateResource } from './dealRooms';
 import { resolveEmbed, parseTime } from '@/lib/resources/embed';
 import { presign } from '@/lib/storage/r2';
+import { deleteCardImage, listCardImages, readCardImage, saveCardImage } from './cardImages';
+import { PACK, PACK_IDS } from '@/lib/resources/iconPack';
 
 let db: Client;
 let dir: string;
@@ -133,6 +135,38 @@ describe('Novelty Mode and Recommended', () => {
     expect((await updateResource(db, quoteId, r.id, { title: 'Trust Center (security)' })).recommended).toBe(true);
     await saveRoom(db, quoteId, { novelty: false });
     await deleteResource(db, quoteId, r.id);
+  });
+});
+
+describe('card icons', () => {
+  it('picks a pack icon or a saved image without making the card look new, and falls back to by-type for junk', async () => {
+    const r = await addResource(db, quoteId, { kind: 'link', url: 'https://teton.ai/roi', title: 'ROI' }, kw);
+    expect(r.icon).toBeNull();
+    await db.execute({ sql: "UPDATE deal_resources SET updated_at = '2026-01-01 00:00:00' WHERE id = ?", args: [r.id] });
+    const a = await updateResource(db, quoteId, r.id, { icon: { pack: 'chart', tint: 'mint' } });
+    expect(a.icon).toEqual({ pack: 'chart', tint: 'mint' });
+    expect(a.updatedAt).toBe('2026-01-01 00:00:00');
+    expect((await updateResource(db, quoteId, r.id, { icon: { pack: 'chart', tint: 'neon' } })).icon).toEqual({ pack: 'chart', tint: 'sand' });
+    expect((await updateResource(db, quoteId, r.id, { icon: { pack: 'nope' } })).icon).toBeNull();
+    // Saved images: the rep's library, served by key, reusable; a deleted one leaves the library but keeps working.
+    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+    const img = await saveCardImage(db, kw, { name: 'maple-grove.png', mime: 'image/png', data: png });
+    expect(img.name).toBe('maple-grove');
+    await expect(saveCardImage(db, kw, { name: 'x.gif', mime: 'image/gif', data: png })).rejects.toThrow('PNG, JPG or WebP');
+    expect((await listCardImages(db, kw)).map((x) => x.key)).toEqual([img.key]);
+    expect(await listCardImages(db, pn)).toEqual([]);
+    await expect(updateResource(db, quoteId, r.id, { icon: { image: 'a'.repeat(24) } })).rejects.toThrow('wasn’t found');
+    expect((await updateResource(db, quoteId, r.id, { icon: { image: img.key, fit: 'fit' } })).icon).toEqual({ image: img.key, fit: 'fit' });
+    await deleteCardImage(db, kw, img.key);
+    expect(await listCardImages(db, kw)).toEqual([]);
+    expect((await readCardImage(db, img.key))?.data).toEqual(png);
+    expect((await updateResource(db, quoteId, r.id, { icon: null })).icon).toBeNull();
+    await deleteResource(db, quoteId, r.id);
+  });
+  it('has a unique id and a drawing for every pack icon', () => {
+    expect(PACK_IDS.size).toBe(PACK.length);
+    expect(PACK.length).toBeGreaterThanOrEqual(60);
+    for (const i of PACK) expect(i.d.startsWith('M')).toBe(true);
   });
 });
 

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FloorPlanInfo, ProspectRoom } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
 import { fileKind, metaOf } from '@/components/resources/Viewers';
+import { cardLook, noveltyArt } from '@/components/resources/CardIcon';
 import type { ItemReplies, ResourcesTab } from './ProspectResources';
 import type { AgreementState } from './ProspectAgreement';
 
@@ -170,7 +171,9 @@ const ago = (at: string) => {
   return h < 24 ? `${h}h ago` : shortDate(at);
 };
 
-function iconOf(r: Resource) {
+export function iconOf(r: Resource) {
+  const picked = noveltyArt(r);
+  if (picked) return picked;
   if (r.kind === 'floorplan') return I.plan;
   if (r.kind === 'onepager') return I.one;
   if (r.kind === 'video' || (r.kind === 'embed' && metaOf(r).label !== 'Deck')) return I.play;
@@ -211,7 +214,7 @@ function cardFor(r: Resource, rt: ResourcesTab, plans: FloorPlanInfo[], talk: It
   ) : (
     kindLine(r, plans)
   );
-  const tip: CardModel['tip'] = [[<span key="k" className="text-[15px]">{r.kind === 'floorplan' ? '▦' : metaOf(r).icon}</span>, r.title, sub]];
+  const tip: CardModel['tip'] = [[<span key="k" className="w-[22px] h-[22px] rounded-[6px] overflow-hidden grid place-items-center" style={{ background: cardLook(r).bg, color: cardLook(r).fg }}>{cardLook(r).node}</span>, r.title, sub]];
   if (r.recommended) tip.push([<span key="r" className="text-[#7C6FF0]">★</span>, `Recommended by ${owner}`, 'A good place to start']);
   if (talk && talk.at) tip.push([<span key="t">💬</span>, `${talk.who} replied · ${ago(talk.at)}`, talk.body ? `“${talk.body.length > 90 ? `${talk.body.slice(0, 88)}…` : talk.body}”` : '']);
   else if (talk && talk.count) tip.push([<span key="t">💬</span>, `${talk.count} message${talk.count === 1 ? '' : 's'}`, 'Open it to read them']);

@@ -20,6 +20,8 @@ import type { Profile } from '@/lib/data/profiles';
 import { PersonPhoto } from './Person';
 import { KIND_META, ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from './Viewers';
 import { ActivityView, engagementLine, fmtDur } from './ActivityView';
+import { IconPicker } from './IconPicker';
+import { cardLook } from './CardIcon';
 
 interface Data {
   settings: RoomSettings;
@@ -427,7 +429,7 @@ function CardList({
               <div className="pb-1">
             {!list.length && <p className="mx-1 mb-1 text-[11px] text-[#A9ADB4]">{drag != null ? 'Drop here' : 'Empty: hidden from the prospect'}</p>}
             {list.map((x) => {
-              const m = metaOf(x);
+              const m = cardLook(x);
               const st = stats(x);
               return (
                 <div
@@ -441,8 +443,8 @@ function CardList({
                 >
                   {edit && <span className="cursor-grab select-none text-[13px] leading-[34px] text-[#B9BFC7]" aria-hidden="true">⋮⋮</span>}
                   <button type="button" onClick={() => setSel(x.id)} className="flex gap-2.5 items-start min-w-0 flex-1 text-left">
-                    <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0 text-[14px]" style={{ background: m.bg, color: m.fg }}>
-                      {m.icon}
+                    <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0 text-[14px] overflow-hidden" style={{ background: m.bg, color: m.fg }}>
+                      {m.node}
                     </span>
                     <span className="min-w-0">
                       <b className="block text-[12.5px] leading-snug break-words">{x.title}</b>
@@ -851,6 +853,9 @@ function ItemSettings({ d, r, activity, setResource, remove, upload }: { d: Data
           <span className="mb-1 block text-[12px] font-semibold">Short description (on the card)</span>
           <input className={field} value={r.description ?? ''} disabled={!edit} maxLength={240} placeholder={r.kind === 'video' ? 'Nov 12 · Kevin, Dana Lee, Chris Fox' : 'A line about it'} onChange={(e) => setResource(r.id, { description: e.target.value })} />
         </label>
+        <div className="mt-3">
+          <IconPicker r={r} edit={edit} onChange={(icon) => setResource(r.id, { icon })} />
+        </div>
         <span className="mt-3 mb-1 block text-[12px] font-semibold">Source</span>
         <div className="flex flex-wrap items-center gap-3 rounded-[11px] border border-[#E3DFD8] bg-[#FBF8F3] px-3 py-2.5">
           <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center flex-shrink-0" style={{ background: metaOf(r).bg, color: metaOf(r).fg }}>

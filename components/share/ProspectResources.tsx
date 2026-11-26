@@ -15,6 +15,7 @@ import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/componen
 import type { FloorPlanInfo, ProspectRoom, RoomPerson } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
 import { NoveltyPanel, ScrollPanel } from './ProspectNovelty';
+import { cardLook } from '@/components/resources/CardIcon';
 import type { AgreementState } from './ProspectAgreement';
 
 type Sel = 'team' | number;
@@ -322,7 +323,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
     if (selSection) setPhoneShut((o) => { if (!o.has(selSection)) return o; const n = new Set(o); n.delete(selSection); return n; });
   }, [selSection]);
   const r = rt.sel === 'team' ? null : room.resources.find((x) => x.id === rt.sel) ?? null;
-  const icon = (x: Resource) => (x.kind === 'floorplan' ? '▦' : metaOf(x).icon);
+  const look = (x: Resource) => cardLook(x);
   const chipsOf = (x: Resource) => {
     const info = x.kind === 'floorplan' ? rt.plans.find((p) => p.planId === x.planId) : null;
     if (info) return [`${info.roomsTagged} rooms`];
@@ -373,8 +374,8 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
                     {!open && (
                       <span className="flex ml-0.5 [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" aria-hidden="true">
                         {list.slice(0, 3).map((x, i) => (
-                          <span key={x.id} className={`w-[18px] h-[18px] rounded-[5px] grid place-items-center text-[9px] tracking-normal border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: metaOf(x).bg, color: metaOf(x).fg }}>
-                            {icon(x)}
+                          <span key={x.id} className={`w-[18px] h-[18px] rounded-[5px] overflow-hidden grid place-items-center text-[9px] tracking-normal border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: look(x).bg, color: look(x).fg }}>
+                            {look(x).node}
                           </span>
                         ))}
                       </span>
@@ -385,7 +386,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
                     <div className="min-w-0 overflow-hidden -m-1">
                       <div className="flex gap-[9px] p-1">
                         {list.map((x) => (
-                          <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
+                          <Card key={x.id} on={rt.sel === x.id} icon={look(x).node} bg={look(x).bg} fg={look(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
                         ))}
                       </div>
                     </div>
@@ -415,8 +416,8 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
                     {!open && (
                       <span className="flex" aria-hidden="true">
                         {list.slice(0, 3).map((x, i) => (
-                          <span key={x.id} className={`w-5 h-5 rounded-md grid place-items-center text-[10px] border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: metaOf(x).bg, color: metaOf(x).fg }}>
-                            {icon(x)}
+                          <span key={x.id} className={`w-5 h-5 rounded-md overflow-hidden grid place-items-center text-[10px] border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: look(x).bg, color: look(x).fg }}>
+                            {look(x).node}
                           </span>
                         ))}
                       </span>
@@ -427,7 +428,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
                   <Collapse open={open}>
                     <div className="pt-1 pb-1">
                       {list.map((x) => (
-                        <Card key={x.id} on={rt.sel === x.id} icon={icon(x)} bg={metaOf(x).bg} fg={metaOf(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
+                        <Card key={x.id} on={rt.sel === x.id} icon={look(x).node} bg={look(x).bg} fg={look(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
                       ))}
                     </div>
                   </Collapse>
@@ -538,8 +539,8 @@ function TeamView({ room, onOpen }: { room: ProspectRoom; onOpen?: (id: number) 
               .filter((x) => x.recommended)
               .map((x) => (
                 <button key={x.id} type="button" onClick={() => onOpen?.(x.id)} className="flex items-center gap-3 rounded-[14px] border border-[#E4DFFB] bg-[#FAF9FF] px-3.5 py-3 text-left transition-colors duration-150 hover:border-[#C7C0FF]">
-                  <span className="w-[38px] h-[38px] rounded-[10px] grid place-items-center flex-shrink-0 text-[16px]" style={{ background: metaOf(x).bg, color: metaOf(x).fg }} aria-hidden="true">
-                    {x.kind === 'floorplan' ? '▦' : metaOf(x).icon}
+                  <span className="w-[38px] h-[38px] rounded-[10px] grid place-items-center flex-shrink-0 text-[16px] overflow-hidden" style={{ background: cardLook(x).bg, color: cardLook(x).fg }} aria-hidden="true">
+                    {cardLook(x).node}
                   </span>
                   <span className="min-w-0 flex-1">
                     <b className="block truncate text-[13.5px] font-semibold">{x.title}</b>

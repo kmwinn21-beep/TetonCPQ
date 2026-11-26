@@ -680,4 +680,24 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE deal_rooms ADD COLUMN novelty INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: 27,
+    name: 'saved card images',
+    sql: [
+      // A rep's own images for deal room cards (logos, headshots): small, already resized by the browser, reusable on any deal.
+      // Served publicly by an unguessable key, since prospects see them on cards. A deleted one leaves the library but keeps serving.
+      `CREATE TABLE card_images (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        data BLOB NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        deleted_at TEXT
+      )`,
+      `CREATE INDEX idx_card_images_user ON card_images(user_id)`,
+    ],
+  },
 ];

@@ -50,6 +50,7 @@ export interface ResourceFile {
   mime: string;
   size: number;
 }
+export type CardIconChoice = { pack: string; tint: string } | { image: string; fit: 'fill' | 'fit' };
 export interface Resource {
   id: number;
   sectionId: string;
@@ -72,6 +73,8 @@ export interface Resource {
   duration: number | null;
   /** The team suggests starting here (a ★ on the card, and listed on Your Team). */
   recommended: boolean;
+  /** The card's icon: one from the pack (with a tile tint), a saved image, or null to choose by type. */
+  icon: CardIconChoice | null;
   blocks: Block[];
   updatedAt: string;
 }

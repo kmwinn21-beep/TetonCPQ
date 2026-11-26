@@ -15,6 +15,8 @@ export async function middleware(req: NextRequest) {
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + '/'))) return NextResponse.next();
   // Profile photos are shown to prospects on shared links and in emails.
   if (/^\/api\/users\/\d+\/photo$/.test(pathname)) return NextResponse.next();
+  // So are saved card images (by an unguessable key).
+  if (/^\/api\/card-images\/[0-9a-f]{24}$/.test(pathname)) return NextResponse.next();
   const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   if (session) return NextResponse.next();
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
