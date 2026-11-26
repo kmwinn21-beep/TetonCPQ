@@ -359,6 +359,22 @@ function Legend() {
 
 function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; noTip?: boolean }) {
   const [tip, setTip] = useState(false);
+  // Near the bottom of the panel (or window), the details open above the card instead.
+  const [up, setUp] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const tipEl = useRef<HTMLDivElement>(null);
+  const show = () => {
+    if (noTip) return;
+    const card = box.current?.getBoundingClientRect();
+    const area = (box.current?.closest('[data-nv-scroll]') as HTMLElement | null)?.getBoundingClientRect();
+    const h = (tipEl.current?.offsetHeight ?? 240) + 24;
+    if (card) {
+      const floor = Math.min(area?.bottom ?? window.innerHeight, window.innerHeight);
+      const ceil = Math.max(area?.top ?? 0, 0);
+      setUp(card.bottom + h > floor && card.top - ceil > floor - card.bottom);
+    }
+    setTip(true);
+  };
   const fill =
     c.fill === 'act'
       ? 'bg-gradient-to-b from-[#FFF1F0] to-[#FFDCD8] shadow-[0_0_0_2.5px_#E5484D,0_0_16px_rgba(229,72,77,.3)]'
@@ -373,14 +389,14 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
   );
   const at = '-top-[9px] -right-2 rotate-[16deg]';
   const status = c.sticker === 'todo' ? stk('bg-[#E5484D]', BANG, at) : c.sticker === 'new' ? stk('bg-[#F97316] text-white text-[8px] font-extrabold', 'NEW', at) : c.sticker === 'mine' ? stk('bg-[#F5C518] text-teton-ink text-[12px]', '★', at) : null;
-  const align = col === 0 ? 'left-0 origin-top-left' : col === 2 ? 'right-0 origin-top-right' : 'left-1/2 -translate-x-1/2 origin-top';
+  const align = `${col === 0 ? 'left-0' : col === 2 ? 'right-0' : 'left-1/2 -translate-x-1/2'} ${up ? (col === 0 ? 'origin-bottom-left' : col === 2 ? 'origin-bottom-right' : 'origin-bottom') : col === 0 ? 'origin-top-left' : col === 2 ? 'origin-top-right' : 'origin-top'}`;
   const words = [c.label, c.tip.slice(1).map((t) => t[1]).join(', ')].filter(Boolean).join('. ');
   return (
-    <div className="relative w-[78px] h-[136px]" onMouseEnter={() => !noTip && setTip(true)} onMouseLeave={() => setTip(false)}>
+    <div ref={box} className="relative w-[78px] h-[136px]" onMouseEnter={show} onMouseLeave={() => setTip(false)}>
       <button
         type="button"
         onClick={() => (setTip(false), c.onOpen())}
-        onFocus={() => !noTip && setTip(true)}
+        onFocus={show}
         onBlur={() => setTip(false)}
         aria-current={c.on ? 'true' : undefined}
         aria-label={words}
@@ -411,9 +427,10 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
       )}
       {!noTip && (
         <div
+          ref={tipEl}
           role="tooltip"
-          className={`absolute top-[calc(100%+20px)] ${align} z-[40] w-[236px] rounded-2xl bg-white px-1 py-1.5 text-left shadow-[0_0_0_1px_#E4E4E7,0_16px_36px_rgba(24,24,27,.18)] transition-[opacity,transform] motion-reduce:transition-opacity ${
-            tip ? 'opacity-100 translate-y-0 scale-100 duration-200 ease-out' : 'opacity-0 -translate-y-1.5 scale-[.97] pointer-events-none duration-150 ease-in'
+          className={`absolute ${up ? 'bottom-[calc(100%+16px)]' : 'top-[calc(100%+20px)]'} ${align} z-[40] w-[236px] rounded-2xl bg-white px-1 py-1.5 text-left shadow-[0_0_0_1px_#E4E4E7,0_16px_36px_rgba(24,24,27,.18)] transition-[opacity,transform] motion-reduce:transition-opacity ${
+            tip ? 'opacity-100 translate-y-0 scale-100 duration-200 ease-out' : `opacity-0 ${up ? 'translate-y-1.5' : '-translate-y-1.5'} scale-[.97] pointer-events-none duration-150 ease-in`
           }`}
         >
           {c.tip.map(([icon, b, small], i) => (
@@ -490,7 +507,7 @@ function ScrollPanel({ names, children }: { names: string[]; children: React.Rea
   );
   return (
     <div className="hidden sm:block relative h-full">
-      <div ref={ref} onScroll={measure} className="h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain">
+      <div ref={ref} onScroll={measure} data-nv-scroll className="h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain">
         {children}
       </div>
       <span className={`pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] bg-gradient-to-b from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
