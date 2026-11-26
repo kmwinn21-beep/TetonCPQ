@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client';
 import { SEED_PRODUCTS } from '@/lib/pricing/catalog';
+import { MARKET_SEED } from '@/lib/pricing/markets';
 import { MIGRATIONS } from './migrations';
 
 const appliedIds = async (db: Client) => new Set((await db.execute('SELECT id FROM _migrations')).rows.map((r) => Number(r.id)));
@@ -39,6 +40,16 @@ export async function migrate(db: Client): Promise<void> {
       sql: 'INSERT OR IGNORE INTO products (sku, name, pricing_model, list_price, description) VALUES (?, ?, ?, ?, ?)',
       args: [p.sku, p.name, p.pricingModel, p.list, p.description],
     })),
+    'write',
+  );
+  // Reference prices outside the US: seeded once per product and market (edits are kept).
+  await db.batch(
+    Object.entries(MARKET_SEED).flatMap(([sku, prices]) =>
+      Object.entries(prices).map(([market, v]) => ({
+        sql: 'INSERT OR IGNORE INTO product_market_prices (sku, market, price, not_sold) VALUES (?, ?, ?, ?)',
+        args: [sku, market, v === 'ns' || v == null ? null : v, v === 'ns' ? 1 : 0],
+      })),
+    ),
     'write',
   );
 }

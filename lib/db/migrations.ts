@@ -719,4 +719,20 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `INSERT INTO price_book_settings (key, value) VALUES ('capex.softwareBilling', 'monthly')`,
     ],
   },
+  {
+    id: 29,
+    name: 'price book market prices',
+    sql: [
+      // Reference prices outside the US (from the official pricing sheet): a price, or not sold there. US prices stay in products.
+      `CREATE TABLE product_market_prices (
+        sku TEXT NOT NULL,
+        market TEXT NOT NULL,
+        price REAL,
+        not_sold INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_by INTEGER REFERENCES users(id),
+        PRIMARY KEY (sku, market)
+      )`,
+    ],
+  },
 ];
