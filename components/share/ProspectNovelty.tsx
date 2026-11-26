@@ -243,7 +243,9 @@ function cardFor(r: Resource, rt: ResourcesTab, plans: FloorPlanInfo[], talk: It
 
 // ---------------------------------------------------------------- the panel
 
-export function NoveltyPanel({ rt, room, replies, agreement }: { rt: ResourcesTab; room: ProspectRoom; replies: (id: number) => ItemReplies | null; agreement?: AgreementState | null }) {
+type PanelProps = { rt: ResourcesTab; room: ProspectRoom; replies: (id: number) => ItemReplies | null; agreement?: AgreementState | null };
+
+function noveltyGroups({ rt, room, replies, agreement }: PanelProps) {
   const owner = room.contact?.name.split(/\s+/)[0] ?? 'your team';
   const people = [room.contact, ...room.team].filter((p): p is NonNullable<typeof p> => !!p);
   const initials = (n: string) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -315,62 +317,45 @@ export function NoveltyPanel({ rt, room, replies, agreement }: { rt: ResourcesTa
     })),
   ].filter((g) => g.cards.length);
 
+  return groups;
+}
+
+/** One section's box: its name over its cards, three to a row. */
+function GroupBox({ g, tips = true }: { g: { id: string; name: string; cards: CardModel[] }; tips?: boolean }) {
   return (
-    <>
-      {/* Wider screens: a box per section, three cards to a row; no scrollbar, but chevrons, fades and section dots. */}
-      <ScrollPanel names={groups.map((g) => g.name)}>
-        <div className="flex flex-col gap-3.5 pl-3 pr-7 pt-3 pb-8">
-          <Legend />
-          {groups.map((g) => (
-            <section key={g.id} data-nv-sec className="rounded-[24px] border border-[#E4E4E7] bg-[#FAFAFA] shadow-[0_2px_10px_rgba(24,24,27,.05)] px-3 pt-2.5 pb-[22px]" aria-label={g.name}>
-              <h3 className="text-center text-[14px] font-medium text-teton-ink mb-3">{g.name}</h3>
-              <div className="grid grid-cols-[repeat(3,78px)] justify-center gap-x-[11px] gap-y-[30px]">
-                {g.cards.map((c, i) => (
-                  <NoveltyCard key={c.key} c={c} col={(i % 3) as 0 | 1 | 2} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </ScrollPanel>
-      {/* Phones: one sideways row, a label over each section and a thin line between them. */}
-      <div className="sm:hidden pt-2">
-        <div className="px-4">
-          <Legend />
-        </div>
-        <div className="flex gap-3.5 overflow-x-auto px-4 pt-3 pb-6 overscroll-x-contain">
-          {groups.map((g, k) => (
-            <div key={g.id} className="flex flex-shrink-0 gap-3.5">
-              {k > 0 && <span className="w-px self-stretch bg-[#DDD7CC] mt-5" aria-hidden="true" />}
-              <div className="flex flex-col">
-                <p className="mb-2.5 ml-0.5 whitespace-nowrap text-[9.5px] font-extrabold uppercase tracking-[1.4px] text-[#6B7380]">{g.name}</p>
-                <div className="flex gap-[11px]">
-                  {g.cards.map((c) => (
-                    <NoveltyCard key={c.key} c={c} col={0} noTip />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+    <section data-nv-sec className="rounded-[24px] border border-[#E4E4E7] bg-[#FAFAFA] shadow-[0_2px_10px_rgba(24,24,27,.05)] px-3 pt-2.5 pb-[22px]" aria-label={g.name}>
+      <h3 className="text-center text-[14px] font-medium text-teton-ink mb-3">{g.name}</h3>
+      <div className="grid grid-cols-[repeat(3,78px)] justify-center gap-x-[11px] gap-y-[30px]">
+        {g.cards.map((c, i) => (
+          <NoveltyCard key={c.key} c={c} col={(i % 3) as 0 | 1 | 2} noTip={!tips} />
+        ))}
       </div>
-    </>
+    </section>
   );
 }
 
-function Legend() {
-  const item = (cls: string, t: string) => (
-    <span className="flex items-center gap-1.5">
-      <i className={`inline-block w-2.5 h-2.5 rounded-[3px] ${cls}`} />
-      {t}
-    </span>
-  );
+/** Wider screens: a box per section, three cards to a row; no scrollbar, but chevrons, fades and section dots. */
+export function NoveltyPanel(props: PanelProps) {
+  const groups = noveltyGroups(props);
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-[10.5px] font-medium text-[#6B7380]">
-      {item('bg-[#E2DDFF] shadow-[0_0_0_1.5px_#C7C0FF]', 'New')}
-      {item('bg-[#EFEFF2] shadow-[0_0_0_1.5px_#E4E4E7]', 'Opened')}
-      {item('bg-[#FFDCD8] shadow-[0_0_0_1.5px_#E5484D]', 'Needs you')}
-      {item('bg-[#46A951] !rounded-full', 'Viewed')}
+    <ScrollPanel names={groups.map((g) => g.name)}>
+      <div className="flex flex-col gap-3.5 pl-3 pr-7 pt-3 pb-8">
+        {groups.map((g) => (
+          <GroupBox key={g.id} g={g} />
+        ))}
+      </div>
+    </ScrollPanel>
+  );
+}
+
+/** Phones: the same boxes, in the sections sheet (no hover details; tapping opens). */
+export function NoveltyGroups(props: PanelProps) {
+  const groups = noveltyGroups(props);
+  return (
+    <div className="flex flex-col gap-3.5 pt-1">
+      {groups.map((g) => (
+        <GroupBox key={g.id} g={g} tips={false} />
+      ))}
     </div>
   );
 }

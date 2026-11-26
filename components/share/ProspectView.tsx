@@ -15,8 +15,8 @@ import { ValueLabelsProvider } from '@/components/proposal/ProposalSections';
 import { CommentsProvider, useComments, BubbleIcon } from '@/components/proposal/Comments';
 import { DocumentInFormat } from '@/components/proposal/ProposalView';
 import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
-import { ResourcesView, TabSwitch, useResourcesTab } from './ProspectResources';
-import { AgreementDialog, AgreementFab, AgreementPhoneRow, useAgreement } from './ProspectAgreement';
+import { ResourcesView, SectionsButton, TabSwitch, useResourcesTab } from './ProspectResources';
+import { AgreementDialog, AgreementFab, AgreementPhoneFab, useAgreement } from './ProspectAgreement';
 import { PageQuestionBadges, QuestionsButton, QuestionsPanel, useQuestions } from './ProspectQuestions';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -141,8 +141,13 @@ function Body(p: Props) {
             <span className="hidden sm:inline">You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.</span>
           </p>
         )}
-        {/* Phones: the Proposal / Resources switch, with the agreement button beside it. */}
-        <AgreementPhoneRow a={agreement} toggle={rt.room ? <TabSwitch rt={rt} className="flex w-full" /> : null} />
+        {/* Phones: the Proposal / Resources switch, and on Resources the button that opens its sections. */}
+        {rt.room && (
+          <div className="sm:hidden flex items-center gap-2.5 px-3 pb-2 pt-0.5">
+            <TabSwitch rt={rt} className="flex flex-1 min-w-0" />
+            {!onProposal && <SectionsButton rt={rt} />}
+          </div>
+        )}
         {commenting && (
           <p className="border-t border-[#D6E6FB] bg-[#EEF5FE] px-4 py-1.5 text-center text-[12.5px] text-[#1F4F96] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]">
             Click a page or a section to comment on it ·{' '}
@@ -162,6 +167,7 @@ function Body(p: Props) {
       <QuestionsPanel q={questions} ownerName={p.ownerName} email={p.email} pageTitles={pageTitles} />
       <PageQuestionBadges q={questions} />
       <AgreementFab a={agreement} />
+      <AgreementPhoneFab a={agreement} />
       <AgreementDialog a={agreement} />
       {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} agreement={p.team ? null : agreement} />}
       <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${onProposal ? '' : 'hidden print:block'} ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>

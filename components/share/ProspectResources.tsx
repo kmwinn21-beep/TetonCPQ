@@ -14,7 +14,8 @@ import { PersonPhoto } from '@/components/resources/Person';
 import { ResourceView, fileKind, metaOf, sizeOf, type ViewCtx } from '@/components/resources/Viewers';
 import type { FloorPlanInfo, ProspectRoom, RoomPerson } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
-import { NoveltyPanel, ScrollPanel } from './ProspectNovelty';
+import { NoveltyGroups, NoveltyPanel, ScrollPanel } from './ProspectNovelty';
+import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { cardLook } from '@/components/resources/CardIcon';
 import type { AgreementState } from './ProspectAgreement';
 
@@ -76,6 +77,8 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
   const [plans, setPlans] = useState<FloorPlanInfo[]>([]);
   const [tab, setTabState] = useState<'proposal' | 'resources'>('proposal');
   const [sel, setSel] = useState<Sel>('team');
+  // Phones: the sections sheet.
+  const [menu, setMenu] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>({});
   const send = useEvents(token);
   // Seconds of each uploaded video watched on this device (for "part-watched" in Novelty Mode).
@@ -141,6 +144,7 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
   const select = useCallback(
     (s: Sel) => {
       setSel(s);
+      setMenu(false);
       push(s === 'team' ? { target: 'team', kind: 'open' } : { target: 'item', resourceId: s, kind: 'open' });
       if (s !== 'team') {
         const r = room?.resources.find((x) => x.id === s);
@@ -171,9 +175,33 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
   }, [tab, proposalPage, push]);
   useHeartbeat(push, tab === 'proposal' ? { target: 'proposal', detail: proposalPage } : sel === 'team' ? { target: 'team' } : { target: 'item', resourceId: sel });
   const newCount = room ? room.resources.filter(isNew).length : 0;
-  return { room, plans, tab, setTab, sel, select, isNew, everSeen, returning, watched, newCount, push };
+  return { room, plans, tab, setTab, sel, select, isNew, everSeen, returning, watched, newCount, push, menu, setMenu };
 }
 export type ResourcesTab = ReturnType<typeof useResourcesTab>;
+
+/** Phones: opens the sections sheet. Drawn like a Novelty card; an orange sticker counts what's new. */
+export function SectionsButton({ rt }: { rt: ResourcesTab }) {
+  return (
+    <button
+      type="button"
+      aria-label={`Sections${rt.newCount ? ` (${rt.newCount} new)` : ''}`}
+      aria-expanded={rt.menu}
+      onClick={() => rt.setMenu(true)}
+      className={`relative flex-shrink-0 w-12 h-12 rounded-[14px] grid place-items-center bg-gradient-to-b from-white to-[#EFEFF2] transition-shadow duration-200 motion-reduce:transition-none ${rt.menu ? 'shadow-[0_0_0_2.5px_#1C2430,0_4px_10px_rgba(0,0,0,.12)]' : 'shadow-[0_0_0_2px_#E4E4E7,0_2px_6px_rgba(0,0,0,.06)]'}`}
+    >
+      <svg viewBox="0 0 64 64" className="w-[26px] h-[26px]" fill="none" strokeLinecap="round" strokeWidth={5.5} aria-hidden="true">
+        <path d="M14 20h36" stroke="#3F3F46" />
+        <path d="M14 32h36" stroke="#7C6FF0" />
+        <path d="M14 44h24" stroke="#3F3F46" />
+      </svg>
+      {rt.newCount > 0 && (
+        <span className="absolute -top-[7px] -right-[7px] min-w-[19px] h-[19px] px-1 rounded-[7px] bg-[#F97316] text-white text-[9.5px] font-extrabold grid place-items-center rotate-[10deg] shadow-[0_2px_4px_rgba(0,0,0,.2)]" aria-hidden="true">
+          {rt.newCount}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export function TabSwitch({ rt, className = '' }: { rt: ResourcesTab; className?: string }) {
   if (!rt.room) return null;
@@ -254,7 +282,7 @@ export function useItemReplies(token: string, threads: Thread[], sel: Sel) {
 
 function Card({ on, icon, bg, fg, title, sub, chips, fresh, onClick, rec = false, reply = null }: { on: boolean; icon: React.ReactNode; bg: string; fg?: string; title: string; sub: string | null; chips: string[]; fresh: boolean; onClick: () => void; rec?: boolean; reply?: ItemReplies | null }) {
   return (
-    <button type="button" onClick={onClick} aria-current={on ? 'true' : undefined} className={`relative sm:w-full flex-[0_0_236px] sm:flex-none flex gap-[11px] items-start text-left rounded-[13px] border bg-white px-3 py-[11px] sm:mb-2 transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none ${on ? 'border-teton-ink shadow-[0_0_0_1px_#1C2430,0_6px_16px_rgba(0,0,0,.07)]' : 'border-[#E8E4DC] hover:border-[#C9CDD3]'}`}>
+    <button type="button" onClick={onClick} aria-current={on ? 'true' : undefined} className={`relative w-full flex gap-[11px] items-start text-left rounded-[13px] border bg-white px-3 py-[11px] mb-2 transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none ${on ? 'border-teton-ink shadow-[0_0_0_1px_#1C2430,0_6px_16px_rgba(0,0,0,.07)]' : 'border-[#E8E4DC] hover:border-[#C9CDD3]'}`}>
       {on && <span className="hidden sm:block absolute -left-[15px] top-3 bottom-3 w-[3px] rounded bg-[#D9553F] [animation:fadeIn_.2s_ease-out]" aria-hidden="true" />}
       {fresh && <span className={`absolute top-2.5 w-2 h-2 rounded-full bg-[#3F8CEA] ${rec ? 'right-7' : 'right-2.5'}`} title="New" />}
       {rec && (
@@ -308,6 +336,7 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
     [token, room, rt, booking],
   );
   const people = [room.contact, ...room.team].filter((p): p is RoomPerson => !!p);
+  const phone = usePhone('(max-width: 639px)');
   // Sections start collapsed on every visit; opening a card (from a related link, say) opens its section.
   const [openSecs, setOpenSecs] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) => setOpenSecs((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -329,118 +358,94 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
     if (info) return [`${info.roomsTagged} rooms`];
     return [fileKind(x), x.file && x.file.mime !== 'video/mp4' && !x.file.mime.startsWith('video/') ? sizeOf(x.file.size) : null, x.duration ? `${Math.round(x.duration / 60)} min` : null, x.kind === 'link' ? 'Link' : null, x.kind === 'embed' && metaOf(x).label === 'Deck' ? 'Deck' : null, x.file && x.allowDownload && x.kind === 'file' ? '⤓ Download' : null].filter((c): c is string => !!c);
   };
+  // The sections list: in the side panel (wider screens, sections start closed) and in the phone's sections sheet (open).
+  const standardList = (isOpen: Set<string> | ((id: string) => boolean), onToggle: (id: string) => void, expandAll: boolean) => {
+    const opened = (id: string) => (typeof isOpen === 'function' ? isOpen(id) : isOpen.has(id));
+    return (
+      <>
+        <div data-nv-sec>
+          <p className="text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1.5 mb-2">Start here</p>
+          <Card
+            on={rt.sel === 'team'}
+            icon="👋"
+            bg="#FDF0EE"
+            title="Your Team"
+            sub={`Who’s working on your ${room.resources.length ? 'project' : 'proposal'}, and how to reach us`}
+            chips={people.length ? [`${people.length} ${people.length === 1 ? 'person' : 'people'}`] : []}
+            fresh={false}
+            onClick={() => rt.select('team')}
+          />
+        </div>
+        {expandAll && room.sections.length > 1 && (
+          <div className="flex justify-end mx-1.5 mt-1">
+            <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => setOpenSecs(allOpen ? new Set() : new Set(room.sections.map((x) => x.id)))}>
+              {allOpen ? 'Collapse all' : 'Expand all'}
+            </button>
+          </div>
+        )}
+        {room.sections.map((s) => {
+          const list = room.resources.filter((x) => x.sectionId === s.id);
+          if (!expandAll && !list.length) return null;
+          const open = opened(s.id);
+          const fresh = list.some((x) => rt.isNew(x));
+          return (
+            <div key={s.id} data-nv-sec className="mt-1">
+              <button type="button" aria-expanded={open} onClick={() => onToggle(s.id)} className="w-full flex items-center gap-2 rounded-[11px] px-1.5 py-2.5 text-left hover:bg-white/70 transition-colors duration-150">
+                <span className={`w-5 h-5 grid place-items-center text-[10px] text-[#6B7380] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
+                <span className="flex-1 min-w-0 truncate text-[10.5px] font-extrabold uppercase tracking-[1.4px] text-[#5A6270]">{s.name}</span>
+                {!open && (
+                  <span className="flex" aria-hidden="true">
+                    {list.slice(0, 3).map((x, i) => (
+                      <span key={x.id} className={`w-5 h-5 rounded-md overflow-hidden grid place-items-center text-[10px] border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: look(x).bg, color: look(x).fg }}>
+                        {look(x).node}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {fresh && <span className="w-2 h-2 rounded-full bg-[#3F8CEA]" title="Something new" />}
+                <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#E9E5DE] text-[11px] font-bold text-[#5A6270] grid place-items-center">{list.length}</span>
+              </button>
+              <Collapse open={open}>
+                <div className="pt-1 pb-1">
+                  {list.map((x) => (
+                    <Card key={x.id} on={rt.sel === x.id} icon={look(x).node} bg={look(x).bg} fg={look(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
+                  ))}
+                </div>
+              </Collapse>
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+  // Phones: the sections open in a sheet from the header's menu button; picking anything closes it.
+  useEffect(() => {
+    if (agreement?.open) rt.setMenu(false);
+  }, [agreement?.open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newN = room.resources.filter((x) => rt.isNew(x)).length;
   return (
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <aside className={`no-print flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden overscroll-contain sm:overflow-y-hidden ${room.novelty ? 'sm:w-[348px]' : 'sm:w-[332px]'}`}>
+      <aside className={`no-print max-sm:hidden flex-shrink-0 border-r border-[#ECE8DF] bg-[#F6F3EE] sticky top-[61px] h-[calc(100dvh-61px)] overflow-hidden overscroll-contain ${room.novelty ? 'sm:w-[348px]' : 'sm:w-[332px]'}`}>
         {room.novelty ? (
-          <nav aria-label={room.tabName} className="sm:h-full">
+          <nav aria-label={room.tabName} className="h-full">
             <NoveltyPanel rt={rt} room={room} replies={replies} agreement={agreement} />
           </nav>
         ) : (
-        <ScrollPanel phone names={['Start here', ...room.sections.map((s) => s.name)]}>
-        <nav aria-label={room.tabName} className="flex sm:block gap-[9px] px-3.5 sm:pl-[18px] sm:pr-7 py-3 sm:py-[18px]">
-          <div data-nv-sec className="flex-shrink-0 flex flex-col sm:block">
-            <p className="h-6 sm:h-auto flex items-center sm:block text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C] mx-1 sm:mx-1.5 mb-1.5 sm:mb-2">Start here</p>
-            <div className="flex sm:block">
-              <Card
-                on={rt.sel === 'team'}
-                icon="👋"
-                bg="#FDF0EE"
-                title="Your Team"
-                sub={`Who’s working on your ${room.resources.length ? 'project' : 'proposal'}, and how to reach us`}
-                chips={people.length ? [`${people.length} ${people.length === 1 ? 'person' : 'people'}`] : []}
-                fresh={false}
-                onClick={() => rt.select('team')}
-              />
-            </div>
-          </div>
-          {/* Phones: one sideways row. Each section has an eyebrow that folds its cards away (open to start); a thin line splits sections. */}
-          {room.sections.map((s) => {
-            const list = room.resources.filter((x) => x.sectionId === s.id);
-            if (!list.length) return null;
-            const open = !phoneShut.has(s.id);
-            return (
-              <div key={s.id} className="contents sm:hidden">
-                <span aria-hidden="true" className="flex-shrink-0 w-px self-stretch my-1 mx-0.5 bg-[#DDD7CC]" />
-                <div className="flex-shrink-0 flex flex-col">
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={() => togglePhone(s.id)}
-                    className="h-6 mb-1.5 flex items-center gap-1.5 self-start rounded-md px-1 text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#5A6270] whitespace-nowrap active:bg-white/70"
-                  >
-                    <span className={`text-[8px] text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
-                    {s.name}
-                    {!open && (
-                      <span className="flex ml-0.5 [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" aria-hidden="true">
-                        {list.slice(0, 3).map((x, i) => (
-                          <span key={x.id} className={`w-[18px] h-[18px] rounded-[5px] overflow-hidden grid place-items-center text-[9px] tracking-normal border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: look(x).bg, color: look(x).fg }}>
-                            {look(x).node}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#E9E5DE] text-[10px] font-bold tracking-normal text-[#5A6270] grid place-items-center">{list.length}</span>
-                  </button>
-                  <div className={`grid transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0'}`} {...((open ? {} : { inert: '' }) as Record<string, string>)}>
-                    <div className="min-w-0 overflow-hidden -m-1">
-                      <div className="flex gap-[9px] p-1">
-                        {list.map((x) => (
-                          <Card key={x.id} on={rt.sel === x.id} icon={look(x).node} bg={look(x).bg} fg={look(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {/* Wider screens: sections, collapsed to start; the selected card's section opens. */}
-          <div className="hidden sm:block">
-            {room.sections.length > 1 && (
-              <div className="flex justify-end mx-1.5 mt-1">
-                <button type="button" className="text-[11.5px] font-semibold text-[#1F5FB5] hover:underline" onClick={() => setOpenSecs(allOpen ? new Set() : new Set(room.sections.map((x) => x.id)))}>
-                  {allOpen ? 'Collapse all' : 'Expand all'}
-                </button>
-              </div>
-            )}
-            {room.sections.map((s) => {
-              const list = room.resources.filter((x) => x.sectionId === s.id);
-              const open = openSecs.has(s.id);
-              const fresh = list.some((x) => rt.isNew(x));
-              return (
-                <div key={s.id} data-nv-sec className="mt-1">
-                  <button type="button" aria-expanded={open} onClick={() => toggle(s.id)} className="w-full flex items-center gap-2 rounded-[11px] px-1.5 py-2.5 text-left hover:bg-white/70 transition-colors duration-150">
-                    <span className={`w-5 h-5 grid place-items-center text-[10px] text-[#6B7380] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
-                    <span className="flex-1 min-w-0 truncate text-[10.5px] font-extrabold uppercase tracking-[1.4px] text-[#5A6270]">{s.name}</span>
-                    {!open && (
-                      <span className="flex" aria-hidden="true">
-                        {list.slice(0, 3).map((x, i) => (
-                          <span key={x.id} className={`w-5 h-5 rounded-md overflow-hidden grid place-items-center text-[10px] border-[1.5px] border-[#F6F3EE] ${i ? '-ml-1.5' : ''}`} style={{ background: look(x).bg, color: look(x).fg }}>
-                            {look(x).node}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                    {!open && fresh && <span className="w-2 h-2 rounded-full bg-[#3F8CEA]" title="Something new" />}
-                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#E9E5DE] text-[11px] font-bold text-[#5A6270] grid place-items-center">{list.length}</span>
-                  </button>
-                  <Collapse open={open}>
-                    <div className="pt-1 pb-1">
-                      {list.map((x) => (
-                        <Card key={x.id} on={rt.sel === x.id} icon={look(x).node} bg={look(x).bg} fg={look(x).fg} title={x.title} sub={x.description} chips={chipsOf(x)} fresh={rt.isNew(x)} rec={x.recommended} reply={replies(x.id)} onClick={() => rt.select(x.id)} />
-                      ))}
-                    </div>
-                  </Collapse>
-                </div>
-              );
-            })}
-          </div>
-        </nav>
+        <ScrollPanel names={['Start here', ...room.sections.map((s) => s.name)]}>
+          <nav aria-label={room.tabName} className="pl-[18px] pr-7 py-[18px]">
+            {standardList(openSecs, toggle, true)}
+          </nav>
         </ScrollPanel>
         )}
       </aside>
-      <main data-res-main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-11 pt-6 sm:pt-8 pb-16">
+      {phone && (
+        <SwipeSheet open={rt.menu} onClose={() => rt.setMenu(false)} title={room.tabName} eyebrow={`${room.resources.length} item${room.resources.length === 1 ? '' : 's'}${newN ? ` · ${newN} new` : ''}`}>
+          <nav aria-label={`${room.tabName} sections`} className={room.novelty ? '' : 'pt-1'}>
+            {room.novelty ? <NoveltyGroups rt={rt} room={room} replies={replies} agreement={agreement} /> : standardList((id) => !phoneShut.has(id), togglePhone, false)}
+          </nav>
+        </SwipeSheet>
+      )}
+      <main data-res-main className="flex-1 min-w-0 px-4 sm:px-8 lg:px-11 pt-6 sm:pt-8 pb-28 sm:pb-16">
         <div className="max-w-[920px] mx-auto">
           {r ? (
             <ResourceView

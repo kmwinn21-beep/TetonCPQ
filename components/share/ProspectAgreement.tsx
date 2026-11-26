@@ -94,23 +94,22 @@ export function AgreementFab({ a }: { a: AgreementState }) {
  * Phones: the row under the header. `toggle` is the Proposal / Resources switch (or nothing). A tap widens the
  * button over the switch; with no second tap within 3 seconds it shrinks back.
  */
-export function AgreementPhoneRow({ a, toggle }: { a: AgreementState; toggle: React.ReactNode }) {
+/**
+ * Phones: a round button in the bottom-right corner. The first tap widens it to show what it does (shrinking back after 3
+ * seconds); a tap while wide opens the form. The red dot stays until someone on the link has asked.
+ */
+export function AgreementPhoneFab({ a }: { a: AgreementState }) {
   const [wide, setWide] = useState(false);
   useEffect(() => {
     if (!wide) return;
     const t = setTimeout(() => setWide(false), 3000);
     return () => clearTimeout(t);
   }, [wide]);
-  if (!a.info) return toggle ? <div className="sm:hidden px-3 pb-2 pt-0.5">{toggle}</div> : null;
+  if (!a.info) return null;
   const dot = !a.info.latest;
   return (
-    <div className="no-print sm:hidden flex items-center px-3 pb-2 pt-0.5">
-      {toggle && (
-        <div className={`flex-1 min-w-0 overflow-hidden transition-[opacity,margin] duration-300 motion-reduce:transition-none ${wide ? 'opacity-0 mr-0' : 'opacity-100 mr-2'}`} {...((wide ? { inert: '' } : {}) as Record<string, string>)}>
-          {toggle}
-        </div>
-      )}
-      <div className={`relative flex-shrink-0 transition-[width] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${toggle ? '' : 'ml-auto'} ${wide ? 'w-full' : 'w-[38px]'}`}>
+    <div className="no-print sm:hidden fixed right-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-40" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className={`relative ml-auto transition-[width] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${wide ? 'w-[calc(100vw-32px)] max-w-[330px]' : 'w-14'}`}>
         <button
           type="button"
           aria-label={LABEL}
@@ -121,15 +120,15 @@ export function AgreementPhoneRow({ a, toggle }: { a: AgreementState; toggle: Re
               a.setOpen(true);
             } else setWide(true);
           }}
-          className={`w-full h-[38px] flex items-center rounded-full bg-teton-ink text-white text-[14px] font-semibold whitespace-nowrap overflow-hidden shadow-[0_4px_12px_rgba(28,36,48,.22)] transition-[gap,padding] duration-300 motion-reduce:transition-none ${wide ? 'gap-2.5 pl-3 pr-4' : 'gap-0 px-2'}`}
+          className={`w-full h-14 flex items-center rounded-full bg-teton-ink text-white text-[14.5px] font-semibold whitespace-nowrap overflow-hidden shadow-[0_10px_24px_rgba(28,36,48,.3)] transition-[gap,padding] duration-300 motion-reduce:transition-none ${wide ? 'gap-3 pl-3.5 pr-5' : 'gap-0 px-[13px]'}`}
         >
-          <Mark className="w-[22px] h-[22px]" />
+          <Mark className="w-[30px] h-[30px] flex-shrink-0" />
           <span className={`min-w-0 truncate transition-opacity duration-200 ${wide ? 'opacity-100 delay-100' : 'opacity-0'}`}>{LABEL}</span>
-          <span className={`ml-auto text-[18px] leading-none transition-opacity duration-200 ${wide ? 'opacity-100 delay-100' : 'opacity-0'}`} aria-hidden="true">
+          <span className={`ml-auto text-[20px] leading-none transition-opacity duration-200 ${wide ? 'opacity-100 delay-100' : 'opacity-0'}`} aria-hidden="true">
             ›
           </span>
         </button>
-        {dot && <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E5484D] border-2 border-white shadow-[0_1px_3px_rgba(0,0,0,.25)] pointer-events-none transition-opacity duration-200 ${wide ? 'opacity-0' : 'opacity-100'}`} aria-label="New" />}
+        {dot && <span className={`absolute top-0 right-0 w-[15px] h-[15px] rounded-full bg-[#E5484D] border-[2.5px] border-white pointer-events-none [animation:agPulse_1.6s_infinite] motion-reduce:[animation:none] transition-opacity duration-200 ${wide ? 'opacity-0' : 'opacity-100'}`} aria-label="New" />}
       </div>
     </div>
   );
