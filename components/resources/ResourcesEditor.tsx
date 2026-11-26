@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
+import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { isOnePager } from '@/lib/proposal/onePager';
 import { uploadResourceFile } from '@/lib/resources/upload';
 import { DEFAULT_HEADING, type Block, type Resource, type RoomSettings, type Section } from '@/lib/resources/model';
@@ -89,6 +90,10 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
   const [showActivity, setShowActivity] = useState(startWithActivity);
   const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Phones: the header's extras fold away, and a card's fields open in a sheet from the bottom.
+  const phone = usePhone();
+  const [headOpen, setHeadOpen] = useState(false);
+  const [sheet, setSheet] = useState(false);
   // The shared link, opening on this tab.
   const copyLink = async () => {
     if (!linkUrl) return;
@@ -155,6 +160,7 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
       const j = await api<{ resource: Resource }>(`${base}/items`, 'POST', body);
       setD((x) => (x ? { ...x, resources: [...x.resources, j.resource] } : x));
       setSel(j.resource.id);
+      setSheet(true);
       setMode(j.resource.kind === 'file' || j.resource.kind === 'link' ? 'settings' : 'page');
       return j.resource;
     } catch (e) {
@@ -167,6 +173,7 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
     await api(`${base}/items/${r.id}`, 'DELETE').catch((e: Error) => setError(e.message));
     setD((x) => (x ? { ...x, resources: x.resources.filter((y) => y.id !== r.id) } : x));
     setSel('team');
+    setSheet(false);
   };
   const reorder = (next: Resource[]) => {
     setD((x) => (x ? { ...x, resources: next } : x));
@@ -184,21 +191,9 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
 
   if (typeof document === 'undefined') return null;
   const r = d && sel !== 'team' ? d.resources.find((x) => x.id === sel) ?? null : null;
-  return createPortal(
-    <div className={`no-print fixed inset-0 z-[95] flex flex-col bg-[#FBF8F3] text-teton-ink ${closing ? 'opacity-0 transition-opacity duration-200' : '[animation:fadeIn_.2s_ease-out]'} motion-reduce:[animation:none] motion-reduce:transition-none`} role="dialog" aria-modal="true" aria-label="Resources editor" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div className="flex items-center gap-3 min-h-[64px] px-4 sm:px-5 py-2 bg-[#16181D] text-white flex-wrap">
-        <div className="min-w-0">
-          <b className="text-[15px]">Resources</b>
-          <span className="block text-[12px] text-[#A9ADB4] truncate">{d ? `${d.customer} · on the shared link` : 'Loading…'}</span>
-        </div>
-        {d && (
-          <label className="hidden md:flex items-center gap-2 ml-4 text-[12px] text-[#A9ADB4]">
-            Tab name
-            <input className="h-8 w-[180px] rounded-lg border border-[#3A3D44] bg-[#22252B] px-2.5 text-[13px] font-semibold text-white outline-none focus:border-[#3F8CEA]" value={d.settings.tabName} maxLength={30} disabled={!d.canEdit} onChange={(e) => setSettings({ tabName: e.target.value })} />
-          </label>
-        )}
-        <span className="flex-1" />
-        <span className="text-[12px] text-[#A9ADB4]" role="status">{state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : d ? 'All changes saved' : ''}</span>
+  // Novelty, copy, preview and activity: in the header row on wider screens, folded under the header's ⌄ on phones.
+  const extras = (
+    <>
         {d && <NoveltyToggle on={d.settings.novelty} disabled={!d.canEdit} onChange={(v) => setSettings({ novelty: v })} />}
         {linkUrl && (
           <button type="button" onClick={() => void copyLink()} title="Copy the shared link (it opens on this tab)" className={`h-9 px-3.5 rounded-[10px] border text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors duration-200 motion-reduce:transition-none ${copied ? 'border-[#2E9E5B] bg-[#2E9E5B] text-white' : 'border-[#4A4E56] hover:bg-white/10'}`}>
@@ -220,9 +215,45 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
         <button type="button" onClick={() => setShowActivity(true)} className="h-9 px-3.5 rounded-[10px] border border-[#4A4E56] text-[13px] font-semibold hover:bg-white/10">
           Activity
         </button>
-        <button type="button" onClick={close} className="h-9 px-4 rounded-[10px] bg-white text-teton-ink text-[13px] font-semibold">
-          Done
-        </button>
+    </>
+  );
+  return createPortal(
+    <div className={`no-print fixed inset-0 z-[95] flex flex-col bg-[#FBF8F3] text-teton-ink ${closing ? 'opacity-0 transition-opacity duration-200' : '[animation:fadeIn_.2s_ease-out]'} motion-reduce:[animation:none] motion-reduce:transition-none`} role="dialog" aria-modal="true" aria-label="Resources editor" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className="flex-shrink-0 bg-[#16181D] text-white px-4 md:px-5 py-2">
+        <div className="flex items-center gap-3 min-h-[48px] md:min-h-[48px]">
+          <div className="min-w-0 flex-1 md:flex-none">
+            <b className="text-[15px]">Resources</b>
+            <span className="block text-[12px] text-[#A9ADB4] truncate">{d ? `${d.customer} · on the shared link` : 'Loading…'}</span>
+          </div>
+          {d && (
+            <label className="hidden md:flex items-center gap-2 ml-4 text-[12px] text-[#A9ADB4]">
+              Tab name
+              <input className="h-8 w-[180px] rounded-lg border border-[#3A3D44] bg-[#22252B] px-2.5 text-[13px] font-semibold text-white outline-none focus:border-[#3F8CEA]" value={d.settings.tabName} maxLength={30} disabled={!d.canEdit} onChange={(e) => setSettings({ tabName: e.target.value })} />
+            </label>
+          )}
+          <span className="hidden md:block flex-1" />
+          <span className={`text-[12px] whitespace-nowrap ${state === 'error' ? 'text-[#F2A091]' : 'text-[#A9ADB4]'}`} role="status">
+            {state === 'saving' ? 'Saving…' : state === 'error' ? 'Not saved' : d ? <><span className="md:hidden">Saved</span><span className="hidden md:inline">All changes saved</span></> : ''}
+          </span>
+          <div className="hidden md:flex items-center gap-3">{extras}</div>
+          <button type="button" aria-expanded={headOpen} aria-label={headOpen ? 'Fewer options' : 'More options'} onClick={() => setHeadOpen((o) => !o)} className="md:hidden w-9 h-9 flex-shrink-0 rounded-[10px] border border-[#4A4E56] grid place-items-center hover:bg-white/10">
+            <svg viewBox="0 0 24 24" className={`w-4 h-4 transition-transform duration-300 motion-reduce:transition-none ${headOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <button type="button" onClick={close} className="h-9 px-4 flex-shrink-0 rounded-[10px] bg-white text-teton-ink text-[13px] font-semibold">
+            Done
+          </button>
+        </div>
+        <Collapse open={headOpen} className="md:hidden">
+          <div className="grid grid-cols-2 gap-2 pt-2 pb-1.5 [&>*]:w-full [&>*]:justify-center [&>button]:h-10 [&>a]:h-10">{extras}</div>
+          {d && (
+            <label className="flex items-center gap-2 pb-1.5 text-[12px] text-[#A9ADB4]">
+              Tab name
+              <input className="h-9 flex-1 min-w-0 rounded-lg border border-[#3A3D44] bg-[#22252B] px-2.5 text-[14px] font-semibold text-white outline-none focus:border-[#3F8CEA]" value={d.settings.tabName} maxLength={30} disabled={!d.canEdit} onChange={(e) => setSettings({ tabName: e.target.value })} />
+            </label>
+          )}
+        </Collapse>
       </div>
       {error && (
         <p role="alert" className="flex items-center gap-3 bg-[#FDF0EE] px-5 py-2 text-[12.5px] text-[#B4442C]">
@@ -236,22 +267,23 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
         <p className="p-10 text-center text-sm text-teton-ui-gray">{error ? '' : 'Loading…'}</p>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-          <CardList d={d} sel={sel} setSel={(s) => (setSel(s), setMode(s === 'team' ? 'page' : mode))} activity={activity} reorder={reorder} setSettings={setSettings} setResource={setResource} removeResource={removeResource} addResource={addResource} upload={upload} />
-          <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain px-4 sm:px-8 pt-6 pb-16">
+          <CardList d={d} sel={sel} setSel={(s) => (setSel(s), setMode(s === 'team' ? 'page' : mode), setSheet(true))} activity={activity} reorder={reorder} setSettings={setSettings} setResource={setResource} removeResource={removeResource} addResource={addResource} upload={upload} />
+          {phone ? (
+            <SwipeSheet open={sheet} onClose={() => setSheet(false)} eyebrow={sel === 'team' || !r ? 'Start here' : d.settings.sections.find((s) => s.id === r.sectionId)?.name ?? metaOf(r).label} title={sel === 'team' || !r ? 'Your Team' : r.title}>
             <div className="max-w-[920px] mx-auto">
               {sel === 'team' || !r ? (
                 <TeamEditor d={d} setSettings={setSettings} />
               ) : (
                 <>
                   <div className="flex flex-wrap items-end gap-3">
-                    <div className="min-w-0 flex-1">
+                    <div className="hidden md:block min-w-0 flex-1">
                       <p className="text-[10.5px] font-extrabold uppercase tracking-[2px] text-teton-ui-gray">{d.settings.sections.find((s) => s.id === r.sectionId)?.name ?? metaOf(r).label}</p>
                       <h2 className="mt-1 text-[22px] font-semibold tracking-[-.3px] break-words">{r.title}</h2>
                       <p className="mt-1 text-[13px] text-teton-ui-gray">{mode === 'page' ? 'Click anything below the main view to change it; hover a block to move or remove it.' : 'The card and where it comes from.'}</p>
                     </div>
-                    <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Settings or page">
+                    <SegGroup className="relative flex md:inline-flex w-full md:w-auto rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Settings or page">
                       {(['settings', 'page'] as const).map((m) => (
-                        <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`relative z-[1] h-8 px-4 rounded-[8px] text-[12.5px] font-semibold transition-colors duration-200 ${mode === m ? 'text-teton-ink' : 'text-teton-ui-gray'}`}>
+                        <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`relative z-[1] flex-1 md:flex-none h-9 md:h-8 px-4 rounded-[8px] text-[12.5px] font-semibold transition-colors duration-200 ${mode === m ? 'text-teton-ink' : 'text-teton-ui-gray'}`}>
                           {m === 'settings' ? 'Settings' : 'Page'}
                         </button>
                       ))}
@@ -282,7 +314,55 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
                 </>
               )}
             </div>
-          </main>
+            </SwipeSheet>
+          ) : (
+            <main className="flex-1 min-w-0 overflow-y-auto overscroll-contain px-4 sm:px-8 pt-6 pb-16">
+            <div className="max-w-[920px] mx-auto">
+              {sel === 'team' || !r ? (
+                <TeamEditor d={d} setSettings={setSettings} />
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="hidden md:block min-w-0 flex-1">
+                      <p className="text-[10.5px] font-extrabold uppercase tracking-[2px] text-teton-ui-gray">{d.settings.sections.find((s) => s.id === r.sectionId)?.name ?? metaOf(r).label}</p>
+                      <h2 className="mt-1 text-[22px] font-semibold tracking-[-.3px] break-words">{r.title}</h2>
+                      <p className="mt-1 text-[13px] text-teton-ui-gray">{mode === 'page' ? 'Click anything below the main view to change it; hover a block to move or remove it.' : 'The card and where it comes from.'}</p>
+                    </div>
+                    <SegGroup className="relative flex md:inline-flex w-full md:w-auto rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Settings or page">
+                      {(['settings', 'page'] as const).map((m) => (
+                        <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`relative z-[1] flex-1 md:flex-none h-9 md:h-8 px-4 rounded-[8px] text-[12.5px] font-semibold transition-colors duration-200 ${mode === m ? 'text-teton-ink' : 'text-teton-ui-gray'}`}>
+                          {m === 'settings' ? 'Settings' : 'Page'}
+                        </button>
+                      ))}
+                    </SegGroup>
+                  </div>
+                  {mode === 'settings' ? (
+                    <ItemSettings key={r.id} d={d} r={r} quoteId={quoteId} activity={activity} setResource={setResource} remove={() => void removeResource(r)} upload={upload} />
+                  ) : (
+                    <div className="mt-4 rounded-[18px] border border-[#E8E4DC] bg-white px-4 sm:px-6 pt-5 pb-6">
+                      <ResourceView
+                        key={r.id}
+                        r={r}
+                        ctx={{
+                          mode: 'rep',
+                          fileUrl: (x, o) => `${base}/files/${o?.f ?? x.file?.id}${o?.dl ? '?dl=1' : ''}`,
+                          planUrl: (pid) => `/api/quotes/${quoteId}/floorplans/${pid}`,
+                          goUrl: (x, b) => (b ? (x.blocks.find((y) => y.id === b && y.type === 'button') as Extract<Block, { type: 'button' }> | undefined)?.url ?? '#' : x.url ?? '#'),
+                          resources: d.resources,
+                          plans: d.plans,
+                          booking: d.settings.showBooking ? d.profiles.find((p) => p.userId === d.settings.contactUserId)?.schedulingUrl ?? null : null,
+                          onSelect: (id) => setSel(id),
+                          onDuration: (sec) => r.duration !== Math.round(sec) && Number.isFinite(sec) && setResource(r.id, { duration: Math.round(sec) }),
+                          edit: d.canEdit ? { onBlocks: (blocks) => setResource(r.id, { blocks }), upload } : null,
+                        }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            </main>
+          )}
         </div>
       )}
       {showActivity && (
@@ -292,8 +372,8 @@ export function ResourcesEditor({ quoteId, versionId, linkUrl, onClose, startWit
           onClose={() => setShowActivity(false)}
           onPick={(key) => {
             setShowActivity(false);
-            if (key.startsWith('r')) (setSel(Number(key.slice(1))), setMode('settings'));
-            else if (key === 'team') setSel('team');
+            if (key.startsWith('r')) (setSel(Number(key.slice(1))), setMode('settings'), setSheet(true));
+            else if (key === 'team') (setSel('team'), setSheet(true));
           }}
         />
       )}
@@ -356,7 +436,8 @@ function CardList({
   const team = [d.settings.contactUserId, ...d.settings.team.map((t) => t.userId)].filter((n): n is number => n != null);
   const stats = (r: Resource) => (activity ? engagementLine(activity, `r${r.id}`) : null);
   return (
-    <aside className="md:w-[340px] flex-shrink-0 md:border-r border-b md:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] md:overflow-y-auto overscroll-contain max-h-[38vh] md:max-h-none overflow-y-auto px-3.5 py-4">
+    <aside className="flex-1 md:flex-none min-h-0 md:w-[340px] md:flex-shrink-0 md:border-r border-[#ECE8DF] bg-[#F6F3EE] overflow-y-auto overscroll-contain px-3.5 py-4 pb-10 md:pb-4">
+      <p className="md:hidden mx-1 mb-3 text-[12px] text-[#6B7380]">Tap a card to edit it.</p>
       <p className="mx-1 mb-2 text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C]">Start here</p>
       <button type="button" onClick={() => setSel('team')} className={`w-full flex gap-2.5 items-start rounded-xl border bg-white p-2.5 text-left ${sel === 'team' ? 'border-[#3F8CEA] shadow-[0_0_0_3px_rgba(63,140,234,.15)]' : 'border-[#E8E4DC]'}`}>
         <span className="w-[34px] h-[34px] rounded-[9px] grid place-items-center bg-[#FDF0EE] flex-shrink-0">👋</span>

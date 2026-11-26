@@ -263,7 +263,7 @@ function Previews({ r }: { r: Resource }) {
   const look = cardLook(r);
   return (
     <div className="mt-2 flex flex-wrap items-start gap-3 rounded-[12px] border border-[#ECE8DF] bg-[#F6F3EE] p-3">
-      <div className="min-w-0 flex-1 basis-[220px]">
+      <div className="min-w-0 flex-1 basis-[150px]">
         <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-[1.4px] text-[#8A919C]">Standard</p>
         <div className="flex gap-[11px] items-start rounded-[13px] border border-[#E8E4DC] bg-white px-3 py-[11px]">
           <span className="w-[38px] h-[38px] rounded-[10px] grid place-items-center flex-shrink-0 overflow-hidden transition-colors duration-200" style={{ background: look.bg, color: look.fg }}>
