@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db/client';
-import { listPriceBookRows } from '@/lib/data/priceBook';
+import { getPriceBookSettings, listPriceBookRows } from '@/lib/data/priceBook';
+import { SoftwareBillingDefault } from '@/components/catalog/SoftwareBillingDefault';
 import { PriceBookTable } from '@/components/catalog/PriceBookTable';
 import { POLICY } from '@/lib/pricing/catalog';
 import { LADDER } from '@/lib/pricing/guardrails';
@@ -9,7 +10,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function CatalogPage() {
   const user = await requirePageUser();
-  const rows = await listPriceBookRows(await getDb());
+  const db = await getDb();
+  const rows = await listPriceBookRows(db);
+  const settings = await getPriceBookSettings(db);
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -17,6 +20,7 @@ export default async function CatalogPage() {
         <p className="text-sm text-teton-ui-gray">US list prices and pricing policy. New deals start from these list prices. Existing deals keep their own rates (discounts are measured against the current list), and saved versions keep their figures.</p>
       </div>
       <PriceBookTable rows={rows} canEdit={user.role === 'admin'} />
+      <SoftwareBillingDefault initial={settings.softwareBilling} canEdit={user.role === 'admin'} />
       <div className="card">
         <h2 className="text-base font-semibold mb-3">Policy</h2>
         <ul className="text-sm space-y-1 list-disc pl-5">

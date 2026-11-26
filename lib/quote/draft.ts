@@ -55,6 +55,9 @@ export interface DraftCommunity {
   /** null = deal ROI start delay. */
   roiDelayMonths: number | null;
   additionalSensors: number;
+  /** Common-area sensors (outside resident rooms): a setup fee each, then a monthly fee each. Replaces the
+   *  full-facility multiplier on new deals (a community still on `coverage: 'full_facility'` keeps the multiplier). */
+  commonAreaSensors?: number;
   /** Room types from the floor plans (optional). When present they set the beds and additional sensors. */
   roomTypes?: RoomType[];
   /** Allowance for site conditions on top of the plan's sensors (0.03 = 3%). */
@@ -99,8 +102,15 @@ export interface Commercial {
   /** Optional introductory platform rate for the first months of the service term. */
   specialRate: number | null;
   specialTermMonths: number;
+  /** @deprecated pricing for common areas on older deals (communities with coverage 'full_facility'). */
   fullFacilityMultiplier: number;
   sensorPrice: number;
+  /** Skilled nursing beds' rate per bed per month (never above the platform rate). Missing on older deals: SNF beds at the platform rate. */
+  snfRate?: number | null;
+  /** Teton One + E-Call bundle: taken off each bed with both, per month, by E-Call system. Missing on older deals: none. */
+  bundleDiscount?: { ble: number; inovonics: number };
+  /** Common-area sensors: setup each (one-time) and monthly each. */
+  commonArea?: { setup: number; monthly: number };
   /** Equipment-purchase (CapEx) prices for this deal. */
   capex: CapexPricing;
   /** Installation finish: standard (included) or concealed (an add-on range per room). */
@@ -174,7 +184,14 @@ export function newCommunity(i: number): DraftCommunity {
   };
 }
 
-export function defaultDraft(customerName: string, book: PriceBook, today = new Date()): QuoteDraft {
+/** The bundle's saving per bed per month: subscription + E-Call list prices, less the bundle's list price (not below $0). */
+export function bundleDiscountFrom(book: PriceBook): { ble: number; inovonics: number } {
+  const p = book[SKU.platform]?.list ?? 99;
+  const d = (ecall: string, bundle: string, fe: number, fb: number) => Math.max(0, Math.round((p + (book[ecall]?.list ?? fe) - (book[bundle]?.list ?? fb)) * 100) / 100);
+  return { ble: d(SKU.ecallBle, SKU.bundleBle, 10, 105), inovonics: d(SKU.ecallInovonics, SKU.bundleInovonics, 15, 110) };
+}
+
+export function defaultDraft(customerName: string, book: PriceBook, today = new Date(), opts: { softwareBilling?: 'monthly' | 'upfront' } = {}): QuoteDraft {
   // Default go-live: first of the month, three months out.
   const goLive = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 3, 1)).toISOString().slice(0, 10);
   return {
@@ -215,8 +232,11 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
       sensorPrice: book[SKU.sensor]?.list ?? 300,
+      snfRate: book[SKU.snf]?.list ?? 49,
+      bundleDiscount: bundleDiscountFrom(book),
+      commonArea: { setup: book[SKU.commonAreaSetup]?.list ?? 200, monthly: book[SKU.commonAreaMonthly]?.list ?? 50 },
       ecallDevices: { bleButton: book[SKU.ecallBleButton]?.list ?? 100, inoPendant: book[SKU.ecallInoPendant]?.list ?? 160, inoPullcord: book[SKU.ecallInoPullcord]?.list ?? 150 },
-      capex: capexPricingFrom((sku) => book[sku]?.list),
+      capex: { ...capexPricingFrom((sku) => book[sku]?.list), softwareBilling: opts.softwareBilling ?? 'monthly' },
       finish: finishFrom((sku) => book[sku]?.list),
     },
     presentation: 'opex',
@@ -247,10 +267,13 @@ function normalizeCommercial(c: Commercial): Commercial {
   const seedList = (sku: string, fb: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fb;
   const capex = { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) };
   // The first E-Call purchase figures ($115 / $170) gave way to the pricing workbook's ($165 / $480).
-  if (capex.ecallInstallBle === 115) capex.ecallInstallBle = seedList(SKU.capexEcallInstallBle, 165);
-  if (capex.ecallInstallInovonics === 170) capex.ecallInstallInovonics = seedList(SKU.capexEcallInstallInovonics, 480);
+  if (capex.ecallInstallBle === 115) capex.ecallInstallBle = 165;
+  if (capex.ecallInstallInovonics === 170) capex.ecallInstallInovonics = 480;
   const devices = rest.ecallDevices ?? { bleButton: seedList(SKU.ecallBleButton, 100), inoPendant: seedList(SKU.ecallInoPendant, 160), inoPullcord: seedList(SKU.ecallInoPullcord, 150) };
-  return { ...rest, ecallDevices: devices, capex, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallBilling: rest.ecallBilling === 'device' ? 'device' : 'room' };
+  // Older deals: billed monthly (as they were). SNF rate, bundle discount: absent = none (their totals don't change).
+  capex.softwareBilling = capex.softwareBilling === 'upfront' ? 'upfront' : 'monthly';
+  const commonArea = rest.commonArea ?? { setup: seedList(SKU.commonAreaSetup, 200), monthly: seedList(SKU.commonAreaMonthly, 50) };
+  return { ...rest, ecallDevices: devices, capex, commonArea, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallBilling: rest.ecallBilling === 'device' ? 'device' : 'room' };
 }
 
 /** One additional E-Call device beyond the rooms (per-room billing): a Bluetooth button, or an Inovonics pull-cord. */

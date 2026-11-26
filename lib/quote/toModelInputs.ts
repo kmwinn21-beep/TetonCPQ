@@ -86,9 +86,67 @@ export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtr
     const each = extraDevicePrice(k);
     out.push({ units: billed.extra, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: each * (1 - k.installCreditPct), postPilotInstallPerBed: each } });
   }
+  out.push(...pricingAdjustments(d, c).map((a) => ({ units: a.units, rates: a.rates })));
   if (s.uniform) return out;
   const install = Number(k.ecallInstallRate) || 0;
   if (s.ecallOnly > 0) out.push({ units: s.ecallOnly, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: install * (1 - k.installCreditPct), postPilotInstallPerBed: install } });
+  return out;
+}
+
+/** A per-bed adjustment billed alongside a community's beds (the price lines show the same figures). */
+export interface PricingAdjustment {
+  kind: 'snf' | 'bundle' | 'commonArea';
+  units: number;
+  /** SNF: the beds in the pilot (of `units`); the pilot fee below already spreads them over every SNF bed. */
+  pilotBeds?: number;
+  rates: CommunityRates;
+}
+
+/**
+ * Prices that differ from the community's per-bed rates, billed as adjustments so the per-bed rates stay as they are:
+ *  - skilled nursing beds at their own rate (never above the platform rate; older deals without one: none),
+ *  - the Teton One + E-Call bundle discount on beds with both (older deals: none; none during the pilot unless E-Call is billed then),
+ *  - common-area sensors: a setup fee each (with the pilot install credit at pilot sites) and a monthly fee each after the pilot.
+ */
+export function pricingAdjustments(d: QuoteDraft, c: DraftCommunity): PricingAdjustment[] {
+  const k = d.commercial;
+  const ecallOn = k.ecall !== 'none';
+  const s = scopeOf(c, ecallOn);
+  const monitored = s.uniform ? s.uniform.monitoring : s.monitored > 0;
+  if (!monitored) return [];
+  const mult = c.coverage === 'full_facility' ? k.fullFacilityMultiplier : 1;
+  const out: PricingAdjustment[] = [];
+  const units = communityUnits(c, ecallOn);
+  const inPilot = d.schedule.withPilot && c.pilot;
+  const pilotUnits = inPilot ? ((c.pilotUnits ?? 0) > 0 ? Math.min(c.pilotUnits as number, units) : units) : 0;
+  const zero = { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 };
+
+  const snf = s.monitoredByCare.snf;
+  if (k.snfRate != null && snf > 0) {
+    const r = Math.max(0, k.snfRate);
+    const delta = (rate: number) => (Math.min(r, rate) - rate) * mult;
+    // Pilot sites: the pilot's share of the SNF beds (rounded), as if pilot beds were spread evenly over the care types.
+    const pilotBeds = inPilot ? (pilotUnits >= units ? snf : Math.round((snf * pilotUnits) / Math.max(1, units))) : 0;
+    const special = k.specialRate != null && k.specialTermMonths > 0 ? delta(k.specialRate) : null;
+    if (delta(k.platformRate) !== 0 || (pilotBeds > 0 && delta(k.pilotRate) !== 0) || (special ?? 0) !== 0) {
+      out.push({ kind: 'snf', units: snf, pilotBeds, rates: { ...zero, pilotFeePerBedMonth: pilotBeds > 0 ? (delta(k.pilotRate) * pilotBeds) / snf : 0, postPilotFeePerBedMonth: delta(k.platformRate), specialFeePerBedMonth: special } });
+    }
+  }
+
+  const disc = ecallOn ? Math.max(0, Number(k.bundleDiscount?.[k.ecall === 'inovonics' ? 'inovonics' : 'ble']) || 0) : 0;
+  const both = s.monitoredEcall;
+  if (disc > 0 && both > 0) {
+    const off = Math.min(disc, Math.max(0, k.ecallRate));
+    const offPilot = Math.min(disc, Math.max(0, k.ecallPilotRate));
+    if (off > 0 || offPilot > 0) out.push({ kind: 'bundle', units: both, rates: { ...zero, pilotFeePerBedMonth: -offPilot, postPilotFeePerBedMonth: -off } });
+  }
+
+  const ca = Math.max(0, Math.round(Number(c.commonAreaSensors) || 0));
+  if (ca > 0 && c.coverage !== 'full_facility') {
+    const setup = Math.max(0, Number(k.commonArea?.setup) || 0);
+    const monthly = Math.max(0, Number(k.commonArea?.monthly) || 0);
+    out.push({ kind: 'commonArea', units: ca, rates: { ...zero, postPilotFeePerBedMonth: monthly, pilotInstallPerBed: setup * (1 - k.installCreditPct), postPilotInstallPerBed: setup } });
+  }
   return out;
 }
 

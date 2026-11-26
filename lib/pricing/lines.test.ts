@@ -104,6 +104,7 @@ describe('price lines', () => {
       'E-Call (Bluetooth), per room',
       'Installation & implementation',
       'Install credit (100%) — repayable if the pilot does not convert',
+      'Teton One + E-Call (Bluetooth) bundle discount',
       'Additional sensors',
     ]);
     const credit = lines.find((l) => l.concessionCode === 'INSTALL_CREDIT_CLAWBACK')!;

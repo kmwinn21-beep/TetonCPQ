@@ -17,8 +17,8 @@ describe('equipment purchase cash flow', () => {
 
   it('pays the equipment at install, so the cash flow starts negative', () => {
     const live = cf.communities[0].goLiveMonth;
-    expect(c.equipment[live - 1]).toBe(630_300);
-    expect(c.equipment12).toBe(630_300);
+    expect(c.equipment[live - 1]).toBe(626_430);
+    expect(c.equipment12).toBe(626_430);
     expect(c.discountedNet[live - 1]).toBeLessThan(0);
     expect(c.cumulativeDiscountedNet[0]).toBeLessThan(0);
   });

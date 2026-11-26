@@ -15,13 +15,13 @@ const forestHills = (): QuoteDraft => {
 describe('Forest Hills Commons deck', () => {
   it('matches the equipment purchase price', () => {
     const c = computeCapex(forestHills());
-    expect(c.basePackages).toBe(593_400); // 129 × $4,600
+    expect(c.basePackages).toBe(589_530); // 129 × $4,570
     expect(c.sensorCost).toBe(36_900); // 82 × $450
-    expect(c.equipment).toBe(630_300);
+    expect(c.equipment).toBe(626_430);
     expect(c.softwareMonthly * 12).toBe(15_480);
     expect(c.software).toBe(61_920);
-    expect(c.ownershipTotal).toBe(692_220);
-    expect(Math.round(c.equipment / c.beds)).toBe(4_886); // per room upfront
+    expect(c.ownershipTotal).toBe(688_350);
+    expect(Math.round(c.equipment / c.beds)).toBe(4_856); // per room upfront
   });
 
   it('prices the concealed finish as a range after the standard credit', () => {
@@ -32,7 +32,7 @@ describe('Forest Hills Commons deck', () => {
     expect([f.netLow, f.netHigh]).toEqual([300, 600]);
     expect([f.totalLow, f.totalHigh]).toEqual([38_700, 77_400]);
     // Not part of the equipment price.
-    expect(computeCapex(d).equipment).toBe(630_300);
+    expect(computeCapex(d).equipment).toBe(626_430);
   });
 
   it('gives older drafts the standard finish', () => {

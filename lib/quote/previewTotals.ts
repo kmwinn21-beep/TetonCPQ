@@ -18,7 +18,7 @@ const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 export interface PreviewTotals {
   /** pendants: E-Call pendants / pull-cords (rooms, common areas and contingency); 0 without E-Call. */
   scope: { edgeUnits: number; sensors: number; additionalSensors: number; pendants: number };
-  capex: null | { basePackages: number; ecallUnits: number; sensors: number; equipment: number; softwareMonthly: number; renewals: number; ownership: number; years: number };
+  capex: null | { basePackages: number; ecallUnits: number; sensors: number; equipment: number; softwareMonthly: number; softwareUpfront: number; renewals: number; ownership: number; years: number };
   opex: null | { install: number; sensors: number; monthly: number; year1: number };
   pilot: null | { install: number; sensors: number; fees: number; total: number; months: number };
   finish: null | { low: number; high: number };
@@ -42,6 +42,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
       sensors: grossSensorRow(c)?.total ?? 0,
       equipment: c.equipment,
       softwareMonthly: c.softwareMonthly,
+      softwareUpfront: c.softwareUpfront,
       renewals: c.renewals,
       ownership: c.ownershipTotal,
       years: c.ownershipMonths / 12,

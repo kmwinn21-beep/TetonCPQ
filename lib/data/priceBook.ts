@@ -47,7 +47,12 @@ export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
     SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at,
            (SELECT name FROM users u WHERE u.id = p.updated_by) AS updated_by_name
     FROM products p WHERE p.active = 1 ORDER BY p.rowid`);
-  return rs.rows.map((r) => ({
+  // In price book order (products added later are stored after the rest).
+  const at = (sku: string) => {
+    const i = SEED_PRODUCTS.findIndex((p) => p.sku === sku);
+    return i < 0 ? SEED_PRODUCTS.length : i;
+  };
+  return [...rs.rows].sort((a, b) => at(String(a.sku)) - at(String(b.sku))).map((r) => ({
     sku: String(r.sku),
     name: String(r.name),
     pricingModel: String(r.pricing_model) as PricingModel,
@@ -79,4 +84,28 @@ export async function setListPrice(db: Client, sku: string, list: unknown, userI
   const row = (await listPriceBookRows(db)).find((r) => r.sku === sku);
   if (!row) throw new Error('Product not found');
   return row;
+}
+
+/** Price book settings that aren't prices. */
+export interface PriceBookSettings {
+  /** How new equipment-purchase deals bill software & services (a deal can change it). */
+  softwareBilling: 'monthly' | 'upfront';
+}
+
+export async function getPriceBookSettings(db: Client): Promise<PriceBookSettings> {
+  try {
+    const r = await db.execute({ sql: 'SELECT value FROM price_book_settings WHERE key = ?', args: ['capex.softwareBilling'] });
+    return { softwareBilling: r.rows[0]?.value === 'upfront' ? 'upfront' : 'monthly' };
+  } catch {
+    return { softwareBilling: 'monthly' };
+  }
+}
+
+export async function setSoftwareBillingDefault(db: Client, value: unknown, userId: number | null): Promise<PriceBookSettings> {
+  if (value !== 'monthly' && value !== 'upfront') throw new Error('Choose monthly or upfront');
+  await db.execute({
+    sql: "INSERT INTO price_book_settings (key, value, updated_by, updated_at) VALUES ('capex.softwareBilling', ?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at",
+    args: [value, userId],
+  });
+  return getPriceBookSettings(db);
 }

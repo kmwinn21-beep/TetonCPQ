@@ -700,4 +700,23 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_card_images_user ON card_images(user_id)`,
     ],
   },
+  {
+    id: 28,
+    name: 'price book overhaul (official sheet)',
+    sql: [
+      // Prices from the official Teton pricing sheet, where nobody has changed them since (new products are seeded on deploy).
+      `UPDATE products SET list_price = 4570, updated_at = datetime('now') WHERE sku = 'CAPEX-BASE' AND list_price = 4600`,
+      `UPDATE products SET list_price = 240, updated_at = datetime('now') WHERE sku = 'CAPEX-ECALL-INSTALL-BLE' AND list_price = 165`,
+      `UPDATE products SET description = 'Older deals only: common areas priced as a markup on rooms-only. New deals price common-area sensors each.' WHERE sku = 'COVERAGE-FULL-FACILITY'`,
+      `UPDATE products SET description = 'Ambient monitoring platform, support and analytics, per bed per month (Teton One).' WHERE sku = 'TETON-PLATFORM'`,
+      // Price book settings that aren't prices: how equipment purchases bill software & services by default.
+      `CREATE TABLE price_book_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_by INTEGER REFERENCES users(id)
+      )`,
+      `INSERT INTO price_book_settings (key, value) VALUES ('capex.softwareBilling', 'monthly')`,
+    ],
+  },
 ];

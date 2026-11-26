@@ -13,14 +13,14 @@ const forestHills = (ecall: QuoteDraft['commercial']['ecall'] = 'none'): QuoteDr
 describe('equipment purchase (CapEx)', () => {
   it('reproduces the Forest Hills Commons example from the pricing deck', () => {
     const c = computeCapex(forestHills());
-    expect(c.basePackages).toBe(547_400); // 119 × $4,600
+    expect(c.basePackages).toBe(543_830); // 119 × $4,570 (the official sheet: edge unit $4,120 + sensor $200 + install $250)
     expect(c.sensorCost).toBe(22_500); // 50 × $450
-    expect(c.equipment).toBe(569_900);
+    expect(c.equipment).toBe(566_330);
     expect(c.softwareMonthly).toBe(1_190); // 119 × $10
     expect(c.software).toBe(57_120); // four years
-    expect(c.ownershipTotal).toBe(627_020);
+    expect(c.ownershipTotal).toBe(623_450);
     expect(Math.round(c.equipmentShare * 100)).toBe(91);
-    expect(c.trace.value).toBe(569_900);
+    expect(c.trace.value).toBe(566_330);
   });
 
   it('uses the complete-solution price for beds with E-Call, and counts renewals inside four years', () => {
@@ -36,14 +36,14 @@ describe('equipment purchase (CapEx)', () => {
   it('prices communities without E-Call at the base package', () => {
     const d = forestHills('ble');
     d.communities[0].products = allProducts({ monitoring: true, ecall: false });
-    expect(computeCapex(d).basePackages).toBe(547_400);
+    expect(computeCapex(d).basePackages).toBe(543_830);
   });
 
   it('gives older drafts the list prices and drops the old discount rate', () => {
     const d = forestHills() as QuoteDraft & { commercial: Record<string, unknown> };
     const old = { ...d, commercial: { ...d.commercial, capexDiscountRate: 0.04, capex: undefined } } as unknown as QuoteDraft;
     const n = normalizeDraft(old);
-    expect(n.commercial.capex.basePrice).toBe(4_600);
+    expect(n.commercial.capex.basePrice).toBe(4_570);
     expect('capexDiscountRate' in n.commercial).toBe(false);
   });
 });

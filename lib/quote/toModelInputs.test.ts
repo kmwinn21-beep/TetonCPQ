@@ -62,9 +62,9 @@ describe('toModelInputs', () => {
     d.customizeCaseMetrics = false;
     expect(toModelInputs(d).caseMetrics.stretch.staffingAlignment).toBeCloseTo(0.1, 12);
   });
-  it('runs end to end: $75 pilot (e-call free) for 3 months, then $109 ($99 + $10 e-call)', () => {
+  it('runs end to end: $75 pilot (e-call free) for 3 months, then $105 (the Teton One + E-Call bundle: $99 + $10 − $4)', () => {
     const r = runModel(toModelInputs(draft()));
-    expect(r.cashFlow.communities[0].fees.slice(0, 4)).toEqual([7500, 7500, 7500, 10900]);
+    expect(r.cashFlow.communities[0].fees.slice(0, 4)).toEqual([7500, 7500, 7500, 10500]);
     expect(r.cashFlow.communities[2].fees[3]).toBe(4950);
     expect(r.cashFlow.months).toHaveLength(36);
   });

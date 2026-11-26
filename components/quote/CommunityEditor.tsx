@@ -16,7 +16,7 @@ import { monthLabel } from '@/lib/quote/toModelInputs';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 
 type CommunityCashFlow = ModelResult['cashFlow']['communities'][number];
-import { count } from '@/lib/format';
+import { count, usd } from '@/lib/format';
 import { NumInput } from '@/components/form/NumInput';
 import { RoomTypesEditor } from './RoomTypesEditor';
 
@@ -100,6 +100,7 @@ export function CommunityEditor({
   const row = useWatch({ control, name: `communities.${i}` });
   const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
   const withPilot = !!useWatch({ control, name: 'schedule.withPilot' });
+  const commercial = useWatch({ control, name: 'commercial' });
   if (!row) return null;
   // Room types, when present, set the beds and extra sensors.
   const fromRooms = Array.isArray(row.roomTypes) && row.roomTypes.length > 0;
@@ -269,24 +270,25 @@ export function CommunityEditor({
         {!row.goLiveMonth && <p className="hint">Blank = month 1, or right after the pilot for non-pilot sites.</p>}
       </Group>
 
-      <Group title="Coverage">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <SegGroup label={`Community ${position} coverage`} thumbClass="bg-teton-near-black" className="inline-flex rounded-lg border border-teton-pale-gray p-0.5">
-            {(
-              [
-                ['rooms_only', 'Rooms only'],
-                ['full_facility', 'Full facility'],
-              ] as const
-            ).map(([v, label]) => (
-              <label key={v} className="cursor-pointer">
-                <input type="radio" value={v} className="peer sr-only" {...register(`communities.${i}.coverage`)} />
-                <span className="block px-3 py-1.5 rounded-md text-xs text-teton-dark-gray transition-colors duration-200 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-brand-accent">
-                  {label}
-                </span>
-              </label>
-            ))}
-          </SegGroup>
-        </div>
+      <Group title="Common-area monitoring" note="sensors outside resident rooms">
+        {row.coverage === 'full_facility' ? (
+          <div className="rounded-lg bg-[#FFF6E5] border border-[#F5D9A8] px-3 py-2 text-xs text-[#7A4B00] space-y-1.5">
+            <p>Priced with the full-facility multiplier ({commercial?.fullFacilityMultiplier ?? 1.3}×), as this deal was built. New pricing is per common-area sensor.</p>
+            <button type="button" className="font-semibold underline" onClick={() => setValue(`communities.${i}.coverage`, 'rooms_only', { shouldDirty: true })}>
+              Switch to per-sensor pricing
+            </button>
+          </div>
+        ) : (
+          <div className="w-40">
+            <label className="eyebrow" htmlFor={id('casensors')}>Common-area sensors</label>
+            <Controller
+              control={control}
+              name={`communities.${i}.commonAreaSensors`}
+              render={({ field }) => <NumInput id={id('casensors')} value={field.value ?? 0} onChange={(v) => field.onChange(v ?? 0)} min={0} aria-label={`Community ${position} common-area sensors`} />}
+            />
+            <p className="hint mt-1">{usd(commercial?.commonArea?.setup ?? 200)} setup + {usd(commercial?.commonArea?.monthly ?? 50)}/mo each</p>
+          </div>
+        )}
       </Group>
 
       {isPilot && (

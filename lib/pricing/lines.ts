@@ -7,6 +7,7 @@ import { communitySchedule } from '@/lib/model/cashflow';
 import { annualForCase } from '@/lib/model/annual';
 import type { ModelInputs } from '@/lib/model';
 import { extraDevicePrice, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
+import { pricingAdjustments } from '@/lib/quote/toModelInputs';
 import { ecallBilled, pendantScope } from '@/lib/quote/roomTypes';
 import { POLICY, SKU, type PriceBook } from './catalog';
 
@@ -25,6 +26,8 @@ export interface PriceLine {
   termMonths: number | null;
   concessionCode: string | null;
 }
+
+const money = (n: number) => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 export const lineTotal = (l: PriceLine) => l.qty * l.unitNet * (l.billing === 'monthly' ? (l.termMonths ?? 0) : 1);
 
@@ -89,6 +92,36 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
       lines.push({ ...base, sku: devSku, description: `Additional E-Call devices (${what})`, qty: billed.extra, unitList: book[devSku]?.list ?? each, unitNet: each, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: null });
       if (s.inPilot && k.installCreditPct > 0 && each > 0) {
         lines.push({ ...base, sku: devSku, description: `Device credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: billed.extra, unitList: 0, unitNet: -each * k.installCreditPct, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: k.installClawback ? 'DEVICE_CREDIT_CLAWBACK' : 'DEVICE_CREDIT' });
+      }
+    }
+    // Adjustments (the same figures the model bills): skilled nursing rate, bundle discount, common-area sensors.
+    for (const a of pricingAdjustments(draft, dc)) {
+      const r = a.rates;
+      if (a.kind === 'snf') {
+        const snfList = book[SKU.snf]?.list ?? 49;
+        const what = (rate: number) => `Skilled nursing beds at ${money(Math.min(k.snfRate ?? rate, rate))} / bed`;
+        if (s.inPilot && (a.pilotBeds ?? 0) > 0 && r.pilotFeePerBedMonth !== 0) {
+          lines.push({ ...base, sku: SKU.snf, description: `${what(k.pilotRate)} during the pilot (adjustment)`, qty: a.pilotBeds as number, unitList: 0, unitNet: (r.pilotFeePerBedMonth * a.units) / (a.pilotBeds as number), billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: null });
+        }
+        if (special > 0) {
+          const sp = r.specialFeePerBedMonth ?? r.postPilotFeePerBedMonth;
+          if (sp !== 0) lines.push({ ...base, sku: SKU.snf, description: `${what(k.specialRate ?? k.platformRate)} at the introductory rate (adjustment)`, qty: a.units, unitList: 0, unitNet: sp, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: special, concessionCode: null });
+        }
+        if (r.postPilotFeePerBedMonth !== 0) {
+          lines.push({ ...base, sku: SKU.snf, description: `${what(k.platformRate)} (adjustment)`, qty: a.units, unitList: snfList - listPlatform, unitNet: r.postPilotFeePerBedMonth, billing: 'monthly', startMonth: s.firstPostPilotMonth + special, termMonths: serviceTermMonths - special, concessionCode: null });
+        }
+      } else if (a.kind === 'bundle') {
+        const name = `Teton One + E-Call (${k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth'}) bundle discount`;
+        const bsku = k.ecall === 'inovonics' ? SKU.bundleInovonics : SKU.bundleBle;
+        if (s.inPilot && r.pilotFeePerBedMonth !== 0) lines.push({ ...base, sku: bsku, description: `${name} during the pilot`, qty: a.units, unitList: 0, unitNet: r.pilotFeePerBedMonth, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: null });
+        if (r.postPilotFeePerBedMonth !== 0) lines.push({ ...base, sku: bsku, description: name, qty: a.units, unitList: 0, unitNet: r.postPilotFeePerBedMonth, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: null });
+      } else {
+        const setup = r.postPilotInstallPerBed;
+        lines.push({ ...base, sku: SKU.commonAreaMonthly, description: 'Common-area sensors', qty: a.units, unitList: book[SKU.commonAreaMonthly]?.list ?? 50, unitNet: r.postPilotFeePerBedMonth, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: null });
+        lines.push({ ...base, sku: SKU.commonAreaSetup, description: 'Common-area sensor setup', qty: a.units, unitList: book[SKU.commonAreaSetup]?.list ?? 200, unitNet: setup, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: null });
+        if (s.inPilot && k.installCreditPct > 0 && setup > 0) {
+          lines.push({ ...base, sku: SKU.commonAreaSetup, description: `Common-area setup credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: a.units, unitList: 0, unitNet: -setup * k.installCreditPct, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: k.installClawback ? 'INSTALL_CREDIT_CLAWBACK' : 'INSTALL_CREDIT' });
+        }
       }
     }
     if (c.additionalSensors > 0) {

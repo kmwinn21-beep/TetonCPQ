@@ -3,7 +3,7 @@
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { ROI_CASES, STANDARD_CASE_METRICS, uniformCaseMetrics, type CaseMetrics, type ModelInputs, type ModelResult, type RoiCase } from '@/lib/model';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
-import { extraDevicePrice, pricedBedsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { extraDevicePrice, pricedBedsOf, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { communityRates } from '@/lib/quote/toModelInputs';
 import { count, dateLabel, pct, usd } from '@/lib/format';
 import { DerivedField, Grid, MoneyField, NumberField, PercentField, ResetDefaults, Section, SegmentedField, ToggleField } from '@/components/form/fields';
@@ -222,6 +222,11 @@ export function PricingSection({ book }: SectionProps) {
   const perRoom = k.ecallBilling !== 'device';
   const unitWord = perRoom ? 'room' : 'device';
   const extraDevice = extraDevicePrice(k);
+  const anySnf = (d.communities ?? []).some((c) => (Number(c.snfBeds) || 0) > 0) || k.snfRate != null;
+  const anyMonitored = (d.communities ?? []).some((c) => scopeOf(c, ecallOn).monitored > 0 || scopeOf(c, ecallOn).priced === 0);
+  const bundleKey = k.ecall === 'inovonics' ? 'inovonics' : 'ble';
+  const bundleList = book[k.ecall === 'inovonics' ? SKU.bundleInovonics : SKU.bundleBle]?.list;
+  const upfrontSw = k.capex?.softwareBilling === 'upfront';
 
   return (
     <Section
@@ -345,7 +350,21 @@ export function PricingSection({ book }: SectionProps) {
               />
             )}
             {ecallOn && <MoneyField name="commercial.ecallInstallRate" label="E-Call installation per bed" hint="One-time, on beds with E-Call only" min={0} nullable placeholder="0" />}
-            <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Common areas & hallways; usually 1.2–1.4×" min={1} />
+            {anySnf && <MoneyField name="commercial.snfRate" label="Skilled nursing per bed / month" suffix="/bed" hint={`List $${book[SKU.snf]?.list ?? 49} · SNF beds (never above the rate)`} min={0} nullable placeholder={String(k.platformRate)} />}
+            {ecallOn && anyMonitored && (
+              <MoneyField
+                name={`commercial.bundleDiscount.${bundleKey}`}
+                label="Bundle discount per bed / month"
+                suffix="/bed"
+                hint={`Teton One + E-Call${bundleList != null ? ` list $${bundleList}` : ''} · beds with both`}
+                min={0}
+                nullable
+                placeholder="0"
+              />
+            )}
+            <MoneyField name="commercial.commonArea.setup" label="Common-area sensor setup" hint="Each, one-time" min={0} />
+            <MoneyField name="commercial.commonArea.monthly" label="Common-area sensor / month" suffix="/sensor" hint="Each, after the pilot" min={0} />
+            {usesFull && <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Older deal: communities still on full facility" min={1} />}
           </PriceGroup>
         )}
 
@@ -355,7 +374,19 @@ export function PricingSection({ book }: SectionProps) {
             {k.ecall === 'ble' && <MoneyField name="commercial.capex.bleBasePrice" label="With E-Call per bed" hint="Replaces the base price" min={0} />}
             {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsBasePrice" label="With Inovonics E-Call per bed" hint="Replaces the base price" min={0} />}
             <MoneyField name="commercial.capex.sensorPrice" label="Additional sensor" hint="One-time" min={0} />
-            <MoneyField name="commercial.capex.softwareRate" label="Software & services" suffix="/bed/mo" min={0} />
+            <SegmentedField
+              name="commercial.capex.softwareBilling"
+              label="Software & services billed"
+              options={[
+                { value: 'monthly', label: 'Monthly' },
+                { value: 'upfront', label: 'Upfront' },
+              ]}
+            />
+            {upfrontSw ? (
+              <MoneyField name="commercial.capex.softwareUpfront" label="Software & services, upfront" suffix="/bed" hint="One-time, covers 4 years" min={0} />
+            ) : (
+              <MoneyField name="commercial.capex.softwareRate" label="Software & services" suffix="/bed/mo" min={0} />
+            )}
             {ecallOn && (
               <MoneyField
                 name={k.ecall === 'inovonics' ? 'commercial.capex.ecallInstallInovonics' : 'commercial.capex.ecallInstallBle'}
@@ -364,7 +395,12 @@ export function PricingSection({ book }: SectionProps) {
                 min={0}
               />
             )}
-            {ecallOn && <MoneyField name="commercial.capex.ecallSoftware" label="E-Call software" suffix="/bed/mo" hint="Beds with E-Call only" min={0} />}
+            {ecallOn &&
+              (upfrontSw ? (
+                <MoneyField name="commercial.capex.ecallSoftwareUpfront" label="E-Call software, upfront" suffix="/bed" hint="Beds with E-Call only · 4 years" min={0} />
+              ) : (
+                <MoneyField name="commercial.capex.ecallSoftware" label="E-Call software" suffix="/bed/mo" hint="Beds with E-Call only" min={0} />
+              ))}
             {k.ecall === 'ble' && <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" min={0} />}
             {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" min={0} />}
             {pilot && <MoneyField name="commercial.capex.conversionCredit" label="Conversion credit" hint="Off each base package & sensor at pilot sites" min={0} nullable placeholder="0" />}

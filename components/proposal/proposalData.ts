@@ -36,7 +36,7 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   const perUnit = year1Figures(draft, outputs);
   const capexAnnualCost = capex.ownershipMonths > 0 ? capex.ownershipTotal / (capex.ownershipMonths / 12) : 0;
   const year1 = capexCf
-    ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, runRate: sel.annualRoi - capexAnnualCost, stabilizedReturn: capexAnnualCost > 0 ? sel.annualRoi / capexAnnualCost : 0, discountedNet: capexCf.discountedNet }
+    ? { investment: capexCf.investment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, runRate: sel.annualRoi - capexAnnualCost, stabilizedReturn: capexAnnualCost > 0 ? sel.annualRoi / capexAnnualCost : 0, discountedNet: capexCf.discountedNet }
     : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, runRate: kp.runRateAnnualNetBenefit, stabilizedReturn: sel.returnOnCost, discountedNet: cf.discountedNet };
   // Priced beds (beds with no product are left out; E-Call-only beds count).
   const ecallOn = draft.commercial.ecall !== 'none';

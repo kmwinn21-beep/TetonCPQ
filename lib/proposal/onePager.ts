@@ -155,8 +155,15 @@ export function purchaseTable(draft: QuoteDraft, sys: OpSys | null): OpTable {
       pkg('baseec', 'Base package + E-Call, per bed', parts.filter((p) => p.monitoring && p.ecall !== 'none')),
       pkg('ecunit', 'E-Call infrastructure and installation, per bed', parts.filter((p) => !p.monitoring)),
       { key: 'sensors', label: 'Additional sensors', qty: sensors, min: sensorPrice, max: sensorPrice, total: sensors * sensorPrice, kind: 'once' },
-      { key: 'software', label: 'Plus software & services, per bed', qty: monBeds, min: c.pricing.softwareRate, max: c.pricing.softwareRate, total: monBeds * c.pricing.softwareRate, kind: 'monthly' },
-      { key: 'ecsoftware', label: 'Plus E-Call software, per bed', qty: ecOnly, min: ecSw, max: ecSw, total: ecOnly * ecSw, kind: 'monthly' },
+      ...(c.pricing.softwareBilling === 'upfront'
+        ? [
+            { key: 'software', label: 'Software & services, upfront, per bed', qty: monBeds, min: c.pricing.softwareUpfront ?? 480, max: c.pricing.softwareUpfront ?? 480, total: monBeds * (c.pricing.softwareUpfront ?? 480), kind: 'once' as const },
+            { key: 'ecsoftware', label: 'E-Call software, upfront, per bed', qty: ecOnly, min: c.pricing.ecallSoftwareUpfront ?? 240, max: c.pricing.ecallSoftwareUpfront ?? 240, total: ecOnly * (c.pricing.ecallSoftwareUpfront ?? 240), kind: 'once' as const },
+          ]
+        : [
+            { key: 'software', label: 'Plus software & services, per bed', qty: monBeds, min: c.pricing.softwareRate, max: c.pricing.softwareRate, total: monBeds * c.pricing.softwareRate, kind: 'monthly' as const },
+            { key: 'ecsoftware', label: 'Plus E-Call software, per bed', qty: ecOnly, min: ecSw, max: ecSw, total: ecOnly * ecSw, kind: 'monthly' as const },
+          ]),
     ],
     true,
   );

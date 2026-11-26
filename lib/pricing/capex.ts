@@ -42,6 +42,11 @@ export interface CapexPricing {
   ecallInstallInovonics?: number;
   ecallDevice?: number;
   ecallSoftware?: number;
+  /** How software & services are billed: monthly (the rates above), or once upfront (the upfront prices). Missing: monthly. */
+  softwareBilling?: 'monthly' | 'upfront';
+  /** Upfront software & services per monitored bed, and per E-Call-only bed (one-time). */
+  softwareUpfront?: number;
+  ecallSoftwareUpfront?: number;
 }
 
 const seed = (sku: string, fallback: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fallback;
@@ -50,17 +55,19 @@ const seed = (sku: string, fallback: number) => SEED_PRODUCTS.find((p) => p.sku 
 export function capexPricingFrom(list: (sku: string) => number | undefined): CapexPricing {
   const get = (sku: string, fb: number) => list(sku) ?? seed(sku, fb);
   return {
-    basePrice: get(SKU.capexBase, 4600),
+    basePrice: get(SKU.capexBase, 4570),
     bleBasePrice: get(SKU.capexBaseBle, 5300),
     inovonicsBasePrice: get(SKU.capexBaseInovonics, 5450),
     sensorPrice: get(SKU.capexSensor, 450),
     softwareRate: get(SKU.capexSoftware, 10),
     bleRenewal: get(SKU.capexBleRenewal, 480),
     inovonicsRenewal: get(SKU.capexInovonicsRenewal, 400),
-    ecallInstallBle: get(SKU.capexEcallInstallBle, 165),
+    ecallInstallBle: get(SKU.capexEcallInstallBle, 240),
     ecallInstallInovonics: get(SKU.capexEcallInstallInovonics, 480),
     ecallDevice: get(SKU.capexEcallDevice, 150),
     ecallSoftware: get(SKU.capexEcallSoftware, 5),
+    softwareUpfront: get(SKU.capexSoftwareUpfront, 480),
+    ecallSoftwareUpfront: get(SKU.capexEcallSoftwareUpfront, 240),
   };
 }
 export const DEFAULT_CAPEX_PRICING: CapexPricing = { ...capexPricingFrom(() => undefined), ecallOnlyPrice: 480 };
@@ -84,6 +91,8 @@ export interface CapexCommunity {
   sensorCost: number;
   equipment: number;
   softwareMonthly: number;
+  /** Software & services paid once at install (deals that bill software upfront; else 0). */
+  softwareUpfront?: number;
   renewals: number;
   /** The community's beds by what they buy (where products differ by care type there is more than one). */
   parts?: CapexPart[];
@@ -119,7 +128,11 @@ export interface CapexResult {
   /** One-time equipment cost, paid at install. */
   equipment: number;
   softwareMonthly: number;
-  /** Software over the ownership period. */
+  /** Software & services paid once at install (deals that bill software upfront; else 0). */
+  softwareUpfront: number;
+  /** How software & services are billed on this deal. */
+  softwareBilling: 'monthly' | 'upfront';
+  /** Software over the ownership period (monthly × months, or the upfront total). */
   software: number;
   /** E-Call renewals that fall inside the ownership period. */
   renewals: number;
@@ -139,6 +152,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const pricing: CapexPricing = { ...DEFAULT_CAPEX_PRICING, ...(draft.commercial.capex ?? {}) };
   const option = draft.commercial.ecall;
   const conversion = Math.max(0, Number(pricing.conversionCredit) || 0);
+  const upfront = pricing.softwareBilling === 'upfront';
   const renewalPer = (ecall: EcallOption) =>
     ecall === 'ble'
       ? pricing.bleRenewal * renewalsWithin(ownershipMonths, POLICY.capexBleRenewalYears)
@@ -186,8 +200,10 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       credit: monitored ? credit : 0,
       sensorCost: sensors * sensorPrice,
       equipment: basePackages + sensors * sensorPrice,
-      // Software: monitored beds at the software rate; E-Call-only beds at the E-Call software rate.
-      softwareMonthly: sc.monitored * pricing.softwareRate + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftware ?? 5)),
+      // Software: monitored beds at the software rate; E-Call-only beds at the E-Call software rate. Billed monthly,
+      // or (deals that bill software upfront) once at install at the upfront prices.
+      softwareMonthly: upfront ? 0 : sc.monitored * pricing.softwareRate + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftware ?? 5)),
+      softwareUpfront: upfront ? sc.monitored * Math.max(0, Number(pricing.softwareUpfront ?? 480)) + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftwareUpfront ?? 240)) : 0,
       renewals: parts.reduce((s, p) => s + p.renewals, 0),
       ...(monitored ? {} : { monitoring: false }),
       parts,
@@ -196,7 +212,8 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const sum = (k: 'beds' | 'sensors' | 'basePackages' | 'sensorCost' | 'equipment' | 'softwareMonthly' | 'renewals') => communities.reduce((s, c) => s + c[k], 0);
   const equipment = sum('equipment');
   const softwareMonthly = sum('softwareMonthly');
-  const software = softwareMonthly * ownershipMonths;
+  const softwareUpfront = communities.reduce((s, c) => s + (c.softwareUpfront ?? 0), 0);
+  const software = upfront ? softwareUpfront : softwareMonthly * ownershipMonths;
   const renewals = sum('renewals');
   const ownershipTotal = equipment + software + renewals;
 
@@ -229,6 +246,8 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
     sensorCost: sum('sensorCost'),
     equipment,
     softwareMonthly,
+    softwareUpfront,
+    softwareBilling: upfront ? 'upfront' : 'monthly',
     software,
     renewals,
     ownershipTotal,

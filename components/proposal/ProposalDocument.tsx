@@ -279,15 +279,25 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                 <td className="py-1.5"><T k="capex.price" d="One-time equipment cost, paid at install" /></td>
                 <td className="py-1.5 text-right"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
               </tr>
-              <tr className="border-b border-teton-off-white">
-                <td className="py-1">
-                  <T k="capex.software" d="Software and services, billed monthly" />
-                  <span className="block text-[11px] text-teton-dark-gray">
-                    {count(capex.beds)} beds × {usd(capex.pricing.softwareRate)} per month
-                  </span>
-                </td>
-                <td className="py-1 text-right"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
-              </tr>
+              {capex.softwareBilling === 'upfront' ? (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k="capex.softwareUpfront" d="Software and services, paid upfront" />
+                    <span className="block text-[11px] text-teton-dark-gray">Covers the {capex.ownershipMonths / 12}-year ownership period, paid at install</span>
+                  </td>
+                  <td className="py-1 text-right"><V k="capex.softwareUpfront.value" label="Software and services, upfront">{usd(capex.softwareUpfront ?? 0)}</V></td>
+                </tr>
+              ) : (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k="capex.software" d="Software and services, billed monthly" />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(capex.beds)} beds × {usd(capex.pricing.softwareRate)} per month
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
+                </tr>
+              )}
               {capex.renewals > 0 && (
                 <tr className="border-b border-teton-off-white">
                   <td className="py-1"><T k="capex.renewals" d="E-Call renewals within {years} years" v={{ years: String(capex.ownershipMonths / 12) }} /></td>

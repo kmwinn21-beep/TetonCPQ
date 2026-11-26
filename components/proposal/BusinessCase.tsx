@@ -1167,7 +1167,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const horizon = net.length;
   // Year 1 figures on the business case, from whichever pricing it shows. Figure keys differ so their inputs drawers stay right.
   const y1 = capexCf
-    ? { investment: capexCf.equipment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, horizon, key: (k: string) => `bc.capex.${k}` }
+    ? { investment: capexCf.investment12, net: capexCf.net12, gross: capexCf.grossReturn12, payback: capexCf.discountedPaybackMonth, horizon, key: (k: string) => `bc.capex.${k}` }
     : { investment: kp.totalInvestment12, net: kp.netBenefit12, gross: kp.grossReturnPerDollar12, payback: kp.discountedPaybackMonth, horizon: kp.horizonMonths, key: (k: string) => `card.${k}` };
   const pilotLen = anyPilot ? inputs.schedule.pilotLengthMonths : 0;
 
@@ -2485,7 +2485,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       return [
                         card('base', 'Base package', base.length ? perUnitText(baseRange, (n) => usd(n)) : usd(capex.pricing.basePrice), 'per room · one-time', 'Edge unit and first sensor, installed in each resident room'),
                         card('sensors', 'Additional sensors', sensor ? perUnitText(sensor, (n) => usd(n)) : usd(capex.pricing.sensorPrice), 'per sensor · one-time', 'For rooms that need more than one sensor (bedrooms, living areas)'),
-                        card('software', 'Software & services', usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }), 'per room · per month', 'Platform, staff app, updates and support'),
+                        capex.softwareBilling === 'upfront'
+                          ? card('software', 'Software & services', usd(capex.pricing.softwareUpfront ?? 480), `per room · one-time, ${capex.ownershipMonths / 12} years`, 'Platform, staff app, updates and support, paid upfront')
+                          : card('software', 'Software & services', usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) }), 'per room · per month', 'Platform, staff app, updates and support'),
                       ];
                     })()}
                   </div>
@@ -2553,10 +2555,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <td className="bc-hl bc-big"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
                   </tr>
                   <tr>
-                    <td className="bc-m"><T k="bc.capex.software" d={'Software & services'} /><small><T k="bc.inv.billedMonthly" d="Billed monthly" /></small></td>
-                    <td>{usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) })} per room, per month</td>
+                    <td className="bc-m"><T k="bc.capex.software" d={'Software & services'} /><small>{capex.softwareBilling === 'upfront' ? <T k="bc.inv.paidUpfront" d="Paid upfront" /> : <T k="bc.inv.billedMonthly" d="Billed monthly" />}</small></td>
+                    <td>{capex.softwareBilling === 'upfront' ? `${usd(capex.pricing.softwareUpfront ?? 480)} per room, one-time` : `${usd(capex.pricing.softwareRate, { cents: !Number.isInteger(capex.pricing.softwareRate) })} per room, per month`}</td>
                     <td>{count(capex.ownershipMonths)} Months</td>
-                    <td className="bc-hl bc-big"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
+                    <td className="bc-hl bc-big">{capex.softwareBilling === 'upfront' ? <V k="capex.softwareUpfront.value" label="Software and services, upfront">{usd(capex.softwareUpfront ?? 0)}</V> : <V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V>}</td>
                   </tr>
                   {capex.renewals > 0 && (
                     <tr>
@@ -2607,8 +2609,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             </B>
             <B id="communities" label="Communities" onAdd={addCommunity?.(false)} addLabel="Add a community">
               {communityTable(
-                (i) => ({ main: usd(capex.communities[i]?.equipment ?? 0), sub: `(${usd(capex.communities[i]?.softwareMonthly ?? 0)} / mo)` }),
-                { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` },
+                (i) => ({ main: usd(capex.communities[i]?.equipment ?? 0), sub: capex.softwareBilling === 'upfront' ? `(+ ${usd(capex.communities[i]?.softwareUpfront ?? 0)} software)` : `(${usd(capex.communities[i]?.softwareMonthly ?? 0)} / mo)` }),
+                { main: usd(capex.equipment), sub: capex.softwareBilling === 'upfront' ? `(+ ${usd(capex.softwareUpfront ?? 0)} software)` : `(${usd(capex.softwareMonthly)} / mo)` },
               )}
             </B>
             {ecDashBlock()}
@@ -3018,7 +3020,11 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <td className="bc-m"><T k="bc.y1.investment" d="Total investment" /></td>
                 <td>
                   {capexCf ? (
-                    <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                    capex.softwareBilling === 'upfront' ? (
+                      <T k="bc.y1.investment.note.capexUpfront" d="The one-time equipment purchase and software & services ({software}, paid upfront), paid at install." v={{ software: usd(capex.softwareUpfront ?? 0) }} />
+                    ) : (
+                      <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                    )
                   ) : (
                     <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
                   )}
@@ -3634,9 +3640,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       months: opNet.length,
     };
     const cx = {
-      upfront: capex.equipment,
+      // Software billed upfront is paid with the equipment.
+      upfront: capex.equipment + (capex.softwareUpfront ?? 0),
       monthly: capex.softwareMonthly,
-      y1: capexCf?.equipment12 ?? capex.equipment,
+      y1: capexCf?.investment12 ?? capex.equipment,
       annualCost: tetonAnnual,
       netAnnual: stabilizedNet,
       ret: stabilizedReturn,
@@ -3697,7 +3704,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <thead>{head}</thead>
                 <RTbody id="cmp" name="Two ways to pay">
                   {sec('pay', 'What you pay')}
-                  {row('upfront', 'Upfront', 'Installation and sensors (OpEx), or the equipment itself (CapEx), net of pilot credits', usd(op.upfront), usd(cx.upfront))}
+                  {row('upfront', 'Upfront', capex.softwareBilling === 'upfront' ? 'Installation and sensors (OpEx), or the equipment and software & services (CapEx), net of pilot credits' : 'Installation and sensors (OpEx), or the equipment itself (CapEx), net of pilot credits', usd(op.upfront), usd(cx.upfront))}
                   {row('monthly', 'Monthly', `Subscription (OpEx) or software & services (CapEx), all ${count(units)} beds`, <>{usd(op.monthly)}{mo}</>, <>{usd(cx.monthly)}{mo}</>)}
                   {row('perBed', 'Per bed, per month', `Everything over ${numberWord(years)} years ÷ beds ÷ ${capex.ownershipMonths} months`, usd(Math.round(perBed(opFour))), usd(Math.round(perBed(cxFour))))}
                   {sec('time', 'Over time')}
@@ -3902,6 +3909,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       if (capexShown) {
         const eq = capex.communities[i]?.equipment ?? 0;
         const sw = capex.communities[i]?.softwareMonthly ?? 0;
+        const up = capex.communities[i]?.softwareUpfront ?? 0;
+        if (capex.softwareBilling === 'upfront') return perBedOn ? { main: `${usd(eq / bedsAt(i))} / bed`, sub: `(+ ${money(up / bedsAt(i))} / bed software)` } : { main: usd(eq), sub: `(+ ${usd(up)} software)` };
         return perBedOn ? { main: `${usd(eq / bedsAt(i))} / bed`, sub: `(${money(sw / bedsAt(i))} / bed / mo)` } : { main: usd(eq), sub: `(${usd(sw)} / mo)` };
       }
       const tot = sum(lines.filter((l) => l.communityPosition === i).map(lineTotal));
@@ -3911,8 +3920,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const allBedsN = Math.max(1, sum(inputs.communities.map((c) => c.units)));
     const execCommTotal = capexShown
       ? perBedOn
-        ? { main: `${usd(capex.equipment / allBedsN)} / bed`, sub: `(${money(capex.softwareMonthly / allBedsN)} / bed / mo)` }
-        : { main: usd(capex.equipment), sub: `(${usd(capex.softwareMonthly)} / mo)` }
+        ? { main: `${usd(capex.equipment / allBedsN)} / bed`, sub: capex.softwareBilling === 'upfront' ? `(+ ${money((capex.softwareUpfront ?? 0) / allBedsN)} / bed software)` : `(${money(capex.softwareMonthly / allBedsN)} / bed / mo)` }
+        : { main: usd(capex.equipment), sub: capex.softwareBilling === 'upfront' ? `(+ ${usd(capex.softwareUpfront ?? 0)} software)` : `(${usd(capex.softwareMonthly)} / mo)` }
       : perBedOn
         ? { main: `${money(d.serviceMonthly / allBedsN)} / bed / mo`, sub: `(${usd(d.termTotal)} over the term)` }
         : { main: usd(d.termTotal), sub: `${money(d.serviceMonthly / allBedsN)} per bed / mo` };
@@ -4175,7 +4184,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
                         {sensorRows(capex).map((r) => row(`Additional sensors · ${count(r.units)} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
                         {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
-                        {row('Software & services', `${usd(capex.softwareMonthly)} / mo`)}
+                        {row(capex.softwareBilling === 'upfront' ? 'Software & services, paid upfront' : 'Software & services', capex.softwareBilling === 'upfront' ? usd(capex.softwareUpfront ?? 0) : `${usd(capex.softwareMonthly)} / mo`)}
                         {row(`${numberWord(capex.ownershipMonths / 12).replace(/^./, (c) => c.toUpperCase())}-year cost of ownership`, usd(capex.ownershipTotal))}
                       </>
                     ) : (

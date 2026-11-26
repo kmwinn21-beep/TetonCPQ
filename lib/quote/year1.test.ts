@@ -21,7 +21,7 @@ describe('Year 1 figures follow the pricing the proposal shows', () => {
     const { outputs } = computeOutputs(cx, priceBook());
     const y = year1Figures(cx, outputs);
     expect(y.capex).toBe(true);
-    expect(y.investment).toBe(630_300);
+    expect(y.investment).toBe(626_430);
     expect(y.payback).toBeGreaterThan(outputs.kpis.discountedPaybackMonth!);
   });
 });

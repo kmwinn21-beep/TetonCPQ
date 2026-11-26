@@ -255,7 +255,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
             {(
               [
                 ['Go-live', shared((c) => c.goLiveMonth, (v) => (v ? ymLabel(v) : 'Default'))],
-                ['Coverage', shared((c) => c.coverage, (v) => (v === 'full_facility' ? 'Full facility' : 'Rooms only'))],
+                ['Common areas', shared((c) => (c.coverage === 'full_facility' ? -1 : Number(c.commonAreaSensors) || 0), (v) => (v === -1 ? 'Multiplier (older)' : `${v} sensors`))],
                 ['E-Call', ecallOn ? shared((c) => hasEcall(c), (v) => (v ? 'On' : 'Off')) : 'Not in deal'],
                 ['Pilot', withPilot ? shared((c) => !!c.pilot, (v) => (v ? 'Yes' : 'No')) : 'No pilot phase'],
                 ['Occupancy', shared((c) => c.occupancy, (v) => (v == null ? 'Deal value' : pct(v)))],
@@ -336,7 +336,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
               `${fields.length} ${fields.length === 1 ? 'community' : 'communities'}`,
               `${count(totalBeds)} beds`,
               withPilot && pilotCount > 0 && `${pilotCount} pilot`,
-              rows.some((r) => r?.coverage === 'full_facility') && `${rows.filter((r) => r?.coverage === 'full_facility').length} full facility`,
+              rows.some((r) => r?.coverage === 'full_facility') && `${rows.filter((r) => r?.coverage === 'full_facility').length} on full-facility multiplier`,
+              rows.some((r) => (Number(r?.commonAreaSensors) || 0) > 0) && `${count(rows.reduce((s, r) => s + (r?.coverage === 'full_facility' ? 0 : Number(r?.commonAreaSensors) || 0), 0))} common-area sensors`,
             ]
               .filter(Boolean)
               .join(' · ')

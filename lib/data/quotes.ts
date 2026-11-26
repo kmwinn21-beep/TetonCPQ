@@ -75,6 +75,7 @@ export interface QuoteEditorData {
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
 export { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
+import { getPriceBookSettings } from './priceBook';
 
 const json = (v: unknown) => JSON.stringify(v);
 
@@ -134,6 +135,7 @@ export async function createDeal(db: Client, customerName: string, opts: { userI
   const name = customerName.trim();
   if (!name) throw new Error('Customer name is required');
   const { book } = await loadPriceBook(db);
+  const { softwareBilling } = await getPriceBookSettings(db);
   const tx = await db.transaction('write');
   try {
     const deal = await tx.execute({ sql: 'INSERT INTO deals (customer_name, owner_id) VALUES (?, ?) RETURNING id', args: [name, userId] });
@@ -142,7 +144,7 @@ export async function createDeal(db: Client, customerName: string, opts: { userI
     const quoteId = Number(quote.rows[0].id);
     await tx.execute({
       sql: "INSERT INTO quote_versions (quote_id, version_no, status, inputs_json, created_by) VALUES (?, 1, 'draft', ?, ?)",
-      args: [quoteId, json(defaultDraft(name, book, now)), userId],
+      args: [quoteId, json(defaultDraft(name, book, now, { softwareBilling })), userId],
     });
     await tx.commit();
     return { dealId, quoteId };
@@ -263,6 +265,7 @@ export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, 
  */
 export async function saveVersion(db: Client, quoteId: number, changeNote: string | null, userId: number | null = null): Promise<{ versionId: number; versionNo: number }> {
   const { book } = await loadPriceBook(db);
+  const { softwareBilling } = await getPriceBookSettings(db);
   const tx = await db.transaction('write');
   try {
     const d = await tx.execute({ sql: "SELECT id, version_no, inputs_json FROM quote_versions WHERE quote_id = ? AND status = 'draft'", args: [quoteId] });

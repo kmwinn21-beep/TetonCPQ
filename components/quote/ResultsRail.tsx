@@ -73,7 +73,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
               ...(t.capex.ecallUnits > 0 ? ([['E-Call units (E-Call only)', usd(t.capex.ecallUnits)]] as Array<[string, string]>) : []),
               ['Additional sensors', usd(t.capex.sensors)],
               ['One-time equipment cost', usd(t.capex.equipment), true],
-              ['Software & services', mo(t.capex.softwareMonthly)],
+              t.capex.softwareUpfront > 0 ? ['Software & services, upfront', usd(t.capex.softwareUpfront)] : ['Software & services', mo(t.capex.softwareMonthly)],
               ...(t.capex.renewals > 0 ? ([['E-Call renewals', usd(t.capex.renewals)]] as Array<[string, string]>) : []),
               [`${t.capex.years === 4 ? 'Four' : t.capex.years}-year cost of ownership`, usd(t.capex.ownership), true],
             ]}

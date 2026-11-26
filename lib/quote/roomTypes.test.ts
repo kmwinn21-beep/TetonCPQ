@@ -26,7 +26,7 @@ describe('room types', () => {
     d.communities = [{ ...newCommunity(0), name: 'Forest Hills Commons', alBeds: 1, additionalSensors: 0, roomTypes: FOREST_HILLS }];
     const n = normalizeDraft(d);
     expect(n.communities[0]).toMatchObject({ alBeds: 109, mcBeds: 20, additionalSensors: 82 });
-    expect(computeCapex(n).equipment).toBe(630_300);
+    expect(computeCapex(n).equipment).toBe(626_430);
   });
 
   it('leaves communities without room types alone and cleans bad input', () => {

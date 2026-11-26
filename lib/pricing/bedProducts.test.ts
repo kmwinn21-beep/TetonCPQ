@@ -43,8 +43,11 @@ describe('products per care type', () => {
     expect(s).toMatchObject({ beds: 70, priced: 50, unpriced: 20, monitored: 50, ecall: 50, uniform: { monitoring: true, ecall: true } });
     const inputs = toModelInputs(deal([c]));
     expect(inputs.communities[0].units).toBe(50);
-    // E-Call is billed per device: one per E-Call bed here (no room types), at the E-Call rate.
-    expect(inputs.communities[0].extras).toEqual([{ units: 50, rates: expect.objectContaining({ postPilotFeePerBedMonth: 10 }) }]);
+    // E-Call is billed per device: one per E-Call bed here (no room types), at the E-Call rate; beds with both take the bundle discount.
+    expect(inputs.communities[0].extras).toEqual([
+      { units: 50, rates: expect.objectContaining({ postPilotFeePerBedMonth: 10 }) },
+      { units: 50, rates: expect.objectContaining({ postPilotFeePerBedMonth: -4 }) },
+    ]);
   });
 
   it('communities saved before per-care-type products keep pricing every bed', () => {
@@ -68,6 +71,7 @@ describe('products per care type', () => {
     expect(c.rates?.postPilotFeePerBedMonth).toBe(d.commercial.platformRate);
     expect(c.extras?.map((x) => [x.units, x.rates.postPilotFeePerBedMonth, x.rates.postPilotInstallPerBed])).toEqual([
       [107, 10, 0],
+      [80, -4, 0], // the Teton One + E-Call bundle discount on the beds with both
       [27, 0, 25],
     ]);
     const lines = buildPriceLines(d, inputs, book).filter((l) => !l.description.includes('pilot'));
@@ -104,9 +108,9 @@ describe('products per care type', () => {
     expect(c.communities[0].parts?.map((x) => [x.monitoring, x.ecall, x.beds, x.perBed])).toEqual([
       [true, 'ble', 80, p.bleBasePrice],
       [true, 'none', 30, p.basePrice],
-      [false, 'ble', 27, 165],
+      [false, 'ble', 27, 240],
     ]);
-    expect(c.basePackages).toBe(80 * p.bleBasePrice + 30 * p.basePrice + 27 * 165);
+    expect(c.basePackages).toBe(80 * p.bleBasePrice + 30 * p.basePrice + 27 * 240);
     // Software: monitored beds at the software rate, E-Call-only beds at the E-Call software rate.
     expect(c.softwareMonthly).toBe(110 * p.softwareRate + 27 * 5);
     expect(grossBaseRows(c).map((r) => [r.key, r.units])).toEqual([

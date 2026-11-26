@@ -35,7 +35,7 @@ export function year1Figures(draft: QuoteDraft, outputs: Omit<StoredOutputs, 'ca
   const portfolioUnits = toModelInputs(draft).cfo.portfolioUnits;
   return {
     capex: true,
-    investment: c.equipment12,
+    investment: c.investment12,
     net: c.net12,
     gross: c.grossReturn12,
     payback: c.discountedPaybackMonth,

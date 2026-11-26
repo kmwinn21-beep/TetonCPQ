@@ -140,7 +140,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
 
   const capexCards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = ccf
     ? [
-        { id: 'capex.kpi.investment', label: 'Total Investment — Year 1', value: usd(ccf.equipment12), caption: `One-time equipment, paid at install · software & services ${usd(ccf.running12)} in year 1 counted in the net benefit` },
+        { id: 'capex.kpi.investment', label: 'Total Investment — Year 1', value: usd(ccf.investment12), caption: `One-time equipment, paid at install · software & services ${usd(ccf.running12)} in year 1 counted in the net benefit` },
         { id: 'capex.kpi.net', label: 'Net Benefit — Year 1', value: usd(ccf.net12), caption: `${caseName} case · net of equipment and software & services`, negative: ccf.net12 < 0 },
         { id: 'capex.kpi.gross', label: 'Gross Return per $1 Invested (Year 1)', value: multiple(ccf.grossReturn12), caption: `Stabilized return per $1 invested: ${multiple(capexAnnualCost > 0 ? sel.totals.annualRoi / capexAnnualCost : 0, 1)} (gross ÷ cost of ownership per year)` },
         { id: 'capex.kpi.payback', label: 'Discounted Payback', value: ccf.discountedPaybackMonth ? `Month ${ccf.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: 'Equipment paid at install, then software & services monthly' },
@@ -346,7 +346,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
                 <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>One-time equipment cost</button></td>
                 <td className="py-2 text-right">{usd(capex.equipment)}</td>
               </tr>
-              <tr className="border-t border-teton-off-white"><td className="py-2">Software &amp; services <span className="text-teton-ui-gray">· {usd(capex.softwareMonthly)}/mo × {capex.ownershipMonths}</span></td><td className="py-2 text-right">{usd(capex.software)}</td></tr>
+              <tr className="border-t border-teton-off-white"><td className="py-2">Software &amp; services <span className="text-teton-ui-gray">· {capex.softwareBilling === 'upfront' ? 'paid upfront' : `${usd(capex.softwareMonthly)}/mo × ${capex.ownershipMonths}`}</span></td><td className="py-2 text-right">{usd(capex.software)}</td></tr>
               {capex.renewals > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">E-Call renewals within {capex.ownershipMonths / 12} years</td><td className="py-2 text-right">{usd(capex.renewals)}</td></tr>}
               <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">{capex.ownershipMonths / 12}-year cost of ownership</td><td className="py-2 text-right">{usd(capex.ownershipTotal)}</td></tr>
             </tbody>

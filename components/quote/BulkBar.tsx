@@ -11,7 +11,7 @@ import type { DraftCommunity } from '@/lib/quote/draft';
 import { NumInput } from '@/components/form/NumInput';
 
 type Menu = 'golive' | 'coverage' | 'ecall' | 'pilot' | 'more' | 'remove' | null;
-export type BulkPatch = Partial<Pick<DraftCommunity, 'goLiveMonth' | 'coverage' | 'ecall' | 'pilot' | 'occupancy' | 'roiDelayMonths' | 'additionalSensors'>>;
+export type BulkPatch = Partial<Pick<DraftCommunity, 'goLiveMonth' | 'coverage' | 'ecall' | 'pilot' | 'occupancy' | 'roiDelayMonths' | 'additionalSensors' | 'commonAreaSensors'>>;
 
 export function BulkBar({
   selected,
@@ -44,6 +44,7 @@ export function BulkBar({
   const [occ, setOcc] = useState<number | null>(null);
   const [delay, setDelay] = useState<number | null>(null);
   const [sensors, setSensors] = useState<number | null>(null);
+  const [caSensors, setCaSensors] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export function BulkBar({
       />
       <span className="text-sm font-semibold mr-1">{selected} selected</span>
       <Trigger id="golive" label="Set go-live" />
-      <Trigger id="coverage" label="Coverage" />
+      <Trigger id="coverage" label="Common areas" />
       <Trigger id="ecall" label="E-Call" disabled={!ecallOn} title={ecallOn ? undefined : 'The deal has no E-Call add-on'} />
       <Trigger id="pilot" label="Pilot" disabled={!withPilot} title={withPilot ? undefined : 'The deal has no pilot phase'} />
       <Trigger id="more" label="More" />
@@ -131,11 +132,17 @@ export function BulkBar({
             </div>
           )}
           {menu === 'coverage' && (
-            <>
-              <p className="text-sm font-semibold px-3 pb-1">Coverage for {n}</p>
-              <Item onClick={() => apply({ coverage: 'rooms_only' })}>Rooms only</Item>
-              <Item onClick={() => apply({ coverage: 'full_facility' })}>Full facility</Item>
-            </>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Common-area sensors for {n}</p>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <span className="eyebrow">Sensors each</span>
+                  <NumInput value={caSensors} onChange={setCaSensors} nullable min={0} aria-label="Bulk common-area sensors" />
+                </div>
+                <button type="button" className="btn-secondary px-3" disabled={caSensors == null} onClick={() => apply({ commonAreaSensors: caSensors ?? 0, coverage: 'rooms_only' })}>Set</button>
+              </div>
+              <p className="hint">Priced per sensor. Communities on the older full-facility multiplier switch to per-sensor pricing.</p>
+            </div>
           )}
           {menu === 'ecall' && (
             <>

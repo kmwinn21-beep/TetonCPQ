@@ -149,11 +149,28 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     price('install', 'Installation per bed', 'subscription', k.installRate, list(SKU.install));
     if (anyPilot) inRows.push({ key: 'credit', label: `Install credit (pilot sites)${k.sensorCredit ? ', also on sensors' : ''}`, product: 'subscription', deal: `${Math.round(k.installCreditPct * 100)}%`, book: '—', differs: false });
     price('sensor', 'Additional sensor, each', 'subscription', k.sensorPrice, list(SKU.sensor));
-    if (anyFull) price('full', 'Full-facility coverage multiplier', 'subscription', k.fullFacilityMultiplier, list(SKU.fullFacility), (n) => `${n}×`);
+    if (anyFull) price('full', 'Full-facility coverage multiplier (older deals)', 'subscription', k.fullFacilityMultiplier, list(SKU.fullFacility), (n) => `${n}×`);
+    const anySnf = draft.communities.some((c) => scopeOf(c, ecallOn).monitoredByCare.snf > 0);
+    if (anySnf) {
+      if (k.snfRate == null) inRows.push({ key: 'snf', label: 'Skilled nursing beds per bed / month', product: 'subscription', deal: 'Subscription rate (older deal)', book: cents(list(SKU.snf) ?? 49), differs: true });
+      else price('snf', 'Skilled nursing beds per bed / month', 'subscription', k.snfRate, list(SKU.snf));
+    }
+    const anyCa = draft.communities.some((c) => (Number(c.commonAreaSensors) || 0) > 0 && c.coverage !== 'full_facility');
+    if (anyCa) {
+      price('caSetup', 'Common-area sensor setup, each', 'subscription', k.commonArea?.setup, list(SKU.commonAreaSetup));
+      price('caMonthly', 'Common-area sensor per month, each', 'subscription', k.commonArea?.monthly, list(SKU.commonAreaMonthly));
+    }
   }
   if (ecallOn) {
     inRows.push({ key: 'ecallBilling', label: 'E-Call billing', product: 'ecall', deal: perRoom ? 'Per room / mo' : 'Per device / mo', book: null, differs: false });
     price('ecall', `E-Call (${sys}) per ${unitWord} / month`, 'ecall', k.ecallRate, list(k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle));
+    if (anyMonitoring) {
+      const disc = k.bundleDiscount?.[k.ecall === 'inovonics' ? 'inovonics' : 'ble'];
+      const bundleList = list(k.ecall === 'inovonics' ? SKU.bundleInovonics : SKU.bundleBle);
+      const bookDisc = bundleList == null ? null : Math.max(0, (list(SKU.platform) ?? 99) + (list(k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle) ?? 0) - bundleList);
+      if (disc == null) inRows.push({ key: 'bundle', label: `Teton One + E-Call (${sys}) bundle discount per bed / month`, product: 'ecall', deal: 'None (older deal)', book: bookDisc == null ? '—' : cents(bookDisc), differs: !!bookDisc });
+      else price('bundle', `Teton One + E-Call (${sys}) bundle discount per bed / month`, 'ecall', disc, bookDisc);
+    }
     if (perRoom) price('ecallDevice', `Additional device (${k.ecall === 'inovonics' ? 'pull-cord' : 'button'}), each`, 'ecall', extraDevicePrice(k), list(k.ecall === 'inovonics' ? SKU.ecallInoPullcord : SKU.ecallBleButton));
     if (anyPilot) inRows.push({ key: 'ecallPilot', label: `E-Call pilot rate per ${unitWord} / month`, product: 'ecall', deal: cents(k.ecallPilotRate), book: '—', differs: false });
     if (anyEcallOnly) inRows.push({ key: 'ecallInstall', label: 'E-Call installation per bed (E-Call only)', product: 'ecall', deal: cents(Number(k.ecallInstallRate) || 0), book: '—', differs: false });
@@ -163,14 +180,17 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     price('cxBase', 'Equipment: base package per bed', 'capex', p.basePrice, list(SKU.capexBase));
     if (ecallOn) price('cxBaseEc', `Equipment: base package + E-Call (${sys}) per bed`, 'capex', k.ecall === 'inovonics' ? p.inovonicsBasePrice : p.bleBasePrice, list(k.ecall === 'inovonics' ? SKU.capexBaseInovonics : SKU.capexBaseBle));
     price('cxSensor', 'Equipment: additional sensor, each', 'capex', p.sensorPrice, list(SKU.capexSensor));
-    price('cxSoftware', 'Equipment: software & services per bed / month', 'capex', p.softwareRate, list(SKU.capexSoftware));
+    inRows.push({ key: 'cxSwBilling', label: 'Equipment: software & services billed', product: 'capex', deal: p.softwareBilling === 'upfront' ? 'Upfront' : 'Monthly', book: null, differs: false });
+    if (p.softwareBilling === 'upfront') price('cxSoftwareUp', 'Equipment: software & services per bed, upfront', 'capex', p.softwareUpfront ?? 480, list(SKU.capexSoftwareUpfront));
+    else price('cxSoftware', 'Equipment: software & services per bed / month', 'capex', p.softwareRate, list(SKU.capexSoftware));
     if (ecallOn) price('cxRenewal', `Equipment: E-Call renewal per bed (${sys})`, 'capex', k.ecall === 'inovonics' ? p.inovonicsRenewal : p.bleRenewal, list(k.ecall === 'inovonics' ? SKU.capexInovonicsRenewal : SKU.capexBleRenewal));
     const conv = Math.max(0, Number(p.conversionCredit) || 0);
     if (conv > 0) inRows.push({ key: 'cxConv', label: 'Equipment: conversion credit per bed and sensor (pilot sites)', product: 'capex', deal: cents(conv), book: '—', differs: false });
   }
   if (anyEcallOnly) {
     price('cxEo', `Equipment: E-Call only per bed (${sys})`, 'capex', k.ecall === 'inovonics' ? p.ecallInstallInovonics : p.ecallInstallBle, list(k.ecall === 'inovonics' ? SKU.capexEcallInstallInovonics : SKU.capexEcallInstallBle));
-    price('cxEoSw', 'Equipment: E-Call software per bed / month', 'capex', p.ecallSoftware ?? 5, list(SKU.capexEcallSoftware));
+    if (p.softwareBilling === 'upfront') price('cxEoSwUp', 'Equipment: E-Call software per bed, upfront', 'capex', p.ecallSoftwareUpfront ?? 240, list(SKU.capexEcallSoftwareUpfront));
+    else price('cxEoSw', 'Equipment: E-Call software per bed / month', 'capex', p.ecallSoftware ?? 5, list(SKU.capexEcallSoftware));
   }
   inRows.push({
     key: 'terms',
@@ -333,7 +353,7 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     });
   }
   capex.communities.forEach((c, i) => {
-    if (!c.equipment && !c.softwareMonthly) return;
+    if (!c.equipment && !c.softwareMonthly && !c.softwareUpfront) return;
     const parts = c.parts ?? [];
     cx.push({
       key: `cx.eq.c${i}`,
@@ -350,15 +370,26 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
   cx.push({ key: 'cx.equipment', label: 'One-time equipment', community: null, formula: ['base packages + E-Call units + sensors = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }], result: capex.equipment, unit: 'usd', total: true, alsoOn: 'Investment page' });
   const mon = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).monitored));
   const eo = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).ecallOnly));
-  cx.push({
-    key: 'cx.swMonthly',
-    label: 'Software & services, monthly',
-    community: null,
-    formula: ['monitored beds × rate', ...(eo ? [' + E-Call-only beds × E-Call software'] : []), ' = ', { v: count(mon) }, ' × ', { v: cents(p.softwareRate) }, ...(eo ? [' + ', { v: count(eo) }, ' × ', { v: cents(p.ecallSoftware ?? 5) }] : [])],
-    result: capex.softwareMonthly,
-    unit: 'usd_mo',
-  });
-  cx.push({ key: 'cx.sw', label: `Software & services over ${capex.ownershipMonths} months`, community: null, formula: ['monthly × months = ', { v: money(capex.softwareMonthly) }, ' × ', { v: count(capex.ownershipMonths) }], result: capex.software, unit: 'usd' });
+  if ((capex.softwareBilling ?? 'monthly') === 'upfront') {
+    cx.push({
+      key: 'cx.swUpfront',
+      label: 'Software & services, paid upfront',
+      community: null,
+      formula: ['monitored beds × upfront price', ...(eo ? [' + E-Call-only beds × E-Call software upfront'] : []), ' = ', { v: count(mon) }, ' × ', { v: cents(p.softwareUpfront ?? 480) }, ...(eo ? [' + ', { v: count(eo) }, ' × ', { v: cents(p.ecallSoftwareUpfront ?? 240) }] : [])],
+      result: capex.softwareUpfront ?? 0,
+      unit: 'usd',
+    });
+  } else {
+    cx.push({
+      key: 'cx.swMonthly',
+      label: 'Software & services, monthly',
+      community: null,
+      formula: ['monitored beds × rate', ...(eo ? [' + E-Call-only beds × E-Call software'] : []), ' = ', { v: count(mon) }, ' × ', { v: cents(p.softwareRate) }, ...(eo ? [' + ', { v: count(eo) }, ' × ', { v: cents(p.ecallSoftware ?? 5) }] : [])],
+      result: capex.softwareMonthly,
+      unit: 'usd_mo',
+    });
+    cx.push({ key: 'cx.sw', label: `Software & services over ${capex.ownershipMonths} months`, community: null, formula: ['monthly × months = ', { v: money(capex.softwareMonthly) }, ' × ', { v: count(capex.ownershipMonths) }], result: capex.software, unit: 'usd' });
+  }
   if (ecallOn) {
     const years = k.ecall === 'inovonics' ? POLICY.capexInovonicsRenewalYears : POLICY.capexBleRenewalYears;
     const n = renewalsWithin(capex.ownershipMonths, years);
