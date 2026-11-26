@@ -214,8 +214,9 @@ export function ResourceView({ r, ctx, actions }: { r: Resource; ctx: ViewCtx; a
 
   return (
     <div className="[animation:fadeUp_.25s_ease-out] motion-reduce:[animation:none]">
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="min-w-0 flex-1">
+      {/* Phones: the buttons go under the title and its line, so the title keeps the full width. */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+        <div className="min-w-0 sm:flex-1">
           <p className="text-[11px] font-extrabold uppercase tracking-[3px] text-[#D9553F]">{meta.label}</p>
           <h1 className="mt-1 text-[26px] sm:text-[30px] font-semibold leading-tight tracking-[-.5px] break-words">{r.title}</h1>
           {(r.description || sub) && <p className="mt-1.5 text-[14px] text-[#5A6270]">{[r.description, sub].filter(Boolean).join(' · ')}</p>}
