@@ -179,26 +179,20 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
 }
 export type ResourcesTab = ReturnType<typeof useResourcesTab>;
 
-/** Phones: opens the sections sheet. Drawn like a Novelty card; an orange sticker counts what's new. */
+/** Phones: opens the sections sheet. Looks like the proposal's Contents button beside the same switch. */
 export function SectionsButton({ rt }: { rt: ResourcesTab }) {
   return (
     <button
       type="button"
-      aria-label={`Sections${rt.newCount ? ` (${rt.newCount} new)` : ''}`}
+      aria-label="Sections"
       aria-expanded={rt.menu}
       onClick={() => rt.setMenu(true)}
-      className={`relative flex-shrink-0 w-12 h-12 rounded-[14px] grid place-items-center bg-gradient-to-b from-white to-[#EFEFF2] transition-shadow duration-200 motion-reduce:transition-none ${rt.menu ? 'shadow-[0_0_0_2.5px_#1C2430,0_4px_10px_rgba(0,0,0,.12)]' : 'shadow-[0_0_0_2px_#E4E4E7,0_2px_6px_rgba(0,0,0,.06)]'}`}
+      title="Sections"
+      className={`inline-flex flex-shrink-0 w-10 h-10 items-center justify-center rounded-[10px] border transition-colors duration-200 ${rt.menu ? 'bg-teton-ink border-teton-ink text-white' : 'bg-white border-[#D5D9DE] text-teton-ink hover:bg-teton-almost-white'}`}
     >
-      <svg viewBox="0 0 64 64" className="w-[26px] h-[26px]" fill="none" strokeLinecap="round" strokeWidth={5.5} aria-hidden="true">
-        <path d="M14 20h36" stroke="#3F3F46" />
-        <path d="M14 32h36" stroke="#7C6FF0" />
-        <path d="M14 44h24" stroke="#3F3F46" />
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
+        <path d="M2.5 4h11M2.5 8h11M2.5 12h7" />
       </svg>
-      {rt.newCount > 0 && (
-        <span className="absolute -top-[7px] -right-[7px] min-w-[19px] h-[19px] px-1 rounded-[7px] bg-[#F97316] text-white text-[9.5px] font-extrabold grid place-items-center rotate-[10deg] shadow-[0_2px_4px_rgba(0,0,0,.2)]" aria-hidden="true">
-          {rt.newCount}
-        </span>
-      )}
     </button>
   );
 }

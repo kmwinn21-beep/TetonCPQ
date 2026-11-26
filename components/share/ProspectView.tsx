@@ -106,7 +106,7 @@ function Body(p: Props) {
             <img src="/TetonLogoWordmark.png" alt="Teton" width={3037} height={686} className="h-[18px] sm:h-[22px] w-auto" />
           </span>
           <TabSwitch rt={rt} className="hidden sm:inline-flex" />
-          {onProposal && <ContentsButton c={contents} />}
+          {onProposal && <ContentsButton c={contents} className={rt.room ? 'hidden sm:inline-flex h-9 px-3' : 'inline-flex h-9 px-2.5 sm:px-3'} />}
           <span className={`${onProposal ? 'hidden lg:block' : 'hidden'} min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]`}>
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
           </span>
@@ -141,11 +141,11 @@ function Body(p: Props) {
             <span className="hidden sm:inline">You’re viewing as the Teton team: this is what the prospect sees. Your visit isn’t counted in Activity, and comments and answers are off here.</span>
           </p>
         )}
-        {/* Phones: the Proposal / Resources switch, and on Resources the button that opens its sections. */}
+        {/* Phones: the Proposal / Resources switch, with the menu beside it: the proposal's contents, or the Resources sections. */}
         {rt.room && (
           <div className="sm:hidden flex items-center gap-2.5 px-3 pb-2 pt-0.5">
             <TabSwitch rt={rt} className="flex flex-1 min-w-0" />
-            {!onProposal && <SectionsButton rt={rt} />}
+            {onProposal ? <ContentsButton c={contents} className="inline-flex flex-shrink-0 w-10 h-10" /> : <SectionsButton rt={rt} />}
           </div>
         )}
         {commenting && (
