@@ -5,7 +5,7 @@
  * to a row in each section, showing only the main icon and its badges:
  * - fill: opened (white), new (purple, with "z z"), needs you (red glow), selected (black ring);
  * - top right: a status sticker (To do, NEW), with Recommended ★ fanned behind it (or alone);
- * - bottom left: the conversation (blue with a red dot: a reply they haven't seen; white with a count: seen);
+ * - top left: the conversation (blue with a red dot: a reply they haven’t seen; white with a count: seen);
  * - bottom: viewed (green check) or part-watched (blue play, with a bar);
  * - over the icon: "→ link".
  * Hovering (or focusing) a card shows its details underneath, lined up with it. Phones get one sideways row.
@@ -421,13 +421,13 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
           {c.icon}
           {c.out && <span className="absolute left-1/2 top-[calc(100%+8px)] -translate-x-1/2 whitespace-nowrap rounded-md border border-[#D4D4D8] bg-[#F4F4F5]/90 px-1.5 pb-px text-[11px] font-semibold text-teton-ink">{c.out}</span>}
         </span>
-        {c.zz && <Zzz className="absolute left-2.5 top-3 w-[24px] h-[18px]" />}
+        {c.zz && <Zzz className="absolute left-2.5 top-6 w-[24px] h-[18px]" />}
         {c.progress != null && <span className="absolute left-0 bottom-0 h-[3px] bg-[#3F8CEA]" style={{ width: `${Math.round(c.progress * 100)}%` }} aria-hidden="true" />}
       </button>
       {c.rec && stk('bg-[#8B5CF6] text-white text-[12px]', '★', status ? '-top-[11px] right-[14px] -rotate-12 !z-[1]' : '-top-[9px] -right-2 rotate-[16deg]')}
       {status}
       {c.talk && (c.talk.unread || c.talk.count > 0) && (
-        <span className="absolute -bottom-[9px] -left-2 z-[2] drop-shadow-[0_3px_4px_rgba(0,0,0,.2)]" aria-hidden="true">
+        <span className="absolute -top-[9px] -left-2 z-[2] drop-shadow-[0_3px_4px_rgba(0,0,0,.2)]" aria-hidden="true">
           <span className={`relative grid place-items-center w-7 h-[26px] rounded-[9px_9px_9px_3px] ${c.talk.unread ? 'bg-[#3F8CEA]' : 'bg-white shadow-[0_0_0_1.5px_#D4D4D8]'}`}>
             {DOTS(c.talk.unread ? '#fff' : '#3F3F46')}
             {c.talk.unread && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#E5484D] border-2 border-white" />}
