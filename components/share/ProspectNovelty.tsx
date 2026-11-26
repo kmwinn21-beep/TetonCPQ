@@ -10,7 +10,7 @@
  * - over the icon: "→ link".
  * Hovering (or focusing) a card shows its details underneath, lined up with it. Phones get one sideways row.
  */
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FloorPlanInfo, ProspectRoom } from '@/lib/data/dealRooms';
 import type { Resource } from '@/lib/resources/model';
 import { fileKind, metaOf } from '@/components/resources/Viewers';
@@ -299,20 +299,22 @@ export function NoveltyPanel({ rt, room, replies, agreement }: { rt: ResourcesTa
 
   return (
     <>
-      {/* Wider screens: a box per section, three cards to a row. */}
-      <div className="hidden sm:flex flex-col gap-3.5 px-3 pt-3 pb-8">
-        <Legend />
-        {groups.map((g) => (
-          <section key={g.id} className="rounded-[24px] border border-[#E4E4E7] bg-[#FAFAFA] shadow-[0_2px_10px_rgba(24,24,27,.05)] px-3 pt-2.5 pb-[22px]" aria-label={g.name}>
-            <h3 className="text-center text-[14px] font-medium text-teton-ink mb-3">{g.name}</h3>
-            <div className="grid grid-cols-[repeat(3,78px)] justify-center gap-x-[11px] gap-y-[30px]">
-              {g.cards.map((c, i) => (
-                <NoveltyCard key={c.key} c={c} col={(i % 3) as 0 | 1 | 2} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      {/* Wider screens: a box per section, three cards to a row; no scrollbar, but chevrons, fades and section dots. */}
+      <ScrollPanel names={groups.map((g) => g.name)}>
+        <div className="flex flex-col gap-3.5 pl-3 pr-7 pt-3 pb-8">
+          <Legend />
+          {groups.map((g) => (
+            <section key={g.id} data-nv-sec className="rounded-[24px] border border-[#E4E4E7] bg-[#FAFAFA] shadow-[0_2px_10px_rgba(24,24,27,.05)] px-3 pt-2.5 pb-[22px]" aria-label={g.name}>
+              <h3 className="text-center text-[14px] font-medium text-teton-ink mb-3">{g.name}</h3>
+              <div className="grid grid-cols-[repeat(3,78px)] justify-center gap-x-[11px] gap-y-[30px]">
+                {g.cards.map((c, i) => (
+                  <NoveltyCard key={c.key} c={c} col={(i % 3) as 0 | 1 | 2} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </ScrollPanel>
       {/* Phones: one sideways row, a label over each section and a thin line between them. */}
       <div className="sm:hidden pt-2">
         <div className="px-4">
@@ -426,6 +428,88 @@ function NoveltyCard({ c, col, noTip = false }: { c: CardModel; col: 0 | 1 | 2; 
           <button type="button" tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => (setTip(false), c.onOpen())} className="mx-2.5 mt-1 mb-1.5 block w-[calc(100%-20px)] h-[30px] rounded-[9px] bg-teton-ink text-white text-[12px] font-semibold">
             Open
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- scrolling without a scrollbar
+
+/**
+ * The panel's scroll area: no scrollbar. The edges fade where there's more to see, a ⌃ / ⌄ button jumps a section
+ * up or down, and dots on the right show (and jump to) each section. The wheel and trackpad still scroll it.
+ */
+function ScrollPanel({ names, children }: { names: string[]; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [st, setSt] = useState({ top: true, bottom: true, cur: 0 });
+  const secs = () => [...(ref.current?.querySelectorAll<HTMLElement>('[data-nv-sec]') ?? [])];
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const y = el.scrollTop;
+    const list = secs();
+    let cur = 0;
+    list.forEach((s, i) => {
+      if (s.offsetTop - 60 <= y) cur = i;
+    });
+    const bottom = y + el.clientHeight >= el.scrollHeight - 4;
+    if (bottom) cur = list.length - 1;
+    setSt({ top: y <= 4, bottom, cur });
+  }, []);
+  useEffect(() => {
+    measure();
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [measure, names.length]);
+  const go = (i: number) => {
+    const el = ref.current;
+    const list = secs();
+    if (!el || !list.length) return;
+    const k = Math.max(0, Math.min(list.length - 1, i));
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollTo({ top: k === 0 ? 0 : list[k].offsetTop - 48, behavior: reduce ? 'auto' : 'smooth' });
+  };
+  const fits = st.top && st.bottom;
+  const chev = (dir: 'up' | 'down', show: boolean) => (
+    <button
+      type="button"
+      aria-label={dir === 'up' ? 'Scroll up a section' : 'Scroll down a section'}
+      tabIndex={show ? 0 : -1}
+      onClick={() => go(dir === 'up' ? st.cur - 1 : st.cur + 1)}
+      className={`absolute left-[calc(50%-10px)] -translate-x-1/2 z-[45] w-[46px] h-[30px] rounded-full border border-[#E4E4E7] bg-white/95 shadow-[0_4px_12px_rgba(24,24,27,.12)] grid place-items-center text-teton-ink hover:bg-teton-ink hover:border-teton-ink hover:text-white transition-[opacity,background-color,color] duration-200 motion-reduce:transition-none ${dir === 'up' ? 'top-2' : 'bottom-2.5'} ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    >
+      <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" aria-hidden="true">
+        <path d={dir === 'up' ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+  return (
+    <div className="hidden sm:block relative h-full">
+      <div ref={ref} onScroll={measure} className="h-full overflow-y-auto overflow-x-hidden no-scrollbar overscroll-contain">
+        {children}
+      </div>
+      <span className={`pointer-events-none absolute inset-x-0 top-0 h-12 z-[44] bg-gradient-to-b from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.top ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
+      <span className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 z-[44] bg-gradient-to-t from-[#F6F3EE] to-transparent transition-opacity duration-200 ${st.bottom ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true" />
+      {chev('up', !st.top)}
+      {chev('down', !st.bottom)}
+      {!fits && names.length > 1 && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[45] flex flex-col items-center gap-2" role="group" aria-label="Sections">
+          {names.map((n, i) => (
+            <button
+              key={n}
+              type="button"
+              title={n}
+              aria-label={`Go to ${n}`}
+              aria-current={i === st.cur ? 'true' : undefined}
+              onClick={() => go(i)}
+              className={`w-2 rounded-full transition-[height,background-color] duration-200 motion-reduce:transition-none ${i === st.cur ? 'h-5 bg-teton-ink' : 'h-2 bg-[#D4CFC6] hover:bg-[#A8A196]'}`}
+            />
+          ))}
         </div>
       )}
     </div>

@@ -330,9 +330,9 @@ export function ResourcesView({ rt, token, allowComments, agreement = null }: { 
   };
   return (
     <div className="sm:flex min-h-[calc(100dvh-61px)] bg-[#FBF8F3] [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <aside className="no-print sm:w-[316px] flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden sm:overflow-y-auto overscroll-contain">
+      <aside className={`no-print flex-shrink-0 sm:border-r border-b sm:border-b-0 border-[#ECE8DF] bg-[#F6F3EE] sm:sticky sm:top-[61px] sm:h-[calc(100dvh-61px)] overflow-x-auto sm:overflow-x-hidden overscroll-contain ${room.novelty ? 'sm:w-[348px] sm:overflow-y-hidden' : 'sm:w-[316px] sm:overflow-y-auto'}`}>
         {room.novelty ? (
-          <nav aria-label={room.tabName}>
+          <nav aria-label={room.tabName} className="sm:h-full">
             <NoveltyPanel rt={rt} room={room} replies={replies} agreement={agreement} />
           </nav>
         ) : (
