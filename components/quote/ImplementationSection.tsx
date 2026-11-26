@@ -15,6 +15,9 @@ import { NumInput } from '@/components/form/NumInput';
 import { longDate } from '@/components/implementation/ImplementationGantt';
 import { StagesEditor } from '@/components/implementation/StagesEditor';
 import type { SectionProps } from './sections';
+import { StagesMobile } from '@/components/implementation/StagesMobile';
+import { usePhone } from '@/components/form/SwipeSheet';
+import { useSections } from '@/components/form/SectionsContext';
 
 const todayIso = () => {
   const d = new Date();
@@ -36,12 +39,19 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
   const late = first && first.schedule.contractStart < today;
   const firstStage = plan.stages[plan.order[0]]?.name ?? 'The first stage';
   const changed = !isDefaultPlan(plan);
+  const phone = usePhone();
+  const sections = useSections();
+  const lateText = late ? (
+    <>
+      For a <b>{longDate(first.goLive)}</b> go-live, {firstStage} needed to start by <b>{longDate(first.schedule.contractStart)}</b>. Shorten a stage, or move the pilot go-live to <b>{longDate(earliestGoLive(today, plan))}</b> or later.
+    </>
+  ) : null;
 
   return (
     <Section
       id="implplan"
       title="Implementation"
-      description="The stages from contract to go-live for this deal: change lengths and overlaps, remove or reorder stages, or add your own. Worked back from each pilot community’s go-live date."
+      description={phone ? undefined : "The stages from contract to go-live for this deal: change lengths and overlaps, remove or reorder stages, or add your own. Worked back from each pilot community’s go-live date."}
       summary={[
         `${total} weeks from contract start to go-live`,
         changed ? `${plan.order.length} stages, customized` : 'standard stages',
@@ -55,6 +65,33 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
         ) : undefined
       }
     >
+      {phone ? (
+        <Controller
+          control={control}
+          name="implementationPlan"
+          render={({ field }) => (
+            <StagesMobile
+              plan={field.value}
+              onChange={field.onChange}
+              status={{
+                total,
+                startBy: first ? longDate(first.schedule.contractStart) : null,
+                goLive: first ? longDate(first.goLive) : null,
+                late: lateText
+                  ? {
+                      text: lateText,
+                      onGoToCommunities: () => {
+                        sections.setOpen('communities', true);
+                        setTimeout(() => document.getElementById('communities')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 60);
+                      },
+                    }
+                  : null,
+              }}
+            />
+          )}
+        />
+      ) : (
+      <>
       <Controller control={control} name="implementationPlan" render={({ field }) => <StagesEditor plan={field.value} onChange={field.onChange} />} />
 
       <div className="grid gap-4 sm:grid-cols-3 mt-4">
@@ -74,9 +111,10 @@ export function ImplementationSection({ inputs, result }: SectionProps) {
       {!first && <p className="hint mt-2">The timeline is drawn for pilot communities. Mark a community as a pilot site (with a pilot in Timeline) to see its dates here and in the results and proposal.</p>}
       {late && (
         <p role="status" className="mt-3 rounded-lg bg-teton-pale-yellow px-3 py-2 text-sm">
-          For a <b>{longDate(first.goLive)}</b> go-live, {firstStage} needed to start by <b>{longDate(first.schedule.contractStart)}</b>. Shorten a stage, or move the pilot go-live to{' '}
-          <b>{longDate(earliestGoLive(today, plan))}</b> or later.
+          {lateText}
         </p>
+      )}
+      </>
       )}
     </Section>
   );
