@@ -158,6 +158,8 @@ export interface QuoteDraft {
   commercial: Commercial;
   presentation: Presentation;
   communities: DraftCommunity[];
+  /** The products the rep added from the price book (see lib/quote/products). Missing on older deals: implied by the settings. */
+  products?: import('./products').DealProduct[];
 }
 
 const { avgRevenuePerResident: _derived, ...clientDefaults } = DEFAULT_CLIENT;

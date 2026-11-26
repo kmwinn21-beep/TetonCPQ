@@ -12,6 +12,7 @@ import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { BED_KEYS, bedsOf, hasEcall, newCommunity, placeOf, productsOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { bedMix, communityChips, communityIsValid, MIXED, sharedValue, sortedIndices, ymLabel, type Chip, type SortKey } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
+import { fitCommunity } from '@/lib/quote/products';
 import { count, pct } from '@/lib/format';
 import { ReadOnlyContext, Section } from '@/components/form/fields';
 import type { SectionProps } from './sections';
@@ -169,7 +170,7 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
     setOpenKey(mode === 'sheet' ? null : nextKey ?? null);
   }
   function addCommunity() {
-    const c = newCommunity(fields.length);
+    const c = fitCommunity(getValues(), newCommunity(fields.length));
     append(c);
     setPanel('edit');
     // The new field's key exists after the append re-renders; open it then.
@@ -369,9 +370,9 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
             // e-call, overrides) when the same community comes back in the paste, matched by name.
             const current = getValues('communities') ?? [];
             const byName = new Map(current.filter((c) => c?.name).map((c) => [c.name.trim().toLowerCase(), c]));
-            replace(pasted.map((p, k) => ({ ...(byName.get(p.name.trim().toLowerCase()) ?? newCommunity(k)), ...p })));
+            replace(pasted.map((p, k) => ({ ...(byName.get(p.name.trim().toLowerCase()) ?? fitCommunity(getValues(), newCommunity(k))), ...p })));
           } else {
-            append(pasted.map((p, k) => ({ ...newCommunity(fields.length + k), ...p })));
+            append(pasted.map((p, k) => ({ ...fitCommunity(getValues(), newCommunity(fields.length + k)), ...p })));
           }
           setPasting(false);
         }}

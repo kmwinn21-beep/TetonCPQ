@@ -18,6 +18,7 @@ import { buildPriceLines, type PriceLine } from '@/lib/pricing/lines';
 import { bedsOf, hasEcall, defaultDraft, normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { changeLines, diffDrafts } from '@/lib/quote/diff';
+import { fitCommunity } from '@/lib/quote/products';
 
 export interface DealSummary {
   dealId: number;
@@ -80,13 +81,14 @@ import { getPriceBookSettings } from './priceBook';
 const json = (v: unknown) => JSON.stringify(v);
 
 export async function loadPriceBook(db: Client): Promise<{ products: Product[]; book: PriceBook }> {
-  const rs = await db.execute('SELECT sku, name, pricing_model, list_price, description FROM products WHERE active = 1 ORDER BY rowid');
+  const rs = await db.execute('SELECT sku, name, pricing_model, list_price, description, item_code FROM products WHERE active = 1 ORDER BY rowid');
   const products = rs.rows.map((r) => ({
     sku: String(r.sku),
     name: String(r.name),
     pricingModel: String(r.pricing_model) as PricingModel,
     list: Number(r.list_price),
     description: String(r.description ?? ''),
+    itemCode: r.item_code == null ? null : String(r.item_code),
   }));
   return { products, book: priceBook(products) };
 }
@@ -129,6 +131,15 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
   });
 }
 
+/** A new deal: no products yet (the rep adds them from the price book; implementation comes with the first). */
+export function newDealDraft(name: string, book: PriceBook, now: Date, softwareBilling: 'monthly' | 'upfront'): QuoteDraft {
+  const d = defaultDraft(name, book, now, { softwareBilling });
+  d.products = [];
+  d.commercial.ecall = 'none';
+  d.communities = d.communities.map((c) => fitCommunity(d, c));
+  return d;
+}
+
 export async function createDeal(db: Client, customerName: string, opts: { userId?: number | null; now?: Date } = {}): Promise<{ dealId: number; quoteId: number }> {
   const userId = opts.userId ?? null;
   const now = opts.now ?? new Date();
@@ -144,7 +155,7 @@ export async function createDeal(db: Client, customerName: string, opts: { userI
     const quoteId = Number(quote.rows[0].id);
     await tx.execute({
       sql: "INSERT INTO quote_versions (quote_id, version_no, status, inputs_json, created_by) VALUES (?, 1, 'draft', ?, ?)",
-      args: [quoteId, json(defaultDraft(name, book, now, { softwareBilling })), userId],
+      args: [quoteId, json(newDealDraft(name, book, now, softwareBilling)), userId],
     });
     await tx.commit();
     return { dealId, quoteId };

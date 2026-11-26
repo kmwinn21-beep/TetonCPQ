@@ -273,6 +273,12 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
   async function saveVersion(noteOverride?: string) {
     setVersionError(null);
+    if (Array.isArray(getValues('products')) && !getValues('products')!.length) {
+      setVersionError('Add a product in Products & Pricing first.');
+      setNoteOpen(false);
+      sections.setOpen('pricing', true);
+      return;
+    }
     if (!(await trigger())) {
       setVersionError('Fix the highlighted fields first.');
       setNoteOpen(false);

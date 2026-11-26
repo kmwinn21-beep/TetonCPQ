@@ -9,6 +9,8 @@ import { count, dateLabel, pct, usd } from '@/lib/format';
 import { DerivedField, Grid, MoneyField, NumberField, PercentField, ResetDefaults, Section, SegmentedField, ToggleField } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SegGroup } from '@/components/form/SegGroup';
+import { dealProducts } from '@/lib/quote/products';
+import { ProductsPricing } from './ProductsPricing';
 
 export interface SectionProps {
   inputs: ModelInputs | null;
@@ -51,7 +53,7 @@ export function CaseSetupSection() {
 }
 
 /** Install credit on pilot sites: None, 50%, 100% or a custom percentage typed beside the buttons (required once Custom is chosen). */
-function InstallCreditChoice() {
+export function InstallCreditChoice() {
   const { control, setValue } = useFormContext<QuoteDraft>();
   const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
   const custom = !!k.installCreditCustom;
@@ -119,7 +121,7 @@ function InstallCreditChoice() {
 /* ---------- Pricing section pieces ---------- */
 
 /** One row of the Deal setup panel: the setting's name and note on the left, its control on the right. */
-function SetupRow({ label, hint, sub, disabled, stack, children }: { label: string; hint?: string; sub?: boolean; disabled?: boolean; /** Phones: put the control under the name (button groups). */ stack?: boolean; children: React.ReactNode }) {
+export function SetupRow({ label, hint, sub, disabled, stack, children }: { label: string; hint?: string; sub?: boolean; disabled?: boolean; /** Phones: put the control under the name (button groups). */ stack?: boolean; children: React.ReactNode }) {
   return (
     // Phones: the control sits under its name so button groups keep their full width.
     <div className={`flex ${stack ? 'flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4' : 'items-center gap-4'} justify-between py-2.5 border-t border-teton-off-white first-of-type:border-t-0 ${sub ? 'pl-4' : ''} ${disabled ? 'opacity-50' : ''}`}>
@@ -132,7 +134,7 @@ function SetupRow({ label, hint, sub, disabled, stack, children }: { label: stri
   );
 }
 
-function SwitchButton({ label, on, onChange, disabled }: { label: string; on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
+export function SwitchButton({ label, on, onChange, disabled }: { label: string; on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
@@ -148,15 +150,15 @@ function SwitchButton({ label, on, onChange, disabled }: { label: string; on: bo
   );
 }
 
-type FieldName = Parameters<typeof Controller<QuoteDraft>>[0]['name'];
+export type FieldName = Parameters<typeof Controller<QuoteDraft>>[0]['name'];
 
-function Switch({ name, label, disabled }: { name: FieldName; label: string; disabled?: boolean }) {
+export function Switch({ name, label, disabled }: { name: FieldName; label: string; disabled?: boolean }) {
   const { control } = useFormContext<QuoteDraft>();
   return <Controller control={control} name={name} render={({ field }) => <SwitchButton label={label} on={!!field.value} onChange={field.onChange} disabled={disabled} />} />;
 }
 
 /** One-click choice between a few options. */
-function Seg<V extends string | number>({ name, label, options, onPick }: { name: FieldName; label: string; options: Array<readonly [V, string]>; onPick?: (v: V) => void }) {
+export function Seg<V extends string | number>({ name, label, options, onPick }: { name: FieldName; label: string; options: Array<readonly [V, string]>; onPick?: (v: V) => void }) {
   const { control } = useFormContext<QuoteDraft>();
   return (
     <Controller
@@ -226,216 +228,26 @@ export function PricingSection({ book }: SectionProps) {
   const anyMonitored = (d.communities ?? []).some((c) => scopeOf(c, ecallOn).monitored > 0 || scopeOf(c, ecallOn).priced === 0);
   const bundleKey = k.ecall === 'inovonics' ? 'inovonics' : 'ble';
   const bundleList = book[k.ecall === 'inovonics' ? SKU.bundleInovonics : SKU.bundleBle]?.list;
-  const upfrontSw = k.capex?.softwareBilling === 'upfront';
+  const products = dealProducts(d);
 
   return (
     <Section
       id="pricing"
       title="Products & Pricing"
       description={`US rate card: $${listPlatform}/bed/month, $${listInstall}/bed install. Guardrails update on the right as you type.`}
-      summary={dot(
+      summary={products.length ? dot(
         `${money(k.platformRate)}/bed`,
         d.schedule?.withPilot ? `pilot ${money(k.pilotRate)} for ${d.schedule.pilotLengthMonths} mo` : 'no pilot',
         k.ecall === 'none' ? 'no E-Call' : `E-Call ${k.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'} ${money(k.ecallRate)}`,
         `install ${money(k.installRate)}${k.installCreditPct ? ` (${Math.round(k.installCreditPct * 100)}% credit)` : ''}`,
         d.presentation === 'capex' ? 'equipment purchase' : d.presentation === 'both' ? 'subscription + equipment purchase' : false,
         k.finish?.concealed ? 'concealed finish offered' : false,
-      )}
+      ) : 'No products yet'}
     >
       <div className="space-y-6">
-        {/* Every switch and choice for the deal, in one place; the prices below follow from them. */}
-        <div className="rounded-xl border border-teton-off-white bg-teton-almost-white px-4 py-1" role="group" aria-label="Deal setup">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-teton-ui-gray pt-3 pb-1">Deal setup</p>
-          <SetupRow stack label="Pricing structure" hint="What the proposal shows">
-            <Seg name="presentation" label="Pricing structure" options={[['opex', 'OpEx'], ['capex', 'CapEx'], ['both', 'Both']]} />
-          </SetupRow>
-          <SetupRow label="Start with a pilot" hint="Pilot sites are marked per community">
-            <Switch name="schedule.withPilot" label="Start with a pilot" />
-          </SetupRow>
-          {pilot && (
-            <>
-              <SetupRow stack sub label="Install credit on pilot sites">
-                <InstallCreditChoice />
-              </SetupRow>
-              <SetupRow sub label="Clawback if they don’t convert" disabled={!k.installCreditPct}>
-                <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
-              </SetupRow>
-              <SetupRow
-                sub
-                label="Credit additional sensors too"
-                hint="Pilot sites only. OpEx: they never pay for those sensors. CapEx: credited during the pilot, charged on conversion."
-                disabled={!k.installCreditPct}
-              >
-                <Switch name="commercial.sensorCredit" label="Credit additional sensors too" disabled={!k.installCreditPct} />
-              </SetupRow>
-            </>
-          )}
-          <SetupRow stack label="E-Call" hint="Per site: tick E-Call in the communities table">
-            <Seg
-              name="commercial.ecall"
-              label="E-Call"
-              options={[['none', 'None'], ['ble', 'Bluetooth'], ['inovonics', 'Inovonics']]}
-              onPick={(v) => {
-                // Re-price at the new product's list price, free during the pilot.
-                setValue('commercial.ecallRate', ecallList(v as QuoteDraft['commercial']['ecall']), { shouldDirty: true });
-                setValue('commercial.ecallPilotRate', 0, { shouldDirty: true });
-              }}
-            />
-          </SetupRow>
-          {ecallOn && (
-            <div className="py-2.5 border-t border-teton-off-white pl-4">
-              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm text-teton-ink">E-Call pricing</p>
-                  <p className="text-xs text-teton-ui-gray mt-0.5">How the monthly E-Call fee is counted</p>
-                </div>
-                <Seg name="commercial.ecallBilling" label="E-Call pricing" options={[['device', 'Per Device / mo'], ['room', 'Per Room / mo']]} />
-              </div>
-              <p role="note" className="mt-2 rounded-2xl bg-teton-pale-yellow border border-[#F0D58A] px-3 py-1.5 text-xs text-teton-ink">
-                {perRoom
-                  ? `Per Room / mo: the monthly fee is the rate × total rooms, counting each common area with a device as one room. Devices beyond the room count are one-time additional devices (${usd(extraDevice)} each), billed at go-live, or at pilot completion for pilot sites.`
-                  : 'Per Device / mo: the monthly fee is the rate × every E-Call device (pendants and pull-cords in rooms and common areas, before the contingency). No separate charge for additional devices.'}
-              </p>
-            </div>
-          )}
-          {ecallOn && (
-            <SetupRow label="Compare both systems" hint="E-Call-only deals: the business case shows Bluetooth and Inovonics side by side. The system above prices the deal.">
-              <Switch name="commercial.ecallCompare" label="Compare Bluetooth and Inovonics" />
-            </SetupRow>
-          )}
-          <SetupRow label="Concealed finish" hint="Optional add-on, quoted per room pending the site survey">
-            <Switch name="commercial.finish.concealed" label="Concealed finish" />
-          </SetupRow>
-          <SetupRow label="Introductory rate" hint="A lower rate for the first months after the pilot">
-            <Controller
-              control={control}
-              name="commercial.specialRate"
-              render={({ field }) => (
-                <SwitchButton
-                  label="Introductory rate"
-                  on={field.value != null}
-                  onChange={(on) => {
-                    field.onChange(on ? k.platformRate : null);
-                    if (on && !k.specialTermMonths) setValue('commercial.specialTermMonths', 6, { shouldDirty: true });
-                  }}
-                />
-              )}
-            />
-          </SetupRow>
-        </div>
+        <ProductsPricing book={book} />
 
-        {opex && (
-          <PriceGroup title="Subscription" tag="OpEx" tone="op" note="Monthly fees and the one-time installation.">
-            <MoneyField name="commercial.platformRate" label="Rate per bed / month" suffix="/bed" hint={`List $${listPlatform} · floor $${POLICY.postPilotFloor}`} min={0} />
-            <MoneyField name="commercial.installRate" label="Install per bed" hint={`List $${listInstall} · one-time`} min={0} />
-            <MoneyField name="commercial.sensorPrice" label="Additional sensor" hint="Each, one-time" min={0} />
-            {ecallOn && <MoneyField name="commercial.ecallRate" label={`E-Call per ${unitWord} / month`} suffix={`/${unitWord}`} hint={`List $${ecallList(k.ecall)}`} min={0} />}
-            {ecallOn && perRoom && (
-              <MoneyField
-                name={k.ecall === 'inovonics' ? 'commercial.ecallDevices.inoPullcord' : 'commercial.ecallDevices.bleButton'}
-                label={`Additional ${k.ecall === 'inovonics' ? 'pull-cord' : 'button'}`}
-                hint="Each, one-time · devices beyond the rooms"
-                min={0}
-              />
-            )}
-            {ecallOn && k.ecallCompare && (
-              <MoneyField
-                name="commercial.ecallCompareRate"
-                label={`${k.ecall === 'ble' ? 'Inovonics' : 'Bluetooth'} per ${unitWord} / month`}
-                suffix={`/${unitWord}`}
-                hint={`For the comparison · list $${ecallList(k.ecall === 'ble' ? 'inovonics' : 'ble')}`}
-                min={0}
-                nullable
-                placeholder={String(ecallList(k.ecall === 'ble' ? 'inovonics' : 'ble'))}
-              />
-            )}
-            {ecallOn && <MoneyField name="commercial.ecallInstallRate" label="E-Call installation per bed" hint="One-time, on beds with E-Call only" min={0} nullable placeholder="0" />}
-            {anySnf && <MoneyField name="commercial.snfRate" label="Skilled nursing per bed / month" suffix="/bed" hint={`List $${book[SKU.snf]?.list ?? 49} · SNF beds (never above the rate)`} min={0} nullable placeholder={String(k.platformRate)} />}
-            {ecallOn && anyMonitored && (
-              <MoneyField
-                name={`commercial.bundleDiscount.${bundleKey}`}
-                label="Bundle discount per bed / month"
-                suffix="/bed"
-                hint={`Teton One + E-Call${bundleList != null ? ` list $${bundleList}` : ''} · beds with both`}
-                min={0}
-                nullable
-                placeholder="0"
-              />
-            )}
-            <MoneyField name="commercial.commonArea.setup" label="Common-area sensor setup" hint="Each, one-time" min={0} />
-            <MoneyField name="commercial.commonArea.monthly" label="Common-area sensor / month" suffix="/sensor" hint="Each, after the pilot" min={0} />
-            {usesFull && <NumberField name="commercial.fullFacilityMultiplier" label="Full-facility multiplier" suffix="×" hint="Older deal: communities still on full facility" min={1} />}
-          </PriceGroup>
-        )}
-
-        {capex && (
-          <PriceGroup title="Equipment purchase" tag="CapEx" tone="cx" note="Title passes at install. No install charge or license fee.">
-            <MoneyField name="commercial.capex.basePrice" label="Base package per bed" hint="Edge unit + sensor, installed" min={0} />
-            {k.ecall === 'ble' && <MoneyField name="commercial.capex.bleBasePrice" label="With E-Call per bed" hint="Replaces the base price" min={0} />}
-            {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsBasePrice" label="With Inovonics E-Call per bed" hint="Replaces the base price" min={0} />}
-            <MoneyField name="commercial.capex.sensorPrice" label="Additional sensor" hint="One-time" min={0} />
-            <SegmentedField
-              name="commercial.capex.softwareBilling"
-              label="Software & services billed"
-              options={[
-                { value: 'monthly', label: 'Monthly' },
-                { value: 'upfront', label: 'Upfront' },
-              ]}
-            />
-            {upfrontSw ? (
-              <MoneyField name="commercial.capex.softwareUpfront" label="Software & services, upfront" suffix="/bed" hint="One-time, covers 4 years" min={0} />
-            ) : (
-              <MoneyField name="commercial.capex.softwareRate" label="Software & services" suffix="/bed/mo" min={0} />
-            )}
-            {ecallOn && (
-              <MoneyField
-                name={k.ecall === 'inovonics' ? 'commercial.capex.ecallInstallInovonics' : 'commercial.capex.ecallInstallBle'}
-                label="E-Call only per bed"
-                hint="Beds with E-Call only: installed, one-time"
-                min={0}
-              />
-            )}
-            {ecallOn &&
-              (upfrontSw ? (
-                <MoneyField name="commercial.capex.ecallSoftwareUpfront" label="E-Call software, upfront" suffix="/bed" hint="Beds with E-Call only · 4 years" min={0} />
-              ) : (
-                <MoneyField name="commercial.capex.ecallSoftware" label="E-Call software" suffix="/bed/mo" hint="Beds with E-Call only" min={0} />
-              ))}
-            {k.ecall === 'ble' && <MoneyField name="commercial.capex.bleRenewal" label="E-Call renewal per bed" hint="Every 4 years" min={0} />}
-            {k.ecall === 'inovonics' && <MoneyField name="commercial.capex.inovonicsRenewal" label="Inovonics renewal per bed" hint="Every 3 years" min={0} />}
-            {pilot && <MoneyField name="commercial.capex.conversionCredit" label="Conversion credit" hint="Off each base package & sensor at pilot sites" min={0} nullable placeholder="0" />}
-          </PriceGroup>
-        )}
-
-        {pilot && (
-          <PriceGroup title="Pilot" tag="Pilot" tone="pl" note="Applies to the communities marked as pilot sites.">
-            <MoneyField name="commercial.pilotRate" label="Pilot rate per bed / month" suffix="/bed" hint={`Standard $${POLICY.standardPilotRate}`} min={0} />
-            <NumberField name="schedule.pilotLengthMonths" label="Pilot length" suffix="months" hint={`Standard ${POLICY.standardPilotMonths}, then 36-month term`} min={1} />
-            {ecallOn && <MoneyField name="commercial.ecallPilotRate" label="E-Call during pilot" suffix={`/${unitWord}`} hint="Standard: free" min={0} />}
-          </PriceGroup>
-        )}
-
-        {k.finish?.concealed && (
-          <PriceGroup title="Concealed finish" note="Range per room, pending the site survey, after the standard installation value is credited. Painting not included.">
-            <MoneyField name="commercial.finish.low" label="Low / room" min={0} />
-            <MoneyField name="commercial.finish.high" label="High / room" min={0} />
-            <MoneyField name="commercial.finish.credit" label="Standard credit / room" hint="Value of the standard install" min={0} />
-            <DerivedField
-              label="Add-on for the deal"
-              value={`${money(roomCount * Math.max(0, (k.finish.low ?? 0) - (k.finish.credit ?? 0)))} to ${money(roomCount * Math.max(0, (k.finish.high ?? 0) - (k.finish.credit ?? 0)))}`}
-              formula={`${roomCount} rooms × (concealed price − standard credit)`}
-            />
-          </PriceGroup>
-        )}
-
-        {k.specialRate != null && (
-          <PriceGroup title="Introductory rate" note="Replaces the subscription rate for the first months after the pilot.">
-            <MoneyField name="commercial.specialRate" label="Intro rate per bed / month" suffix="/bed" min={0} />
-            <NumberField name="commercial.specialTermMonths" label="Intro term" suffix="months" min={0} />
-          </PriceGroup>
-        )}
-
-        {opex && (
+        {opex && products.includes('subscription') && (
         <div className="rounded-lg bg-teton-almost-white border border-teton-off-white p-3 overflow-x-auto">
           <table className="text-sm w-full min-w-[480px]">
             <caption className="text-left text-xs font-medium text-teton-dark-gray pb-2">Effective per-bed rates (platform × coverage + e-call)</caption>

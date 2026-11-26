@@ -13,6 +13,8 @@ export interface Product {
   /** List price in dollars (or the multiplier, for pricingModel 'multiplier'). */
   list: number;
   description: string;
+  /** The price book SKU reps see (editable); `sku` is the system key. */
+  itemCode?: string | null;
 }
 
 export const SKU = {

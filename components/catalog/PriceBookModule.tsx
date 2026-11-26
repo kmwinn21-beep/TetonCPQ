@@ -11,7 +11,7 @@ import { Collapse } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { ScrollPanel } from '@/components/share/ProspectNovelty';
-import { PackSvg } from '@/components/resources/CardIcon';
+import { ItemIcon } from './ItemIcon';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
 import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeOf } from '@/lib/pricing/markets';
 import { POLICY, type PricingModel } from '@/lib/pricing/catalog';
@@ -46,16 +46,7 @@ const soldCount = (r: PriceBookRow) => MARKETS.filter((m) => priceIn(r, m.code).
 const notSoldCount = (r: PriceBookRow) => MARKETS.filter((m) => priceIn(r, m.code).notSold).length;
 const fmt = (r: PriceBookRow, market: string, v: number) => (r.pricingModel === 'multiplier' ? `${v}×` : formatMarketPrice(market, v));
 
-function Icon({ sku, size = 'w-[34px] h-[34px]' }: { sku: string; size?: string }) {
-  const p = placeOf(sku);
-  const icon = packIcon(p.icon) ?? packIcon('document')!;
-  const t = TINTS[p.tint] ?? TINTS.stone;
-  return (
-    <span className={`${size} rounded-[9px] grid place-items-center flex-shrink-0`} style={{ background: t.bg, color: t.fg }} aria-hidden="true">
-      <PackSvg icon={icon} className="w-[52%] h-[52%]" />
-    </span>
-  );
-}
+const Icon = ItemIcon;
 
 function Status({ r, market }: { r: PriceBookRow; market: string }) {
   const here = priceIn(r, market);
