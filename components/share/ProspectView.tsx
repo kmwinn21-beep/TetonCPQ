@@ -101,10 +101,9 @@ function Body(p: Props) {
       {!p.allowPdf && <style>{'@media print { [data-prospect] .proposal-doc { display: none !important; } [data-prospect]::after { content: "Printing is turned off for this proposal."; display: block; padding: 40px; font: 14px Inter, sans-serif; } }'}</style>}
       <header className="no-print sticky top-0 z-30 bg-white border-b border-[#ECE8DF]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
         <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-6 h-11 sm:h-[60px]">
-          <span className="flex items-center gap-2 text-[17px] font-bold text-teton-ink flex-shrink-0">
+          <span className="flex items-center flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/teton-logo.png" alt="Teton" className="w-[22px] h-[22px] object-contain" />
-            <span className="hidden sm:inline">Teton</span>
+            <img src="/TetonLogoWordmark.png" alt="Teton" width={3037} height={686} className="h-[18px] sm:h-[22px] w-auto" />
           </span>
           <TabSwitch rt={rt} className="hidden sm:inline-flex" />
           {onProposal && <ContentsButton c={contents} />}
