@@ -5,7 +5,7 @@ import { defaultDraft, newCommunity, normalizeDraft, scopeOf, type QuoteDraft } 
 import { toModelInputs } from './toModelInputs';
 import { sampleDraft } from './sampleDraft';
 import { previewTotals } from './previewTotals';
-import { addProducts, applyKit, dealProducts, fitCommunity, removeBlock, removeProduct, visibleSettings } from './products';
+import { addProducts, applyKit, clearSensors, dealProducts, fitCommunity, hasSensors, removeBlock, removeProduct, switchStructure, visibleSettings } from './products';
 
 const book = priceBook();
 const today = new Date('2026-11-01T00:00:00Z');
@@ -71,7 +71,8 @@ describe('adding and removing products', () => {
     expect(d.presentation).toBe('both');
     d = removeProduct(d, 'subscription');
     expect(d.presentation).toBe('capex');
-    expect(scopeOf({ ...d.communities[0], alBeds: 10 }).ecallOnly).toBe(10);
+    // Equipment purchase is still resident monitoring.
+    expect(scopeOf({ ...d.communities[0], alBeds: 10 }).monitoredEcall).toBe(10);
     d = removeProduct(d, 'ecall');
     expect(d.commercial.ecall).toBe('none');
   });
@@ -106,5 +107,43 @@ describe('the resident monitoring pilot kit', () => {
     // Contract value: 36 months after the pilot (a 39-month term with it).
     const t = previewTotals(d, toModelInputs(d), r, book);
     expect(t.opex).toMatchObject({ contract: 427680, termMonths: 39 });
+  });
+});
+
+describe('switching how the deal is sold', () => {
+  const subDeal = () => {
+    const d = defaultDraft('Switch', book, today);
+    d.products = [];
+    d.commercial.ecall = 'none';
+    d.communities = [{ ...fitCommunity(d, newCommunity(0)), name: 'A', alBeds: 100, additionalSensors: 20 }];
+    return normalizeDraft(addProducts(d, ['subscription', 'ecall'], book, { ecall: 'ble' }));
+  };
+  it('subscription → equipment purchase in one step keeps monitoring, E-Call and sensors (priced at purchase prices)', () => {
+    const d = normalizeDraft(switchStructure(subDeal(), 'capex', book));
+    expect(dealProducts(d)).toEqual(['ecall', 'capex']);
+    expect(d.presentation).toBe('capex');
+    expect(scopeOf(d.communities[0], true)).toMatchObject({ monitored: 100, monitoredEcall: 100 });
+    expect(hasSensors(d)).toBe(true);
+    const back = normalizeDraft(switchStructure(d, 'subscription', book));
+    expect(back.presentation).toBe('opex');
+    expect(dealProducts(back)).toEqual(['subscription', 'ecall']);
+  });
+  it('removing the subscription while equipment purchase stays keeps resident monitoring', () => {
+    const both = normalizeDraft(addProducts(subDeal(), ['capex'], book));
+    expect(both.presentation).toBe('both');
+    const d = normalizeDraft(removeProduct(both, 'subscription'));
+    expect(scopeOf(d.communities[0], true).monitored).toBe(100);
+  });
+  it('adding equipment purchase to an E-Call-only deal turns monitoring back on', () => {
+    const ecallOnly = normalizeDraft(removeProduct(subDeal(), 'subscription'));
+    expect(scopeOf(ecallOnly.communities[0], true).monitored).toBe(0);
+    const d = normalizeDraft(addProducts(ecallOnly, ['capex'], book));
+    expect(scopeOf(d.communities[0], true).monitored).toBe(100);
+  });
+  it('removing all additional sensors sets them to 0 and drops the product', () => {
+    const r = clearSensors(subDeal());
+    expect(r.kept).toEqual([]);
+    expect(r.draft.communities[0].additionalSensors).toBe(0);
+    expect(hasSensors(normalizeDraft(r.draft))).toBe(false);
   });
 });

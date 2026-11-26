@@ -6,6 +6,7 @@
  *
  * Implementation is always included: it comes with the first platform product and can be credited, not removed.
  */
+import { applyRoomTypes } from './roomTypes';
 import { BED_KEYS, defaultProducts, hasEcall, monitors, productsOf, type DraftCommunity, type EcallOption, type QuoteDraft } from './draft';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 
@@ -87,7 +88,8 @@ export function addProducts(d: QuoteDraft, add: DealProduct[], book: PriceBook, 
   const before = dealProducts(d);
   const ps = new Set([...before, ...add]);
   let next: QuoteDraft = { ...d, commercial: { ...d.commercial }, communities: [...(d.communities ?? [])] };
-  if (add.includes('subscription') && !before.includes('subscription')) next.communities = next.communities.map((c) => withMonitoring(c, true));
+  // Subscription or equipment purchase: resident monitoring (an E-Call-only deal gets it back where none has it).
+  if ((add.includes('subscription') && !before.includes('subscription')) || (add.includes('capex') && !before.includes('capex'))) next.communities = next.communities.map((c) => withMonitoring(c, true));
   if (add.includes('ecall')) {
     const sys = opts.ecall ?? (d.commercial.ecall !== 'none' ? d.commercial.ecall : 'ble');
     if (sys !== d.commercial.ecall || !before.includes('ecall')) {
@@ -110,7 +112,8 @@ export function removeProduct(d: QuoteDraft, p: DealProduct): QuoteDraft {
   ps.delete(p);
   let next: QuoteDraft = { ...d, commercial: { ...d.commercial }, communities: [...(d.communities ?? [])] };
   // E-Call-only deals: monitoring off everywhere (the engine then bills E-Call per device, with its own install).
-  if (p === 'subscription' && ps.has('ecall')) next.communities = next.communities.map((c) => withMonitoring(c, false));
+  // (Not when equipment purchase stays: that's still resident monitoring.)
+  if (p === 'subscription' && ps.has('ecall') && !ps.has('capex')) next.communities = next.communities.map((c) => withMonitoring(c, false));
   if (p === 'ecall') next.commercial.ecall = 'none';
   if (p === 'finish') next.commercial.finish = { ...next.commercial.finish, concealed: false };
   next = { ...next, presentation: presentationOf(ps) ?? next.presentation, products: DEAL_PRODUCTS.filter((x) => ps.has(x)) };
@@ -197,4 +200,41 @@ export function fitCommunity(d: QuoteDraft, c: DraftCommunity): DraftCommunity {
   const def = defaultProducts();
   const products = Object.fromEntries(BED_KEYS.map((k) => [k, { monitoring: mon && def[k].monitoring, ecall: ec && def[k].ecall }])) as ReturnType<typeof defaultProducts>;
   return { ...c, products, monitoring: mon, ecall: ec };
+}
+
+/**
+ * Switch how the deal is sold, in one step: equipment purchase instead of the subscription (or back). Resident
+ * monitoring and E-Call stay; sensors and E-Call simply price from the other structure's prices, which the deal keeps
+ * separately (so switching back restores any edited price).
+ */
+export function switchStructure(d: QuoteDraft, to: 'capex' | 'subscription', book: PriceBook): QuoteDraft {
+  const from: DealProduct = to === 'capex' ? 'subscription' : 'capex';
+  const added = addProducts(d, [to], book);
+  const ps = new Set(dealProducts(added));
+  ps.delete(from);
+  return { ...added, presentation: presentationOf(ps) ?? added.presentation, products: DEAL_PRODUCTS.filter((x) => ps.has(x)) };
+}
+
+/** Whether the deal has additional sensors (set on its communities, or the product added before any were set). */
+export const hasSensors = (d: QuoteDraft) => dealProducts(d).includes('sensor') || (d.communities ?? []).some((c) => (Number(c.additionalSensors) || 0) > 0);
+
+/** Each community's additional sensors (for the remove confirmation). */
+export const sensorCounts = (d: QuoteDraft) =>
+  (d.communities ?? []).map((c, i) => ({ name: c.name || `Community ${i + 1}`, sensors: Number(c.additionalSensors) || 0, fromRooms: (applyRoomTypes({ ...c, additionalSensors: 0 }).additionalSensors || 0) > 0 })).filter((x) => x.sensors > 0);
+
+/** Remove all additional sensors: set to 0 on every community (except where floor plan room types set them). */
+export function clearSensors(d: QuoteDraft): { draft: QuoteDraft; kept: string[] } {
+  const kept: string[] = [];
+  const communities = (d.communities ?? []).map((c, i) => {
+    if (!(Number(c.additionalSensors) > 0)) return c;
+    const zeroed = { ...c, additionalSensors: 0 };
+    if ((applyRoomTypes(zeroed).additionalSensors || 0) > 0) {
+      kept.push(c.name || `Community ${i + 1}`);
+      return c;
+    }
+    return zeroed;
+  });
+  const ps = new Set(dealProducts(d));
+  if (!kept.length) ps.delete('sensor');
+  return { draft: { ...d, communities, products: DEAL_PRODUCTS.filter((x) => ps.has(x)) }, kept };
 }

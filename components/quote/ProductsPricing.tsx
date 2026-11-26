@@ -10,7 +10,7 @@ import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { placeOf } from '@/lib/pricing/markets';
 import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
-import { addProducts, applyKit, dealProducts, hasImplementation, KITS, productsForSku, removeBlock, removeProduct, visibleSettings, type DealProduct } from '@/lib/quote/products';
+import { addProducts, applyKit, clearSensors, dealProducts, hasImplementation, hasSensors, KITS, productsForSku, removeBlock, removeProduct, sensorCounts, switchStructure, visibleSettings, type DealProduct } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
 import { Collapse, DerivedField, ReadOnlyContext } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
@@ -96,6 +96,8 @@ interface Line {
   auto?: string;
   /** Shown instead of a price input. */
   text?: string;
+  /** Additional sensors: set by the communities' counts; removed from the ⋯ menu. */
+  sensors?: boolean;
 }
 
 function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
@@ -126,7 +128,6 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     else if (ec && !cx) out.push({ key: 'impl', sku: SKU.install, name: 'E-Call installation & implementation', unit: 'per bed with E-Call only, one-time', once: true, list: null, field: 'commercial.ecallInstallRate', nullable: true, placeholder: '0', applies: beds(n.ecallOnly), locked: true });
     else out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'equipment purchase', once: true, list: null, applies: '', locked: true, text: 'Included in the base package' });
   }
-  if (ps.includes('sensor')) out.push({ key: 'sensor', sku: SKU.sensor, name: name(SKU.sensor, 'Additional sensor'), unit: 'per sensor, one-time', once: true, list: list(SKU.sensor), field: sub || ec ? 'commercial.sensorPrice' : 'commercial.capex.sensorPrice', applies: `${n.sensors} sensors`, product: 'sensor' });
   if (ps.includes('commonArea')) {
     out.push({ key: 'ca1', sku: SKU.commonAreaSetup, name: name(SKU.commonAreaSetup, 'Common-area sensor setup'), unit: 'per sensor, one-time', once: true, list: list(SKU.commonAreaSetup), field: 'commercial.commonArea.setup', applies: `${n.commonArea} sensors`, product: 'commonArea' });
     out.push({ key: 'ca2', sku: SKU.commonAreaMonthly, name: name(SKU.commonAreaMonthly, 'Common-area sensor'), unit: 'per sensor / month', once: false, list: list(SKU.commonAreaMonthly), field: 'commercial.commonArea.monthly', suffix: '/mo', applies: `${n.commonArea} sensors`, auto: 'With common-area setup' });
@@ -136,6 +137,13 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     const up = k.capex?.softwareBilling === 'upfront';
     const sku = up ? SKU.capexSoftwareUpfront : SKU.capexSoftware;
     out.push({ key: 'capexsw', sku, name: name(sku, 'Software & services'), unit: up ? 'per bed, upfront (4 years)' : 'per bed / month', once: up, list: list(sku), field: up ? 'commercial.capex.softwareUpfront' : 'commercial.capex.softwareRate', suffix: up ? undefined : '/bed', applies: beds(n.monitored), auto: 'With equipment purchase' });
+  }
+  // Additional sensors follow how the deal is sold: the subscription SKU, the purchase SKU, or a row for each.
+  if (hasSensors(d)) {
+    const op = sub || (ec && !cx);
+    const applies = `${n.sensors} ${n.sensors === 1 ? 'sensor' : 'sensors'}`;
+    if (op) out.push({ key: 'sensor', sku: SKU.sensor, name: cx ? 'Additional sensor · subscription' : name(SKU.sensor, 'Additional sensor'), unit: `per sensor, one-time${cx ? ' · OpEx' : ''}`, once: true, list: list(SKU.sensor), field: 'commercial.sensorPrice', applies, sensors: true });
+    if (cx) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: op ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${op ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
   }
   if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, product: 'finish', text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
   return out;
@@ -165,19 +173,53 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     if (JSON.stringify(cur.schedule) !== JSON.stringify(next.schedule)) setValue('schedule', next.schedule, o);
     if (JSON.stringify(cur.communities) !== JSON.stringify(next.communities)) setValue('communities', next.communities, o);
   };
-  const add = (skus: string[]) => {
-    let next = getValues();
+  const [ask, setAsk] = useState<null | 'sensors' | 'subscription' | 'capex'>(null);
+  const [toast, setToast] = useState<{ text: string; undo: QuoteDraft } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 12000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  /** Switch how the deal is sold (one step, with Undo). */
+  const doSwitch = (to: 'capex' | 'subscription', base = getValues()) => {
+    const next = switchStructure(base, to, book);
+    write(next);
+    setAsk(null);
+    const sensorsNow = hasSensors(next) ? (to === 'capex' ? ` Additional sensors now ${book[SKU.capexSensor]?.itemCode ?? SKU.capexSensor}.` : ` Additional sensors now ${book[SKU.sensor]?.itemCode ?? SKU.sensor}.`) : '';
+    setToast({ text: to === 'capex' ? `Switched to equipment purchase.${sensorsNow} Implementation is included in the base package.` : `Switched to the subscription.${sensorsNow}`, undo: base });
+    return next;
+  };
+  const add = (skus: string[], mode: 'both' | 'switch' = 'both') => {
+    const before = getValues();
+    let next = before;
+    let switched: 'capex' | 'subscription' | null = null;
+    if (mode === 'switch') {
+      const toCapex = skus.some((s) => productsForSku(s)?.add.includes('capex')) && dealProducts(before).includes('subscription');
+      switched = toCapex ? 'capex' : 'subscription';
+      next = switchStructure(next, switched, book);
+    }
     for (const s of skus) {
       const m = productsForSku(s);
-      if (m) next = addProducts(next, m.add, book, { ecall: m.ecall });
+      if (!m) continue;
+      const adds = switched ? m.add.filter((x) => x !== (switched === 'capex' ? 'subscription' : 'capex')) : m.add;
+      if (adds.length) next = addProducts(next, adds, book, { ecall: m.ecall });
     }
     write(next);
     setErr(null);
+    if (switched) setToast({ text: switched === 'capex' ? `Switched to equipment purchase.${hasSensors(next) ? ` Additional sensors now ${book[SKU.capexSensor]?.itemCode ?? SKU.capexSensor}.` : ''} Implementation is included in the base package.` : `Switched to the subscription.${hasSensors(next) ? ` Additional sensors now ${book[SKU.sensor]?.itemCode ?? SKU.sensor}.` : ''}`, undo: before });
   };
   const remove = (p: DealProduct) => {
+    const cur = dealProducts(getValues());
+    // Removing the only way it's sold asks first: switch to the other structure, or remove it.
+    if (p === 'subscription' && !cur.includes('capex')) return setAsk('subscription');
+    if (p === 'capex' && !cur.includes('subscription')) return setAsk('capex');
+    removeNow(p);
+  };
+  const removeNow = (p: DealProduct) => {
     try {
       write(removeProduct(getValues(), p));
       setErr(null);
+      setAsk(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -322,6 +364,24 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
           </div>
         ))}
         {err && <p role="alert" className="mx-4 my-2 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
+        <Collapse open={!!ask}>
+          {ask && <AskPanel kind={ask} d={d} onCancel={() => setAsk(null)} onSwitch={(to) => doSwitch(to)} onRemove={(p) => removeNow(p)} onClearSensors={() => {
+            const r = clearSensors(getValues());
+            write(r.draft);
+            setAsk(null);
+            setErr(r.kept.length ? `Sensors at ${r.kept.join(', ')} come from their floor plan room types; change them in Scope.` : null);
+          }} />}
+        </Collapse>
+        <Collapse open={!!toast}>
+          {toast && (
+            <div role="status" className="mx-4 my-2 flex items-center gap-3 rounded-[10px] bg-teton-ink px-3 py-2 text-[12.5px] text-white">
+              <span aria-hidden="true">✓</span>
+              <span className="flex-1">{toast.text}</span>
+              <button type="button" className="font-semibold text-[#9FC7F2] hover:underline" onClick={() => (write(toast.undo), setToast(null))}>Undo</button>
+              <button type="button" aria-label="Dismiss" className="text-white/60 hover:text-white" onClick={() => setToast(null)}>✕</button>
+            </div>
+          )}
+        </Collapse>
         {lines.some((l) => l.key === 'impl' && l.field) && !implOpen && (
           <p className="px-4 py-2 text-[11.5px] text-[#6B7380] bg-[#F6F3EE]">🔒 Implementation can’t be removed. Click its name to credit it (for example 100% on pilot sites).</p>
         )}
@@ -440,6 +500,12 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 015 0v2" /></svg>
         </span>
       );
+    if (l.sensors && !readOnly)
+      return (
+        <button type="button" onClick={() => setAsk(ask === 'sensors' ? null : 'sensors')} title="Additional sensors are set per community" aria-label="Additional sensor options" aria-expanded={ask === 'sensors'} className="w-[26px] h-[26px] grid place-items-center rounded-[7px] text-[#8A919C] hover:bg-[#F6F3EE] hover:text-teton-ink">
+          ⋯
+        </button>
+      );
     if (!l.product || readOnly) return l.auto ? <span className="text-[10.5px] text-[#A3A9B2]" title={l.auto}>auto</span> : null;
     const block = removeBlock(d, l.product);
     return (
@@ -448,6 +514,57 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
       </button>
     );
   }
+}
+
+/** Inline questions under the products: remove all sensors, or remove the only way the deal is sold. */
+function AskPanel({ kind, d, onCancel, onSwitch, onRemove, onClearSensors }: { kind: 'sensors' | 'subscription' | 'capex'; d: QuoteDraft; onCancel: () => void; onSwitch: (to: 'capex' | 'subscription') => void; onRemove: (p: DealProduct) => void; onClearSensors: () => void }) {
+  const btn = 'h-9 rounded-[10px] px-3 text-[12.5px] font-semibold';
+  const box = 'mx-4 my-2 rounded-[12px] border border-[#E4D6B5] bg-[#FFFAF0] px-3.5 py-3';
+  if (kind === 'sensors') {
+    const c = sensorCounts(d);
+    const total = c.reduce((s, x) => s + x.sensors, 0);
+    if (!total)
+      return (
+        <div className={box} role="alertdialog" aria-label="Remove additional sensors">
+          <p className="text-[13px] font-semibold">Remove the additional sensor row?</p>
+          <p className="mt-0.5 text-[12px] text-[#6B7380]">No communities have additional sensors yet. Set them per community in Communities; the row comes back when they do.</p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove</button>
+            <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep it</button>
+          </div>
+        </div>
+      );
+    return (
+      <div className={box} role="alertdialog" aria-label="Remove all additional sensors">
+        <p className="text-[13px] font-semibold">Remove all additional sensors?</p>
+        <p className="mt-0.5 text-[12px] text-[#6B7380]">
+          {total} {total === 1 ? 'sensor is' : 'sensors are'} set across {c.length} {c.length === 1 ? 'community' : 'communities'} ({c.map((x) => `${x.name} ${x.sensors}`).join(', ')}). This sets them to 0 and removes the row.
+          {c.some((x) => x.fromRooms) && ' Communities whose sensors come from floor plan room types keep theirs.'}
+        </p>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove and set to 0</button>
+          <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep them</button>
+        </div>
+      </div>
+    );
+  }
+  const ecall = dealProducts(d).includes('ecall');
+  const sub = kind === 'subscription';
+  return (
+    <div className={box} role="alertdialog" aria-label={sub ? 'Remove the subscription' : 'Remove equipment purchase'}>
+      <p className="text-[13px] font-semibold">{sub ? 'Switch to equipment purchase, or remove the subscription?' : 'Switch to the subscription, or remove equipment purchase?'}</p>
+      <p className="mt-0.5 text-[12px] text-[#6B7380]">
+        Switching keeps resident monitoring, E-Call and sensors, priced the other way.
+        {' '}
+        {ecall ? 'Removing it makes this an E-Call-only deal (resident monitoring off at every community).' : 'Removing it leaves the deal with no platform product.'}
+      </p>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={() => onSwitch(sub ? 'capex' : 'subscription')}>{sub ? 'Switch to equipment purchase' : 'Switch to the subscription'}</button>
+        <button type="button" className={`${btn} border border-[#E4E0D6] bg-white text-[#B4442C]`} onClick={() => onRemove(kind)}>{sub ? 'Remove the subscription' : 'Remove equipment purchase'}</button>
+        <button type="button" className={`${btn} text-[#6B7380]`} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
 }
 
 /** The list price; amber (with the difference on hover) when the deal price is different. */
@@ -563,7 +680,6 @@ function CapexSettings() {
       <SettingRow label="Software & services billed" hint="Title passes at install; no install charge or license fee">
         <Seg name="commercial.capex.softwareBilling" label="Software & services billed" options={[['monthly', 'Monthly'], ['upfront', 'Upfront']]} />
       </SettingRow>
-      <SettingRow label="Additional sensor" hint="One-time"><Price name="commercial.capex.sensorPrice" label="Equipment purchase additional sensor" /></SettingRow>
       {k.ecall === 'ble' && <SettingRow label="With E-Call per bed" hint="Replaces the base price"><Price name="commercial.capex.bleBasePrice" label="Base with Bluetooth E-Call" /></SettingRow>}
       {k.ecall === 'inovonics' && <SettingRow label="With Inovonics E-Call per bed" hint="Replaces the base price"><Price name="commercial.capex.inovonicsBasePrice" label="Base with Inovonics E-Call" /></SettingRow>}
       {k.ecall !== 'none' && (
@@ -587,10 +703,11 @@ function CapexSettings() {
 const PICKABLE = [SKU.platform, SKU.snf, SKU.bundleBle, SKU.bundleInovonics, SKU.ecallBle, SKU.ecallInovonics, SKU.sensor, SKU.commonAreaSetup, SKU.capexBase, 'FINISH-CONCEALED-LOW'];
 
 /** The price book, to pick products from: a drawer on the right (a bottom sheet on phones). */
-function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; onClose: () => void; book: PriceBook; have: DealProduct[]; system: string; onAdd: (skus: string[]) => void }) {
+function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; onClose: () => void; book: PriceBook; have: DealProduct[]; system: string; onAdd: (skus: string[], mode?: 'both' | 'switch') => void }) {
   const phone = usePhone();
   const [sel, setSel] = useState<string[]>([]);
   const [q, setQ] = useState('');
+  const [mode, setMode] = useState<'both' | 'switch'>('switch');
   const [shown, setShown] = useState(open);
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {
@@ -599,6 +716,7 @@ function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; o
       setLeaving(false);
       setSel([]);
       setQ('');
+      setMode('switch');
       return;
     }
     if (!shown) return;
@@ -627,6 +745,9 @@ function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; o
     const unit = p.pricingModel === 'per_bed_month' ? '/bed/mo' : p.pricingModel === 'per_bed_once' ? '/bed' : p.pricingModel === 'per_unit_month' ? '/mo' : '';
     return `${money(p.list)}${unit}`;
   };
+  // Picking the other way to buy (equipment purchase on a subscription deal, or the reverse): offer both, or switch?
+  const picks = (p: DealProduct) => sel.some((s) => productsForSku(s)?.add.includes(p));
+  const conflict = picks('capex') && have.includes('subscription') && !have.includes('capex') ? 'capex' : picks('subscription') && have.includes('capex') && !have.includes('subscription') ? 'subscription' : null;
   const toggle = (s: string) => setSel((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]));
   const willShow = (() => {
     const add = new Set<DealProduct>();
@@ -681,7 +802,26 @@ function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; o
           </div>
         ))}
       </div>
-      {willShow.length > 0 && (
+      {conflict && (
+        <div className="mx-5 mb-3" role="radiogroup" aria-label="How the proposal shows it">
+          <p className="text-[12.5px] font-bold mb-1.5">This deal has {conflict === 'capex' ? 'a subscription' : 'equipment purchase'}. How should the proposal show it?</p>
+          {(
+            [
+              ['both', 'Offer both', 'Subscription and equipment purchase side by side (OpEx + CapEx).'],
+              ['switch', conflict === 'capex' ? 'Switch to equipment purchase' : 'Switch to the subscription', conflict === 'capex' ? 'Replaces the subscription. Additional sensors and E-Call price at their purchase prices; implementation is included in the base package.' : 'Replaces equipment purchase. Additional sensors and E-Call price at their subscription prices.'],
+            ] as const
+          ).map(([v, t, note]) => (
+            <button key={v} type="button" role="radio" aria-checked={mode === v} onClick={() => setMode(v)} className={`w-full flex gap-2.5 items-start text-left rounded-[12px] border-[1.5px] px-3 py-2.5 mb-2 transition-colors ${mode === v ? 'border-[#3F8CEA] bg-[#F3F8FE]' : 'border-[#E4E0D6] hover:bg-[#FBFAF7]'}`}>
+              <span className={`mt-0.5 w-4 h-4 rounded-full flex-shrink-0 transition-[border-width] duration-200 ${mode === v ? 'border-[5px] border-[#3F8CEA]' : 'border-[1.5px] border-[#C9C4BA]'}`} aria-hidden="true" />
+              <span>
+                <b className="block text-[13px]">{t}</b>
+                <small className="block text-[11.5px] leading-snug text-[#6B7380] mt-0.5">{note}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {willShow.length > 0 && !(conflict && mode === 'switch') && (
         <p className="mx-5 mb-3 rounded-[10px] bg-[#F6F3EE] px-3 py-2 text-[11.5px] leading-relaxed text-[#6B7380]">
           Adding {sel.length === 1 ? 'this' : 'these'} shows the <b className="text-teton-ink">{willShow.join(', ')}</b> settings. Implementation comes with the first platform product.
         </p>
@@ -693,12 +833,12 @@ function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; o
           type="button"
           disabled={!sel.length}
           onClick={() => {
-            onAdd(sel);
+            onAdd(sel, conflict ? mode : 'both');
             onClose();
           }}
           className="h-9 rounded-[10px] bg-teton-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-40"
         >
-          {sel.length > 1 ? `Add ${sel.length} products` : 'Add product'}
+          {conflict && mode === 'switch' ? 'Switch' : sel.length > 1 ? `Add ${sel.length} products` : 'Add product'}
         </button>
       </div>
     </>
