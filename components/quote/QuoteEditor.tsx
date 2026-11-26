@@ -41,7 +41,28 @@ import { Collapse, ReadOnlyContext, SectionGroup } from '@/components/form/field
 import { usePersistedOpen } from '@/components/Sidebar';
 import { canAutoFocus } from '@/lib/client/focus';
 import { DealLinkButtons } from './DealLinkButtons';
+import { DealNavigator, PageDots } from './DealNavigator';
+import { OPEN_PANEL } from './panelNav';
+import { SegGroup } from '@/components/form/SegGroup';
 import { AgreementAlert, useDealAgreement } from './AgreementAlert';
+
+type RailTab = 'summary' | 'details' | 'tasks' | 'versions';
+const TAB_OF: Record<string, RailTab> = { collaborators: 'details', 'deal-details': 'details', 'floor-plans': 'details', tasks: 'tasks', notifications: 'tasks', 'live-preview': 'summary', 'version-history': 'versions' };
+
+/** Summary · Details · Tasks · Versions over the right panel (Versions shows a dot while there are unsaved changes). */
+function RailTabs({ tab, onTab, unsaved }: { tab: RailTab; onTab: (t: RailTab) => void; unsaved: number }) {
+  const tabs: Array<[RailTab, string]> = [['summary', 'Summary'], ['details', 'Details'], ['tasks', 'Tasks'], ['versions', 'Versions']];
+  return (
+    <SegGroup label="Panel" className="relative flex rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]">
+      {tabs.map(([v, l]) => (
+        <button key={v} type="button" role="radio" aria-checked={tab === v} onClick={() => onTab(v)} className={`relative z-[1] flex-1 h-8 rounded-[8px] text-[12.5px] transition-colors duration-200 ${tab === v ? 'font-semibold text-teton-ink' : 'text-[#4E5562] hover:text-teton-ink'}`}>
+          {l}
+          {v === 'versions' && unsaved > 0 && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-[#E2A72B] align-middle" aria-label={`${unsaved} unsaved`} />}
+        </button>
+      ))}
+    </SegGroup>
+  );
+}
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
@@ -95,8 +116,15 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     ro.observe(h);
     return () => ro.disconnect();
   }, []);
+  // The right panel's tabs (a panel opened from the phone menu switches to its tab).
+  const [railTab, setRailTab] = useState<RailTab>('summary');
+  useEffect(() => {
+    const on = (e: Event) => setRailTab(TAB_OF[(e as CustomEvent<string>).detail] ?? 'summary');
+    window.addEventListener(OPEN_PANEL, on);
+    return () => window.removeEventListener(OPEN_PANEL, on);
+  }, []);
   // The section menu beside the form: collapsed by default, remembered per browser.
-  const [navOpen, setNavOpen] = usePersistedOpen('teton.sectionNav.open');
+  const [navOpen, setNavOpen] = usePersistedOpen('teton.sectionNav.open', true);
   // The rail column can host the Communities editor panel (wide screens only; below xl the rail sits under the form).
   const [railEl, setRailEl] = useState<HTMLDivElement | null>(null);
   const [railActive, setRailActive] = useState(false);
@@ -439,7 +467,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
         {/* The inputs and the right panel share the room 1.75 : 1, so both widen when the menus collapse. */}
         <div
           className={`grid gap-6 grid-cols-1 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none ${
-            navOpen ? 'xl:grid-cols-[170px_minmax(0,1.75fr)_minmax(300px,1fr)]' : 'xl:grid-cols-[32px_minmax(0,1.75fr)_minmax(300px,1fr)]'
+            navOpen ? 'xl:grid-cols-[230px_minmax(0,1.75fr)_minmax(300px,1fr)]' : 'xl:grid-cols-[32px_minmax(0,1.75fr)_minmax(300px,1fr)]'
           }`}
         >
           <nav className="hidden xl:block min-w-0" aria-label="Form sections">
@@ -463,53 +491,26 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 className={`transition-[opacity,transform] duration-300 ease-out ${navOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 pointer-events-none'}`}
                 {...((navOpen ? {} : { inert: '' }) as Record<string, string>)}
               >
-              <ul className="space-y-0.5">
-                {NAV.map(([id, label]) => (
-                  <li key={id}>
-                    <a href={`#${id}`} onClick={() => sections.setOpen(id, true)} className={navLink(sections.isOpen(id))}>
-                      {label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="mt-0.5 w-full flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-teton-off-white text-left text-teton-ink font-medium"
-                aria-expanded={assumptionsOpen}
-                aria-controls="nav-assumptions"
-                onClick={() => sections.setOpen('assumptions', !assumptionsOpen)}
-              >
-                <svg className={`w-3.5 h-3.5 text-teton-ui-gray transition-transform duration-300 ${assumptionsOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
-                </svg>
-                Assumptions
-              </button>
-              <Collapse open={assumptionsOpen} id="nav-assumptions">
-                <ul className="space-y-0.5 pl-3 ml-3 border-l border-teton-off-white">
-                  {ASSUMPTIONS_NAV.map(([id, label]) => (
-                    <li key={id}>
-                      <a
-                        href={`#${id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          sections.setOpen(id, true);
-                          // Already open: jump now. Otherwise wait for the group to finish expanding.
-                          setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), assumptionsOpen ? 16 : 320);
-                          sections.setOpen('assumptions', true);
-                        }}
-                        className={navLink(sections.isOpen(id))}
-                      >
-                        {label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </Collapse>
+              <DealNavigator
+                isOpen={sections.isOpen}
+                onGo={(id) => {
+                  sections.setOpen(id, true);
+                  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 60);
+                }}
+                assumptions={ASSUMPTIONS_NAV}
+                assumptionsOpen={assumptionsOpen}
+                onToggleAssumptions={() => sections.setOpen('assumptions', !assumptionsOpen)}
+                onGoAssumption={(id) => {
+                  sections.setOpen(id, true);
+                  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), assumptionsOpen ? 16 : 320);
+                  sections.setOpen('assumptions', true);
+                }}
+              />
               </div>
             </div>
           </nav>
 
-          <div className="space-y-4 min-w-0">
+          <div className="relative space-y-4 min-w-0">
             {/* Phones: Expand all on the left, and ☰ (jump to a section or panel card) on the right. */}
             <div className="flex items-center justify-between sm:justify-end -mb-1">
               <button type="button" className="btn-ghost max-sm:-ml-2" onClick={() => sections.setAll(!sections.allOpen)} aria-label={sections.allOpen ? 'Collapse all sections' : 'Expand all sections'}>
@@ -541,6 +542,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               <ClientSection inputs={computed.inputs} result={computed.result} book={book} />
               <CfoSection inputs={computed.inputs} result={computed.result} book={book} />
             </SectionGroup>
+            <PageDots ids={[...NAV, ['assumptions', 'Assumptions']]} />
           </div>
 
           <aside className="space-y-4 min-w-0">
@@ -552,12 +554,20 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
+              <RailTabs tab={railTab} onTab={setRailTab} unsaved={pending.length} />
+              <div className={railTab === 'details' ? 'space-y-4' : 'hidden'}>
               <CollaboratorsPanel />
               <DealDetailsPanel quoteId={initial.quoteId} prospectUpdated={!!agreement.data?.open && (agreement.data.open.payload.entity.status === 'updated' || agreement.data.open.payload.signatory.status === 'updated')} />
-              <TasksPanel quoteId={initial.quoteId} />
               <FloorPlansPanel />
+              </div>
+              <div className={railTab === 'tasks' ? 'space-y-4' : 'hidden'}>
+              <TasksPanel quoteId={initial.quoteId} />
               <NotificationsPanel />
+              </div>
+              <div className={railTab === 'summary' ? 'space-y-4' : 'hidden'}>
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
+              </div>
+              <div className={railTab === 'versions' ? 'space-y-4' : 'hidden'}>
               <VersionsPanel
                 agreement={agreement.data}
                 versions={versions}
@@ -584,6 +594,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                     : null
                 }
               />
+              </div>
             </div>
           </aside>
         </div>

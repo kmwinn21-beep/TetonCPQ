@@ -4,6 +4,7 @@ import { runModel } from '@/lib/model';
 import { defaultDraft, newCommunity, normalizeDraft, scopeOf, type QuoteDraft } from './draft';
 import { toModelInputs } from './toModelInputs';
 import { sampleDraft } from './sampleDraft';
+import { previewTotals } from './previewTotals';
 import { addProducts, applyKit, dealProducts, fitCommunity, removeBlock, removeProduct, visibleSettings } from './products';
 
 const book = priceBook();
@@ -102,5 +103,8 @@ describe('the resident monitoring pilot kit', () => {
     expect(fees.slice(0, 3)).toEqual([0, 0, 0]);
     expect(fees[3]).toBe(11880);
     expect(sum(r.cashFlow.install)).toBe(0);
+    // Contract value: 36 months after the pilot (a 39-month term with it).
+    const t = previewTotals(d, toModelInputs(d), r, book);
+    expect(t.opex).toMatchObject({ contract: 427680, termMonths: 39 });
   });
 });

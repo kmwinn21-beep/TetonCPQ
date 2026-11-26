@@ -88,6 +88,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
               ['Additional sensors', usd(t.opex.sensors)],
               ['Monthly cost', mo(t.opex.monthly)],
               ['Total Year 1 investment', usd(t.opex.year1), true],
+              [`Contract value · ${t.opex.termMonths} months`, usd(t.opex.contract), true],
             ]}
           />
         )}

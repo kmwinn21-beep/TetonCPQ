@@ -186,8 +186,8 @@ export function Section({
   const open = isOpen(id);
   const bodyId = `${id}-body`;
   return (
-    <section id={id} data-title={title} className="card scroll-mt-4 p-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+    <section id={id} data-title={title} className="scroll-mt-4 rounded-[14px] border border-[#ECE8DF] bg-white overflow-hidden">
+      <div className={`flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3 min-h-[56px] bg-[#FBFAF7] transition-colors duration-300 ${open ? 'border-b border-[#ECE8DF]' : ''}`}>
         <button
           type="button"
           className="flex items-start gap-3 text-left flex-1 min-w-0 sm:min-w-[14rem] group"
@@ -196,7 +196,7 @@ export function Section({
           onClick={() => setOpen(id, !open)}
         >
           <svg
-            className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 ${open ? 'rotate-90' : ''}`}
+            className={`w-3.5 h-3.5 mt-px flex-shrink-0 text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
             viewBox="0 0 20 20"
             fill="currentColor"
             aria-hidden="true"
@@ -204,10 +204,10 @@ export function Section({
             <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
           </svg>
           <span className="min-w-0">
-            <span className="block text-base font-semibold group-hover:underline underline-offset-2 break-words">{title}</span>
+            <span className="block text-[11.5px] font-bold uppercase tracking-[.14em] text-[#3F4753] group-hover:text-teton-ink break-words">{title}</span>
             {open
-              ? description && <span className="block text-sm text-teton-ui-gray mt-0.5">{description}</span>
-              : summary && <span className="max-sm:hidden block text-sm text-teton-dark-gray mt-0.5 line-clamp-2">{summary}</span>}
+              ? description && <span className="block text-[12.5px] text-[#6B7380] mt-1">{description}</span>
+              : summary && <span className="max-sm:hidden block text-[12.5px] text-[#6B7380] mt-1 line-clamp-2">{summary}</span>}
           </span>
         </button>
         {/* Header actions, then the comment button furthest right (on the same row). */}
@@ -229,9 +229,9 @@ export function Section({
       </div>
       <Collapse open={open} id={bodyId}>
         {readOnly && !interactive ? (
-          <fieldset disabled className="px-5 pb-5 min-w-0">{children}</fieldset>
+          <fieldset disabled className="px-4 sm:px-5 py-4 min-w-0">{children}</fieldset>
         ) : (
-          <div className="px-5 pb-5">
+          <div className="px-4 sm:px-5 py-4">
             {reset && <div className="-mt-3 mb-3 pl-7">{reset}</div>}
             {children}
           </div>
@@ -276,21 +276,21 @@ export function SectionGroup({ id, title, summary, children }: { id: string; tit
   const open = isOpen(id);
   const bodyId = `${id}-group`;
   return (
-    <div data-group={id} data-title={title}>
+    <div id={id} data-group={id} data-title={title} className="scroll-mt-4">
       <button
         type="button"
-        className="w-full flex items-start gap-3 text-left rounded-xl border border-dashed border-teton-pale-gray bg-teton-almost-white px-5 py-4 group hover:border-teton-light-gray transition-colors"
+        className="w-full flex items-start gap-3 text-left rounded-[14px] border border-dashed border-[#D9D3C7] bg-[#FBFAF7] px-4 sm:px-5 py-3 min-h-[56px] group hover:border-[#BFB8AA] transition-colors"
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => setOpen(id, !open)}
       >
-        <svg className={`w-4 h-4 mt-1 flex-shrink-0 text-teton-ui-gray transition-transform duration-300 ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <svg className={`w-3.5 h-3.5 mt-px flex-shrink-0 text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path fillRule="evenodd" d="M7.2 4.2a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.92 10 7.2 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
         </svg>
         <span className="min-w-0">
-          <span className="block text-base font-semibold group-hover:underline underline-offset-2">{title}</span>
+          <span className="block text-[11.5px] font-bold uppercase tracking-[.14em] text-[#3F4753] group-hover:text-teton-ink">{title}</span>
           {/* Phones: the summary only shows while open, to save room. */}
-          {summary && <span className={`block text-sm text-teton-dark-gray mt-0.5 ${open ? '' : 'max-sm:hidden'}`}>{summary}</span>}
+          {summary && <span className={`block text-[12.5px] text-[#6B7380] mt-1 ${open ? '' : 'max-sm:hidden'}`}>{summary}</span>}
         </span>
       </button>
       <Collapse open={open} id={bodyId}>

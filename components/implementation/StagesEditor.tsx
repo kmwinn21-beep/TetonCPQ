@@ -134,6 +134,18 @@ export function StagesEditor({ plan: rawPlan, onChange, compact = false }: { pla
                   </span>
                 )}
                 <span className="text-xs text-teton-dark-gray whitespace-nowrap min-w-[9.5rem]">{weekLabel(sched.stages[i])}</span>
+                {!compact && (() => {
+                  // Where this stage sits in the whole timeline (a mini gantt row).
+                  const lo = Math.min(...sched.stages.map((x) => x.fromWeek));
+                  const hi = Math.max(...sched.stages.map((x) => x.toWeek));
+                  const span = Math.max(1, hi - lo + 1);
+                  const st = sched.stages[i];
+                  return (
+                    <span className="hidden 2xl:block relative w-[150px] h-[14px] rounded-[4px] bg-[#F3F0EA]" title={`${weekLabel(st)} of ${span} weeks`} aria-hidden="true">
+                      <i className="absolute top-[2px] bottom-[2px] rounded-[3px]" style={{ left: `${((st.fromWeek - lo) / span) * 100}%`, width: `${Math.max(3, (st.weeks / span) * 100)}%`, background: stageColor(id, plan.order) }} />
+                    </span>
+                  );
+                })()}
                 <span className="flex items-center">
                   <button type="button" className={iconBtn} disabled={i === 0} onClick={() => onChange(moveStage(plan, id, -1))} aria-label={`Move ${label} earlier`} title="Move earlier">
                     ↑

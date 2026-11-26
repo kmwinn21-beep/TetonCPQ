@@ -40,7 +40,7 @@ function counts(d: QuoteDraft) {
 }
 
 /** A price on a line or a setting: "$ [ 99 ]". */
-function Price({ name, nullable, placeholder, suffix, label, list }: { name: FieldName; nullable?: boolean; placeholder?: string; suffix?: string; label: string; list?: number | null }) {
+function Price({ name, nullable, placeholder, suffix, label, list, pill = true }: { name: FieldName; nullable?: boolean; placeholder?: string; suffix?: string; label: string; list?: number | null; pill?: boolean }) {
   const { control } = useFormContext<QuoteDraft>();
   return (
     <Controller
@@ -62,9 +62,9 @@ function Price({ name, nullable, placeholder, suffix, label, list }: { name: Fie
               min={0}
               invalid={!!fieldState.error}
               aria-label={label}
-              className={`w-[118px] flex-shrink-0 ${off ? '' : '[&_input]:border-dashed'}`}
+              className={`${pill ? 'w-[118px]' : 'w-[112px]'} flex-shrink-0 ${off ? '' : '[&_input]:border-dashed'}`}
             />
-            {off && (
+            {off && pill && (
               <span className="hidden xl:inline-flex h-[22px] items-center px-2 rounded-[7px] bg-[#FBF0D9] text-[#9A6512] text-[11px] font-semibold whitespace-nowrap" title={`List ${money(list)}`}>
                 {Number(v) < list! ? '−' : '+'}
                 {money(Math.abs(Number(v) - list!))}
@@ -244,20 +244,20 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
             </button>
           )}
         </div>
-        <div className="hidden md:grid grid-cols-[30px_minmax(0,2fr)_84px_70px_minmax(150px,1.2fr)_minmax(80px,.7fr)_30px] gap-3 items-center px-4 h-9 border-b border-[#ECE8DF] text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#8A919C]">
+        <div className="hidden md:grid grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-3 items-center px-4 h-9 border-b border-[#ECE8DF] text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#8A919C]">
           <span /><span>Product</span><span>Billing</span><span className="text-right">List</span><span>Deal price</span><span>Applies to</span><span />
         </div>
         {lines.map((l) => (
           <div key={l.key}>
             <div
-              className={`grid grid-cols-[30px_minmax(0,1fr)_30px] md:grid-cols-[30px_minmax(0,2fr)_84px_70px_minmax(150px,1.2fr)_minmax(80px,.7fr)_30px] gap-x-3 gap-y-2 items-center px-4 py-2.5 border-b border-[#F1EEE7] ${l.locked ? 'bg-[#FCFBF8]' : ''}`}
+              className={`grid grid-cols-[30px_minmax(0,1fr)_30px] md:grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-x-3 gap-y-2 items-center px-4 py-2.5 border-b border-[#F1EEE7] ${l.locked ? 'bg-[#FCFBF8]' : ''}`}
             >
               <ItemIcon sku={l.sku} size="w-[28px] h-[28px]" />
               <div className="min-w-0">
                 {l.locked && l.field ? (
-                  <button type="button" onClick={() => setImplOpen(!implOpen)} aria-expanded={implOpen} aria-controls="impl-credit" className="text-left group">
+                  <button type="button" onClick={() => setImplOpen(!implOpen)} aria-expanded={implOpen} aria-controls="impl-credit" className="text-left group flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     <b className="text-[13px] font-semibold group-hover:underline underline-offset-2">{l.name}</b>
-                    <span className="ml-1.5 align-[1px] whitespace-nowrap rounded-[5px] bg-[#EEEBFB] px-1.5 py-px text-[10px] font-bold text-[#6E5BD0]">ALWAYS INCLUDED</span>
+                    <span className="whitespace-nowrap rounded-[5px] bg-[#EEEBFB] px-1.5 py-px text-[10px] font-bold text-[#6E5BD0]">ALWAYS INCLUDED</span>
                   </button>
                 ) : (
                   <b className="block text-[13px] font-semibold">
@@ -272,7 +272,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
               </div>
               <span className="md:hidden col-start-3 row-start-1 justify-self-end">{action(l)}</span>
               <span className={`max-md:col-start-2 justify-self-start inline-flex h-[22px] items-center rounded-[7px] px-2 text-[11.5px] font-semibold ${l.once ? 'bg-[#FBF0D9] text-[#9A6512]' : 'bg-[#E6F1FC] text-[#2F78C8]'}`}>{l.once ? 'One-time' : 'Monthly'}</span>
-              <span className="max-md:hidden text-right tabular-nums text-[#8A919C]">{l.list == null ? '' : money(l.list)}</span>
+              <ListCell l={l} />
               <div className="max-md:col-start-2 min-w-0">
                 {l.text ? (
                   <span className="text-[12.5px] text-[#4E5562]">{l.text}</span>
@@ -283,7 +283,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                     <span className="ml-1 text-[11px] font-normal text-[#8A919C]">pilot sites</span>
                   </button>
                 ) : (
-                  l.field && <Price name={l.field} label={`${l.name} deal price`} nullable={l.nullable} placeholder={l.placeholder} suffix={l.suffix} list={l.list} />
+                  l.field && <Price name={l.field} label={`${l.name} deal price`} nullable={l.nullable} placeholder={l.placeholder} suffix={l.suffix} list={l.list} pill={false} />
                 )}
               </div>
               <span className="max-md:col-start-2 text-[12px] text-[#6B7380]">{l.applies}</span>
@@ -448,6 +448,20 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
       </button>
     );
   }
+}
+
+/** The list price; amber (with the difference on hover) when the deal price is different. */
+function ListCell({ l }: { l: Line }) {
+  const { control } = useFormContext<QuoteDraft>();
+  const v = useWatch({ control, name: (l.field ?? 'customerName') as FieldName }) as unknown;
+  if (l.list == null) return <span className="max-md:hidden" />;
+  const n = Number(v);
+  const off = !!l.field && v != null && Number.isFinite(n) && Math.abs(n - l.list) > 1e-9;
+  return (
+    <span className={`max-md:hidden text-right tabular-nums ${off ? 'text-[#9A6512] font-semibold' : 'text-[#8A919C]'}`} title={off ? `List ${money(l.list)} · deal ${n < l.list ? '−' : '+'}${money(Math.abs(n - l.list))}` : 'List price'}>
+      {money(l.list)}
+    </span>
+  );
 }
 
 function Tag({ tone, children }: { tone: 'amber' | 'green' | 'blue'; children: React.ReactNode }) {

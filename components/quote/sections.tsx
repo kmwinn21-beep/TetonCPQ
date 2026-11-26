@@ -234,7 +234,7 @@ export function PricingSection({ book }: SectionProps) {
     <Section
       id="pricing"
       title="Products & Pricing"
-      description={`US rate card: $${listPlatform}/bed/month, $${listInstall}/bed install. Guardrails update on the right as you type.`}
+      description="Products from the price book, and only the settings they need. The live preview updates as you type."
       summary={products.length ? dot(
         `${money(k.platformRate)}/bed`,
         d.schedule?.withPilot ? `pilot ${money(k.pilotRate)} for ${d.schedule.pilotLengthMonths} mo` : 'no pilot',
