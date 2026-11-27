@@ -12,6 +12,8 @@ import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, hasImplementation, hasSensors, KITS, sensorCounts, visibleSettings, type Choices, type DealProduct, type Structure } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
+import { activeItems, itemQty } from '@/lib/pricing/items';
+import { COUNT_LABEL } from '@/lib/pricing/catalog';
 import { isRemoved, lineupOf, offeredFor, removedRoles, ROLE_BY_SKU, sameLineup, type Lineup } from '@/lib/pricing/lineup';
 import { Collapse, DerivedField, ReadOnlyContext } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
@@ -100,6 +102,8 @@ interface Line {
   sensors?: boolean;
   /** The Teton One + E-Call bundle: its price is the subscription + E-Call less the bundle saving. */
   bundle?: 'ble' | 'inovonics';
+  /** The SKU reps see, when it isn't in the price book passed in (generic items carry their own). */
+  code?: string;
 }
 
 /** The price book items on the deal, from the products (and structure) and the communities' counts. */
@@ -183,10 +187,30 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     if (capexSide) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: both ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
   }
   if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
+  // Items priced generically (added in the price book): quantity from the communities × the deal price.
+  const both = opexSide && capexSide;
+  for (const it of activeItems(d)) {
+    const qty = (d.communities ?? []).reduce((t, c) => t + itemQty(c, k.ecall !== 'none', it.spec.counted), 0);
+    const every = it.spec.billing === 'years' ? `, every ${it.spec.everyYears ?? 1} ${(it.spec.everyYears ?? 1) === 1 ? 'year' : 'years'}` : it.spec.billing === 'once' ? ', one-time' : ' / month';
+    out.push({
+      key: `item:${it.side}:${it.sku}`,
+      sku: it.sku,
+      name: both ? `${it.spec.name} · ${it.side === 'capex' ? 'purchase' : 'subscription'}` : it.spec.name,
+      unit: `${COUNT_LABEL[it.spec.counted]}${every}`,
+      once: it.spec.billing !== 'monthly',
+      list: it.spec.list,
+      field: `commercial.items.${it.sku}` as FieldName,
+      nullable: true,
+      placeholder: String(it.spec.list),
+      applies: any ? `${qty.toLocaleString('en-US')} ${it.spec.counted === 'perCommunity' ? (qty === 1 ? 'community' : 'communities') : 'units'}` : '',
+      code: it.spec.code,
+    });
+  }
   if (!removed.size) return out;
   return out.filter((l) => {
     if (l.key === 'impl') return l.field === 'commercial.installRate' ? !isRemoved(removed, 'install') : l.field === 'commercial.ecallInstallRate' ? !isRemoved(removed, 'ecallInstall') : true;
     if (l.key === 'finish') return !(isRemoved(removed, 'finishLow') && isRemoved(removed, 'finishHigh'));
+    if (l.key.startsWith('item:')) return true; // generic: priced by its own details, not a built-in role
     const r = ROLE_BY_SKU[l.sku];
     return !r || !isRemoved(removed, r, l.sku);
   });
@@ -439,7 +463,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                       <b className="block text-[13px] font-semibold">{l.name}</b>
                     )}
                     <small className="block text-[11.5px] text-[#8A919C] mt-0.5">
-                      <span className="font-mono">{book[l.sku]?.itemCode ?? l.sku}</span> · {l.unit}
+                      <span className="font-mono">{book[l.sku]?.itemCode ?? l.code ?? l.sku}</span> · {l.unit}
                       {l.bundle && <> · subscription {money(k.platformRate)} + E-Call {money(k.ecallRate)} − saving</>}
                       {l.key === 'impl' && l.field && pilot && k.installCreditPct > 0 && <b className="text-[#2F8F5B] font-semibold"> · {Math.round(k.installCreditPct * 100)}% credit on pilot sites</b>}
                     </small>

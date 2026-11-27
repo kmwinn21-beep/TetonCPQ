@@ -9,10 +9,11 @@
  * and the equipment rows add up to the equipment total.
  */
 import { pricedDraft } from '@/lib/pricing/lineup';
+import { activeItems, itemPrice } from '@/lib/pricing/items';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 import { subscriptionTotals } from '@/lib/model';
 import { basePackageRows, renewalsWithin, sensorRows, type CapexResult } from '@/lib/pricing/capex';
-import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
+import { COUNT_LABEL, POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { bedsByCare, extraDevicePrice, scopeOf, type QuoteDraft } from './draft';
 import { ecallBilled, pendantScope } from './roomTypes';
@@ -195,6 +196,11 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     if (p.softwareBilling === 'upfront') price('cxEoSwUp', 'Equipment: E-Call software per bed, upfront', 'capex', p.ecallSoftwareUpfront ?? 240, list(SKU.capexEcallSoftwareUpfront));
     else price('cxEoSw', 'Equipment: E-Call software per bed / month', 'capex', p.ecallSoftware ?? 5, list(SKU.capexEcallSoftware));
   }
+  // Generic items (added in the price book), on each way the deal is sold.
+  const generic = activeItems(draft);
+  const genericSkus = new Set(generic.map((x) => x.sku));
+  const bothSides = draft.presentation === 'both';
+  for (const it of generic) price(`item.${it.side}.${it.sku}`, `${it.side === 'capex' && bothSides ? 'Equipment: ' : ''}${it.spec.name} (${COUNT_LABEL[it.spec.counted]})`, it.side === 'capex' ? 'capex' : 'subscription', itemPrice(draft, it.sku, it.spec), it.spec.list);
   inRows.push({
     key: 'terms',
     label: `${anyPilot ? 'Pilot · ' : ''}service term · ownership · horizon`,
@@ -238,13 +244,13 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       const per = g.map((l) => ({ community: l.communityName, qty: l.qty, total: lineTotal(l) }));
       const row = (community: string | null, qtys: number[], total: number, idx: string): CheckRow => {
         const qty: Piece[] = qtys.length > 1 ? ['(', ...qtys.flatMap((q, j) => (j ? [' + ', { v: count(q) }] : [{ v: count(q) }])), ')'] : [{ v: count(qtys[0]) }];
-        const what = l0.sku === SKU.sensor ? 'sensors' : DEVICE_SKUS.has(l0.sku) ? 'extra devices' : ECALL_SKUS.has(l0.sku) ? `${unitWord}s` : 'beds';
+        const what = genericSkus.has(l0.sku) ? 'units' : l0.sku === SKU.sensor ? 'sensors' : DEVICE_SKUS.has(l0.sku) ? 'extra devices' : ECALL_SKUS.has(l0.sku) ? `${unitWord}s` : 'beds';
         const rateWord = l0.billing === 'monthly' ? 'rate' : 'price';
         // Credits: −(quantity × price × credit %), from the line's net (−price × credit).
         const pct = k.installCreditPct;
         const formula: Piece[] =
           l0.unitNet < 0 && pct > 0
-            ? [`−(${what} × ${l0.sku === SKU.sensor ? 'sensor price' : DEVICE_SKUS.has(l0.sku) ? 'device price' : 'install'} × credit) = −`, ...qty, ' × ', { v: cents(-l0.unitNet / pct) }, ' × ', { v: `${Math.round(pct * 100)}%` }]
+            ? [`−(${what} × ${genericSkus.has(l0.sku) ? 'price' : l0.sku === SKU.sensor ? 'sensor price' : DEVICE_SKUS.has(l0.sku) ? 'device price' : 'install'} × credit) = −`, ...qty, ' × ', { v: cents(-l0.unitNet / pct) }, ' × ', { v: `${Math.round(pct * 100)}%` }]
             : l0.billing === 'monthly'
             ? [`${what} × ${rateWord} × months = `, ...qty, ' × ', { v: cents(l0.unitNet) }, ' × ', { v: count(l0.termMonths ?? 0) }]
             : [`${what} × ${rateWord} = `, ...qty, ' × ', { v: cents(l0.unitNet) }];
@@ -355,6 +361,17 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       calc: { qty: r.units, unit: r.perUnit },
     });
   }
+  for (const x of capex.items ?? []) {
+    cx.push({
+      key: `cx.item.${x.sku}`,
+      label: x.billing === 'monthly' ? `${x.name}, monthly` : x.billing === 'years' ? `${x.name} (every ${x.everyYears ?? 1} years)` : x.name,
+      community: null,
+      formula: ['quantity × price = ', { v: count(x.qty) }, ' × ', { v: cents(x.perUnit) }],
+      result: x.total,
+      unit: x.billing === 'monthly' ? 'usd_mo' : 'usd',
+      calc: { qty: x.qty, unit: x.perUnit },
+    });
+  }
   capex.communities.forEach((c, i) => {
     if (!c.equipment && !c.softwareMonthly && !c.softwareUpfront) return;
     const parts = c.parts ?? [];
@@ -365,12 +382,14 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       formula: [
         ...parts.flatMap((pt, j) => [...(j ? [' + '] : []), { v: count(pt.beds) }, ' × ', { v: cents(pt.perBed) }] as Piece[]),
         ...(c.sensors > 0 ? [parts.length ? ' + ' : '', { v: count(c.sensors) }, ' sensors × ', { v: cents(c.sensorPrice ?? p.sensorPrice) }] : []),
+        ...(c.items ?? []).filter((x) => x.billing !== 'monthly').flatMap((x) => [' + ', { v: count(x.qty) }, ` × ${x.name} `, { v: cents(x.perUnit) }] as Piece[]),
       ],
       result: c.equipment,
       unit: 'usd',
     });
   });
-  cx.push({ key: 'cx.equipment', label: 'One-time equipment', community: null, formula: ['base packages + E-Call units + sensors = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }], result: capex.equipment, unit: 'usd', total: true, alsoOn: 'Investment page' });
+  const itemsOnce = sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total));
+  cx.push({ key: 'cx.equipment', label: 'One-time equipment', community: null, formula: itemsOnce ? ['base packages + E-Call units + sensors + one-time items = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }, ' + ', { v: money(itemsOnce) }] : ['base packages + E-Call units + sensors = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }], result: capex.equipment, unit: 'usd', total: true, alsoOn: 'Investment page' });
   const mon = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).monitored));
   const eo = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).ecallOnly));
   if ((capex.softwareBilling ?? 'monthly') === 'upfront') {
@@ -406,7 +425,8 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       unit: 'usd',
     });
   }
-  cx.push({ key: 'cx.own', label: `${capex.ownershipMonths / 12}-year cost of ownership`, community: null, formula: ['equipment + software + renewals = ', { v: money(capex.equipment) }, ' + ', { v: money(capex.software) }, ' + ', { v: money(capex.renewals) }], result: capex.ownershipTotal, unit: 'usd', total: true, alsoOn: 'Investment page' });
+  const itemsOwn = (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0);
+  cx.push({ key: 'cx.own', label: `${capex.ownershipMonths / 12}-year cost of ownership`, community: null, formula: itemsOwn ? ['equipment + software + renewals + items = ', { v: money(capex.equipment) }, ' + ', { v: money(capex.software) }, ' + ', { v: money(capex.renewals) }, ' + ', { v: money(itemsOwn) }] : ['equipment + software + renewals = ', { v: money(capex.equipment) }, ' + ', { v: money(capex.software) }, ' + ', { v: money(capex.renewals) }], result: capex.ownershipTotal, unit: 'usd', total: true, alsoOn: 'Investment page' });
   groups.push({ key: 'capex', title: '', note: `Title passes at install · ${capex.ownershipMonths}-month cost of ownership`, rows: cx });
 
   // ---- Results on this page (subscription view, from the cash flow being shown)
@@ -449,8 +469,8 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     label: a.capexSummary ? `Year 1 subscription investment matches the model` : 'Year 1 investment matches the summary card',
     detail: `Price lines ${money(linesW)} · ${a.capexSummary ? 'model' : 'card'} ${money(out.kpis.totalInvestment12)}`,
   });
-  const eqRows = sum(basePackageRows(capex).map((r) => r.total)) + sum(sensorRows(capex).map((r) => r.total));
-  const eqOk = near(eqRows, capex.equipment) && near(capex.equipment + capex.software + capex.renewals, capex.ownershipTotal);
+  const eqRows = sum(basePackageRows(capex).map((r) => r.total)) + sum(sensorRows(capex).map((r) => r.total)) + sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total));
+  const eqOk = near(eqRows, capex.equipment) && near(capex.equipment + capex.software + capex.renewals + (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0), capex.ownershipTotal);
   const live = a.capexLive;
   const liveOk = !live || (near(live.equipment, capex.equipment) && near(live.ownershipTotal, capex.ownershipTotal));
   checks.push({

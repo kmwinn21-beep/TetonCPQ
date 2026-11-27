@@ -183,6 +183,15 @@ export function buildCashFlow(inputs: ModelInputs, annual: AnnualCaseResult, hor
     }
     if (cc.oneTimeMonth >= 1 && cc.oneTimeMonth <= n) install[cc.oneTimeMonth - 1] += cc.installCost;
   }
+  // Recurring one-time charges (items billed every N years): again every N years after the one-time month.
+  inputs.communities.forEach((c, i) => {
+    for (const x of c.extras ?? []) {
+      if (!x.everyMonths || x.everyMonths < 1) continue;
+      const each = x.units * x.rates.postPilotInstallPerBed;
+      if (!each) continue;
+      for (let m = communities[i].oneTimeMonth + x.everyMonths; m <= n; m += x.everyMonths) if (m >= 1) install[m - 1] += each;
+    }
+  });
   const totalCost = months.map((_, i) => recurringFees[i] + install[i] + reimbursement[i]);
   const netBenefit = months.map((_, i) => grossBenefit[i] - totalCost[i]);
   const cumulativeNet = running(netBenefit);

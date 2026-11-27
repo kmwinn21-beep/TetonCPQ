@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client';
-import { SEED_PRODUCTS } from '@/lib/pricing/catalog';
+import { BUILTIN_DETAILS, SEED_PRODUCTS } from '@/lib/pricing/catalog';
 import { ITEM_CODES, MARKET_SEED } from '@/lib/pricing/markets';
 import { MIGRATIONS } from './migrations';
 
@@ -47,6 +47,14 @@ export async function migrate(db: Client): Promise<void> {
     Object.entries(ITEM_CODES).map(([sku, code]) => ({
       sql: 'UPDATE products SET item_code = ? WHERE sku = ? AND item_code IS NULL AND NOT EXISTS (SELECT 1 FROM products x WHERE x.item_code = ?)',
       args: [code, sku, code],
+    })),
+    'write',
+  );
+  // Item details of the built-in items: filled in where a product has none (edits are kept).
+  await db.batch(
+    Object.entries(BUILTIN_DETAILS).map(([sku, d]) => ({
+      sql: 'UPDATE products SET billing = ?, every_years = ?, per_unit = ? WHERE sku = ? AND billing IS NULL',
+      args: [d.billing, d.everyYears ?? null, d.per, sku],
     })),
     'write',
   );

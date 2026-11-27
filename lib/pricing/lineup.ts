@@ -10,7 +10,7 @@
  * with no role (added in the price book) are priced generically and only when their core product is on the deal.
  */
 import type { Commercial } from '@/lib/quote/draft';
-import { SKU } from './catalog';
+import { SKU, COUNT_BASES, type Billing, type CountBasis, type PilotRule } from './catalog';
 
 export type Side = 'subscription' | 'capex';
 export const SIDES: Side[] = ['subscription', 'capex'];
@@ -49,6 +49,19 @@ export interface LineupEntry {
   sku: string;
   /** Built-in behaviour; missing for items added in the price book (and filled from the SKU for built-in ones). */
   role?: RoleId;
+  /** Items priced generically: their details as of this line-up version (copied from the price book on save). */
+  item?: ItemSpec;
+}
+
+/** A generically priced item, as a line-up version copied it from the price book. */
+export interface ItemSpec {
+  name: string;
+  code: string;
+  list: number;
+  billing: Billing;
+  everyYears?: number;
+  counted: CountBasis;
+  pilot: PilotRule;
 }
 
 export interface LineupSide {
@@ -176,7 +189,7 @@ export const SYSTEM_OF: Record<string, 'ble' | 'inovonics'> = {
 };
 
 /** An entry's role (its own, or its SKU's), or undefined for an item priced generically. */
-export const roleOf = (e: LineupEntry): RoleId | undefined => e.role ?? ROLE_BY_SKU[e.sku];
+export const roleOf = (e: LineupEntry): RoleId | undefined => (e.item ? undefined : e.role ?? ROLE_BY_SKU[e.sku]);
 
 const side = (offered: boolean, items: LineupEntry[]): LineupSide => ({ offered, items });
 const e = (sku: string, role?: RoleId): LineupEntry => (role ? { sku, role } : { sku });
@@ -287,6 +300,20 @@ export function effectiveCommercial(k: Commercial, lineup: Lineup | null | undef
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown, max = 120) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** An item spec from storage (null when malformed). */
+export function specOf(v: unknown): ItemSpec | null {
+  if (!isObj(v)) return null;
+  const billing = v.billing === 'monthly' || v.billing === 'once' || v.billing === 'years' ? v.billing : null;
+  const counted = COUNT_BASES.includes(v.counted as CountBasis) ? (v.counted as CountBasis) : null;
+  const list = Number(v.list);
+  if (!billing || !counted || !Number.isFinite(list)) return null;
+  const years = Math.floor(Number(v.everyYears));
+  // Monthly items are free or billed during the pilot; one-time ones are credited on pilot sites or not.
+  const allowed = billing === 'monthly' ? (['free', 'charged'] as const) : (['credited', 'none'] as const);
+  const pilot: PilotRule = allowed.find((p) => p === v.pilot) ?? allowed[0];
+  return { name: str(v.name) || 'Item', code: str(v.code, 40), list: Math.max(0, list), billing, ...(billing === 'years' ? { everyYears: years >= 1 ? years : 1 } : {}), counted, pilot };
+}
+
 /** A line-up from storage or a request: well-formed, with every built-in core product present (in its place). */
 export function normalizeLineup(raw: unknown): Lineup {
   if (!isObj(raw)) return structuredClone(DEFAULT_LINEUP);
@@ -296,11 +323,12 @@ export function normalizeLineup(raw: unknown): Lineup {
     const out: LineupEntry[] = [];
     for (const x of v) {
       if (!isObj(x) || !str(x.sku)) continue;
-      const role = typeof x.role === 'string' && x.role in ROLES ? (x.role as RoleId) : undefined;
+      const item = specOf(x.item);
+      const role = !item && typeof x.role === 'string' && x.role in ROLES ? (x.role as RoleId) : undefined;
       const k = `${x.sku}:${role ?? ''}`;
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push(role && role !== ROLE_BY_SKU[str(x.sku)] ? { sku: str(x.sku), role } : { sku: str(x.sku) });
+      out.push(item ? { sku: str(x.sku), item } : role && role !== ROLE_BY_SKU[str(x.sku)] ? { sku: str(x.sku), role } : { sku: str(x.sku) });
     }
     return out;
   };

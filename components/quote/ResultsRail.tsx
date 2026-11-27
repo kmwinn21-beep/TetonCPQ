@@ -72,9 +72,12 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
               ['Base packages', usd(t.capex.basePackages)],
               ...(t.capex.ecallUnits > 0 ? ([['E-Call units (E-Call only)', usd(t.capex.ecallUnits)]] as Array<[string, string]>) : []),
               ['Additional sensors', usd(t.capex.sensors)],
+              ...(t.capex.items.filter((x) => x.billing !== 'monthly').map((x) => [x.name, usd(x.total)]) as Array<[string, string]>),
               ['One-time equipment cost', usd(t.capex.equipment), true],
               t.capex.softwareUpfront > 0 ? ['Software & services, upfront', usd(t.capex.softwareUpfront)] : ['Software & services', mo(t.capex.softwareMonthly)],
+              ...(t.capex.items.filter((x) => x.billing === 'monthly').map((x) => [x.name, mo(x.total)]) as Array<[string, string]>),
               ...(t.capex.renewals > 0 ? ([['E-Call renewals', usd(t.capex.renewals)]] as Array<[string, string]>) : []),
+              ...(t.capex.itemsRenewals > 0 ? ([['Item renewals', usd(t.capex.itemsRenewals)]] as Array<[string, string]>) : []),
               [`${t.capex.years === 4 ? 'Four' : t.capex.years}-year cost of ownership`, usd(t.capex.ownership), true],
             ]}
           />
@@ -86,6 +89,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
             rows={[
               ['Installation', usd(t.opex.install)],
               ['Additional sensors', usd(t.opex.sensors)],
+              ...(t.opex.items ? ([['Other one-time items', usd(t.opex.items)]] as Array<[string, string]>) : []),
               ['Monthly cost', mo(t.opex.monthly)],
               ['Total Year 1 investment', usd(t.opex.year1), true],
               [`Contract value · ${t.opex.termMonths} months`, usd(t.opex.contract), true],
@@ -100,6 +104,7 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
             rows={[
               ['Installation', usd(t.pilot.install)],
               ['Additional sensors', usd(t.pilot.sensors)],
+              ...(t.pilot.items ? ([['Other one-time items', usd(t.pilot.items)]] as Array<[string, string]>) : []),
               ['Monthly fees', usd(t.pilot.fees)],
               ['Total pilot cost', usd(t.pilot.total), true],
             ]}
@@ -126,7 +131,7 @@ export function RailHero({ result, draft, inputs, book, unsaved, onSave, saving,
   const tiles: Array<[string, string]> = t?.capex && !t.opex
     ? [['Equipment', usd(t.capex.equipment)], ['Software', t.capex.softwareUpfront ? usd(t.capex.softwareUpfront) : `${usd(t.capex.softwareMonthly)}/mo`], ['Pilot cost', t.pilot ? usd(t.pilot.total) : '—']]
     : t?.opex
-      ? [['Monthly', `${usd(t.opex.monthly)}/mo`], ['One-time', usd(t.opex.install + t.opex.sensors)], ['Pilot cost', t.pilot ? usd(t.pilot.total) : '—']]
+      ? [['Monthly', `${usd(t.opex.monthly)}/mo`], ['One-time', usd(t.opex.install + t.opex.sensors + t.opex.items)], ['Pilot cost', t.pilot ? usd(t.pilot.total) : '—']]
       : [];
   return (
     <div className="px-4 pt-3.5 pb-3.5">

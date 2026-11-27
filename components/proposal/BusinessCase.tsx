@@ -11,6 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
+import { itemsOn } from '@/lib/pricing/items';
 import { pricedDraft } from '@/lib/pricing/lineup';
 import { Children, Fragment, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
@@ -2551,6 +2552,14 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       </tr>
                     );
                   })()}
+                  {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => (
+                    <tr key={x.sku}>
+                      <td className="bc-m"><T k={`bc.capex.item.${x.sku}`} d={x.name} /><small>{x.billing === 'years' ? <T k={`bc.capex.item.${x.sku}.desc`} d="One-time, then every {years} years" v={{ years: String(x.everyYears ?? 1) }} /> : <T k="bc.inv.oneTime" d="One-time" />}</small></td>
+                      <td>{usd(x.perUnit, { cents: !Number.isInteger(x.perUnit) })} each</td>
+                      <td>{count(x.qty)}</td>
+                      <td className="bc-hl bc-big"><V k={`capex.item.${x.sku}.value`} label={`${x.name} amount`}>{usd(x.total)}</V></td>
+                    </tr>
+                  ))}
                   <tr className="bc-tot">
                     <td className="bc-m"><T k="capex.price" d="One-time equipment cost" /><small><T k="bc.capex.equipmentNote" d="Paid at install. No separate installation charge and no license fee." /></small></td>
                     <td />
@@ -2563,12 +2572,28 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <td>{count(capex.ownershipMonths)} Months</td>
                     <td className="bc-hl bc-big">{capex.softwareBilling === 'upfront' ? <V k="capex.softwareUpfront.value" label="Software and services, upfront">{usd(capex.softwareUpfront ?? 0)}</V> : <V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V>}</td>
                   </tr>
+                  {(capex.items ?? []).filter((x) => x.billing === 'monthly').map((x) => (
+                    <tr key={x.sku}>
+                      <td className="bc-m"><T k={`bc.capex.item.${x.sku}`} d={x.name} /><small><T k="bc.inv.billedMonthly" d="Billed monthly" /></small></td>
+                      <td>{usd(x.perUnit, { cents: !Number.isInteger(x.perUnit) })} each, per month</td>
+                      <td>{count(x.qty)}</td>
+                      <td className="bc-hl bc-big"><V k={`capex.item.${x.sku}.value`} label={`${x.name} per month`}>{usd(x.total)} / mo</V></td>
+                    </tr>
+                  ))}
                   {capex.renewals > 0 && (
                     <tr>
                       <td className="bc-m"><T k="capex.renewals" d="E-Call renewals" /><small><T k="bc.capex.renewalsNote" d="Renewals that fall within the {years} years." v={{ years: String(capex.ownershipMonths / 12) }} /></small></td>
                       <td />
                       <td />
                       <td className="bc-hl bc-big"><V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V></td>
+                    </tr>
+                  )}
+                  {(capex.itemsRenewals ?? 0) > 0 && (
+                    <tr>
+                      <td className="bc-m"><T k="capex.itemRenewals" d="Item renewals" /><small><T k="bc.capex.renewalsNote" d="Renewals that fall within the {years} years." v={{ years: String(capex.ownershipMonths / 12) }} /></small></td>
+                      <td />
+                      <td />
+                      <td className="bc-hl bc-big"><V k="capex.itemRenewals.value" label="Item renewals amount">{usd(capex.itemsRenewals ?? 0)}</V></td>
                     </tr>
                   )}
                   <tr className="bc-tot">
@@ -2721,6 +2746,24 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           {credit(sen, 'sensors')}
                           <td className="bc-hl bc-big"><V k="scope.sensors.value" label="Additional sensors amount">{usd(sen.total)}</V></td>
                         </tr>
+                        {itemsOn(draft, 'subscription').filter((it) => it.spec.billing !== 'monthly').map((it) => {
+                          const ls = lines.filter((l) => l.sku === it.sku && l.billing === 'one_time');
+                          const gross = ls.filter((l) => l.unitNet > 0);
+                          const cr = ls.filter((l) => l.unitNet < 0);
+                          if (!gross.length) return null;
+                          const per = gross.map((l) => l.unitNet);
+                          const units = gross.filter((l) => !l.description.endsWith('(renewal)')).reduce((t, l) => t + l.qty, 0);
+                          const crUnits = cr.reduce((t, l) => t + l.qty, 0);
+                          return (
+                            <tr key={it.sku}>
+                              <td className="bc-m"><T k={`bc.item.${it.sku}`} d={it.spec.name} /><small>{it.spec.billing === 'years' ? <T k={`bc.item.${it.sku}.freq`} d="One-time, then every {years} years" v={{ years: String(it.spec.everyYears ?? 1) }} /> : <T k="bc.inv.oneTime" d="One-time" />}</small></td>
+                              <td>{range(Math.min(...per), Math.max(...per))} each</td>
+                              <td>{count(units)}</td>
+                              {crUnits > 0 ? <td className="bc-neg">{`−${money(-cr[0].unitNet)}`}<small>{`on ${count(crUnits)} pilot units`}</small></td> : <td>–</td>}
+                              <td className="bc-hl bc-big"><V k={`scope.item.${it.sku}.value`} label={`${it.spec.name} amount`}>{usd(ls.reduce((t, l) => t + lineTotal(l), 0))}</V></td>
+                            </tr>
+                          );
+                        })}
                         <tr>
                           <td className="bc-m">
                             <T k="bc.scope.subscription" d="Monthly Cost" />
@@ -3645,7 +3688,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const cx = {
       // Software billed upfront is paid with the equipment.
       upfront: capex.equipment + (capex.softwareUpfront ?? 0),
-      monthly: capex.softwareMonthly,
+      // Software and services, plus generic items billed monthly.
+      monthly: capex.softwareMonthly + (capex.itemsMonthly ?? 0),
       y1: capexCf?.investment12 ?? capex.equipment,
       annualCost: tetonAnnual,
       netAnnual: stabilizedNet,
@@ -4186,8 +4230,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <>
                         {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
                         {sensorRows(capex).map((r) => row(`Additional sensors · ${count(r.units)} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
+                        {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => row(`${x.name} · ${count(x.qty)} × ${usd(x.perUnit)}`, usd(x.total)))}
                         {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
                         {row(capex.softwareBilling === 'upfront' ? 'Software & services, paid upfront' : 'Software & services', capex.softwareBilling === 'upfront' ? usd(capex.softwareUpfront ?? 0) : `${usd(capex.softwareMonthly)} / mo`)}
+                        {(capex.items ?? []).filter((x) => x.billing === 'monthly').map((x) => row(x.name, `${usd(x.total)} / mo`))}
                         {row(`${numberWord(capex.ownershipMonths / 12).replace(/^./, (c) => c.toUpperCase())}-year cost of ownership`, usd(capex.ownershipTotal))}
                       </>
                     ) : (

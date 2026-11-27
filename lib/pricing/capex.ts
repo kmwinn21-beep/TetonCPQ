@@ -23,6 +23,7 @@ import { derived, input, type Trace } from '@/lib/model/trace';
 import type { EcallOption, QuoteDraft } from '@/lib/quote/draft';
 import { scopeOf } from '@/lib/quote/draft';
 import { pricedDraft } from './lineup';
+import { itemPrice, itemQty, itemsOn } from './items';
 
 /** A deal's equipment-purchase prices (copied from the price book when the deal is created). */
 export interface CapexPricing {
@@ -97,6 +98,25 @@ export interface CapexCommunity {
   renewals: number;
   /** The community's beds by what they buy (where products differ by care type there is more than one). */
   parts?: CapexPart[];
+  /** Generic items bought here (lib/pricing/items). One-time ones are in `equipment`. */
+  items?: CapexItem[];
+  /** Generic items billed monthly here, and their repeats (every N years) inside the ownership period. */
+  itemsMonthly?: number;
+  itemsRenewals?: number;
+}
+
+/** A generic item at one community (or, in CapexResult.items, across the deal). */
+export interface CapexItem {
+  sku: string;
+  name: string;
+  code: string;
+  billing: 'monthly' | 'once' | 'years';
+  everyYears?: number;
+  qty: number;
+  list: number;
+  perUnit: number;
+  /** qty × perUnit: per month (monthly), or each time it's charged. */
+  total: number;
 }
 
 /** Beds at one community that buy the same thing at the same price. */
@@ -137,7 +157,11 @@ export interface CapexResult {
   software: number;
   /** E-Call renewals that fall inside the ownership period. */
   renewals: number;
-  /** Equipment + software + renewals over the ownership period. */
+  /** Generic items across the deal (one-time ones are in `equipment`), billed monthly, and repeats inside the period. */
+  items?: CapexItem[];
+  itemsMonthly?: number;
+  itemsRenewals?: number;
+  /** Equipment + software + renewals (+ generic items) over the ownership period. */
   ownershipTotal: number;
   /** Equipment ÷ cost of ownership. */
   equipmentShare: number;
@@ -161,8 +185,20 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       : ecall === 'inovonics'
         ? pricing.inovonicsRenewal * renewalsWithin(ownershipMonths, POLICY.capexInovonicsRenewalYears)
         : 0;
+  const generic = itemsOn(draft, 'capex');
   const communities: CapexCommunity[] = draft.communities.map((c) => {
     const sc = scopeOf(c, option !== 'none');
+    // Generic items bought with the equipment: one-time ones are paid with it at install.
+    const items: CapexItem[] = [];
+    for (const it of generic) {
+      const qty = itemQty(c, option !== 'none', it.spec.counted);
+      if (!qty) continue;
+      const per = itemPrice(draft, it.sku, it.spec);
+      items.push({ sku: it.sku, name: it.spec.name, code: it.spec.code, billing: it.spec.billing, ...(it.spec.billing === 'years' ? { everyYears: it.spec.everyYears ?? 1 } : {}), qty, list: it.spec.list, perUnit: per, total: qty * per });
+    }
+    const itemsOnce = items.filter((x) => x.billing !== 'monthly').reduce((t, x) => t + x.total, 0);
+    const itemsMonthly = items.filter((x) => x.billing === 'monthly').reduce((t, x) => t + x.total, 0);
+    const itemsRenewals = items.filter((x) => x.billing === 'years').reduce((t, x) => t + x.total * renewalsWithin(ownershipMonths, x.everyYears ?? 1), 0);
     const credit = draft.schedule?.withPilot && c.pilot ? conversion : 0;
     // Monitored beds buy base packages (with E-Call where their care type has it); beds with E-Call only buy
     // E-Call units (no base package, sensors or software). Unpriced beds buy nothing.
@@ -201,7 +237,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       listSensorPrice: pricing.sensorPrice,
       credit: monitored ? credit : 0,
       sensorCost: sensors * sensorPrice,
-      equipment: basePackages + sensors * sensorPrice,
+      equipment: basePackages + sensors * sensorPrice + itemsOnce,
       // Software: monitored beds at the software rate; E-Call-only beds at the E-Call software rate. Billed monthly,
       // or (deals that bill software upfront) once at install at the upfront prices.
       softwareMonthly: upfront ? 0 : sc.monitored * pricing.softwareRate + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftware ?? 5)),
@@ -209,6 +245,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       renewals: parts.reduce((s, p) => s + p.renewals, 0),
       ...(monitored ? {} : { monitoring: false }),
       parts,
+      ...(items.length ? { items, itemsMonthly, itemsRenewals } : {}),
     };
   });
   const sum = (k: 'beds' | 'sensors' | 'basePackages' | 'sensorCost' | 'equipment' | 'softwareMonthly' | 'renewals') => communities.reduce((s, c) => s + c[k], 0);
@@ -217,9 +254,19 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const softwareUpfront = communities.reduce((s, c) => s + (c.softwareUpfront ?? 0), 0);
   const software = upfront ? softwareUpfront : softwareMonthly * ownershipMonths;
   const renewals = sum('renewals');
-  const ownershipTotal = equipment + software + renewals;
+  // Generic items across the deal: one line per item (their one-time totals are already in equipment).
+  const itemRows = new Map<string, CapexItem>();
+  for (const x of communities.flatMap((c) => c.items ?? [])) {
+    const r = itemRows.get(x.sku) ?? { ...x, qty: 0, total: 0 };
+    r.qty += x.qty;
+    r.total += x.total;
+    itemRows.set(x.sku, r);
+  }
+  const itemsMonthly = communities.reduce((t, c) => t + (c.itemsMonthly ?? 0), 0);
+  const itemsRenewals = communities.reduce((t, c) => t + (c.itemsRenewals ?? 0), 0);
+  const ownershipTotal = equipment + software + renewals + itemsMonthly * ownershipMonths + itemsRenewals;
 
-  const trace = derived('capex.total', 'One-time equipment cost', equipment, 'usd', 'Base packages + Additional sensors', [
+  const trace = derived('capex.total', 'One-time equipment cost', equipment, 'usd', itemRows.size ? 'Base packages + Additional sensors + one-time items' : 'Base packages + Additional sensors', [
     derived('capex.base', 'Base packages', sum('basePackages'), 'usd', 'Σ beds × base package price (by E-Call option)', communities.map((c, i) =>
       derived(`capex.base.c${i}`, `Base packages — ${c.name}`, c.basePackages, 'usd', 'Beds × price per bed', partsOf(c).flatMap((p, j) => {
         const what = !p.monitoring ? ' (E-Call only units)' : p.ecall === 'ble' ? ' (with E-Call)' : p.ecall === 'inovonics' ? ' (with Inovonics E-Call)' : '';
@@ -230,6 +277,9 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
         ];
       })),
     )),
+    ...Array.from(itemRows.values())
+      .filter((x) => x.billing !== 'monthly')
+      .map((x) => derived(`capex.item.${x.sku}`, x.name, x.total, 'usd', 'Quantity × price', [input(`capex.item.${x.sku}.qty`, `${x.name}: quantity`, x.qty, 'count'), input(`capex.item.${x.sku}.price`, `${x.name}: price`, x.perUnit, 'usd')])),
     derived('capex.sensors', 'Additional sensors', sum('sensorCost'), 'usd', conversion ? 'Sensors × sensor price (less the conversion credit at pilot communities)' : 'Sensors × sensor price', [
       input('capex.sensorCount', 'Additional sensors', sum('sensors'), 'count'),
       input('capex.sensorPrice', 'Price per sensor', pricing.sensorPrice, 'usd'),
@@ -252,6 +302,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
     softwareBilling: upfront ? 'upfront' : 'monthly',
     software,
     renewals,
+    ...(itemRows.size ? { items: Array.from(itemRows.values()), itemsMonthly, itemsRenewals } : {}),
     ownershipTotal,
     equipmentShare: ownershipTotal > 0 ? equipment / ownershipTotal : 0,
     trace,

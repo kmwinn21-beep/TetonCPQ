@@ -342,12 +342,19 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
               {(sensorRows(capex).length ? sensorRows(capex) : [{ key: 'none', list: capex.pricing.sensorPrice, credit: 0, perUnit: capex.pricing.sensorPrice, units: 0, total: 0 }]).map((r) => (
                 <tr key={r.key} className="border-t border-teton-off-white"><td className="py-2">Additional sensors <span className="text-teton-ui-gray">· {count(r.units)} × {unitPriceText(r, (n) => usd(n))}{r.credit ? '*' : ''}</span></td><td className="py-2 text-right">{usd(r.total)}</td></tr>
               ))}
+              {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => (
+                <tr key={x.sku} className="border-t border-teton-off-white"><td className="py-2">{x.name} <span className="text-teton-ui-gray">· {count(x.qty)} × {usd(x.perUnit)}{x.billing === 'years' ? `, again every ${x.everyYears ?? 1} years` : ''}</span></td><td className="py-2 text-right">{usd(x.total)}</td></tr>
+              ))}
               <tr className="border-t border-teton-off-white font-semibold">
                 <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>One-time equipment cost</button></td>
                 <td className="py-2 text-right">{usd(capex.equipment)}</td>
               </tr>
               <tr className="border-t border-teton-off-white"><td className="py-2">Software &amp; services <span className="text-teton-ui-gray">· {capex.softwareBilling === 'upfront' ? 'paid upfront' : `${usd(capex.softwareMonthly)}/mo × ${capex.ownershipMonths}`}</span></td><td className="py-2 text-right">{usd(capex.software)}</td></tr>
               {capex.renewals > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">E-Call renewals within {capex.ownershipMonths / 12} years</td><td className="py-2 text-right">{usd(capex.renewals)}</td></tr>}
+              {(capex.items ?? []).filter((x) => x.billing === 'monthly').map((x) => (
+                <tr key={x.sku} className="border-t border-teton-off-white"><td className="py-2">{x.name} <span className="text-teton-ui-gray">· {usd(x.total)}/mo × {capex.ownershipMonths}</span></td><td className="py-2 text-right">{usd(x.total * capex.ownershipMonths)}</td></tr>
+              ))}
+              {(capex.itemsRenewals ?? 0) > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">Item renewals within {capex.ownershipMonths / 12} years</td><td className="py-2 text-right">{usd(capex.itemsRenewals ?? 0)}</td></tr>}
               <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">{capex.ownershipMonths / 12}-year cost of ownership</td><td className="py-2 text-right">{usd(capex.ownershipTotal)}</td></tr>
             </tbody>
           </table>
@@ -439,8 +446,8 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
                 (ccf
                   ? [
                       ['Equipment (at install)', ccf.equipment],
-                      ['Software & services', ccf.software],
-                      ...(ccf.renewals.some((v) => v) ? [['E-Call renewals', ccf.renewals] as const] : []),
+                      [capex.itemsMonthly ? 'Software & services + monthly items' : 'Software & services', ccf.software],
+                      ...(ccf.renewals.some((v) => v) ? [[capex.itemsRenewals ? 'Renewals' : 'E-Call renewals', ccf.renewals] as const] : []),
                       ['Total Teton cost', ccf.totalCost],
                       [`Gross benefit (${caseName})`, cf.grossBenefit],
                       ['Net benefit', ccf.netBenefit],

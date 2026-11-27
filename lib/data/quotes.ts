@@ -83,14 +83,14 @@ export interface QuoteEditorData {
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
 export { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
-import { getPriceBookSettings } from './priceBook';
+import { DETAIL_COLS, getPriceBookSettings, productDetails } from './priceBook';
 import { assertKnownLineup, getLineup } from './lineup';
 import type { Lineup } from '@/lib/pricing/lineup';
 
 const json = (v: unknown) => JSON.stringify(v);
 
 export async function loadPriceBook(db: Client): Promise<{ products: Product[]; book: PriceBook }> {
-  const rs = await db.execute('SELECT sku, name, pricing_model, list_price, description, item_code FROM products WHERE active = 1 ORDER BY rowid');
+  const rs = await db.execute(`SELECT sku, name, pricing_model, list_price, description, item_code, ${DETAIL_COLS} FROM products WHERE active = 1 ORDER BY rowid`);
   const products = rs.rows.map((r) => ({
     sku: String(r.sku),
     name: String(r.name),
@@ -98,6 +98,7 @@ export async function loadPriceBook(db: Client): Promise<{ products: Product[]; 
     list: Number(r.list_price),
     description: String(r.description ?? ''),
     itemCode: r.item_code == null ? null : String(r.item_code),
+    ...productDetails(r as Record<string, unknown>),
   }));
   return { products, book: priceBook(products) };
 }

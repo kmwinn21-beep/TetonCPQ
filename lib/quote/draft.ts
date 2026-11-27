@@ -116,6 +116,8 @@ export interface Commercial {
   capex: CapexPricing;
   /** Installation finish: standard (included) or concealed (an add-on range per room). */
   finish: FinishSetting;
+  /** Deal prices of generically priced items, by SKU (missing: the item's list price in the deal's line-up). */
+  items?: Record<string, number>;
 }
 
 /** How the investment is presented to the customer. */
@@ -163,6 +165,8 @@ export interface QuoteDraft {
   products?: import('./products').DealProduct[];
   /** The core products line-up this deal was built with (lib/pricing/lineup). Missing: the default line-up. */
   lineup?: import('@/lib/pricing/lineup').Lineup;
+  /** Core products added in the price book that the rep picked (built-in ones follow from products). */
+  extraCores?: string[];
 }
 
 const { avgRevenuePerResident: _derived, ...clientDefaults } = DEFAULT_CLIENT;

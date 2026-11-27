@@ -79,3 +79,18 @@ describe('the core products line-up', () => {
     expect(diffDrafts(a, { ...a, lineup: l })).toEqual([{ group: 'Pricing', label: 'Core products (price book)', from: 'standard', to: 'version 4' }]);
   });
 });
+
+describe('generic item prices', () => {
+  it('read as the item’s name, blank as its list price', async () => {
+    const { DEFAULT_LINEUP } = await import('@/lib/pricing/lineup');
+    const { diffDrafts } = await import('./diff');
+    const { defaultDraft } = await import('./draft');
+    const { priceBook } = await import('@/lib/pricing/catalog');
+    const l = structuredClone(DEFAULT_LINEUP);
+    l.version = 2;
+    l.cores[0].sides.subscription.items.push({ sku: 'X-1', item: { name: 'Remote support', code: 'TT-X-001', list: 5, billing: 'monthly', counted: 'monitoredBeds', pilot: 'free' } });
+    const a = { ...defaultDraft('X', priceBook(), new Date('2026-11-01T00:00:00Z')), lineup: l };
+    const b = { ...a, commercial: { ...a.commercial, items: { 'X-1': 4 } } };
+    expect(diffDrafts(a, b)).toEqual([{ group: 'Pricing', label: 'Remote support price', from: 'list ($5)', to: '$4' }]);
+  });
+});

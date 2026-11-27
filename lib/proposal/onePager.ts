@@ -12,6 +12,7 @@ import { SEED_PRODUCTS, SKU } from '@/lib/pricing/catalog';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { monitors, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
 import { pendantScope } from '@/lib/quote/roomTypes';
+import { itemsOn } from '@/lib/pricing/items';
 import { ONE_PAGERS } from './layout';
 
 export const OP_SCOPES = ['rm', 'ec', 'both'] as const;
@@ -128,6 +129,12 @@ export function subscriptionTable(draft: QuoteDraft, sys: OpSys | null): OpTable
       group('ecinstall', 'E-Call installation, per bed', once.filter((l) => l.description === 'E-Call installation'), 'once'),
       group('sensors', 'Additional sensors', once.filter((l) => l.sku === SKU.sensor), 'once'),
       group('devices', perRoom ? 'Additional E-Call devices' : 'E-Call devices', once.filter((l) => l.sku === SKU.ecallBleButton || l.sku === SKU.ecallInoPullcord), 'once'),
+      // Generic items (added in the price book): monthly after any pilot, or their first one-time charge.
+      ...itemsOn(d, 'subscription').map((it) =>
+        it.spec.billing === 'monthly'
+          ? group(`item.${it.sku}`, it.spec.name, monthly.filter((l) => l.sku === it.sku), 'monthly')
+          : group(`item.${it.sku}`, it.spec.billing === 'years' ? `${it.spec.name} (every ${it.spec.everyYears ?? 1} years)` : it.spec.name, once.filter((l) => l.sku === it.sku && !l.description.endsWith('(renewal)')), 'once'),
+      ),
     ],
     false,
   );
@@ -155,6 +162,8 @@ export function purchaseTable(draft: QuoteDraft, sys: OpSys | null): OpTable {
       pkg('baseec', 'Base package + E-Call, per bed', parts.filter((p) => p.monitoring && p.ecall !== 'none')),
       pkg('ecunit', 'E-Call infrastructure and installation, per bed', parts.filter((p) => !p.monitoring)),
       { key: 'sensors', label: 'Additional sensors', qty: sensors, min: sensorPrice, max: sensorPrice, total: sensors * sensorPrice, kind: 'once' },
+      // Generic one-time items, with the equipment (at list).
+      ...(c.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => ({ key: `item.${x.sku}`, label: x.billing === 'years' ? `${x.name} (every ${x.everyYears ?? 1} years)` : x.name, qty: x.qty, min: x.list, max: x.list, total: x.qty * x.list, kind: 'once' as const })),
       ...(c.pricing.softwareBilling === 'upfront'
         ? [
             { key: 'software', label: 'Software & services, upfront, per bed', qty: monBeds, min: c.pricing.softwareUpfront ?? 480, max: c.pricing.softwareUpfront ?? 480, total: monBeds * (c.pricing.softwareUpfront ?? 480), kind: 'once' as const },
@@ -164,6 +173,16 @@ export function purchaseTable(draft: QuoteDraft, sys: OpSys | null): OpTable {
             { key: 'software', label: 'Plus software & services, per bed', qty: monBeds, min: c.pricing.softwareRate, max: c.pricing.softwareRate, total: monBeds * c.pricing.softwareRate, kind: 'monthly' as const },
             { key: 'ecsoftware', label: 'Plus E-Call software, per bed', qty: ecOnly, min: ecSw, max: ecSw, total: ecOnly * ecSw, kind: 'monthly' as const },
           ]),
+      // Generic items billed monthly, after software.
+      ...(c.items ?? []).filter((x) => x.billing === 'monthly').map((x) => ({
+        key: `item.${x.sku}`,
+        label: x.billing === 'monthly' ? `Plus ${x.name}` : x.billing === 'years' ? `${x.name} (every ${x.everyYears ?? 1} years)` : x.name,
+        qty: x.qty,
+        min: x.list,
+        max: x.list,
+        total: x.qty * x.list,
+        kind: x.billing === 'monthly' ? ('monthly' as const) : ('once' as const),
+      })),
     ],
     true,
   );

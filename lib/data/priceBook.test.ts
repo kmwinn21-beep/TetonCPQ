@@ -104,3 +104,17 @@ describe('SKUs and history', () => {
     await expect(setProductName(db, SKU.snf, 'x', null)).rejects.toThrow('2–80');
   });
 });
+
+describe('item details', () => {
+  it('built-in items get how they bill and what a unit is; renewals bill every 3 or 4 years', async () => {
+    const rows = await listPriceBookRows(db);
+    const of = (sku: string) => rows.find((r) => r.sku === sku)!;
+    expect(of(SKU.platform)).toMatchObject({ billing: 'monthly', per: 'bed', generic: false });
+    expect(of(SKU.install)).toMatchObject({ billing: 'once', per: 'bed' });
+    expect(of(SKU.commonAreaMonthly)).toMatchObject({ billing: 'monthly', per: 'sensor' });
+    expect(of(SKU.capexBleRenewal)).toMatchObject({ billing: 'years', everyYears: 4 });
+    expect(of(SKU.capexInovonicsRenewal)).toMatchObject({ billing: 'years', everyYears: 3 });
+    expect(of(SKU.finishConcealedLow)).toMatchObject({ billing: 'once', per: 'room' });
+    expect(of(SKU.fullFacility).billing).toBeUndefined();
+  });
+});

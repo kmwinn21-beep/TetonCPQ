@@ -150,6 +150,8 @@ export interface Community {
 export interface CommunityExtra {
   units: number;
   rates: CommunityRates;
+  /** One-time charges that recur: charged again every this many months after the community's one-time month. */
+  everyMonths?: number;
 }
 
 export interface VendorCostAssumptions {

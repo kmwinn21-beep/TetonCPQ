@@ -25,6 +25,11 @@ export function subscriptionTotals(inputs: ModelInputs, months = 48): Subscripti
     for (let k = 0; k < months; k++) subscription += monthlyFee(inputs, c, s, s.firstPostPilotMonth + k);
     for (let m = s.goLiveMonth; m < s.firstPostPilotMonth; m++) pilotFees += monthlyFee(inputs, c, s, m);
     install += s.installCost;
+    // One-time charges that recur (every N years) inside the window.
+    for (const x of c.extras ?? []) {
+      if (!x.everyMonths || x.everyMonths < 1) continue;
+      for (let m = s.oneTimeMonth + x.everyMonths; m <= s.firstPostPilotMonth + months - 1; m += x.everyMonths) install += x.units * x.rates.postPilotInstallPerBed;
+    }
   });
   return { months, install, pilotFees, subscription, total: install + pilotFees + subscription };
 }

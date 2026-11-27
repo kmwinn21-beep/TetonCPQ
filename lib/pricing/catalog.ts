@@ -15,7 +15,48 @@ export interface Product {
   description: string;
   /** The price book SKU reps see (editable); `sku` is the system key. */
   itemCode?: string | null;
+  /** How often it bills: monthly, once, or every N years (everyYears). Missing: from pricingModel. */
+  billing?: Billing;
+  everyYears?: number | null;
+  /** What one unit is (for wording): a bed, room, sensor, device, community, or a flat fee. */
+  per?: PerUnit | null;
+  /** Items priced generically (added in the price book): what the quantity is, and how pilots treat it. */
+  counted?: CountBasis | null;
+  pilotRule?: PilotRule | null;
+  /** Where it sits in the price book (items added in the price book; built-in ones use lib/pricing/markets). */
+  category?: string | null;
+  sub?: string | null;
+  /** Priced generically (quantity × deal price × billing) instead of by a built-in role. */
+  generic?: boolean;
 }
+
+export type Billing = 'monthly' | 'once' | 'years';
+export type PerUnit = 'bed' | 'room' | 'sensor' | 'device' | 'community' | 'flat';
+/** The quantity of a generically priced item, per community, from Communities and Scope. */
+export type CountBasis = 'monitoredBeds' | 'ecallBeds' | 'ecallOnlyBeds' | 'monitoredEcallBeds' | 'rooms' | 'snfBeds' | 'commonAreaSensors' | 'additionalSensors' | 'perCommunity';
+/** Monthly items: billed during the pilot or free; one-time items: credited on pilot sites or not. */
+export type PilotRule = 'free' | 'charged' | 'credited' | 'none';
+
+export const BILLING_LABEL: Record<Billing, string> = { monthly: 'Monthly', once: 'One-time', years: 'Every N years' };
+export const PER_LABEL: Record<PerUnit, string> = { bed: 'bed', room: 'room', sensor: 'sensor', device: 'device', community: 'community', flat: 'flat fee' };
+export const COUNT_LABEL: Record<CountBasis, string> = {
+  monitoredBeds: 'per monitored bed',
+  ecallBeds: 'per E-Call bed',
+  ecallOnlyBeds: 'per E-Call-only bed',
+  monitoredEcallBeds: 'per bed with monitoring and E-Call',
+  rooms: 'per room (every priced bed)',
+  snfBeds: 'per skilled nursing bed',
+  commonAreaSensors: 'per common-area sensor',
+  additionalSensors: 'per additional sensor (from the scope)',
+  perCommunity: 'one per community',
+};
+export const COUNT_BASES = Object.keys(COUNT_LABEL) as CountBasis[];
+
+/** A product's billing (stored, or from its pricing model). */
+export const billingOf = (p: Pick<Product, 'billing' | 'pricingModel'>): Billing => p.billing ?? (p.pricingModel === 'per_bed_month' || p.pricingModel === 'per_unit_month' ? 'monthly' : 'once');
+
+/** The pricing model a billing and unit come to (kept for older readers of pricing_model). */
+export const pricingModelFor = (billing: Billing, per: PerUnit | null | undefined): PricingModel => (billing === 'monthly' ? (per === 'bed' ? 'per_bed_month' : 'per_unit_month') : per === 'bed' ? 'per_bed_once' : 'per_unit_once');
 
 export const SKU = {
   platform: 'TETON-PLATFORM',
@@ -116,3 +157,15 @@ export const POLICY = {
   capexBleRenewalYears: 4,
   capexInovonicsRenewalYears: 3,
 } as const;
+
+/** Item details of the built-in items (filled in where a product has none; admins' edits are kept). */
+export const BUILTIN_DETAILS: Record<string, { billing: Billing; everyYears?: number; per: PerUnit }> = Object.fromEntries(
+  SEED_PRODUCTS.filter((p) => p.pricingModel !== 'multiplier').map((p) => {
+    const sensor = [SKU.sensor, SKU.capexSensor, SKU.commonAreaSetup, SKU.commonAreaMonthly].includes(p.sku as never);
+    const device = [SKU.ecallBleButton, SKU.ecallInoPendant, SKU.ecallInoPullcord, SKU.capexEcallDevice].includes(p.sku as never);
+    const room = p.sku.startsWith('FINISH-');
+    const years = p.sku === SKU.capexBleRenewal ? POLICY.capexBleRenewalYears : p.sku === SKU.capexInovonicsRenewal ? POLICY.capexInovonicsRenewalYears : undefined;
+    const billing: Billing = years ? 'years' : billingOf(p);
+    return [p.sku, { billing, ...(years ? { everyYears: years } : {}), per: sensor ? 'sensor' : device ? 'device' : room ? 'room' : 'bed' }];
+  }),
+);

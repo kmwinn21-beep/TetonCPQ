@@ -28,6 +28,7 @@ const FIELDS: Record<string, Field> = {
   roiCase: { label: 'ROI case', fmt: 'text' },
   presentation: { label: 'Proposal shows', fmt: 'text' },
   products: { label: 'Products', fmt: 'products' },
+  extraCores: { label: 'Other core products', fmt: 'text' },
   customizeCaseMetrics: { label: 'Customize case metrics', fmt: 'bool' },
   'components.careRevenueRecapture': { label: 'Care Revenue Recapture', fmt: 'bool' },
   'components.fallsHospitalization': { label: 'Falls → Hospitalization', fmt: 'bool' },
@@ -243,6 +244,13 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
       const [, c, m] = path.split('.');
       label = `${CASE_LABEL[c] ?? c} ${METRIC_LABEL[m] ?? m}`;
       fmt = 'pct';
+    } else if (path.startsWith('commercial.items.')) {
+      // A generic item's deal price: named from the line-up (blank = its list price).
+      const sku = path.slice('commercial.items.'.length);
+      const spec = [lb0, la0].flatMap((l) => l.cores.flatMap((c) => [...c.sides.subscription.items, ...c.sides.capex.items])).find((e) => e.sku === sku && e.item)?.item;
+      const v = (x: unknown) => (x == null ? `list (${fmtValue(spec?.list ?? null, 'usd')})` : fmtValue(x, 'usd'));
+      changes.push({ group: 'Pricing', label: `${spec?.name ?? sku} price`, from: v(la[path]), to: v(lb[path]) });
+      continue;
     } else {
       const f = FIELDS[path] ?? { label: path, fmt: 'text' as Fmt };
       label = f.label;

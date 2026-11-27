@@ -6,7 +6,7 @@
  * their own rates.
  */
 import type { Client } from '@libsql/client';
-import { SEED_PRODUCTS, type PricingModel, type Product } from '@/lib/pricing/catalog';
+import { COUNT_BASES, SEED_PRODUCTS, type Billing, type CountBasis, type PerUnit, type PilotRule, type PricingModel, type Product } from '@/lib/pricing/catalog';
 import { LIVE_MARKET, MARKET_CODES, MARKET_SEED } from '@/lib/pricing/markets';
 
 /** A product's reference price in a market outside the US: a price, not sold there, or no price yet. */
@@ -67,9 +67,32 @@ export function defaultListPrice(sku: string): number | null {
   return SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? null;
 }
 
+/** The item-detail columns, for SELECTs (see productDetails). */
+export const DETAIL_COLS = 'billing, every_years, per_unit, counted, pilot_rule, category, sub, generic';
+
+const BILLINGS = ['monthly', 'once', 'years'];
+const PERS = ['bed', 'room', 'sensor', 'device', 'community', 'flat'];
+const PILOTS = ['free', 'charged', 'credited', 'none'];
+
+/** A product row's item details (missing columns before the migration read as unset). */
+export function productDetails(r: Record<string, unknown>): Pick<Product, 'billing' | 'everyYears' | 'per' | 'counted' | 'pilotRule' | 'category' | 'sub' | 'generic'> {
+  const s = (v: unknown) => (v == null ? null : String(v));
+  const billing = s(r.billing);
+  return {
+    ...(billing && BILLINGS.includes(billing) ? { billing: billing as Billing } : {}),
+    everyYears: r.every_years == null ? null : Number(r.every_years),
+    per: PERS.includes(s(r.per_unit) ?? '') ? (s(r.per_unit) as PerUnit) : null,
+    counted: COUNT_BASES.includes(s(r.counted) as CountBasis) ? (s(r.counted) as CountBasis) : null,
+    pilotRule: PILOTS.includes(s(r.pilot_rule) ?? '') ? (s(r.pilot_rule) as PilotRule) : null,
+    category: s(r.category),
+    sub: s(r.sub),
+    generic: Number(r.generic) === 1,
+  };
+}
+
 export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
   const rs = await db.execute(`
-    SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at, p.item_code,
+    SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at, p.item_code, ${DETAIL_COLS},
            (SELECT name FROM users u WHERE u.id = p.updated_by) AS updated_by_name
     FROM products p WHERE p.active = 1 ORDER BY p.rowid`);
   // In price book order (products added later are stored after the rest).
@@ -93,6 +116,7 @@ export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
     usage: usage[String(r.sku)] ?? { versions: 0, deals: 0 },
     itemCode: r.item_code == null ? null : String(r.item_code),
     history: history[String(r.sku)] ?? [],
+    ...productDetails(r as Record<string, unknown>),
   }));
 }
 

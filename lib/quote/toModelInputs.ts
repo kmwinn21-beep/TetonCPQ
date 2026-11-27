@@ -7,6 +7,7 @@ import { uniformCaseMetrics, type CommunityExtra, type CommunityRates, type Mode
 import { extraDevicePrice, scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
 import { ecallBilled, pendantScope } from './roomTypes';
 import { pricedDraft } from '@/lib/pricing/lineup';
+import { itemPrice, itemQty, itemsOn } from '@/lib/pricing/items';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -90,9 +91,36 @@ export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtr
     out.push({ units: billed.extra, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: each * (1 - k.installCreditPct), postPilotInstallPerBed: each } });
   }
   out.push(...pricingAdjustments(d, c).map((a) => ({ units: a.units, rates: a.rates })));
+  out.push(...genericExtras(d, c));
   if (s.uniform) return out;
   const install = Number(k.ecallInstallRate) || 0;
   if (s.ecallOnly > 0) out.push({ units: s.ecallOnly, rates: { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: install * (1 - k.installCreditPct), postPilotInstallPerBed: install } });
+  return out;
+}
+
+/**
+ * Generic items sold with the subscription (lib/pricing/items), billed with the community: monthly ones after the
+ * pilot (during it too when the item says so); one-time ones at the one-time charge, credited on pilot sites when
+ * the item says so; every-N-years ones again every N years.
+ */
+export function genericExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtra[] {
+  const items = itemsOn(d, 'subscription');
+  if (!items.length) return [];
+  const k = d.commercial;
+  const zero = { pilotFeePerBedMonth: 0, postPilotFeePerBedMonth: 0, specialFeePerBedMonth: null, pilotInstallPerBed: 0, postPilotInstallPerBed: 0 };
+  const out: CommunityExtra[] = [];
+  for (const it of items) {
+    const units = itemQty(c, k.ecall !== 'none', it.spec.counted);
+    const p = itemPrice(d, it.sku, it.spec);
+    if (!units) continue;
+    if (it.spec.billing === 'monthly') out.push({ units, rates: { ...zero, pilotFeePerBedMonth: it.spec.pilot === 'charged' ? p : 0, postPilotFeePerBedMonth: p } });
+    else
+      out.push({
+        units,
+        rates: { ...zero, pilotInstallPerBed: p * (it.spec.pilot === 'credited' ? 1 - k.installCreditPct : 1), postPilotInstallPerBed: p },
+        ...(it.spec.billing === 'years' ? { everyMonths: (it.spec.everyYears ?? 1) * 12 } : {}),
+      });
+  }
   return out;
 }
 

@@ -11,6 +11,7 @@ import { pricingAdjustments } from '@/lib/quote/toModelInputs';
 import { ecallBilled, pendantScope } from '@/lib/quote/roomTypes';
 import { POLICY, SKU, type PriceBook } from './catalog';
 import { isRemoved, pricedDraft, removedRoles } from './lineup';
+import { itemPrice, itemQty, itemsOn } from './items';
 
 export interface PriceLine {
   communityPosition: number;
@@ -38,6 +39,7 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
   const removed = removedRoles(draft.lineup);
   const gone = (role: Parameters<typeof isRemoved>[1], sku?: string) => removed.size > 0 && isRemoved(removed, role, sku);
   const k = draft.commercial;
+  const generic = itemsOn(draft, 'subscription');
   const listPlatform = book[SKU.platform]?.list ?? 99;
   const listInstall = book[SKU.install]?.list ?? 400;
   const ecallSku = k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle;
@@ -135,6 +137,30 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
       lines.push({ ...base, sku: SKU.sensor, description: 'Additional sensors', qty: c.additionalSensors, unitList: book[SKU.sensor]?.list ?? 300, unitNet: k.sensorPrice, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: null });
       if (s.inPilot && k.sensorCredit && k.installCreditPct > 0 && k.sensorPrice > 0) {
         lines.push({ ...base, sku: SKU.sensor, description: `Sensor credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: c.additionalSensors, unitList: 0, unitNet: -k.sensorPrice * k.installCreditPct, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: k.installClawback ? 'SENSOR_CREDIT_CLAWBACK' : 'SENSOR_CREDIT' });
+      }
+    }
+    // Generic items sold with the subscription (the same figures the model bills, see genericExtras).
+    for (const it of generic) {
+      const qty = itemQty(dc, k.ecall !== 'none', it.spec.counted);
+      if (!qty) continue;
+      const p = itemPrice(draft, it.sku, it.spec);
+      const name = it.spec.name;
+      const disc = p < it.spec.list ? 'ITEM_DISCOUNT' : null;
+      if (it.spec.billing === 'monthly') {
+        if (s.inPilot && it.spec.pilot === 'charged' && L > 0) lines.push({ ...base, sku: it.sku, description: `${name} — pilot`, qty, unitList: it.spec.list, unitNet: p, billing: 'monthly', startMonth: s.goLiveMonth, termMonths: L, concessionCode: disc });
+        lines.push({ ...base, sku: it.sku, description: name, qty, unitList: it.spec.list, unitNet: p, billing: 'monthly', startMonth: s.firstPostPilotMonth, termMonths: serviceTermMonths, concessionCode: disc });
+        continue;
+      }
+      lines.push({ ...base, sku: it.sku, description: name, qty, unitList: it.spec.list, unitNet: p, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: disc });
+      if (s.inPilot && it.spec.pilot === 'credited' && k.installCreditPct > 0 && p > 0) {
+        lines.push({ ...base, sku: it.sku, description: `${name} credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty, unitList: 0, unitNet: -p * k.installCreditPct, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: k.installClawback ? 'INSTALL_CREDIT_CLAWBACK' : 'INSTALL_CREDIT' });
+      }
+      // Every N years: charged again inside the service term.
+      if (it.spec.billing === 'years') {
+        const every = (it.spec.everyYears ?? 1) * 12;
+        for (let m = once + every; m <= s.firstPostPilotMonth + serviceTermMonths - 1; m += every) {
+          lines.push({ ...base, sku: it.sku, description: `${name} (renewal)`, qty, unitList: it.spec.list, unitNet: p, billing: 'one_time', startMonth: m, termMonths: null, concessionCode: disc });
+        }
       }
     }
   });

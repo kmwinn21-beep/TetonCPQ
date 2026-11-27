@@ -1,6 +1,8 @@
 /** The core products line-up (lib/pricing/lineup): the current one, and saving a new version (admins). */
 import type { Client } from '@libsql/client';
-import { DEFAULT_LINEUP, normalizeLineup, ROLES, roleOf, SIDES, sameLineup, SIDE_LABEL, type Lineup } from '@/lib/pricing/lineup';
+import { DEFAULT_LINEUP, normalizeLineup, ROLES, roleOf, SIDES, sameLineup, SIDE_LABEL, type ItemSpec, type Lineup, type LineupEntry } from '@/lib/pricing/lineup';
+import { billingOf, type Product } from '@/lib/pricing/catalog';
+import { DETAIL_COLS, productDetails } from './priceBook';
 
 export interface LineupInfo {
   lineup: Lineup;
@@ -30,7 +32,7 @@ const bad = (message: string, status = 400) => Object.assign(new Error(message),
 export async function saveLineup(db: Client, raw: unknown, userId: number | null, baseVersion: number): Promise<LineupInfo> {
   const cur = await getLineup(db);
   if (cur.lineup.version !== baseVersion) throw bad('Someone saved the core products since you opened them. Reload to see their changes.', 409);
-  const next = normalizeLineup(raw);
+  const next = withItemDetails(normalizeLineup(raw), await activeProducts(db));
   const rs = await db.execute('SELECT sku, name FROM products WHERE active = 1');
   const names = new Map(rs.rows.map((r) => [String(r.sku), String(r.name)]));
   for (const c of next.cores) {
@@ -70,4 +72,44 @@ export async function assertKnownLineup(db: Client, draft: { lineup?: Lineup | n
   const l = normalizeLineup(draft.lineup);
   const saved = await lineupVersion(db, l.version);
   if (!saved || !sameLineup(saved, l)) throw bad('This deal’s core products don’t match the price book. Reload the deal and try again.');
+}
+
+/** Active products with their item details. */
+async function activeProducts(db: Client): Promise<Map<string, Product>> {
+  const rs = await db.execute(`SELECT sku, name, pricing_model, list_price, description, item_code, ${DETAIL_COLS} FROM products WHERE active = 1`);
+  return new Map(
+    rs.rows.map((r) => [String(r.sku), { sku: String(r.sku), name: String(r.name), pricingModel: String(r.pricing_model) as Product['pricingModel'], list: Number(r.list_price), description: String(r.description ?? ''), itemCode: r.item_code == null ? null : String(r.item_code), ...productDetails(r as Record<string, unknown>) }]),
+  );
+}
+
+/** A generic product's details, as a line-up version keeps them. */
+export function specFrom(p: Product): ItemSpec {
+  const billing = billingOf(p);
+  return {
+    name: p.name,
+    code: p.itemCode ?? p.sku,
+    list: p.list,
+    billing,
+    ...(billing === 'years' ? { everyYears: Math.max(1, p.everyYears ?? 1) } : {}),
+    counted: p.counted ?? 'monitoredBeds',
+    pilot: p.pilotRule ?? (billing === 'monthly' ? 'free' : 'credited'),
+  };
+}
+
+/**
+ * Every entry as the price book has it now: generic products carry their current details (name, SKU, list price,
+ * billing, quantity, pilot rule); built-in ones carry none (their role prices them).
+ */
+export function withItemDetails(l: Lineup, products: Map<string, Product>): Lineup {
+  const fix = (e: LineupEntry): LineupEntry => {
+    const p = products.get(e.sku);
+    if (p?.generic) return { sku: e.sku, item: specFrom(p) };
+    const { item: _drop, ...rest } = e;
+    return rest;
+  };
+  return {
+    ...l,
+    cores: l.cores.map((c) => ({ ...c, sides: { subscription: { ...c.sides.subscription, items: c.sides.subscription.items.map(fix) }, capex: { ...c.sides.capex, items: c.sides.capex.items.map(fix) } } })),
+    combos: l.combos.map((x) => ({ ...x, with: x.with.map(fix) })),
+  };
 }

@@ -797,4 +797,20 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 34,
+    name: 'item details',
+    sql: [
+      // How each item bills and what one unit is (built-in items are filled in by migrate(); admins can edit them),
+      // and for items added in the price book: what the quantity is, how pilots treat it, and where it sits.
+      `ALTER TABLE products ADD COLUMN billing TEXT CHECK (billing IN ('monthly','once','years'))`,
+      `ALTER TABLE products ADD COLUMN every_years INTEGER`,
+      `ALTER TABLE products ADD COLUMN per_unit TEXT`,
+      `ALTER TABLE products ADD COLUMN counted TEXT`,
+      `ALTER TABLE products ADD COLUMN pilot_rule TEXT`,
+      `ALTER TABLE products ADD COLUMN category TEXT`,
+      `ALTER TABLE products ADD COLUMN sub TEXT`,
+      `ALTER TABLE products ADD COLUMN generic INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];

@@ -53,7 +53,14 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
     const c = capex.communities[i];
     if (!c) return;
     if (s.goLiveMonth >= 1 && s.goLiveMonth <= n) equipment[s.goLiveMonth - 1] += c.equipment;
-    for (let m = Math.max(1, s.firstPostPilotMonth); m <= n; m++) software[m - 1] += c.softwareMonthly;
+    // Software (and generic items billed monthly), every month from the first post-pilot month.
+    for (let m = Math.max(1, s.firstPostPilotMonth); m <= n; m++) software[m - 1] += c.softwareMonthly + (c.itemsMonthly ?? 0);
+    // Generic items billed every N years: paid with the equipment (in it), then again every N years.
+    for (const x of c.items ?? []) {
+      if (x.billing !== 'years' || !x.total) continue;
+      const every = (x.everyYears ?? 1) * 12;
+      for (let m = s.goLiveMonth + every; m <= n; m += every) if (m >= 1) renewals[m - 1] += x.total;
+    }
     // Software billed upfront: paid with the equipment, at install.
     if (c.softwareUpfront && s.goLiveMonth >= 1 && s.goLiveMonth <= n) {
       software[s.goLiveMonth - 1] += c.softwareUpfront;
