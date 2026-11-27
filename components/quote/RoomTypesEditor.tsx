@@ -8,7 +8,7 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { AREA_KINDS, badgeOf, bedKeyOf, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, badgeOf, bedKeyOf, commonAreaFromPlan, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
@@ -23,7 +23,7 @@ const eyebrow = 'block text-[10px] font-semibold uppercase tracking-wider text-t
 const eyebrowWrap = 'block text-[10px] font-semibold uppercase tracking-wider leading-tight text-teton-ui-gray mb-1';
 
 export function RoomTypesEditor({ index: i, position }: { index: number; position: number }) {
-  const { control, setValue } = useFormContext<QuoteDraft>();
+  const { control, setValue, getValues } = useFormContext<QuoteDraft>();
   const raw = useWatch({ control, name: `communities.${i}.roomTypes` }) as RoomType[] | undefined;
   const allowance = useWatch({ control, name: `communities.${i}.sensorAllowancePct` });
   const types = Array.isArray(raw) ? raw : [];
@@ -40,7 +40,11 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   const pendantPct = useWatch({ control, name: `communities.${i}.pendantAllowancePct` });
   const bedsW = useWatch({ control, name: [`communities.${i}.ilBeds`, `communities.${i}.alBeds`, `communities.${i}.mcBeds`, `communities.${i}.snfBeds`] });
   const pend = pendantScope({ roomTypes: types, products: productsRaw, monitoring: legacy[0], ecall: legacy[1], commonAreas: areas, pendantAllowancePct: pendantPct, ilBeds: bedsW[0], alBeds: bedsW[1], mcBeds: bedsW[2], snfBeds: bedsW[3] }, ecallOn);
-  const writeAreas = (next: CommonArea[]) => setValue(`communities.${i}.commonAreas`, next, { shouldDirty: true });
+  const writeAreas = (next: CommonArea[]) => {
+    setValue(`communities.${i}.commonAreas`, next, { shouldDirty: true });
+    const ca = commonAreaFromPlan({ ...getValues(`communities.${i}`), commonAreas: next });
+    if (ca != null) setValue(`communities.${i}.commonAreaSensors`, ca, { shouldDirty: true });
+  };
   const patchArea = (id: string, p: Partial<CommonArea>) => writeAreas(areas.map((a) => (a.id === id ? { ...a, ...p } : a)));
   // Room type cards: a pendants column when the community has E-Call; no sensors column when it has no Resident Monitoring.
   const anyMon = (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].monitoring);
@@ -264,7 +268,11 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   <div className="col-span-2 grid grid-cols-2 gap-2">
                     <div>
                       <span className={eyebrowWrap}>How many</span>
-                      <Counter size="sm" value={a.count} onChange={(v) => patchArea(a.id, { count: v })} min={0} max={500} aria-label={`Community ${position} common area ${k + 1} how many`} />
+                      {a.mark ? (
+                        <Counter size="sm" value={1} onChange={() => {}} disabled reason={`Tagged on a floor plan (page ${a.mark.page})`} aria-label={`Community ${position} common area ${k + 1} how many (tagged on a floor plan)`} />
+                      ) : (
+                        <Counter size="sm" value={a.count} onChange={(v) => patchArea(a.id, { count: v })} min={0} max={500} aria-label={`Community ${position} common area ${k + 1} how many`} />
+                      )}
                     </div>
                     <div>
                       <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.each}</span>

@@ -9,7 +9,8 @@ import { SegGroup } from '@/components/form/SegGroup';
 import { FloorPlans } from './FloorPlans';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { BED_KEYS, bedsOf, productsOf, scopeOf, type BedKey, type BedProducts, type QuoteDraft } from '@/lib/quote/draft';
-import { roomDerived } from '@/lib/quote/roomTypes';
+import { areaSensors, areasTagged, commonAreaFromPlan, normalizeCommonAreas, roomDerived } from '@/lib/quote/roomTypes';
+import { Counter } from '@/components/form/Counter';
 import { useAccess } from './AccessContext';
 import { communityProblems, ymLabel } from '@/lib/quote/communityRow';
 import { monthLabel } from '@/lib/quote/toModelInputs';
@@ -278,6 +279,40 @@ export function CommunityEditor({
               Switch to per-sensor pricing
             </button>
           </div>
+        ) : areasTagged(normalizeCommonAreas(row?.commonAreas)) ? (
+          // Common areas tagged on the floor plans set the count: their sensors + an extra on top (a flat number).
+          (() => {
+            const areas = normalizeCommonAreas(row?.commonAreas).filter((a) => a.mark);
+            const planned = areaSensors(areas);
+            const extra = Math.max(0, Math.round(Number(row?.commonAreaSensorsExtra) || 0));
+            const setExtra = (v: number) => {
+              setValue(`communities.${i}.commonAreaSensorsExtra`, v, { shouldDirty: true });
+              const ca = commonAreaFromPlan({ ...getValues(`communities.${i}`), commonAreaSensorsExtra: v });
+              if (ca != null) setValue(`communities.${i}.commonAreaSensors`, ca, { shouldDirty: true });
+            };
+            return (
+              <div className="space-y-2.5">
+                {row?.commonAreaOff && (
+                  <p className="rounded-lg bg-teton-almost-white px-3 py-2 text-xs text-teton-dark-gray">Common area sensors are off this deal: the count is 0. The tagged areas stay; add Common area sensors back to price them.</p>
+                )}
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-2.5">
+                  <div>
+                    <span className="eyebrow">On the floor plans</span>
+                    <p className="h-[34px] flex items-center gap-1.5 text-sm"><b className="tabular-nums">{count(planned)}</b><span className="text-xs text-teton-ui-gray">sensors · {count(areas.length)} area{areas.length === 1 ? '' : 's'}</span></p>
+                  </div>
+                  <div className="w-36">
+                    <label className="eyebrow" htmlFor={id('caextra')}>Extra on top</label>
+                    <Counter id={id('caextra')} size="sm" value={extra} onChange={setExtra} min={0} max={200} aria-label={`Community ${position} extra common-area sensors`} />
+                  </div>
+                  <div>
+                    <span className="eyebrow">Common-area sensors</span>
+                    <p className="h-[34px] flex items-center gap-1.5 text-sm"><b className="tabular-nums">{count(Number(row?.commonAreaSensors) || 0)}</b><span className="rounded bg-[#E6F6F6] px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-[#0F7C80]">From the floor plan</span></p>
+                  </div>
+                </div>
+                <p className="hint">Edit the areas in Scope Mode (Common areas). {usd(commercial?.commonArea?.setup ?? 200)} setup + {usd(commercial?.commonArea?.monthly ?? 50)}/mo each.</p>
+              </div>
+            );
+          })()
         ) : (
           <div className="w-40">
             <label className="eyebrow" htmlFor={id('casensors')}>Common-area sensors</label>

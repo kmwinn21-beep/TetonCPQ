@@ -275,6 +275,17 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                   <td className="py-1 text-right"><V k={r.credit ? 'capex.sensors.credited.value' : 'capex.sensors.value'} label="Additional sensors amount">{usd(r.total)}</V></td>
                 </tr>
               ))}
+              {(capex.ecallDevices ?? 0) > 0 && (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k="capex.ecallDevices" d="Extra E-Call devices" />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(capex.ecallDevices ?? 0)} × {usd(Math.max(0, Number(capex.pricing.ecallDevice) || 0))} · beyond one per room or common area
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k="capex.ecallDevices.value" label="Extra E-Call devices amount">{usd(capex.ecallDeviceCost ?? 0)}</V></td>
+                </tr>
+              )}
               {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => (
                 <tr key={x.sku} className="border-b border-teton-off-white">
                   <td className="py-1">

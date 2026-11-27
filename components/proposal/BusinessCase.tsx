@@ -2561,6 +2561,14 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <td className="bc-hl bc-big"><V k={`capex.item.${x.sku}.value`} label={`${x.name} amount`}>{usd(x.total)}</V></td>
                     </tr>
                   ))}
+                  {(capex.ecallDevices ?? 0) > 0 && (
+                    <tr>
+                      <td className="bc-m"><T k="bc.capex.ecallDevices" d="Extra E-Call devices" /><small><T k="bc.capex.ecallDevicesNote" d="Beyond one per room or common area · one-time" /></small></td>
+                      <td>{usd(Math.max(0, Number(capex.pricing.ecallDevice) || 0))} each</td>
+                      <td>{count(capex.ecallDevices ?? 0)}</td>
+                      <td className="bc-hl bc-big"><V k="capex.ecallDevices.value" label="Extra E-Call devices amount">{usd(capex.ecallDeviceCost ?? 0)}</V></td>
+                    </tr>
+                  )}
                   <tr className="bc-tot">
                     <td className="bc-m"><T k="capex.price" d="One-time equipment cost" /><small><T k="bc.capex.equipmentNote" d="Paid at install. No separate installation charge and no license fee." /></small></td>
                     <td />
@@ -4248,6 +4256,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <>
                         {basePackageRows(capex).map((r) => row(`${r.label} · ${count(r.beds)} beds × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
                         {sensorRows(capex).map((r) => row(`Additional sensors · ${count(r.units)} × ${unitPriceText(r, (n) => usd(n))}${r.credit ? '*' : ''}`, usd(r.total)))}
+                        {(capex.ecallDevices ?? 0) > 0 && row(`Extra E-Call devices · ${count(capex.ecallDevices ?? 0)} × ${usd(Math.max(0, Number(capex.pricing.ecallDevice) || 0))}`, usd(capex.ecallDeviceCost ?? 0))}
                         {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => row(`${x.name} · ${count(x.qty)} × ${usd(x.perUnit)}`, usd(x.total)))}
                         {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
                         {row(capex.softwareBilling === 'upfront' ? 'Software & services, paid upfront' : 'Software & services', capex.softwareBilling === 'upfront' ? usd(capex.softwareUpfront ?? 0) : `${usd(capex.softwareMonthly)} / mo`)}

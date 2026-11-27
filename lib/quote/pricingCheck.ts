@@ -378,6 +378,18 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
       calc: { qty: x.qty, unit: x.perUnit },
     });
   }
+  if (capex.ecallDevices) {
+    const each = Math.max(0, Number(p.ecallDevice) || 0);
+    cx.push({
+      key: 'cx.ecallDevices',
+      label: 'Extra E-Call devices',
+      community: null,
+      formula: ['devices beyond one per room or common area × price = ', { v: count(capex.ecallDevices) }, ' × ', { v: cents(each) }],
+      result: capex.ecallDeviceCost ?? 0,
+      unit: 'usd',
+      calc: { qty: capex.ecallDevices, unit: each },
+    });
+  }
   capex.communities.forEach((c, i) => {
     if (!c.equipment && !c.softwareMonthly && !c.softwareUpfront) return;
     const parts = c.parts ?? [];
@@ -389,13 +401,15 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
         ...parts.flatMap((pt, j) => [...(j ? [' + '] : []), { v: count(pt.beds) }, ' × ', { v: cents(pt.perBed) }] as Piece[]),
         ...(c.sensors > 0 ? [parts.length ? ' + ' : '', { v: count(c.sensors) }, ' sensors × ', { v: cents(c.sensorPrice ?? p.sensorPrice) }] : []),
         ...(c.items ?? []).filter((x) => x.billing !== 'monthly').flatMap((x) => [' + ', { v: count(x.qty) }, ` × ${x.name} `, { v: cents(x.perUnit) }] as Piece[]),
+        ...(c.ecallDevices ? [' + ', { v: count(c.ecallDevices) }, ' extra E-Call devices × ', { v: cents(Math.max(0, Number(p.ecallDevice) || 0)) }] as Piece[] : []),
       ],
       result: c.equipment,
       unit: 'usd',
     });
   });
   const itemsOnce = sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total));
-  cx.push({ key: 'cx.equipment', label: 'One-time equipment', community: null, formula: itemsOnce ? ['base packages + E-Call units + sensors + one-time items = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }, ' + ', { v: money(itemsOnce) }] : ['base packages + E-Call units + sensors = ', { v: money(capex.basePackages) }, ' + ', { v: money(capex.sensorCost) }], result: capex.equipment, unit: 'usd', total: true, alsoOn: 'Investment page' });
+  const eqParts: Array<[string, number]> = [['base packages + E-Call units', capex.basePackages], ['sensors', capex.sensorCost], ...(itemsOnce ? [['one-time items', itemsOnce] as [string, number]] : []), ...(capex.ecallDeviceCost ? [['extra E-Call devices', capex.ecallDeviceCost] as [string, number]] : [])];
+  cx.push({ key: 'cx.equipment', label: 'One-time equipment', community: null, formula: [eqParts.map((x) => x[0]).join(' + ') + ' = ', ...eqParts.flatMap((x, j) => (j ? [' + ', { v: money(x[1]) }] : [{ v: money(x[1]) }]))], result: capex.equipment, unit: 'usd', total: true, alsoOn: 'Investment page' });
   const mon = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).monitored));
   const eo = sum(draft.communities.map((dc) => scopeOf(dc, ecallOn).ecallOnly));
   if ((capex.softwareBilling ?? 'monthly') === 'upfront') {
@@ -476,7 +490,7 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     label: a.capexSummary ? `Year 1 subscription investment matches the model` : 'Year 1 investment matches the summary card',
     detail: `Price lines ${money(linesW)} · ${a.capexSummary ? 'model' : 'card'} ${money(out.kpis.totalInvestment12)}`,
   });
-  const eqRows = sum(basePackageRows(capex).map((r) => r.total)) + sum(sensorRows(capex).map((r) => r.total)) + sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total));
+  const eqRows = sum(basePackageRows(capex).map((r) => r.total)) + sum(sensorRows(capex).map((r) => r.total)) + sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total)) + (capex.ecallDeviceCost ?? 0);
   const eqOk = near(eqRows, capex.equipment) && near(capex.equipment + capex.software + capex.renewals + (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0) + (capex.pilotFees ?? 0), capex.ownershipTotal);
   const live = a.capexLive;
   const liveOk = !live || (near(live.equipment, capex.equipment) && near(live.ownershipTotal, capex.ownershipTotal));

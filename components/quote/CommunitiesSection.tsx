@@ -6,6 +6,7 @@
  * change them together from the bulk bar. Where there isn't room beside the
  * list, the editor opens under its row instead.
  */
+import { commonAreaFromPlan } from '@/lib/quote/roomTypes';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
@@ -151,6 +152,8 @@ export function CommunitiesSection({ inputs, result }: SectionProps) {
           const next = Object.fromEntries(BED_KEYS.map((t) => [t, { ...p[t], ecall: v ? p[t].monitoring || p[t].ecall : false }]));
           setValue(`communities.${i}.products`, next as never, { shouldDirty: true });
         }
+        // Common area sensors from tagged common areas follow the floor plans (their extra is set in the community).
+        if (k === 'commonAreaSensors' && commonAreaFromPlan(getValues(`communities.${i}`)) != null) continue;
         setValue(`communities.${i}.${k as keyof BulkPatch}`, v as never, { shouldDirty: true });
       }
     }

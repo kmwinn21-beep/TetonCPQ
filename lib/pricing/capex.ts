@@ -22,6 +22,7 @@ import { SEED_PRODUCTS, SKU, POLICY } from './catalog';
 import { derived, input, type Trace } from '@/lib/model/trace';
 import type { EcallOption, QuoteDraft } from '@/lib/quote/draft';
 import { scopeOf } from '@/lib/quote/draft';
+import { ecallBilled, pendantScope } from '@/lib/quote/roomTypes';
 import { pricedDraft } from './lineup';
 import { itemPrice, itemQty, itemsOn } from './items';
 import { communitySchedule, monthlyFee } from '@/lib/model/cashflow';
@@ -107,6 +108,9 @@ export interface CapexCommunity {
   itemsRenewals?: number;
   /** Pilot communities: what the pilot is billed before the purchase (pilot rate, E-Call during the pilot, …). */
   pilotFees?: number;
+  /** E-Call devices beyond one per room or common area (bought with the equipment, in `equipment`). */
+  ecallDevices?: number;
+  ecallDeviceCost?: number;
 }
 
 /** A generic item at one community (or, in CapexResult.items, across the deal). */
@@ -185,6 +189,9 @@ export interface CapexResult {
   itemsRenewals?: number;
   /** Pilot fees billed before the purchase at pilot communities (pilot rate, E-Call during the pilot, …). */
   pilotFees?: number;
+  /** Extra E-Call devices across the deal (beyond one per room or common area) and what they cost, in `equipment`. */
+  ecallDevices?: number;
+  ecallDeviceCost?: number;
   /** Equipment + software + renewals (+ generic items, + pilot fees) over the ownership period. */
   ownershipTotal: number;
   /** Equipment ÷ cost of ownership. */
@@ -213,6 +220,10 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const pilotBills = pilotFeesOf(draft);
   const communities: CapexCommunity[] = draft.communities.map((c, ci) => {
     const sc = scopeOf(c, option !== 'none');
+    // E-Call devices beyond one per room or common area (pendants / pull-cords per room, devices in common areas),
+    // bought with the equipment at the E-Call device price.
+    const extraDevices = option !== 'none' ? ecallBilled(pendantScope(c, true), 'room').extra : 0;
+    const deviceCost = extraDevices * Math.max(0, Number(pricing.ecallDevice) || 0);
     // Generic items bought with the equipment: one-time ones are paid with it at install.
     const items: CapexItem[] = [];
     for (const it of generic) {
@@ -262,7 +273,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       listSensorPrice: pricing.sensorPrice,
       credit: monitored ? credit : 0,
       sensorCost: sensors * sensorPrice,
-      equipment: basePackages + sensors * sensorPrice + itemsOnce,
+      equipment: basePackages + sensors * sensorPrice + itemsOnce + deviceCost,
       // Software: monitored beds at the software rate; E-Call-only beds at the E-Call software rate. Billed monthly,
       // or (deals that bill software upfront) once at install at the upfront prices.
       softwareMonthly: upfront ? 0 : sc.monitored * pricing.softwareRate + sc.ecallOnly * Math.max(0, Number(pricing.ecallSoftware ?? 5)),
@@ -272,6 +283,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       parts,
       ...(items.length ? { items, itemsMonthly, itemsRenewals } : {}),
       ...(pilotBills[ci] ? { pilotFees: pilotBills[ci] } : {}),
+      ...(extraDevices ? { ecallDevices: extraDevices, ecallDeviceCost: deviceCost } : {}),
     };
   });
   const sum = (k: 'beds' | 'sensors' | 'basePackages' | 'sensorCost' | 'equipment' | 'softwareMonthly' | 'renewals') => communities.reduce((s, c) => s + c[k], 0);
@@ -291,9 +303,11 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
   const itemsMonthly = communities.reduce((t, c) => t + (c.itemsMonthly ?? 0), 0);
   const itemsRenewals = communities.reduce((t, c) => t + (c.itemsRenewals ?? 0), 0);
   const pilotFees = communities.reduce((t, c) => t + (c.pilotFees ?? 0), 0);
+  const ecallDevices = communities.reduce((t, c) => t + (c.ecallDevices ?? 0), 0);
+  const ecallDeviceCost = communities.reduce((t, c) => t + (c.ecallDeviceCost ?? 0), 0);
   const ownershipTotal = equipment + software + renewals + itemsMonthly * ownershipMonths + itemsRenewals + pilotFees;
 
-  const trace = derived('capex.total', 'One-time equipment cost', equipment, 'usd', itemRows.size ? 'Base packages + Additional sensors + one-time items' : 'Base packages + Additional sensors', [
+  const trace = derived('capex.total', 'One-time equipment cost', equipment, 'usd', `Base packages + Additional sensors${itemRows.size ? ' + one-time items' : ''}${ecallDevices ? ' + extra E-Call devices' : ''}`, [
     derived('capex.base', 'Base packages', sum('basePackages'), 'usd', 'Σ beds × base package price (by E-Call option)', communities.map((c, i) =>
       derived(`capex.base.c${i}`, `Base packages — ${c.name}`, c.basePackages, 'usd', 'Beds × price per bed', partsOf(c).flatMap((p, j) => {
         const what = !p.monitoring ? ' (E-Call only units)' : p.ecall === 'ble' ? ' (with E-Call)' : p.ecall === 'inovonics' ? ' (with Inovonics E-Call)' : '';
@@ -312,6 +326,9 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       input('capex.sensorPrice', 'Price per sensor', pricing.sensorPrice, 'usd'),
       ...(conversion ? [input('capex.conversionCredit', 'Conversion credit per bed and sensor (pilot communities)', conversion, 'usd')] : []),
     ]),
+    ...(ecallDevices
+      ? [derived('capex.ecallDevices', 'Extra E-Call devices', ecallDeviceCost, 'usd', 'Devices beyond one per room or common area × device price', [input('capex.ecallDeviceCount', 'Extra E-Call devices', ecallDevices, 'count'), input('capex.ecallDevicePrice', 'Price per device', Math.max(0, Number(pricing.ecallDevice) || 0), 'usd')])]
+      : []),
   ]);
 
   return {
@@ -331,6 +348,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
     renewals,
     ...(itemRows.size ? { items: Array.from(itemRows.values()), itemsMonthly, itemsRenewals } : {}),
     ...(pilotFees ? { pilotFees } : {}),
+    ...(ecallDevices ? { ecallDevices, ecallDeviceCost } : {}),
     ownershipTotal,
     equipmentShare: ownershipTotal > 0 ? equipment / ownershipTotal : 0,
     trace,

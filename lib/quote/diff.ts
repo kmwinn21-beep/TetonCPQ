@@ -135,7 +135,7 @@ const GROUP: Record<string, string> = {
 };
 
 // Products are compared per care type below (the community-wide monitoring / E-Call flags follow them).
-const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes' | 'commonAreas' | 'products' | 'monitoring' | 'ecall'>, Field> = {
+const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomTypes' | 'commonAreas' | 'products' | 'monitoring' | 'ecall' | 'commonAreaOff'>, Field> = {
   name: { label: 'Name', fmt: 'text' },
   city: { label: 'City', fmt: 'text' },
   market: { label: 'State', fmt: 'text' },
@@ -150,6 +150,7 @@ const COMMUNITY_FIELDS: Record<keyof Omit<DraftCommunity, 'id' | 'beds' | 'roomT
   goLiveMonth: { label: 'Go-live month', fmt: 'text' },
   roiDelayMonths: { label: 'ROI delay (months)', fmt: 'num' },
   commonAreaSensors: { label: 'Common-area sensors', fmt: 'num' },
+  commonAreaSensorsExtra: { label: 'Extra common-area sensors', fmt: 'num' },
   additionalSensors: { label: 'Additional sensors', fmt: 'num' },
   sensorAllowancePct: { label: 'Sensor allowance', fmt: 'pct' },
   pendantAllowancePct: { label: 'Pendant / pull-cord contingency', fmt: 'pct' },
@@ -287,7 +288,10 @@ export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
     }
     if (JSON.stringify(prev.commonAreas ?? []) !== JSON.stringify(c.commonAreas ?? [])) {
       const n = (x: typeof c) => (x.commonAreas ?? []).reduce((s, a) => s + a.count, 0);
-      changes.push({ group: 'Communities', label: `${c.name || prev.name}: Common areas`, from: `${n(prev)} areas`, to: `${n(c)} areas` });
+      const t = (x: typeof c) => (x.commonAreas ?? []).filter((a) => a.mark).length;
+      const say = (x: typeof c) => `${n(x)} area${n(x) === 1 ? '' : 's'}${t(x) ? ` (${t(x)} on the floor plans)` : ''}`;
+      if (say(prev) !== say(c)) changes.push({ group: 'Communities', label: `${c.name || prev.name}: Common areas`, from: say(prev), to: say(c) });
+      else changes.push({ group: 'Communities', label: `${c.name || prev.name}: Common areas`, from: '', to: 'edited' });
     }
   }
   // Stages and terms are lists: described item by item.

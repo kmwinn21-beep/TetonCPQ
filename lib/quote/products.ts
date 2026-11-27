@@ -6,7 +6,7 @@
  *
  * Implementation is always included: it comes with the first platform product and can be credited, not removed.
  */
-import { applyRoomTypes } from './roomTypes';
+import { applyRoomTypes, commonAreaFromPlan } from './roomTypes';
 import { BED_KEYS, defaultProducts, hasEcall, monitors, productsOf, type DraftCommunity, type EcallOption, type QuoteDraft } from './draft';
 import type { Presentation } from './draft';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
@@ -303,7 +303,14 @@ export function applyChoices(d: QuoteDraft, c: Choices, book: PriceBook): QuoteD
     }
     if (before.ecall === 'none') next.communities = next.communities.map((x) => withEcall(x, true));
   } else if (before.ecall !== 'none') next.commercial.ecall = 'none';
-  if (!c.commonArea && before.commonArea) next.communities = next.communities.map((x) => (Number(x.commonAreaSensors) ? { ...x, commonAreaSensors: 0 } : x));
+  // Off: counts to 0 (communities with tagged common areas keep the tags, marked off); back on: from the tags again.
+  if (!c.commonArea && before.commonArea) next.communities = next.communities.map((x) => (commonAreaFromPlan({ ...x, commonAreaOff: false }) != null ? { ...x, commonAreaOff: true, commonAreaSensors: 0 } : Number(x.commonAreaSensors) ? { ...x, commonAreaSensors: 0 } : x));
+  if (c.commonArea && !before.commonArea)
+    next.communities = next.communities.map((x) => {
+      if (!x.commonAreaOff) return x;
+      const { commonAreaOff: _o, ...rest } = x;
+      return { ...rest, commonAreaSensors: commonAreaFromPlan(rest) ?? 0 };
+    });
   if (c.finish !== before.finish) next.commercial.finish = { ...next.commercial.finish, concealed: c.finish };
   return { ...next, presentation: presentationFor(c.structure), products: DEAL_PRODUCTS.filter((p) => ps.has(p)) };
 }

@@ -59,6 +59,10 @@ export interface DraftCommunity {
   /** Common-area sensors (outside resident rooms): a setup fee each, then a monthly fee each. Replaces the
    *  full-facility multiplier on new deals (a community still on `coverage: 'full_facility'` keeps the multiplier). */
   commonAreaSensors?: number;
+  /** Extra common area sensors on top of those on common areas tagged on the floor plans (a flat number). */
+  commonAreaSensorsExtra?: number;
+  /** Common area sensors taken off the deal while common areas are tagged: the count is 0, the tags stay. */
+  commonAreaOff?: boolean;
   /** Room types from the floor plans (optional). When present they set the beds and additional sensors. */
   roomTypes?: RoomType[];
   /** Allowance for site conditions on top of the plan's sensors (0.03 = 3%). */

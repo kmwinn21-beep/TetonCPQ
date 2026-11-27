@@ -47,6 +47,7 @@ export type RoleId =
   | 'capexEcallSoftware'
   | 'capexEcallSoftwareUpfront'
   | 'capexRenewal'
+  | 'capexEcallDevice'
   | 'finishLow'
   | 'finishHigh'
   | 'finishCredit';
@@ -104,6 +105,11 @@ export interface Combination {
 export interface Lineup {
   /** Increases with every save in the price book. */
   version: number;
+  /**
+   * Which built-in items the line-up knows about (LINEUP_SCHEMA when saved now). A line-up saved before an item was
+   * built in still prices it, as the default does: 2 added extra E-Call devices with equipment purchase.
+   */
+  schema?: number;
   cores: CoreProduct[];
   combos: Combination[];
 }
@@ -123,6 +129,7 @@ const set = <T extends object>(o: T, patch: Partial<T>): T => ({ ...o, ...patch 
 const capex = (k: Commercial, patch: Partial<Commercial['capex']>): Commercial => ({ ...k, capex: { ...k.capex, ...patch } });
 
 export const ROLES: Record<RoleId, Role> = {
+  capexEcallDevice: { id: 'capexEcallDevice', side: 'capex', counted: 'E-Call devices beyond one per room or common area, one-time (with the equipment)', removed: 'Extra E-Call devices are free with equipment purchase.', remove: (k) => capex(k, { ecallDevice: 0 }) },
   platform: { id: 'platform', side: 'subscription', counted: 'per monitored bed, per month (pilot and introductory rates apply)', removed: 'The subscription is free (pilot and intro rates too).', remove: (k) => set(k, { platformRate: 0, pilotRate: 0, specialRate: k.specialRate == null ? null : 0 }) },
   install: { id: 'install', side: 'subscription', counted: 'per monitored bed, one-time (credited on pilot sites)', removed: 'Installation is free.', remove: (k) => set(k, { installRate: 0 }) },
   snf: { id: 'snf', side: 'subscription', counted: 'per skilled nursing bed, per month (only when there are SNF beds)', removed: 'Skilled nursing beds are billed at the subscription rate.', remove: (k) => set(k, { snfRate: null }) },
@@ -173,6 +180,7 @@ export const ROLE_BY_SKU: Record<string, RoleId> = {
   [SKU.capexEcallSoftwareUpfront]: 'capexEcallSoftwareUpfront',
   [SKU.capexBleRenewal]: 'capexRenewal',
   [SKU.capexInovonicsRenewal]: 'capexRenewal',
+  [SKU.capexEcallDevice]: 'capexEcallDevice',
   [SKU.finishConcealedLow]: 'finishLow',
   [SKU.finishConcealedHigh]: 'finishHigh',
   [SKU.finishStandardCredit]: 'finishCredit',
@@ -201,8 +209,12 @@ const side = (offered: boolean, items: LineupEntry[]): LineupSide => ({ offered,
 const e = (sku: string, role?: RoleId): LineupEntry => (role ? { sku, role } : { sku });
 
 /** Today's rules: what every deal priced before the line-up existed. */
+/** See Lineup.schema. */
+export const LINEUP_SCHEMA = 2;
+
 export const DEFAULT_LINEUP: Lineup = {
   version: 0,
+  schema: LINEUP_SCHEMA,
   cores: [
     {
       id: 'monitoring',
@@ -221,7 +233,7 @@ export const DEFAULT_LINEUP: Lineup = {
       kind: 'core',
       sides: {
         subscription: side(true, [e(SKU.ecallBle), e(SKU.ecallInovonics), e(SKU.install, 'ecallInstall'), e(SKU.ecallBleButton), e(SKU.ecallInoPullcord)]),
-        capex: side(true, [e(SKU.capexEcallInstallBle), e(SKU.capexEcallInstallInovonics), e(SKU.capexEcallSoftware), e(SKU.capexEcallSoftwareUpfront), e(SKU.capexBleRenewal), e(SKU.capexInovonicsRenewal)]),
+        capex: side(true, [e(SKU.capexEcallInstallBle), e(SKU.capexEcallInstallInovonics), e(SKU.capexEcallSoftware), e(SKU.capexEcallSoftwareUpfront), e(SKU.capexBleRenewal), e(SKU.capexInovonicsRenewal), e(SKU.capexEcallDevice)]),
       },
     },
     {
@@ -263,6 +275,8 @@ export function pricedRoles(l: Lineup): Set<string> {
   };
   for (const c of l.cores) for (const s of SIDES) for (const en of c.sides[s]?.items ?? []) add(s, en);
   for (const x of l.combos) if (x.enabled || x.builtin === 'capexEcallBase') for (const en of x.with) add(x.side, en);
+  // Saved before extra E-Call devices with equipment purchase were built in: priced, as on the default.
+  if (!((l.schema ?? 1) >= 2)) out.add(`capex:capexEcallDevice:${SKU.capexEcallDevice}`);
   return out;
 }
 
@@ -378,8 +392,14 @@ export function normalizeLineup(raw: unknown): Lineup {
   DEFAULT_LINEUP.combos.forEach((def) => {
     if (!combos.some((y) => y.id === def.id)) combos.push(structuredClone(def));
   });
+  // Built-in items added since the line-up was saved go in their default place (see Lineup.schema).
+  const was = Number(raw.schema) || 1;
+  if (was < 2) {
+    const ec = cores.find((c) => c.id === 'ecall');
+    if (ec && !ec.sides.capex.items.some((x) => x.sku === SKU.capexEcallDevice)) ec.sides.capex.items.push({ sku: SKU.capexEcallDevice });
+  }
   const version = Number.isFinite(Number(raw.version)) ? Math.max(0, Math.floor(Number(raw.version))) : 0;
-  return { version, cores, combos };
+  return { version, schema: LINEUP_SCHEMA, cores, combos };
 }
 
 /** The built-in roles a deal's line-up takes away (role:SKU), e.g. "install:TETON-INSTALL". Empty on the default. */

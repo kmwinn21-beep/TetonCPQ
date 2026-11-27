@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -137,7 +137,13 @@ export function ScopeViewer({
   // ---- common areas (tagged ones are on a plan; others were typed in, in the community drawer) ----
   const areas = useMemo(() => normalizeCommonAreas(community?.commonAreas), [community?.commonAreas]);
   const ecallHere = ecallOn && (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].ecall);
-  const writeAreas = (next: CommonArea[]) => index >= 0 && setValue(`communities.${index}.commonAreas`, next, { shouldDirty: true });
+  const writeAreas = (next: CommonArea[]) => {
+    if (index < 0) return;
+    setValue(`communities.${index}.commonAreas`, next, { shouldDirty: true });
+    // The community's common area sensors follow its tagged common areas (+ its extra).
+    const ca = commonAreaFromPlan({ ...getValues(`communities.${index}`), commonAreas: next });
+    if (ca != null) setValue(`communities.${index}.commonAreaSensors`, ca, { shouldDirty: true });
+  };
   const saveArea = (v: AreaFormValue) => {
     const d = areaDraft;
     if (!d) return;

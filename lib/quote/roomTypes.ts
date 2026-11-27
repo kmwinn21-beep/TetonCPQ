@@ -198,6 +198,17 @@ export function roomDerived(c: Partial<DraftCommunity>, pct = normalizeAllowance
   return { types, beds: all.beds, additionalSensors: mon.additionalSensors, all, monitored: mon };
 }
 
+/**
+ * A community's common area sensors when it has common areas tagged on a floor plan: their sensors plus the extra
+ * (0 while common area sensors are off the deal). Null when none is tagged: the count is typed in.
+ */
+export function commonAreaFromPlan(c: Pick<DraftCommunity, 'commonAreas' | 'commonAreaSensorsExtra' | 'commonAreaOff'>): number | null {
+  const areas = normalizeCommonAreas(c.commonAreas);
+  if (!areasTagged(areas)) return null;
+  if (c.commonAreaOff) return 0;
+  return areaSensors(areas) + Math.max(0, Math.round(Number(c.commonAreaSensorsExtra) || 0));
+}
+
 /** A community with its beds and additional sensors set from its room types (unchanged when it has none). */
 export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
   if (c.commonAreas !== undefined) {
@@ -205,6 +216,9 @@ export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
     const { commonAreas: _a, ...rest } = c;
     c = areas.length ? { ...rest, commonAreas: areas } : (rest as DraftCommunity);
   }
+  // Common area sensors from the tagged common areas (+ extra), when there are any.
+  const ca = commonAreaFromPlan(c);
+  if (ca != null && ca !== (Number(c.commonAreaSensors) || 0)) c = { ...c, commonAreaSensors: ca };
   const r = roomDerived(c);
   if (!r) return c;
   return { ...c, roomTypes: r.types, ilBeds: r.beds.il, alBeds: r.beds.al, mcBeds: r.beds.mc, snfBeds: r.beds.snf, additionalSensors: r.additionalSensors };

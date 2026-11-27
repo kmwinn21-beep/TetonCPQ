@@ -345,6 +345,9 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
               {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => (
                 <tr key={x.sku} className="border-t border-teton-off-white"><td className="py-2">{x.name} <span className="text-teton-ui-gray">· {count(x.qty)} × {usd(x.perUnit)}{x.billing === 'years' ? `, again every ${x.everyYears ?? 1} years` : ''}</span></td><td className="py-2 text-right">{usd(x.total)}</td></tr>
               ))}
+              {(capex.ecallDevices ?? 0) > 0 && (
+                <tr className="border-t border-teton-off-white"><td className="py-2">Extra E-Call devices <span className="text-teton-ui-gray">· {count(capex.ecallDevices ?? 0)} × {usd(Math.max(0, Number(capex.pricing.ecallDevice) || 0))} · beyond one per room or common area</span></td><td className="py-2 text-right">{usd(capex.ecallDeviceCost ?? 0)}</td></tr>
+              )}
               <tr className="border-t border-teton-off-white font-semibold">
                 <td className="py-2"><button type="button" className="hover:underline text-left" onClick={() => setOpen(capexLive.trace)}>One-time equipment cost</button></td>
                 <td className="py-2 text-right">{usd(capex.equipment)}</td>
