@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal Flow Mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--card:#fff;
+--built:#1F6B3A;--builtBg:#EAF6EE;--ext:#8A5A00;--extBg:#FFF3D6;--new:#1F5FB5;--newBg:#E8F1FD;--out:#6B6F78;--outBg:#EFEDE9;
+--coral:#E8664A;--coralBg:#FDEDE8;--teal:#0F6B6E;--tealBg:#E6F4F4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:48px 0 4px;letter-spacing:-.2px}
+h3{font-size:14px;margin:0 0 6px}
+.lede{color:var(--ink2);max-width:760px;margin:0}
+.sub{color:var(--ink2);margin:0 0 16px;max-width:820px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-built{background:var(--builtBg);color:var(--built)} .p-ext{background:var(--extBg);color:var(--ext)}
+.p-new{background:var(--newBg);color:var(--new)} .p-out{background:var(--outBg);color:var(--out)}
+.p-gate{background:var(--coralBg);color:#A63A22}
+
+/* Swimlanes */
+.lanes-scroll{overflow-x:auto;margin-top:14px;border:1px solid var(--line);border-radius:16px;background:var(--card);-webkit-overflow-scrolling:touch}
+.lanes{display:grid;grid-template-columns:118px repeat(6,minmax(170px,1fr));min-width:1140px}
+.lh{padding:12px 10px;border-bottom:1px solid var(--line);background:#FBFAF7}
+.lh b{display:block;font-size:13px}
+.lh small{color:var(--mut);font-size:11px}
+.lh.ph{border-left:1px solid var(--line)}
+.ln{padding:10px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;display:flex;flex-direction:column;justify-content:center;background:#FBFAF7}
+.ln small{font-weight:500;color:var(--mut);font-size:10.5px}
+.cell{padding:8px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:6px;min-height:72px}
+.lanes > :nth-last-child(-n+7){border-bottom:0}
+.st{border-radius:10px;padding:7px 9px;font-size:12px;line-height:1.35;border:1px solid transparent}
+.st .n{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-size:10px;font-weight:800;margin-right:5px;vertical-align:1px}
+.st small{display:block;color:var(--ink2);font-size:11px;margin-top:2px}
+.s-built{background:var(--builtBg);border-color:#CFE8D7}
+.s-ext{background:var(--extBg);border-color:#F3DFAE}
+.s-new{background:var(--newBg);border-color:#CADDF7}
+.s-out{background:var(--outBg);border-color:#E0DCD5;border-style:dashed}
+.gate{background:var(--coralBg);border:1.5px solid #F2B6A6;color:#7A2A17;font-weight:700}
+.gate::before{content:'◆ ';color:var(--coral)}
+.stage-row{display:grid;grid-template-columns:118px repeat(6,minmax(170px,1fr));min-width:1140px;background:var(--ink);color:#fff}
+.stage-row div{padding:9px 10px;font-size:11px;font-weight:700;border-left:1px solid #26303B}
+.stage-row div:first-child{border-left:0;color:#9AA3AE;font-weight:600}
+.stage-row span{display:inline-block;background:#26303B;border-radius:999px;padding:2px 8px;margin:2px 3px 2px 0;font-weight:600}
+
+/* Approvals */
+.grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin-top:14px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.flow{display:flex;flex-direction:column;gap:0}
+.fs{display:flex;gap:12px;align-items:flex-start;padding:10px 0;position:relative}
+.fs:not(:last-child)::after{content:'';position:absolute;left:15px;top:42px;bottom:-4px;width:2px;background:var(--line)}
+.fi{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--ink);color:#fff}
+.fi.c{background:var(--coral)} .fi.g{background:var(--built)} .fi.b{background:var(--new)}
+.fs b{display:block;font-size:13.5px}
+.fs span{color:var(--ink2);font-size:12.5px}
+.branch{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.who{font-weight:700;font-size:11.5px;white-space:nowrap}
+.t1{color:#8A5A00}.t2{color:#A63A22}
+.note{font-size:12px;color:var(--ink2);margin:10px 0 0}
+
+/* Screens */
+.screens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:14px}
+.scr{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.scr-h{padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.6px;text-transform:uppercase;background:#FBFAF7}
+.scr-b{padding:14px;display:flex;flex-direction:column;gap:10px;flex:1}
+.cap{font-size:12px;color:var(--ink2);padding:0 14px 14px}
+.tracker{display:flex;gap:3px}
+.tracker i{flex:1;height:6px;border-radius:3px;background:#E7E2D9}
+.tracker i.d{background:var(--built)} .tracker i.c{background:var(--coral)}
+.trk-l{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut)}
+.dealhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dealhead b{font-size:15px}
+.banner{border-radius:12px;background:var(--coralBg);border:1px solid #F2B6A6;padding:10px 12px;font-size:12.5px}
+.banner b{display:block;color:#7A2A17;margin-bottom:4px}
+.banner ul{margin:4px 0 8px;padding-left:16px}
+.banner li{margin:2px 0}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:8px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.dis{opacity:.4}
+.btn.g{background:var(--built);border-color:var(--built);color:#fff}
+.btn.r{color:#B4442C}
+.slack{border:1px solid #E1DFE6;border-radius:10px;padding:10px 12px;font-size:12.5px;background:#fff}
+.slack .hd{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.slack .av{width:26px;height:26px;border-radius:6px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:12px}
+.slack .ch{color:#616061;font-size:11px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px;margin:6px 0}
+.kv dt{color:var(--mut)} .kv dd{margin:0;font-weight:600}
+.astep{display:flex;gap:10px;align-items:flex-start;font-size:12.5px}
+.astep .dot{flex:0 0 12px;height:12px;border-radius:50%;margin-top:4px;border:2px solid var(--line);background:#fff}
+.astep.d .dot{background:var(--built);border-color:var(--built)}
+.astep.c .dot{background:var(--coral);border-color:var(--coral)}
+.astep small{display:block;color:var(--mut);font-size:11px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;background:#F4F1EB;border-radius:6px;padding:2px 7px}
+
+/* Build order */
+.phases{display:grid;gap:12px;margin-top:14px}
+.phase{display:grid;grid-template-columns:56px 1fr 220px;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;align-items:start}
+.phase .num{width:44px;height:44px;border-radius:12px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
+.phase.p0 .num{background:var(--built)}
+.phase h3{font-size:15px;margin:2px 0 4px}
+.phase p{margin:0;color:var(--ink2);font-size:13px}
+.phase ul{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink2)}
+.phase li{margin:2px 0}
+.meta{font-size:12px;color:var(--ink2);display:flex;flex-direction:column;gap:6px}
+.meta b{color:var(--ink)}
+.size{display:inline-flex;gap:3px}
+.size i{width:14px;height:6px;border-radius:3px;background:#E7E2D9}
+.size i.on{background:var(--ink)}
+.dec{counter-reset:d;list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.dec li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 48px;position:relative;font-size:13px}
+.dec li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:12px;width:22px;height:22px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.dec li b{display:block}
+.dec li span{color:var(--ink2);font-size:12.5px}
+.rec{color:var(--built);font-weight:700}
+
+@media (max-width:900px){
+  .grid2,.screens{grid-template-columns:1fr}
+  .phase{grid-template-columns:44px 1fr}
+  .phase .meta{grid-column:2}
+  .phase .num{width:36px;height:36px;font-size:15px}
+  h1{font-size:24px}
+}
+@media (prefers-reduced-motion:no-preference){.st,.box,.scr{transition:transform .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Mock · nothing built</p>
+  <h1>Moving a deal from first quote to signature</h1>
+  <p class="lede">Your 17 steps laid out by who does them and what stage the deal is in. Each step is tagged by what exists today. The coral diamonds are the approval gates the price book's guardrails would trigger.</p>
+  <div class="legend">
+    <span class="pill p-built">● Built today</span>
+    <span class="pill p-ext">● Built, needs extending</span>
+    <span class="pill p-new">● New</span>
+    <span class="pill p-out">● Stays outside (DocuSign, email, Word)</span>
+    <span class="pill p-gate">◆ Approval gate</span>
+  </div>
+
+  <h2>1 · The flow</h2>
+  <p class="sub">Read left to right. The dark band is the deal stage the system would show, moving forward on its own as things happen (sent, scoped, agreement requested, signed). Scroll sideways on a phone.</p>
+  <div class="lanes-scroll">
+    <div class="stage-row">
+      <div>Deal stage →</div>
+      <div><span>Draft</span></div>
+      <div><span>Estimate sent</span></div>
+      <div><span>In review</span><span>Scoping</span></div>
+      <div><span>Scoped proposal sent</span></div>
+      <div><span>Agreement drafting</span><span>Redlines</span></div>
+      <div><span>Out for signature</span><span>Won</span></div>
+    </div>
+    <div class="lanes">
+      <div class="lh"></div>
+      <div class="lh ph"><b>Quote</b><small>steps 1–3</small></div>
+      <div class="lh ph"><b>Share</b><small>steps 4–5</small></div>
+      <div class="lh ph"><b>Feedback &amp; scope</b><small>steps 6–9</small></div>
+      <div class="lh ph"><b>Re-quote</b><small>step 10</small></div>
+      <div class="lh ph"><b>Agreement</b><small>steps 11–15</small></div>
+      <div class="lh ph"><b>Sign</b><small>steps 16–17</small></div>
+
+      <div class="ln">Rep</div>
+      <div class="cell">
+        <div class="st s-built"><span class="n">1</span>Create deal</div>
+        <div class="st s-built"><span class="n">2</span>Enter terms from room counts<small>Products, pricing, structure, pilot</small></div>
+        <div class="st s-ext"><span class="n">2</span>Mark as <b>Estimate</b><small>Proposal says "based on room counts" until scoped</small></div>
+        <div class="st s-built"><span class="n">3</span>Format proposal<small>Business case, templates, copies</small></div>
+      </div>
+      <div class="cell">
+        <div class="st gate">Approval gate<small style="color:#7A2A17">Send is locked while a guardrail needs sign-off</small></div>
+        <div class="st s-built"><span class="n">4</span>Build deal room</div>
+        <div class="st s-built"><span class="n">5</span>Send PDF + link<small>Share dialog, tracked email</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-built"><span class="n">7</span>Adjust deal → new version<small>Version diff shows what changed</small></div>
+        <div class="st s-new"><span class="n">8</span>Upload plans → <b>Request scoping</b><small>Goes to the RevOps queue</small></div>
+      </div>
+      <div class="cell">
+        <div class="st gate">Approval gate again<small style="color:#7A2A17">Only for rules the new scope changed</small></div>
+        <div class="st s-ext"><span class="n">10</span>Send updated proposal<small>"What changed" note: rooms, price</small></div>
+      </div>
+      <div class="cell">
+        <div class="st gate">Terms locked<small style="color:#7A2A17">Agreement request needs every approval in place</small></div>
+        <div class="st s-new"><span class="n">11</span><b>Request agreement</b> in the app<small>Pre-filled from the approved version; replaces the Slack form</small></div>
+        <div class="st s-out"><span class="n">13</span>Send draft to prospect</div>
+      </div>
+      <div class="cell">
+        <div class="st s-ext"><span class="n">16</span>Mark "sent for signature"<small>Manual first; DocuSign later</small></div>
+      </div>
+
+      <div class="ln">Prospect</div>
+      <div class="cell"></div>
+      <div class="cell">
+        <div class="st s-built"><span class="n">6</span>Reviews proposal + deal room<small>Comments, questions, viewing activity</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-built"><span class="n">6</span>Gives feedback</div>
+        <div class="st s-ext"><span class="n">8</span>Sends floor plans<small>Add: upload on the shared link</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-built">Reviews scoped proposal</div>
+        <div class="st s-built">"Request agreement" button<small>Already on the shared link</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-out"><span class="n">14</span>Returns redlines</div>
+      </div>
+      <div class="cell">
+        <div class="st s-out"><span class="n">17</span>Signs in DocuSign</div>
+      </div>
+
+      <div class="ln">RevOps</div>
+      <div class="cell"></div>
+      <div class="cell"></div>
+      <div class="cell">
+        <div class="st s-new"><span class="n">9</span>Scoping queue<small>Picks it up, due date, notifies rep when done</small></div>
+        <div class="st s-built"><span class="n">9</span>Scope in Scope Mode<small>Room types, common areas</small></div>
+      </div>
+      <div class="cell"></div>
+      <div class="cell">
+        <div class="st s-new"><span class="n">12</span>Agreement queue<small>Request in, draft out (upload the file)</small></div>
+        <div class="st s-out">Drafts in Word</div>
+      </div>
+      <div class="cell">
+        <div class="st s-out"><span class="n">16</span>Sends executable via DocuSign</div>
+      </div>
+
+      <div class="ln">Approvers<small>Deal Desk, VP Sales, CEO</small></div>
+      <div class="cell"></div>
+      <div class="cell">
+        <div class="st s-new">Approve / reject with a note<small>In the app or straight from Slack</small></div>
+      </div>
+      <div class="cell"></div>
+      <div class="cell">
+        <div class="st s-new">Re-approve changed terms</div>
+      </div>
+      <div class="cell">
+        <div class="st s-new"><span class="n">15</span>Review redlines<small>Comment on the uploaded file, decide</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-out"><span class="n">17</span>Countersign</div>
+      </div>
+
+      <div class="ln">System</div>
+      <div class="cell">
+        <div class="st s-ext">Live guardrail check<small>Price, term length, pilot length, pilot cost</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-new">Notify approvers (app + Slack)</div>
+        <div class="st s-built">Notify rep when prospect views</div>
+      </div>
+      <div class="cell">
+        <div class="st s-new">Stage moves itself<small>"In review" once opened; "Scoping" once requested</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-built">Version diff<small>Estimate → scoped</small></div>
+      </div>
+      <div class="cell">
+        <div class="st s-new">Post request to the Slack channel</div>
+        <div class="st s-new">Keep every agreement draft + redline on the deal</div>
+      </div>
+      <div class="cell">
+        <div class="st s-new">Deal → Won when signed<small>Later: DocuSign webhook</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2 · How the approval gates work</h2>
+  <p class="sub">Approvals are checked the whole time you edit, but only stop you at two points: sending a proposal and requesting an agreement. Each approval is attached to a version, so the prospect never gets terms nobody signed off on.</p>
+  <div class="grid2">
+    <div class="box">
+      <p class="eb" style="margin:0 0 4px">Lifecycle</p>
+      <div class="flow">
+        <div class="fs"><div class="fi">1</div><div><b>Rep edits terms</b><span>Guardrails run live. Findings show next to the field that tripped them, with who would need to approve.</span></div></div>
+        <div class="fs"><div class="fi c">2</div><div><b>Rep clicks Send (or Request agreement)</b><span>Nothing tripped: it goes. Something tripped: Send is locked and becomes "Request approval".</span>
+          <div class="branch"><span class="pill p-built">Clean → sends</span><span class="pill p-gate">Needs approval → request</span></div></div></div>
+        <div class="fs"><div class="fi b">3</div><div><b>Request goes to the right person</b><span>The lowest role that can approve every item gets an in-app notification and a Slack message with Approve / Reject buttons. The rep adds a reason ("competitive with X, 3-year commitment").</span></div></div>
+        <div class="fs"><div class="fi g">4</div><div><b>Approved → that version is approved</b><span>Send unlocks. Rejected → the rep sees the note and adjusts. Every decision is kept in the deal's history.</span></div></div>
+        <div class="fs"><div class="fi">5</div><div><b>Later changes</b><span>Recommended: changes that make terms <i>better</i> for Teton (or don't touch an approved rule) keep the approval. Making an approved item worse, or tripping a new rule, asks again for that item only.</span></div></div>
+      </div>
+    </div>
+    <div class="box">
+      <p class="eb" style="margin:0 0 4px">Rules, set by an admin in the price book</p>
+      <table>
+        <thead><tr><th>Rule</th><th>Tier 1</th><th>Tier 2</th></tr></thead>
+        <tbody>
+          <tr><td><b>Monthly price</b><br><small style="color:var(--mut)">per bed, vs list</small></td><td><span class="who t1">Deal Desk</span><br>&lt; 90% of list</td><td><span class="who t2">VP Sales</span><br>&lt; 75% of list</td></tr>
+          <tr><td><b>Service term</b></td><td><span class="who t1">Deal Desk</span><br>&lt; 36 months</td><td><span class="who t2">VP Sales</span><br>&lt; 24 months</td></tr>
+          <tr><td><b>Pilot length</b></td><td><span class="who t1">Deal Desk</span><br>&gt; 3 months</td><td><span class="who t2">VP Sales</span><br>&gt; 6 months</td></tr>
+          <tr><td><b>Pilot cost</b><br><small style="color:var(--mut)">rate + install credit</small></td><td><span class="who t1">Deal Desk</span><br>&lt; $75 or credit &gt; 50%</td><td><span class="who t2">VP Sales / CEO</span><br>Free pilot or full credit, no clawback</td></tr>
+        </tbody>
+      </table>
+      <p class="note">These numbers are examples to react to. Today the thresholds are fixed in code and only produce warnings (one routes to Deal Desk). There's no term-length rule yet. The build moves all of them into the price book so an admin can change them, with tiers and an approver per tier.</p>
+    </div>
+  </div>
+
+  <h2>3 · What it looks like</h2>
+  <div class="screens">
+    <div class="scr">
+      <div class="scr-h">Deal page · rep</div>
+      <div class="scr-b">
+        <div class="dealhead"><b>Maple Grove Senior Living</b><span class="pill p-ext">Estimate · room counts</span></div>
+        <div>
+          <div class="tracker"><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i></div>
+          <div class="trk-l"><span>Draft</span><span>Estimate sent</span><span>Won</span></div>
+        </div>
+        <div class="banner">
+          <b>2 items need approval before you can send</b>
+          <ul>
+            <li>$68/bed is 76% of list → <b>Deal Desk</b></li>
+            <li>6-month pilot (standard 3) → <b>Deal Desk</b></li>
+          </ul>
+          <div class="btnrow"><span class="btn k">Request approval</span><span class="btn">Edit terms</span></div>
+        </div>
+        <div class="btnrow"><span class="btn dis">Send proposal</span><span class="btn">Download PDF (draft)</span></div>
+      </div>
+      <p class="cap">The PDF can still be downloaded marked <b>Draft</b>, so reps can preview without bypassing the gate.</p>
+    </div>
+    <div class="scr">
+      <div class="scr-h">Slack · #deal-approvals</div>
+      <div class="scr-b">
+        <div class="slack">
+          <div class="hd"><span class="av">T</span><div><b>Teton CPQ</b> <span class="ch">· app</span></div></div>
+          <b>Kevin W. needs approval · Maple Grove (v3)</b>
+          <dl class="kv">
+            <dt>Price</dt><dd>$68/bed (list $89) · 76%</dd>
+            <dt>Pilot</dt><dd>6 months at $75</dd>
+            <dt>Term</dt><dd>36 months</dd>
+            <dt>Why</dt><dd>"Competing with a 2-yr deal; they'll commit 140 rooms"</dd>
+          </dl>
+          <div class="btnrow"><span class="btn g">Approve</span><span class="btn r">Reject…</span><span class="btn">Open deal</span></div>
+        </div>
+        <div class="slack">
+          <div class="hd"><span class="av">T</span><div><b>Teton CPQ</b> <span class="ch">· #agreement-requests</span></div></div>
+          <b>Agreement requested · Maple Grove (v5, approved)</b>
+          <dl class="kv"><dt>Entity</dt><dd>Maple Grove SL, LLC</dd><dt>Signer</dt><dd>J. Ortiz, COO</dd><dt>Scope</dt><dd>142 rooms · 3 communities</dd></dl>
+          <div class="btnrow"><span class="btn k">Claim</span><span class="btn">Open request</span></div>
+        </div>
+      </div>
+      <p class="cap">The in-app agreement form posts here instead of reps filling out a separate Slack form. Everything RevOps needs comes from the approved version.</p>
+    </div>
+    <div class="scr">
+      <div class="scr-h">Agreement tracker · on the deal</div>
+      <div class="scr-b">
+        <div class="astep d"><span class="dot"></span><div><b>Requested</b><small>Kevin · Mar 4 · v5 terms locked</small></div></div>
+        <div class="astep d"><span class="dot"></span><div><b>Drafted by RevOps</b><small>Dana · Mar 5 · <span class="chip">📄 Agreement-v1.docx</span></small></div></div>
+        <div class="astep d"><span class="dot"></span><div><b>Sent to prospect</b><small>Mar 5</small></div></div>
+        <div class="astep c"><span class="dot"></span><div><b>Redlines back · leadership review</b><small><span class="chip">📄 Redlines-v1.docx</span> · 3 comments · VP Sales reviewing</small></div></div>
+        <div class="astep"><span class="dot"></span><div><b>Executable sent (DocuSign)</b><small>RevOps marks it, or DocuSign does</small></div></div>
+        <div class="astep"><span class="dot"></span><div><b>Signed &amp; countersigned → Won</b></div></div>
+        <div class="btnrow"><span class="btn k">Upload new version</span><span class="btn">Comment</span></div>
+      </div>
+      <p class="cap">The documents stay in Word and DocuSign. The system keeps a record of each round and who has the ball.</p>
+    </div>
+  </div>
+
+  <h2>4 · Build order</h2>
+  <p class="sub">Ordered by dependency first, then value. Approvals need roles (who can approve). Stages and queues are mostly glue on top of what exists. Integrations go last because each step works manually first.</p>
+  <div class="phases">
+    <div class="phase p0">
+      <div class="num">✓</div>
+      <div><h3>Already in place</h3><p>Deals and versions, terms and the price book, guardrail findings (warnings), business case formatting and templates, deal room and tracked sharing, prospect comments and questions, Scope Mode, version diff, tasks and notifications, the prospect's "Request agreement" button. User roles exist (rep, Deal Desk, VP Sales, CEO, admin), and an empty approvals table was set up early.</p></div>
+      <div class="meta"><span>Steps covered: 1, 3–7, 9</span></div>
+    </div>
+    <div class="phase">
+      <div class="num">1</div>
+      <div><h3>Roles &amp; permissions</h3><p>Already first on the backlog. Decides who can approve what, who sees which deals, and who edits the price book.</p>
+        <ul><li>Capability matrix per role, admin-editable, checked on the server</li><li>"Can approve" capabilities per rule and tier</li></ul></div>
+      <div class="meta"><span><b>Unlocks:</b> approvals</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">2</div>
+      <div><h3>Approval rules in the price book</h3><p>Move the fixed guardrails into admin settings and add the missing ones.</p>
+        <ul><li>Price, service term, pilot length and pilot cost, each with tiers and an approver</li><li>Live findings on the deal page, next to the field</li><li>Re-run every saved deal against new rules (no surprise lockouts)</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> 1</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">3</div>
+      <div><h3>Approval workflow</h3><p>The core of what you described: the biggest piece and the most value.</p>
+        <ul><li>Request with a reason → approver notified → approve / reject with a note</li><li>Send and agreement request locked until approved; draft-marked PDF still allowed</li><li>Approval attached to a version; re-approval only for items that got worse</li><li>Approvals inbox and history on the deal</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> 1, 2</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">4</div>
+      <div><h3>Deal stages + estimate vs scoped</h3><p>The pipeline band from section 1, moving itself from events the system already records.</p>
+        <ul><li>Stages: Draft → Estimate sent → In review → Scoping → Scoped proposal sent → Agreement → Signature → Won / Lost</li><li>"Estimate" flag on the proposal until scoped; a "what changed" note when the scope lands</li><li>Deals list filtered and grouped by stage</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> nothing (can run alongside 1–3)</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">5</div>
+      <div><h3>Scoping handoff</h3><p>Steps 8–9 as a queue instead of a Slack message.</p>
+        <ul><li>"Request scoping" on the deal (and plan upload on the prospect's shared link)</li><li>RevOps queue: claim, due date, done → rep notified and the deal leaves "Estimate"</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> 4</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">6</div>
+      <div><h3>Agreement request + tracker, posted to Slack</h3><p>Steps 11–16 recorded in one place. Builds on the agreement request the prospect can already send.</p>
+        <ul><li>Rep form pre-filled from the approved version (entity, signer, scope, terms)</li><li>Posts to the agreement Slack channel; RevOps agreement queue</li><li>Tracker: drafts and redlines uploaded per round, leadership comments, who has the ball</li><li>Slack Approve / Reject buttons for approvals (from phase 3)</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> 3; a Slack app for the channel</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span></div>
+    </div>
+    <div class="phase">
+      <div class="num">7</div>
+      <div><h3>DocuSign (optional)</h3><p>Until then, RevOps clicks "Sent for signature" and "Signed". With it: send from the deal, and the deal moves to Won when both sides have signed.</p></div>
+      <div class="meta"><span><b>Needs:</b> 6; a DocuSign API account</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+  </div>
+
+  <h2>5 · Decisions before building</h2>
+  <ol class="dec">
+    <li><b>Does an approval lock sending, or only warn?</b><span><span class="rec">Recommended:</span> lock Send and the agreement request; allow a PDF marked Draft for previews.</span></li>
+    <li><b>The thresholds and tiers in the rules table</b><span>Price, term, pilot length, pilot cost: the numbers and who approves each tier. Also whether CEO is ever required, or VP Sales is the top tier.</span></li>
+    <li><b>When does a change need re-approval?</b><span><span class="rec">Recommended:</span> only when an approved item gets worse or a new rule trips. Better terms keep the approval.</span></li>
+    <li><b>Slack: post only, or approve from Slack too?</b><span>Posting needs a simple webhook. Approve / Reject buttons need a Teton Slack app; it's more setup but saves approvers a click.</span></li>
+    <li><b>Estimates: does anything change for the prospect?</b><span><span class="rec">Recommended:</span> an "Estimate based on room counts" note on the proposal until the deal is scoped.</span></li>
+    <li><b>DocuSign now or later?</b><span><span class="rec">Recommended:</span> later. Manual "sent / signed" buttons first.</span></li>
+  </ol>
+</div>
+</body>
+</html>
