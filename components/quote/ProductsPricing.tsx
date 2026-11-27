@@ -625,8 +625,9 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
               <SettingRow label="Start with a pilot" hint="Pilot sites are marked per community">
                 <Switch name="schedule.withPilot" label="Start with a pilot" />
               </SettingRow>
-              {pilot && ps.includes('subscription') && (
-                <SettingRow label="Pilot rate per bed / month" hint={`Standard $${POLICY.standardPilotRate}`} note={Number(k.pilotRate) === 0 ? <Tag tone="amber">Free pilot</Tag> : null}>
+              {/* Both ways to buy: an equipment purchase's pilot is billed at this rate too (the proposal's pilot section). */}
+              {pilot && (
+                <SettingRow label="Pilot rate per bed / month" hint={`Standard $${POLICY.standardPilotRate}${!ps.includes('subscription') ? ' · billed during the pilot, before the purchase' : ''}`} note={Number(k.pilotRate) === 0 ? <Tag tone="amber">Free pilot</Tag> : null}>
                   <Price name="commercial.pilotRate" label="Pilot rate per bed / month" suffix="/bed" />
                 </SettingRow>
               )}
