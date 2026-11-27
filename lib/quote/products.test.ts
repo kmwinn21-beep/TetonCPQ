@@ -5,7 +5,7 @@ import { defaultDraft, newCommunity, normalizeDraft, scopeOf, type QuoteDraft } 
 import { toModelInputs } from './toModelInputs';
 import { sampleDraft } from './sampleDraft';
 import { previewTotals } from './previewTotals';
-import { addProducts, applyKit, clearSensors, dealProducts, fitCommunity, hasSensors, removeBlock, removeProduct, switchStructure, visibleSettings } from './products';
+import { addProducts, applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, fitCommunity, hasSensors, removeBlock, removeProduct, switchStructure, visibleSettings } from './products';
 
 const book = priceBook();
 const today = new Date('2026-11-01T00:00:00Z');
@@ -145,5 +145,65 @@ describe('switching how the deal is sold', () => {
     expect(r.kept).toEqual([]);
     expect(r.draft.communities[0].additionalSensors).toBe(0);
     expect(hasSensors(normalizeDraft(r.draft))).toBe(false);
+  });
+});
+
+describe('building a deal from core products', () => {
+  const blank = () => {
+    const d = defaultDraft('Build', book, today);
+    d.products = [];
+    d.commercial.ecall = 'none';
+    d.communities = [{ ...fitCommunity(d, newCommunity(0)), name: 'A', alBeds: 100, commonAreaSensors: 0 }];
+    return normalizeDraft(d);
+  };
+  const none = { structure: 'subscription', monitoring: false, ecall: 'none', commonArea: false, finish: false } as const;
+  it('re-applying an older deal’s own choices changes nothing the engine reads', () => {
+    for (const d of olderDeals()) {
+      const again = normalizeDraft(applyChoices(d, choicesOf(d), book));
+      expect(toModelInputs(again)).toEqual(toModelInputs(d));
+      expect(again.presentation).toBe(d.presentation);
+    }
+  });
+  it('resident monitoring, then E-Call, then equipment purchase', () => {
+    let d = normalizeDraft(applyChoices(blank(), { ...none, monitoring: true }, book));
+    expect(dealProducts(d)).toEqual(['subscription']);
+    expect(scopeOf(d.communities[0]).monitored).toBe(100);
+    d = normalizeDraft(applyChoices(d, { ...choicesOf(d), ecall: 'ble' }, book));
+    expect(dealProducts(d)).toEqual(['subscription', 'ecall']);
+    expect([d.commercial.ecall, d.commercial.ecallRate, d.commercial.ecallPilotRate]).toEqual(['ble', 10, 0]);
+    expect(changeNote(choicesOf(blank()), { ...none, monitoring: true }, book)).toBeNull();
+    expect(changeNote({ ...none, monitoring: true }, { ...none, monitoring: true, ecall: 'ble' }, book)).toMatch('TT-PLT-BBL');
+    // The same deal as switching structure the old way.
+    const cx = normalizeDraft(applyChoices(d, { ...choicesOf(d), structure: 'capex' }, book));
+    expect(cx.presentation).toBe('capex');
+    expect(dealProducts(cx)).toEqual(['ecall', 'capex']);
+    expect(toModelInputs(cx)).toEqual(toModelInputs(normalizeDraft(switchStructure(d, 'capex', book))));
+  });
+  it('common area sensors: not offered on equipment purchase; unticking sets the counts to 0', () => {
+    let d = normalizeDraft(applyChoices(blank(), { ...none, monitoring: true, commonArea: true }, book));
+    d.communities[0].commonAreaSensors = 6;
+    expect(dealProducts(d)).toContain('commonArea');
+    const cx = normalizeDraft(applyChoices(d, { ...choicesOf(d), structure: 'capex' }, book));
+    expect(dealProducts(cx)).not.toContain('commonArea');
+    expect(cx.communities[0].commonAreaSensors).toBe(6);
+    expect(commonAreaOffered('capex')).toBe(false);
+    // Back to the subscription: they come back.
+    expect(dealProducts(normalizeDraft(applyChoices(cx, { ...choicesOf(cx), structure: 'subscription' }, book)))).toContain('commonArea');
+    d = normalizeDraft(applyChoices(d, { ...choicesOf(d), commonArea: false }, book));
+    expect(d.communities[0].commonAreaSensors).toBe(0);
+    expect(dealProducts(d)).not.toContain('commonArea');
+  });
+  it('E-Call only, sold as equipment purchase', () => {
+    const d = normalizeDraft(applyChoices(blank(), { ...none, structure: 'capex', ecall: 'inovonics' }, book));
+    expect(d.presentation).toBe('capex');
+    expect(dealProducts(d)).toEqual(['ecall']);
+    expect(scopeOf(d.communities[0], true)).toMatchObject({ monitored: 0, ecallOnly: 100 });
+    expect(visibleSettings(dealProducts(d), d.presentation).capex).toBe(true);
+    expect(choicesOf(d)).toMatchObject({ structure: 'capex', monitoring: false, ecall: 'inovonics' });
+  });
+  it('concealed finish is an option', () => {
+    const d = normalizeDraft(applyChoices(blank(), { ...none, monitoring: true, finish: true }, book));
+    expect(d.commercial.finish.concealed).toBe(true);
+    expect(dealProducts(d)).toEqual(['subscription', 'finish']);
   });
 });

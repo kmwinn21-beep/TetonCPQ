@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * Products & Pricing: the products on the deal (picked from the price book), each with its list and deal price, and
- * below them only the settings those products need. Implementation is always included and can be credited, not
- * removed. Adding or removing a product writes the draft fields the pricing engine reads (lib/quote/products).
+ * Products & Pricing: the rep answers two questions (how the customer buys, and which core products they get) and the
+ * price book items follow, each with its list and deal price; below them only the settings those items need.
+ * Implementation is always included and can be credited, not removed. Choices write the draft fields the pricing
+ * engine reads (lib/quote/products).
  */
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
-import { placeOf } from '@/lib/pricing/markets';
 import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
-import { addProducts, applyKit, clearSensors, dealProducts, hasImplementation, hasSensors, KITS, productsForSku, removeBlock, removeProduct, sensorCounts, switchStructure, visibleSettings, type DealProduct } from '@/lib/quote/products';
+import { applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, hasImplementation, hasSensors, KITS, sensorCounts, visibleSettings, type Choices, type DealProduct, type Structure } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
 import { Collapse, DerivedField, ReadOnlyContext } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
-import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
+import { SegGroup } from '@/components/form/SegGroup';
 import { ItemIcon } from '@/components/catalog/ItemIcon';
 import { InstallCreditChoice, Seg, Switch, SwitchButton, type FieldName } from './sections';
 
@@ -29,6 +29,7 @@ function counts(d: QuoteDraft) {
   return {
     communities: cs.length,
     monitored: sum((c) => scopeOf(c, ecallOn).monitored),
+    monitoredEcall: sum((c) => scopeOf(c, ecallOn).monitoredEcall),
     ecall: sum((c) => scopeOf(c, ecallOn).ecall),
     ecallOnly: sum((c) => scopeOf(c, ecallOn).ecallOnly),
     snf: sum((c) => (scopeOf(c, ecallOn).monitoredByCare.snf)),
@@ -89,64 +90,217 @@ interface Line {
   placeholder?: string;
   suffix?: string;
   applies: string;
-  product?: DealProduct;
   /** Implementation: always included (credit it, don't remove it). */
   locked?: boolean;
-  /** Follows from other products (the bundle saving). */
-  auto?: string;
   /** Shown instead of a price input. */
   text?: string;
   /** Additional sensors: set by the communities' counts; removed from the ⋯ menu. */
   sensors?: boolean;
+  /** The Teton One + E-Call bundle: its price is the subscription + E-Call less the bundle saving. */
+  bundle?: 'ble' | 'inovonics';
 }
 
+/** The price book items on the deal, from the products (and structure) and the communities' counts. */
 function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
   const k = d.commercial;
   const n = counts(d);
   const L = (sku: string) => book[sku];
   const name = (sku: string, fb: string) => L(sku)?.name ?? fb;
   const list = (sku: string) => L(sku)?.list ?? null;
-  const beds = (x: number) => (n.communities ? `${x.toLocaleString('en-US')} beds` : 'all beds');
+  const any = n.communities > 0;
+  const beds = (x: number) => (any ? `${x.toLocaleString('en-US')} beds` : 'all beds');
+  const opexSide = d.presentation !== 'capex';
+  const capexSide = d.presentation !== 'opex';
   const sub = ps.includes('subscription');
   const cx = ps.includes('capex');
   const ec = ps.includes('ecall');
   const ino = k.ecall === 'inovonics';
   const perRoom = k.ecallBilling !== 'device';
+  // Beds with monitoring but no E-Call, and E-Call without monitoring (shown only when the communities have some).
+  const monOnly = Math.max(0, n.monitored - n.monitoredEcall);
   const out: Line[] = [];
-  if (sub) out.push({ key: 'sub', sku: SKU.platform, name: name(SKU.platform, 'Teton subscription'), unit: 'per bed / month', once: false, list: list(SKU.platform), field: 'commercial.platformRate', suffix: '/bed', applies: beds(n.monitored), product: 'subscription' });
-  if (ps.includes('snf')) out.push({ key: 'snf', sku: SKU.snf, name: name(SKU.snf, 'Skilled nursing'), unit: 'per bed / month', once: false, list: list(SKU.snf), field: 'commercial.snfRate', nullable: true, placeholder: String(k.platformRate), suffix: '/bed', applies: beds(n.snf), product: 'snf' });
-  if (ec) {
+  const ecallLine = (applies: string): Line => {
     const sku = ino ? SKU.ecallInovonics : SKU.ecallBle;
-    out.push({ key: 'ecall', sku, name: name(sku, ino ? 'E-Call (Inovonics)' : 'E-Call (Bluetooth)'), unit: `per ${perRoom ? 'room' : 'device'} / month`, once: false, list: list(sku), field: 'commercial.ecallRate', suffix: perRoom ? '/room' : '/dev', applies: beds(n.ecall), product: 'ecall' });
+    return { key: 'ecall', sku, name: name(sku, ino ? 'E-Call (Inovonics)' : 'E-Call (Bluetooth)'), unit: `per ${perRoom ? 'room' : 'device'} / month`, once: false, list: list(sku), field: 'commercial.ecallRate', suffix: perRoom ? '/room' : '/dev', applies };
+  };
+  const subLine = (applies: string): Line => ({ key: 'sub', sku: SKU.platform, name: name(SKU.platform, 'Teton subscription'), unit: 'per bed / month', once: false, list: list(SKU.platform), field: 'commercial.platformRate', suffix: '/bed', applies });
+
+  if (opexSide) {
+    if (sub && ec) {
+      const sku = ino ? SKU.bundleInovonics : SKU.bundleBle;
+      out.push({ key: 'bundle', sku, name: name(sku, ino ? 'Teton One + E-Call (Inovonics)' : 'Teton One + E-Call (Bluetooth)'), unit: 'per bed / month', once: false, list: list(sku), applies: beds(any ? n.monitoredEcall : 0), bundle: ino ? 'inovonics' : 'ble' });
+      if (any && monOnly > 0) out.push(subLine(`${beds(monOnly)} without E-Call`));
+      if (any && n.ecallOnly > 0) out.push(ecallLine(`${beds(n.ecallOnly)} without monitoring`));
+    } else if (sub) out.push(subLine(beds(n.monitored)));
+    else if (ec && !cx) out.push(ecallLine(beds(n.ecall)));
+    if (ps.includes('snf')) out.push({ key: 'snf', sku: SKU.snf, name: name(SKU.snf, 'Skilled nursing'), unit: 'per bed / month', once: false, list: list(SKU.snf), field: 'commercial.snfRate', nullable: true, placeholder: String(k.platformRate), suffix: '/bed', applies: beds(n.snf) });
   }
-  if (sub && ec) {
-    const sku = ino ? SKU.bundleInovonics : SKU.bundleBle;
-    out.push({ key: 'bundle', sku, name: 'Bundle saving', unit: `${name(sku, 'Teton One + E-Call')} · off each bed with both, per month`, once: false, list: null, field: `commercial.bundleDiscount.${ino ? 'inovonics' : 'ble'}` as FieldName, nullable: true, placeholder: '0', suffix: '/bed', applies: 'beds with both', auto: 'With subscription + E-Call' });
+  if (capexSide) {
+    const up = k.capex?.softwareBilling === 'upfront';
+    if (cx && ec) {
+      const sku = ino ? SKU.capexBaseInovonics : SKU.capexBaseBle;
+      out.push({ key: 'capexEc', sku, name: name(sku, 'Base package + E-Call'), unit: 'per bed, one-time · installed', once: true, list: list(sku), field: ino ? 'commercial.capex.inovonicsBasePrice' : 'commercial.capex.bleBasePrice', applies: beds(any ? n.monitoredEcall : 0) });
+    }
+    if (cx && (!ec || (any && monOnly > 0))) out.push({ key: 'capex', sku: SKU.capexBase, name: name(SKU.capexBase, 'Base package'), unit: 'per bed, one-time · edge unit + sensor, installed', once: true, list: list(SKU.capexBase), field: 'commercial.capex.basePrice', applies: ec ? `${beds(monOnly)} without E-Call` : beds(n.monitored) });
+    if (ec && (!cx || (any && n.ecallOnly > 0))) {
+      const sku = ino ? SKU.capexEcallInstallInovonics : SKU.capexEcallInstallBle;
+      const applies = cx ? `${beds(n.ecallOnly)} without monitoring` : beds(n.ecallOnly);
+      out.push({ key: 'capexEo', sku, name: name(sku, 'E-Call only installation'), unit: 'per bed, one-time · installed', once: true, list: list(sku), field: ino ? 'commercial.capex.ecallInstallInovonics' : 'commercial.capex.ecallInstallBle', applies });
+      const swSku = up ? SKU.capexEcallSoftwareUpfront : SKU.capexEcallSoftware;
+      out.push({ key: 'capexEoSw', sku: swSku, name: name(swSku, 'E-Call software'), unit: up ? 'per bed, upfront (4 years)' : 'per bed / month', once: up, list: list(swSku), field: up ? 'commercial.capex.ecallSoftwareUpfront' : 'commercial.capex.ecallSoftware', suffix: up ? undefined : '/bed', applies });
+    }
+    if (cx) {
+      const sku = up ? SKU.capexSoftwareUpfront : SKU.capexSoftware;
+      out.push({ key: 'capexsw', sku, name: name(sku, 'Software & services'), unit: `${up ? 'per bed, upfront (4 years)' : 'per bed / month'}${ec ? ' · covers E-Call' : ''}`, once: up, list: list(sku), field: up ? 'commercial.capex.softwareUpfront' : 'commercial.capex.softwareRate', suffix: up ? undefined : '/bed', applies: beds(n.monitored) });
+    }
+    if (ec) {
+      const sku = ino ? SKU.capexInovonicsRenewal : SKU.capexBleRenewal;
+      out.push({ key: 'renewal', sku, name: name(sku, 'E-Call renewal'), unit: `per bed, every ${ino ? 3 : 4} years`, once: true, list: list(sku), field: ino ? 'commercial.capex.inovonicsRenewal' : 'commercial.capex.bleRenewal', applies: beds(n.ecall) });
+    }
   }
   if (hasImplementation(ps)) {
     if (sub) out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'per bed, one-time', once: true, list: list(SKU.install), field: 'commercial.installRate', applies: beds(n.monitored), locked: true });
-    else if (ec && !cx) out.push({ key: 'impl', sku: SKU.install, name: 'E-Call installation & implementation', unit: 'per bed with E-Call only, one-time', once: true, list: null, field: 'commercial.ecallInstallRate', nullable: true, placeholder: '0', applies: beds(n.ecallOnly), locked: true });
+    else if (ec && opexSide && !cx) out.push({ key: 'impl', sku: SKU.install, name: 'E-Call installation & implementation', unit: 'per bed with E-Call only, one-time', once: true, list: null, field: 'commercial.ecallInstallRate', nullable: true, placeholder: '0', applies: beds(n.ecallOnly), locked: true });
     else out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'equipment purchase', once: true, list: null, applies: '', locked: true, text: 'Included in the base package' });
   }
-  if (ps.includes('commonArea')) {
-    out.push({ key: 'ca1', sku: SKU.commonAreaSetup, name: name(SKU.commonAreaSetup, 'Common-area sensor setup'), unit: 'per sensor, one-time', once: true, list: list(SKU.commonAreaSetup), field: 'commercial.commonArea.setup', applies: `${n.commonArea} sensors`, product: 'commonArea' });
-    out.push({ key: 'ca2', sku: SKU.commonAreaMonthly, name: name(SKU.commonAreaMonthly, 'Common-area sensor'), unit: 'per sensor / month', once: false, list: list(SKU.commonAreaMonthly), field: 'commercial.commonArea.monthly', suffix: '/mo', applies: `${n.commonArea} sensors`, auto: 'With common-area setup' });
-  }
-  if (cx) {
-    out.push({ key: 'capex', sku: SKU.capexBase, name: name(SKU.capexBase, 'Base package (equipment purchase)'), unit: 'per bed, one-time · edge unit + sensor, installed', once: true, list: list(SKU.capexBase), field: 'commercial.capex.basePrice', applies: beds(n.monitored), product: 'capex' });
-    const up = k.capex?.softwareBilling === 'upfront';
-    const sku = up ? SKU.capexSoftwareUpfront : SKU.capexSoftware;
-    out.push({ key: 'capexsw', sku, name: name(sku, 'Software & services'), unit: up ? 'per bed, upfront (4 years)' : 'per bed / month', once: up, list: list(sku), field: up ? 'commercial.capex.softwareUpfront' : 'commercial.capex.softwareRate', suffix: up ? undefined : '/bed', applies: beds(n.monitored), auto: 'With equipment purchase' });
+  if (opexSide && ps.includes('commonArea')) {
+    out.push({ key: 'ca2', sku: SKU.commonAreaMonthly, name: name(SKU.commonAreaMonthly, 'Common area sensor'), unit: 'per sensor / month', once: false, list: list(SKU.commonAreaMonthly), field: 'commercial.commonArea.monthly', suffix: '/mo', applies: `${n.commonArea} sensors` });
+    out.push({ key: 'ca1', sku: SKU.commonAreaSetup, name: name(SKU.commonAreaSetup, 'Common area setup'), unit: 'per sensor, one-time', once: true, list: list(SKU.commonAreaSetup), field: 'commercial.commonArea.setup', applies: `${n.commonArea} sensors` });
   }
   // Additional sensors follow how the deal is sold: the subscription SKU, the purchase SKU, or a row for each.
   if (hasSensors(d)) {
-    const op = sub || (ec && !cx);
+    const both = opexSide && capexSide;
     const applies = `${n.sensors} ${n.sensors === 1 ? 'sensor' : 'sensors'}`;
-    if (op) out.push({ key: 'sensor', sku: SKU.sensor, name: cx ? 'Additional sensor · subscription' : name(SKU.sensor, 'Additional sensor'), unit: `per sensor, one-time${cx ? ' · OpEx' : ''}`, once: true, list: list(SKU.sensor), field: 'commercial.sensorPrice', applies, sensors: true });
-    if (cx) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: op ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${op ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
+    if (opexSide) out.push({ key: 'sensor', sku: SKU.sensor, name: both ? 'Additional sensor · subscription' : name(SKU.sensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · OpEx' : ''}`, once: true, list: list(SKU.sensor), field: 'commercial.sensorPrice', applies, sensors: true });
+    if (capexSide) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: both ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
   }
-  if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, product: 'finish', text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
+  if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
   return out;
+}
+
+/** The bundle's deal price: subscription + E-Call less the bundle saving. Editing it changes the saving. */
+function BundlePrice({ sys, list, label }: { sys: 'ble' | 'inovonics'; list: number | null; label: string }) {
+  const { control, setValue } = useFormContext<QuoteDraft>();
+  const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
+  const parts = (Number(k.platformRate) || 0) + (Number(k.ecallRate) || 0);
+  const disc = Math.max(0, Number(k.bundleDiscount?.[sys]) || 0);
+  const v = Math.round((parts - disc) * 100) / 100;
+  const off = list != null && Math.abs(v - list) > 1e-9;
+  return (
+    <NumInput
+      value={v}
+      onChange={(x) => {
+        const next = Math.max(0, Math.round((parts - (Number(x) || 0)) * 100) / 100);
+        setValue(`commercial.bundleDiscount.${sys}` as FieldName, next as never, { shouldDirty: true });
+      }}
+      prefix="$"
+      suffix="/bed"
+      min={0}
+      max={parts}
+      aria-label={label}
+      className={`w-[112px] flex-shrink-0 ${off ? '' : '[&_input]:border-dashed'}`}
+    />
+  );
+}
+
+const STRUCTURES: Array<[Structure, string]> = [
+  ['subscription', 'Subscription'],
+  ['capex', 'Equipment purchase'],
+  ['both', 'Both'],
+];
+
+/** The two questions: how they buy, and what they're getting (plus options). */
+function BuildPanel({ c, onChange, disabled }: { c: Choices; onChange: (next: Choices) => void; disabled: boolean }) {
+  const caOk = commonAreaOffered(c.structure);
+  const card = (on: boolean, off = false) =>
+    `relative w-full rounded-[12px] border-[1.5px] px-3 py-2.5 text-left transition-colors duration-200 ${off ? 'border-[#ECE8DF] bg-[#FBFAF7] cursor-not-allowed' : on ? 'border-[#3F8CEA] bg-[#F3F8FE]' : 'border-[#E4E0D6] bg-white hover:bg-[#FBFAF7]'}`;
+  const tick = (on: boolean) => (
+    <span aria-hidden="true" className={`absolute top-2.5 right-2.5 w-[18px] h-[18px] rounded-[5px] border-[1.5px] grid place-items-center text-[11px] text-white transition-colors duration-200 ${on ? 'bg-[#3F8CEA] border-[#3F8CEA]' : 'border-[#C9C4BA] bg-white'}`}>
+      {on ? '✓' : ''}
+    </span>
+  );
+  return (
+    <div className="px-4 py-3.5 border-b border-[#ECE8DF]">
+      <p className={`${eyebrow} mb-2`}>1 · How do they buy?</p>
+      <SegGroup label="How do they buy?" className="inline-flex max-w-full rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white">
+        {STRUCTURES.map(([v, t]) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={c.structure === v}
+            disabled={disabled}
+            onClick={() => c.structure !== v && onChange({ ...c, structure: v })}
+            className={`h-9 sm:h-8 px-3 sm:px-3.5 rounded-[8px] text-[12.5px] whitespace-nowrap transition-colors duration-200 ${c.structure === v ? 'font-semibold text-teton-ink' : 'text-[#4E5562] hover:text-teton-ink'}`}
+          >
+            {t}
+          </button>
+        ))}
+      </SegGroup>
+      <p className={`${eyebrow} mt-4 mb-2`}>2 · What are they getting?</p>
+      <div className="grid gap-2.5 sm:grid-cols-3">
+        <button type="button" role="checkbox" aria-checked={c.monitoring} disabled={disabled} onClick={() => onChange({ ...c, monitoring: !c.monitoring })} className={card(c.monitoring)}>
+          {tick(c.monitoring)}
+          <b className="block pr-6 text-[13px]">Resident monitoring</b>
+          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">Teton sensors in resident rooms</small>
+        </button>
+        <div className={card(c.ecall !== 'none')}>
+          <button type="button" role="checkbox" aria-checked={c.ecall !== 'none'} disabled={disabled} onClick={() => onChange({ ...c, ecall: c.ecall === 'none' ? 'ble' : 'none' })} className="absolute inset-0 rounded-[12px]" aria-label="E-Call" />
+          {tick(c.ecall !== 'none')}
+          <b className="pointer-events-none relative block pr-6 text-[13px]">E-Call</b>
+          <small className="pointer-events-none relative mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">Pendants and pull-cords</small>
+          <Collapse open={c.ecall !== 'none'}>
+            <SegGroup label="E-Call system" className="relative mt-2 inline-flex rounded-[9px] bg-white p-[2px] shadow-[0_0_0_1px_#D3D6DA]" thumbClass="bg-teton-ink">
+              {(
+                [
+                  ['ble', 'Bluetooth'],
+                  ['inovonics', 'Inovonics'],
+                ] as const
+              ).map(([v, t]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  aria-checked={c.ecall === v}
+                  disabled={disabled}
+                  onClick={() => c.ecall !== v && onChange({ ...c, ecall: v })}
+                  className={`h-8 sm:h-7 px-2.5 rounded-[7px] text-[12px] transition-colors duration-200 ${c.ecall === v ? 'font-semibold text-white' : 'text-[#4E5562]'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </SegGroup>
+          </Collapse>
+        </div>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={caOk && c.commonArea}
+          aria-disabled={!caOk}
+          disabled={disabled || !caOk}
+          onClick={() => onChange({ ...c, commonArea: !c.commonArea })}
+          className={card(caOk && c.commonArea, !caOk)}
+          title={caOk ? undefined : 'Not offered on equipment purchase'}
+        >
+          {tick(caOk && c.commonArea)}
+          <b className={`block pr-6 text-[13px] ${caOk ? '' : 'text-[#9AA0A8]'}`}>Common area sensors</b>
+          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{caOk ? 'Dining, halls, lounges; count per community' : 'Not offered on equipment purchase'}</small>
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className={`${eyebrow} mr-1`}>Options</span>
+        <button
+          type="button"
+          aria-pressed={c.finish}
+          disabled={disabled}
+          onClick={() => onChange({ ...c, finish: !c.finish })}
+          className={`h-8 rounded-full px-3 text-[12px] transition-colors duration-200 ${c.finish ? 'border border-teton-ink bg-teton-ink text-white' : 'border border-dashed border-[#C9C4BA] text-[#4E5562] hover:bg-[#FBFAF7]'}`}
+        >
+          {c.finish ? '✓ Concealed finish' : '+ Concealed finish'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function ProductsPricing({ book }: { book: PriceBook }) {
@@ -154,9 +308,9 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
   const d = useWatch({ control }) as QuoteDraft;
   const readOnly = useContext(ReadOnlyContext);
   const ps = useMemo(() => dealProducts(d), [d]);
-  const vis = visibleSettings(ps);
+  const choices = useMemo(() => choicesOf(d), [d]);
+  const vis = visibleSettings(ps, d.presentation);
   const lines = linesOf(d, ps, book);
-  const [picking, setPicking] = useState(false);
   const [implOpen, setImplOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const k = d.commercial;
@@ -173,323 +327,238 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     if (JSON.stringify(cur.schedule) !== JSON.stringify(next.schedule)) setValue('schedule', next.schedule, o);
     if (JSON.stringify(cur.communities) !== JSON.stringify(next.communities)) setValue('communities', next.communities, o);
   };
-  const [ask, setAsk] = useState<null | 'sensors' | 'subscription' | 'capex'>(null);
+  const [ask, setAsk] = useState<null | 'sensors'>(null);
   const [toast, setToast] = useState<{ text: string; undo: QuoteDraft } | null>(null);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 12000);
     return () => clearTimeout(t);
   }, [toast]);
-  /** Switch how the deal is sold (one step, with Undo). */
-  const doSwitch = (to: 'capex' | 'subscription', base = getValues()) => {
-    const next = switchStructure(base, to, book);
-    write(next);
-    setAsk(null);
-    const sensorsNow = hasSensors(next) ? (to === 'capex' ? ` Additional sensors now ${book[SKU.capexSensor]?.itemCode ?? SKU.capexSensor}.` : ` Additional sensors now ${book[SKU.sensor]?.itemCode ?? SKU.sensor}.`) : '';
-    setToast({ text: to === 'capex' ? `Switched to equipment purchase.${sensorsNow} Implementation is included in the base package.` : `Switched to the subscription.${sensorsNow}`, undo: base });
-    return next;
-  };
-  const add = (skus: string[], mode: 'both' | 'switch' = 'both') => {
+  /** Apply new choices; say what changed, with Undo. */
+  const choose = (next: Choices) => {
     const before = getValues();
-    let next = before;
-    let switched: 'capex' | 'subscription' | null = null;
-    if (mode === 'switch') {
-      const toCapex = skus.some((s) => productsForSku(s)?.add.includes('capex')) && dealProducts(before).includes('subscription');
-      switched = toCapex ? 'capex' : 'subscription';
-      next = switchStructure(next, switched, book);
-    }
-    for (const s of skus) {
-      const m = productsForSku(s);
-      if (!m) continue;
-      const adds = switched ? m.add.filter((x) => x !== (switched === 'capex' ? 'subscription' : 'capex')) : m.add;
-      if (adds.length) next = addProducts(next, adds, book, { ecall: m.ecall });
-    }
-    write(next);
+    const a = choicesOf(before);
+    write(applyChoices(before, next, book));
     setErr(null);
-    if (switched) setToast({ text: switched === 'capex' ? `Switched to equipment purchase.${hasSensors(next) ? ` Additional sensors now ${book[SKU.capexSensor]?.itemCode ?? SKU.capexSensor}.` : ''} Implementation is included in the base package.` : `Switched to the subscription.${hasSensors(next) ? ` Additional sensors now ${book[SKU.sensor]?.itemCode ?? SKU.sensor}.` : ''}`, undo: before });
+    const note = changeNote(a, next, book);
+    setToast(note ? { text: note, undo: before } : null);
   };
-  const remove = (p: DealProduct) => {
-    const cur = dealProducts(getValues());
-    // Removing the only way it's sold asks first: switch to the other structure, or remove it.
-    if (p === 'subscription' && !cur.includes('capex')) return setAsk('subscription');
-    if (p === 'capex' && !cur.includes('subscription')) return setAsk('capex');
-    removeNow(p);
-  };
-  const removeNow = (p: DealProduct) => {
-    try {
-      write(removeProduct(getValues(), p));
-      setErr(null);
-      setAsk(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const hidden = [
-    !vis.pilot && 'pilot',
-    !vis.ecall && 'E-Call',
-    !vis.capex && 'equipment purchase',
-    !vis.introRate && 'introductory rate',
-    !vis.finish && 'concealed finish',
-    !vis.commonArea && 'common areas',
-  ].filter(Boolean) as string[];
-
-  if (!ps.length)
-    return (
-      <>
-        <div className="text-center px-4 py-8">
-          <span className="mx-auto mb-3 w-14 h-14 rounded-2xl bg-[#EEEBFB] text-[#6E5BD0] grid place-items-center" aria-hidden="true">
-            <svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 9V3h6l6 6-6 6-6-6z" /><circle cx="5.5" cy="6" r="1" /></svg>
-          </span>
-          <p className="text-[15px] font-semibold">What’s in this deal?</p>
-          <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-relaxed text-[#6B7380]">
-            Add products from the price book. Prices start at list, and <b className="text-teton-ink">implementation is included automatically</b> with the first platform product. Only the settings your products need appear here.
-          </p>
-          {!readOnly && (
-            <>
-              <button type="button" onClick={() => setPicking(true)} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-teton-ink px-4 text-[13px] font-semibold text-white">
-                ＋ Add product
-              </button>
-              <div className="mt-5 grid gap-2.5 sm:grid-cols-3 text-left max-w-3xl mx-auto">
-                {KITS.map((kit) => (
-                  <button
-                    key={kit.id}
-                    type="button"
-                    onClick={() => write(applyKit(getValues(), kit.id, book))}
-                    className={`rounded-xl px-3 py-2.5 text-left transition-colors ${kit.mostUsed ? 'border-[1.5px] border-[#6E5BD0] bg-[#F7F5FE] hover:bg-[#F0ECFD]' : 'border border-dashed border-[#D5D0C6] bg-[#FDFCFA] hover:bg-white'}`}
-                  >
-                    <b className="block text-[12.5px]">
-                      {kit.label}
-                      {kit.mostUsed && <span className="ml-1.5 align-[1px] whitespace-nowrap rounded-[5px] bg-[#EEEBFB] px-1.5 py-px text-[10px] font-bold text-[#6E5BD0]">MOST USED</span>}
-                    </b>
-                    <small className="mt-0.5 block text-[11.5px] leading-snug text-[#8A919C]">{kit.note}</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-        <Picker open={picking} onClose={() => setPicking(false)} book={book} have={ps} system={k.ecall} onAdd={add} />
-      </>
-    );
 
   return (
     <div className="space-y-5">
-      {/* The products */}
       <div className="rounded-[14px] border border-[#ECE8DF] bg-white overflow-hidden">
-        <div className="flex items-center gap-2 px-4 h-11 bg-[#FBFAF7] border-b border-[#ECE8DF]">
-          <p className={eyebrow}>Products</p>
-          <span className="text-[12px] text-[#6B7380]">{ps.length + (hasImplementation(ps) ? 1 : 0)} on the deal</span>
-          {!readOnly && (
-            <button type="button" onClick={() => setPicking(true)} className="ml-auto h-8 rounded-[8px] bg-teton-ink px-3 text-[12px] font-semibold text-white">
-              ＋ Add product
-            </button>
-          )}
-        </div>
-        <div className="hidden md:grid grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-3 items-center px-4 h-9 border-b border-[#ECE8DF] text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#8A919C]">
-          <span /><span>Product</span><span>Billing</span><span className="text-right">List</span><span>Deal price</span><span>Applies to</span><span />
-        </div>
-        {lines.map((l) => (
-          <div key={l.key}>
-            <div
-              className={`grid grid-cols-[30px_minmax(0,1fr)_30px] md:grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-x-3 gap-y-2 items-center px-4 py-2.5 border-b border-[#F1EEE7] ${l.locked ? 'bg-[#FCFBF8]' : ''}`}
-            >
-              <ItemIcon sku={l.sku} size="w-[28px] h-[28px]" />
-              <div className="min-w-0">
-                {l.locked && l.field ? (
-                  <button type="button" onClick={() => setImplOpen(!implOpen)} aria-expanded={implOpen} aria-controls="impl-credit" className="text-left group flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    <b className="text-[13px] font-semibold group-hover:underline underline-offset-2">{l.name}</b>
-                    <span className="whitespace-nowrap rounded-[5px] bg-[#EEEBFB] px-1.5 py-px text-[10px] font-bold text-[#6E5BD0]">ALWAYS INCLUDED</span>
-                  </button>
-                ) : (
-                  <b className="block text-[13px] font-semibold">
-                    {l.name}
-                    {l.locked && <span className="ml-1.5 align-[1px] whitespace-nowrap rounded-[5px] bg-[#EEEBFB] px-1.5 py-px text-[10px] font-bold text-[#6E5BD0]">ALWAYS INCLUDED</span>}
-                  </b>
-                )}
-                <small className="block text-[11.5px] text-[#8A919C] mt-0.5">
-                  <span className="font-mono">{book[l.sku]?.itemCode ?? l.sku}</span> · {l.unit}
-                  {l.key === 'impl' && l.field && pilot && k.installCreditPct > 0 && <b className="text-[#2F8F5B] font-semibold"> · {Math.round(k.installCreditPct * 100)}% credit on pilot sites</b>}
-                </small>
-              </div>
-              <span className="md:hidden col-start-3 row-start-1 justify-self-end">{action(l)}</span>
-              <span className={`max-md:col-start-2 justify-self-start inline-flex h-[22px] items-center rounded-[7px] px-2 text-[11.5px] font-semibold ${l.once ? 'bg-[#FBF0D9] text-[#9A6512]' : 'bg-[#E6F1FC] text-[#2F78C8]'}`}>{l.once ? 'One-time' : 'Monthly'}</span>
-              <ListCell l={l} />
-              <div className="max-md:col-start-2 min-w-0">
-                {l.text ? (
-                  <span className="text-[12.5px] text-[#4E5562]">{l.text}</span>
-                ) : l.key === 'impl' && pilot && k.installCreditPct > 0 && !implOpen ? (
-                  <button type="button" onClick={() => setImplOpen(true)} className="text-[13px] font-bold tabular-nums">
-                    <span className="mr-1.5 font-medium text-[#8A919C] line-through">{money(k.installRate)}</span>
-                    <span className="text-[#2F8F5B]">{money(k.installRate * (1 - k.installCreditPct))}</span>
-                    <span className="ml-1 text-[11px] font-normal text-[#8A919C]">pilot sites</span>
-                  </button>
-                ) : (
-                  l.field && <Price name={l.field} label={`${l.name} deal price`} nullable={l.nullable} placeholder={l.placeholder} suffix={l.suffix} list={l.list} pill={false} />
-                )}
-              </div>
-              <span className="max-md:col-start-2 text-[12px] text-[#6B7380]">{l.applies}</span>
-              <span className="max-md:hidden justify-self-end">{action(l)}</span>
-            </div>
-            {l.key === 'impl' && l.field === 'commercial.installRate' && (
-              <Collapse open={implOpen} id="impl-credit">
-                <div className="px-4 md:pl-[58px] pb-3 pt-1 bg-[#FCFBF8] border-b border-[#ECE8DF] space-y-2.5">
-                  <SettingRow label="Credit on pilot sites" hint="Discount it; implementation is never removed">
-                    {pilot ? <InstallCreditChoice /> : <span className="text-[12.5px] text-[#6B7380]">Turn on a pilot below to credit pilot sites.</span>}
-                  </SettingRow>
-                  {pilot && (
-                    <SettingRow label="Clawback" hint="Charged if they don’t convert">
-                      <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
-                    </SettingRow>
-                  )}
-                  {pilot && vis.sensor && (
-                    <SettingRow label="Credit additional sensors too" hint="Pilot sites only">
-                      <Switch name="commercial.sensorCredit" label="Credit additional sensors too" disabled={!k.installCreditPct} />
-                    </SettingRow>
-                  )}
-                  <SettingRow label="Price per bed" hint={`List ${money(book[SKU.install]?.list)}`}>
-                    <Price name="commercial.installRate" label="Implementation price per bed" list={book[SKU.install]?.list ?? null} />
-                  </SettingRow>
-                  {pilot && n.pilotBeds > 0 && (
-                    <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-[10px] border border-[#ECE8DF] bg-white px-3 py-2 text-[12px] text-[#6B7380]">
-                      <span>List value <b className="tabular-nums text-teton-ink">{usd(n.pilotBeds * k.installRate)}</b></span>
-                      <span>Credit <b className="tabular-nums text-[#2F8F5B]">−{usd(n.pilotBeds * k.installRate * k.installCreditPct)}</b></span>
-                      <span>They pay <b className="tabular-nums text-teton-ink">{usd(n.pilotBeds * k.installRate * (1 - k.installCreditPct))}</b></span>
-                      <span className="sm:ml-auto">{n.pilotBeds} pilot beds × {money(k.installRate)}</span>
-                    </div>
-                  )}
-                </div>
-              </Collapse>
-            )}
-          </div>
-        ))}
-        {err && <p role="alert" className="mx-4 my-2 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
-        <Collapse open={!!ask}>
-          {ask && <AskPanel kind={ask} d={d} onCancel={() => setAsk(null)} onSwitch={(to) => doSwitch(to)} onRemove={(p) => removeNow(p)} onClearSensors={() => {
-            const r = clearSensors(getValues());
-            write(r.draft);
-            setAsk(null);
-            setErr(r.kept.length ? `Sensors at ${r.kept.join(', ')} come from their floor plan room types; change them in Scope.` : null);
-          }} />}
-        </Collapse>
+        <BuildPanel c={choices} onChange={choose} disabled={readOnly} />
         <Collapse open={!!toast}>
           {toast && (
-            <div role="status" className="mx-4 my-2 flex items-center gap-3 rounded-[10px] bg-teton-ink px-3 py-2 text-[12.5px] text-white">
-              <span aria-hidden="true">✓</span>
+            <div role="status" className="mx-4 mt-3 flex items-center gap-3 rounded-[10px] bg-teton-ink px-3 py-2 text-[12.5px] text-white">
+              <span aria-hidden="true">⇄</span>
               <span className="flex-1">{toast.text}</span>
               <button type="button" className="font-semibold text-[#9FC7F2] hover:underline" onClick={() => (write(toast.undo), setToast(null))}>Undo</button>
               <button type="button" aria-label="Dismiss" className="text-white/60 hover:text-white" onClick={() => setToast(null)}>✕</button>
             </div>
           )}
         </Collapse>
-        {lines.some((l) => l.key === 'impl' && l.field) && !implOpen && (
-          <p className="px-4 py-2 text-[11.5px] text-[#6B7380] bg-[#F6F3EE]">🔒 Implementation can’t be removed. Click its name to credit it (for example 100% on pilot sites).</p>
+        {!ps.length ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-[13px] text-[#6B7380]">Pick a core product above. Its price book items, and implementation, are added for you.</p>
+            {!readOnly && KITS.filter((x) => x.mostUsed).map((kit) => (
+              <button key={kit.id} type="button" onClick={() => write(applyKit(getValues(), kit.id, book))} className="mx-auto mt-3 block max-w-md rounded-xl border-[1.5px] border-[#6E5BD0] bg-[#F7F5FE] px-3 py-2.5 text-left transition-colors hover:bg-[#F0ECFD]">
+                <b className="block text-[12.5px]">Or start from the most used deal: {kit.label}</b>
+                <small className="mt-0.5 block text-[11.5px] leading-snug text-[#8A919C]">{kit.note}</small>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+              <p className={eyebrow}>On the deal · {lines.length}</p>
+              <span className="ml-auto text-[11.5px] text-[#8A919C]">Prices start at list; edit any deal price</span>
+            </div>
+            <div className="hidden md:grid grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-3 items-center px-4 h-8 border-y border-[#ECE8DF] text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#8A919C]">
+              <span /><span>Item</span><span>Billing</span><span className="text-right">List</span><span>Deal price</span><span>Applies to</span><span />
+            </div>
+            {lines.map((l) => (
+              <div key={l.key}>
+                <div className={`grid grid-cols-[30px_minmax(0,1fr)_30px] md:grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-x-3 gap-y-2 items-center px-4 py-2.5 border-b border-[#F1EEE7] ${l.locked ? 'bg-[#FCFBF8]' : ''}`}>
+                  <ItemIcon sku={l.sku} size="w-[28px] h-[28px]" />
+                  <div className="min-w-0">
+                    {l.locked && l.field ? (
+                      <button type="button" onClick={() => setImplOpen(!implOpen)} aria-expanded={implOpen} aria-controls="impl-credit" className="text-left group">
+                        <b className="text-[13px] font-semibold group-hover:underline underline-offset-2">{l.name}</b>
+                      </button>
+                    ) : (
+                      <b className="block text-[13px] font-semibold">{l.name}</b>
+                    )}
+                    <small className="block text-[11.5px] text-[#8A919C] mt-0.5">
+                      <span className="font-mono">{book[l.sku]?.itemCode ?? l.sku}</span> · {l.unit}
+                      {l.bundle && <> · subscription {money(k.platformRate)} + E-Call {money(k.ecallRate)} − saving</>}
+                      {l.key === 'impl' && l.field && pilot && k.installCreditPct > 0 && <b className="text-[#2F8F5B] font-semibold"> · {Math.round(k.installCreditPct * 100)}% credit on pilot sites</b>}
+                    </small>
+                  </div>
+                  <span className="md:hidden col-start-3 row-start-1 justify-self-end">{action(l)}</span>
+                  <span className={`max-md:col-start-2 justify-self-start inline-flex h-[22px] items-center rounded-[7px] px-2 text-[11.5px] font-semibold ${l.once ? 'bg-[#FBF0D9] text-[#9A6512]' : 'bg-[#E6F1FC] text-[#2F78C8]'}`}>{l.once ? 'One-time' : 'Monthly'}</span>
+                  <ListCell l={l} />
+                  <div className="max-md:col-start-2 min-w-0">
+                    {l.text ? (
+                      <span className="text-[12.5px] text-[#4E5562]">{l.text}</span>
+                    ) : l.bundle ? (
+                      <BundlePrice sys={l.bundle} list={l.list} label={`${l.name} deal price`} />
+                    ) : l.key === 'impl' && pilot && k.installCreditPct > 0 && !implOpen ? (
+                      <button type="button" onClick={() => setImplOpen(true)} className="text-[13px] font-bold tabular-nums">
+                        <span className="mr-1.5 font-medium text-[#8A919C] line-through">{money(k.installRate)}</span>
+                        <span className="text-[#2F8F5B]">{money(k.installRate * (1 - k.installCreditPct))}</span>
+                        <span className="ml-1 text-[11px] font-normal text-[#8A919C]">pilot sites</span>
+                      </button>
+                    ) : (
+                      l.field && <Price name={l.field} label={`${l.name} deal price`} nullable={l.nullable} placeholder={l.placeholder} suffix={l.suffix} list={l.list} pill={false} />
+                    )}
+                  </div>
+                  <span className="max-md:col-start-2 text-[12px] text-[#6B7380]">{l.applies}</span>
+                  <span className="max-md:hidden justify-self-end">{action(l)}</span>
+                </div>
+                {l.key === 'impl' && l.field === 'commercial.installRate' && (
+                  <Collapse open={implOpen} id="impl-credit">
+                    <div className="px-4 md:pl-[58px] pb-3 pt-1 bg-[#FCFBF8] border-b border-[#ECE8DF] space-y-2.5">
+                      <SettingRow label="Credit on pilot sites" hint="Discount it; implementation is never removed">
+                        {pilot ? <InstallCreditChoice /> : <span className="text-[12.5px] text-[#6B7380]">Turn on a pilot below to credit pilot sites.</span>}
+                      </SettingRow>
+                      {pilot && (
+                        <SettingRow label="Clawback" hint="Charged if they don’t convert">
+                          <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
+                        </SettingRow>
+                      )}
+                      {pilot && vis.sensor && (
+                        <SettingRow label="Credit additional sensors too" hint="Pilot sites only">
+                          <Switch name="commercial.sensorCredit" label="Credit additional sensors too" disabled={!k.installCreditPct} />
+                        </SettingRow>
+                      )}
+                      <SettingRow label="Price per bed" hint={`List ${money(book[SKU.install]?.list)}`}>
+                        <Price name="commercial.installRate" label="Implementation price per bed" list={book[SKU.install]?.list ?? null} />
+                      </SettingRow>
+                      {pilot && n.pilotBeds > 0 && (
+                        <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-[10px] border border-[#ECE8DF] bg-white px-3 py-2 text-[12px] text-[#6B7380]">
+                          <span>List value <b className="tabular-nums text-teton-ink">{usd(n.pilotBeds * k.installRate)}</b></span>
+                          <span>Credit <b className="tabular-nums text-[#2F8F5B]">−{usd(n.pilotBeds * k.installRate * k.installCreditPct)}</b></span>
+                          <span>They pay <b className="tabular-nums text-teton-ink">{usd(n.pilotBeds * k.installRate * (1 - k.installCreditPct))}</b></span>
+                          <span className="sm:ml-auto">{n.pilotBeds} pilot beds × {money(k.installRate)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Collapse>
+                )}
+              </div>
+            ))}
+            {err && <p role="alert" className="mx-4 my-2 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
+            <Collapse open={!!ask}>
+              {ask && (
+                <AskPanel
+                  d={d}
+                  onCancel={() => setAsk(null)}
+                  onClearSensors={() => {
+                    const r = clearSensors(getValues());
+                    write(r.draft);
+                    setAsk(null);
+                    setErr(r.kept.length ? `Sensors at ${r.kept.join(', ')} come from their floor plan room types; change them in Scope.` : null);
+                  }}
+                />
+              )}
+            </Collapse>
+            {lines.some((l) => l.key === 'impl' && l.field) && !implOpen && (
+              <p className="px-4 py-2 text-[11.5px] text-[#6B7380] bg-[#F6F3EE]">🔒 Implementation can’t be removed. Click its name to credit it (for example 100% on pilot sites).</p>
+            )}
+          </>
         )}
       </div>
 
-      {/* The settings those products need */}
-      <div className="rounded-[14px] border border-[#ECE8DF] bg-white overflow-hidden">
-        <Group title="Pricing structure">
-          <SettingRow label="What the proposal shows" hint="Set by the products: subscriptions are OpEx, equipment purchase is CapEx">
-            <span className="inline-flex h-[24px] items-center rounded-[7px] bg-[#E6F1FC] px-2.5 text-[12px] font-semibold text-[#2F78C8]">
-              {d.presentation === 'both' ? 'OpEx + CapEx' : d.presentation === 'capex' ? 'CapEx' : 'OpEx'}
-            </span>
-          </SettingRow>
-        </Group>
-        {vis.pilot && (
-          <Group title="Pilot" codes={ps.includes('subscription') ? [SKU.platform] : ps.includes('capex') ? [SKU.capexBase] : []} book={book}>
-            <SettingRow label="Start with a pilot" hint="Pilot sites are marked per community">
-              <Switch name="schedule.withPilot" label="Start with a pilot" />
-            </SettingRow>
-            {pilot && ps.includes('subscription') && (
-              <SettingRow label="Pilot rate per bed / month" hint={`Standard $${POLICY.standardPilotRate}`} note={Number(k.pilotRate) === 0 ? <Tag tone="amber">Free pilot</Tag> : null}>
-                <Price name="commercial.pilotRate" label="Pilot rate per bed / month" suffix="/bed" />
+      {/* The settings those items need */}
+      {ps.length > 0 && (
+        <div className="rounded-[14px] border border-[#ECE8DF] bg-white overflow-hidden">
+          {vis.pilot && (
+            <Group title="Pilot">
+              <SettingRow label="Start with a pilot" hint="Pilot sites are marked per community">
+                <Switch name="schedule.withPilot" label="Start with a pilot" />
               </SettingRow>
-            )}
-            {pilot && (
-              <SettingRow label="Pilot length" hint={`Standard ${POLICY.standardPilotMonths}, then the ${d.schedule.horizonMonths >= 36 ? 36 : d.schedule.horizonMonths}-month term at the deal price`}>
-                <Months name="schedule.pilotLengthMonths" />
-              </SettingRow>
-            )}
-            {pilot && vis.ecall && (
-              <SettingRow label="E-Call during the pilot" hint="Standard: free">
-                <Price name="commercial.ecallPilotRate" label="E-Call during pilot" suffix={k.ecallBilling === 'device' ? '/dev' : '/room'} />
-              </SettingRow>
-            )}
-            {pilot && vis.capex && (
-              <SettingRow label="Conversion credit" hint="Off each base package & sensor at pilot sites">
-                <Price name="commercial.capex.conversionCredit" label="Conversion credit" nullable placeholder="0" />
-              </SettingRow>
-            )}
-          </Group>
-        )}
-        {vis.introRate && (
-          <Group title="Introductory rate">
-            <SettingRow label="Introductory rate" hint="A lower rate for the first months after the pilot">
-              <Controller
-                control={control}
-                name="commercial.specialRate"
-                render={({ field }) => (
-                  <SwitchButton
-                    label="Introductory rate"
-                    on={field.value != null}
-                    onChange={(on) => {
-                      field.onChange(on ? k.platformRate : null);
-                      if (on && !k.specialTermMonths) setValue('commercial.specialTermMonths', 6, { shouldDirty: true });
-                    }}
-                  />
-                )}
-              />
-            </SettingRow>
-            {k.specialRate != null && (
-              <>
-                <SettingRow label="Intro rate per bed / month">
-                  <Price name="commercial.specialRate" label="Intro rate per bed / month" suffix="/bed" />
+              {pilot && ps.includes('subscription') && (
+                <SettingRow label="Pilot rate per bed / month" hint={`Standard $${POLICY.standardPilotRate}`} note={Number(k.pilotRate) === 0 ? <Tag tone="amber">Free pilot</Tag> : null}>
+                  <Price name="commercial.pilotRate" label="Pilot rate per bed / month" suffix="/bed" />
                 </SettingRow>
-                <SettingRow label="Intro term">
-                  <Months name="commercial.specialTermMonths" />
+              )}
+              {pilot && (
+                <SettingRow label="Pilot length" hint={`Standard ${POLICY.standardPilotMonths}, then the ${d.schedule.horizonMonths >= 36 ? 36 : d.schedule.horizonMonths}-month term at the deal price`}>
+                  <Months name="schedule.pilotLengthMonths" />
                 </SettingRow>
-              </>
-            )}
-          </Group>
-        )}
-        {vis.ecall && <EcallSettings book={book} />}
-        {vis.capex && <CapexSettings />}
-        {vis.finish && (
-          <Group title="Concealed finish" codes={['FINISH-CONCEALED-LOW', 'FINISH-CONCEALED-HIGH']} book={book}>
-            <SettingRow label="Low / room"><Price name="commercial.finish.low" label="Concealed finish low per room" /></SettingRow>
-            <SettingRow label="High / room"><Price name="commercial.finish.high" label="Concealed finish high per room" /></SettingRow>
-            <SettingRow label="Standard credit / room" hint="Value of the standard install"><Price name="commercial.finish.credit" label="Standard credit per room" /></SettingRow>
-            <div className="px-4 py-3">
-              <DerivedField
-                label="Add-on for the deal"
-                value={`${money(n.rooms * Math.max(0, (k.finish.low ?? 0) - (k.finish.credit ?? 0)))} to ${money(n.rooms * Math.max(0, (k.finish.high ?? 0) - (k.finish.credit ?? 0)))}`}
-                formula={`${n.rooms} rooms × (concealed price − standard credit)`}
-              />
-            </div>
-          </Group>
-        )}
-        {d.communities?.some((c) => c.coverage === 'full_facility') && (
-          <Group title="Older deal">
-            <SettingRow label="Full-facility multiplier" hint="Communities still on full facility">
-              <Controller
-                control={control}
-                name="commercial.fullFacilityMultiplier"
-                render={({ field }) => <NumInput value={field.value as number} onChange={field.onChange} onBlur={field.onBlur} suffix="×" min={1} className="w-[118px]" aria-label="Full-facility multiplier" />}
-              />
-            </SettingRow>
-          </Group>
-        )}
-        {hidden.length > 0 && (
-          <p className="flex items-start gap-2 px-4 py-2.5 bg-[#FBFAF7] border-t border-[#ECE8DF] text-[12px] text-[#6B7380]">
-            <span aria-hidden="true">ⓘ</span>
-            <span>
-              <b className="text-teton-ink">{hidden.length} {hidden.length === 1 ? 'setting group' : 'setting groups'} hidden</b> ({hidden.join(', ')}). Add the matching product to show them.
-            </span>
-          </p>
-        )}
-      </div>
-      <Picker open={picking} onClose={() => setPicking(false)} book={book} have={ps} system={k.ecall} onAdd={add} />
+              )}
+              {pilot && vis.ecall && (
+                <SettingRow label="E-Call during the pilot" hint="Standard: free">
+                  <Price name="commercial.ecallPilotRate" label="E-Call during pilot" suffix={k.ecallBilling === 'device' ? '/dev' : '/room'} />
+                </SettingRow>
+              )}
+              {pilot && vis.capex && (
+                <SettingRow label="Conversion credit" hint="Off each base package & sensor at pilot sites">
+                  <Price name="commercial.capex.conversionCredit" label="Conversion credit" nullable placeholder="0" />
+                </SettingRow>
+              )}
+            </Group>
+          )}
+          {vis.introRate && (
+            <Group title="Introductory rate">
+              <SettingRow label="Introductory rate" hint="A lower rate for the first months after the pilot">
+                <Controller
+                  control={control}
+                  name="commercial.specialRate"
+                  render={({ field }) => (
+                    <SwitchButton
+                      label="Introductory rate"
+                      on={field.value != null}
+                      onChange={(on) => {
+                        field.onChange(on ? k.platformRate : null);
+                        if (on && !k.specialTermMonths) setValue('commercial.specialTermMonths', 6, { shouldDirty: true });
+                      }}
+                    />
+                  )}
+                />
+              </SettingRow>
+              {k.specialRate != null && (
+                <>
+                  <SettingRow label="Intro rate per bed / month">
+                    <Price name="commercial.specialRate" label="Intro rate per bed / month" suffix="/bed" />
+                  </SettingRow>
+                  <SettingRow label="Intro term">
+                    <Months name="commercial.specialTermMonths" />
+                  </SettingRow>
+                </>
+              )}
+            </Group>
+          )}
+          {vis.ecall && <EcallSettings book={book} opex={d.presentation !== 'capex'} />}
+          {vis.capex && <CapexSettings />}
+          {vis.finish && (
+            <Group title="Concealed finish">
+              <SettingRow label="Low / room"><Price name="commercial.finish.low" label="Concealed finish low per room" /></SettingRow>
+              <SettingRow label="High / room"><Price name="commercial.finish.high" label="Concealed finish high per room" /></SettingRow>
+              <SettingRow label="Standard credit / room" hint="Value of the standard install"><Price name="commercial.finish.credit" label="Standard credit per room" /></SettingRow>
+              <div className="px-4 py-3">
+                <DerivedField
+                  label="Add-on for the deal"
+                  value={`${money(n.rooms * Math.max(0, (k.finish.low ?? 0) - (k.finish.credit ?? 0)))} to ${money(n.rooms * Math.max(0, (k.finish.high ?? 0) - (k.finish.credit ?? 0)))}`}
+                  formula={`${n.rooms} rooms × (concealed price − standard credit)`}
+                />
+              </div>
+            </Group>
+          )}
+          {d.communities?.some((c) => c.coverage === 'full_facility') && (
+            <Group title="Older deal">
+              <SettingRow label="Full-facility multiplier" hint="Communities still on full facility">
+                <Controller
+                  control={control}
+                  name="commercial.fullFacilityMultiplier"
+                  render={({ field }) => <NumInput value={field.value as number} onChange={field.onChange} onBlur={field.onBlur} suffix="×" min={1} className="w-[118px]" aria-label="Full-facility multiplier" />}
+                />
+              </SettingRow>
+            </Group>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -506,62 +575,37 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
           ⋯
         </button>
       );
-    if (!l.product || readOnly) return l.auto ? <span className="text-[10.5px] text-[#A3A9B2]" title={l.auto}>auto</span> : null;
-    const block = removeBlock(d, l.product);
-    return (
-      <button type="button" onClick={() => remove(l.product!)} title={block ?? `Remove ${l.name}`} aria-label={`Remove ${l.name}`} className="w-[26px] h-[26px] grid place-items-center rounded-[7px] text-[#A3A9B2] hover:bg-[#F6F3EE] hover:text-[#B4442C]">
-        ✕
-      </button>
-    );
+    return null;
   }
 }
 
-/** Inline questions under the products: remove all sensors, or remove the only way the deal is sold. */
-function AskPanel({ kind, d, onCancel, onSwitch, onRemove, onClearSensors }: { kind: 'sensors' | 'subscription' | 'capex'; d: QuoteDraft; onCancel: () => void; onSwitch: (to: 'capex' | 'subscription') => void; onRemove: (p: DealProduct) => void; onClearSensors: () => void }) {
+/** Inline question under the items: remove all additional sensors. */
+function AskPanel({ d, onCancel, onClearSensors }: { d: QuoteDraft; onCancel: () => void; onClearSensors: () => void }) {
   const btn = 'h-9 rounded-[10px] px-3 text-[12.5px] font-semibold';
   const box = 'mx-4 my-2 rounded-[12px] border border-[#E4D6B5] bg-[#FFFAF0] px-3.5 py-3';
-  if (kind === 'sensors') {
-    const c = sensorCounts(d);
-    const total = c.reduce((s, x) => s + x.sensors, 0);
-    if (!total)
-      return (
-        <div className={box} role="alertdialog" aria-label="Remove additional sensors">
-          <p className="text-[13px] font-semibold">Remove the additional sensor row?</p>
-          <p className="mt-0.5 text-[12px] text-[#6B7380]">No communities have additional sensors yet. Set them per community in Communities; the row comes back when they do.</p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove</button>
-            <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep it</button>
-          </div>
-        </div>
-      );
+  const c = sensorCounts(d);
+  const total = c.reduce((s, x) => s + x.sensors, 0);
+  if (!total)
     return (
-      <div className={box} role="alertdialog" aria-label="Remove all additional sensors">
-        <p className="text-[13px] font-semibold">Remove all additional sensors?</p>
-        <p className="mt-0.5 text-[12px] text-[#6B7380]">
-          {total} {total === 1 ? 'sensor is' : 'sensors are'} set across {c.length} {c.length === 1 ? 'community' : 'communities'} ({c.map((x) => `${x.name} ${x.sensors}`).join(', ')}). This sets them to 0 and removes the row.
-          {c.some((x) => x.fromRooms) && ' Communities whose sensors come from floor plan room types keep theirs.'}
-        </p>
+      <div className={box} role="alertdialog" aria-label="Remove additional sensors">
+        <p className="text-[13px] font-semibold">Remove the additional sensor row?</p>
+        <p className="mt-0.5 text-[12px] text-[#6B7380]">No communities have additional sensors yet. Set them per community in Communities; the row comes back when they do.</p>
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove and set to 0</button>
-          <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep them</button>
+          <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove</button>
+          <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep it</button>
         </div>
       </div>
     );
-  }
-  const ecall = dealProducts(d).includes('ecall');
-  const sub = kind === 'subscription';
   return (
-    <div className={box} role="alertdialog" aria-label={sub ? 'Remove the subscription' : 'Remove equipment purchase'}>
-      <p className="text-[13px] font-semibold">{sub ? 'Switch to equipment purchase, or remove the subscription?' : 'Switch to the subscription, or remove equipment purchase?'}</p>
+    <div className={box} role="alertdialog" aria-label="Remove all additional sensors">
+      <p className="text-[13px] font-semibold">Remove all additional sensors?</p>
       <p className="mt-0.5 text-[12px] text-[#6B7380]">
-        Switching keeps resident monitoring, E-Call and sensors, priced the other way.
-        {' '}
-        {ecall ? 'Removing it makes this an E-Call-only deal (resident monitoring off at every community).' : 'Removing it leaves the deal with no platform product.'}
+        {total} {total === 1 ? 'sensor is' : 'sensors are'} set across {c.length} {c.length === 1 ? 'community' : 'communities'} ({c.map((x) => `${x.name} ${x.sensors}`).join(', ')}). This sets them to 0 and removes the row.
+        {c.some((x) => x.fromRooms) && ' Communities whose sensors come from floor plan room types keep theirs.'}
       </p>
       <div className="mt-2.5 flex flex-wrap gap-2">
-        <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={() => onSwitch(sub ? 'capex' : 'subscription')}>{sub ? 'Switch to equipment purchase' : 'Switch to the subscription'}</button>
-        <button type="button" className={`${btn} border border-[#E4E0D6] bg-white text-[#B4442C]`} onClick={() => onRemove(kind)}>{sub ? 'Remove the subscription' : 'Remove equipment purchase'}</button>
-        <button type="button" className={`${btn} text-[#6B7380]`} onClick={onCancel}>Cancel</button>
+        <button type="button" className={`${btn} bg-teton-ink text-white`} onClick={onClearSensors}>Remove and set to 0</button>
+        <button type="button" className={`${btn} border border-[#E4E0D6] bg-white`} onClick={onCancel}>Keep them</button>
       </div>
     </div>
   );
@@ -597,17 +641,12 @@ function Months({ name }: { name: FieldName }) {
   );
 }
 
-/** A group of settings with an eyebrow header and the SKUs that brought it in. */
-function Group({ title, codes = [], book, children }: { title: string; codes?: string[]; book?: PriceBook; children: React.ReactNode }) {
+/** A group of settings with an eyebrow header. */
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-b border-[#ECE8DF] last:border-b-0">
       <p className={`${eyebrow} flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-[#F1EEE7]`}>
         {title}
-        {codes.map((c) => (
-          <span key={c} className="rounded-[6px] bg-[#F0EEE9] px-1.5 py-0.5 font-mono text-[10.5px] font-semibold normal-case tracking-normal text-[#6B6458]" title="Shown because this product is on the deal">
-            {book?.[c]?.itemCode ?? c}
-          </span>
-        ))}
       </p>
       <div className="divide-y divide-[#F1EEE7]">{children}</div>
     </div>
@@ -628,37 +667,31 @@ function SettingRow({ label, hint, note, children }: { label: string; hint?: str
   );
 }
 
-function EcallSettings({ book }: { book: PriceBook }) {
-  const { control, setValue } = useFormContext<QuoteDraft>();
+function EcallSettings({ book, opex }: { book: PriceBook; opex: boolean }) {
+  const { control } = useFormContext<QuoteDraft>();
   const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
+  const products = useWatch({ control, name: 'products' }) as DealProduct[] | undefined;
   const perRoom = k.ecallBilling !== 'device';
   const unit = perRoom ? 'room' : 'device';
   const listOf = (o: 'ble' | 'inovonics') => (o === 'ble' ? book[SKU.ecallBle]?.list ?? 10 : book[SKU.ecallInovonics]?.list ?? 15);
   const other = k.ecall === 'ble' ? 'inovonics' : 'ble';
   return (
-    <Group title="E-Call" codes={[k.ecall === 'inovonics' ? SKU.ecallInovonics : SKU.ecallBle]} book={book}>
-      <SettingRow label="System" hint="Per site: tick E-Call in the communities table">
-        <Seg
-          name="commercial.ecall"
-          label="E-Call system"
-          options={[['ble', 'Bluetooth'], ['inovonics', 'Inovonics']]}
-          onPick={(v) => {
-            setValue('commercial.ecallRate', listOf(v as 'ble' | 'inovonics'), { shouldDirty: true });
-            setValue('commercial.ecallPilotRate', 0, { shouldDirty: true });
-          }}
-        />
-      </SettingRow>
-      <SettingRow label="Monthly fee counted" hint={perRoom ? 'Rate × rooms (a common area with a device counts as a room); devices beyond the rooms are one-time extras.' : 'Rate × every E-Call device; no separate charge for extra devices.'}>
-        <Seg name="commercial.ecallBilling" label="E-Call pricing" options={[['room', 'Per room / mo'], ['device', 'Per device / mo']]} />
-      </SettingRow>
-      {perRoom && (
+    <Group title="E-Call">
+      {opex && (
+        <SettingRow label="Monthly fee counted" hint={perRoom ? 'Rate × rooms (a common area with a device counts as a room); devices beyond the rooms are one-time extras.' : 'Rate × every E-Call device; no separate charge for extra devices.'}>
+          <Seg name="commercial.ecallBilling" label="E-Call pricing" options={[['room', 'Per room / mo'], ['device', 'Per device / mo']]} />
+        </SettingRow>
+      )}
+      {opex && perRoom && (
         <SettingRow label={`Additional ${k.ecall === 'inovonics' ? 'pull-cord' : 'button'}`} hint="Each, one-time · devices beyond the rooms">
           <Price name={k.ecall === 'inovonics' ? 'commercial.ecallDevices.inoPullcord' : 'commercial.ecallDevices.bleButton'} label="Additional device price" list={book[k.ecall === 'inovonics' ? SKU.ecallInoPullcord : SKU.ecallBleButton]?.list ?? null} />
         </SettingRow>
       )}
-      <SettingRow label="E-Call installation per bed" hint="One-time, on beds with E-Call only">
-        <Price name="commercial.ecallInstallRate" label="E-Call installation per bed" nullable placeholder="0" />
-      </SettingRow>
+      {opex && (products ?? []).includes('subscription') && (
+        <SettingRow label="E-Call installation per bed" hint="One-time, on beds with E-Call only">
+          <Price name="commercial.ecallInstallRate" label="E-Call installation per bed" nullable placeholder="0" />
+        </SettingRow>
+      )}
       <SettingRow label="Compare both systems" hint="E-Call-only deals: the business case shows Bluetooth and Inovonics side by side">
         <Switch name="commercial.ecallCompare" label="Compare Bluetooth and Inovonics" />
       </SettingRow>
@@ -672,198 +705,12 @@ function EcallSettings({ book }: { book: PriceBook }) {
 }
 
 function CapexSettings() {
-  const { control } = useFormContext<QuoteDraft>();
-  const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
-  const up = k.capex?.softwareBilling === 'upfront';
   return (
     <Group title="Equipment purchase">
       <SettingRow label="Software & services billed" hint="Title passes at install; no install charge or license fee">
         <Seg name="commercial.capex.softwareBilling" label="Software & services billed" options={[['monthly', 'Monthly'], ['upfront', 'Upfront']]} />
       </SettingRow>
-      {k.ecall === 'ble' && <SettingRow label="With E-Call per bed" hint="Replaces the base price"><Price name="commercial.capex.bleBasePrice" label="Base with Bluetooth E-Call" /></SettingRow>}
-      {k.ecall === 'inovonics' && <SettingRow label="With Inovonics E-Call per bed" hint="Replaces the base price"><Price name="commercial.capex.inovonicsBasePrice" label="Base with Inovonics E-Call" /></SettingRow>}
-      {k.ecall !== 'none' && (
-        <>
-          <SettingRow label="E-Call only per bed" hint="Beds with E-Call only: installed, one-time">
-            <Price name={k.ecall === 'inovonics' ? 'commercial.capex.ecallInstallInovonics' : 'commercial.capex.ecallInstallBle'} label="E-Call only per bed" />
-          </SettingRow>
-          <SettingRow label={up ? 'E-Call software, upfront' : 'E-Call software'} hint="Beds with E-Call only">
-            <Price name={up ? 'commercial.capex.ecallSoftwareUpfront' : 'commercial.capex.ecallSoftware'} label="E-Call software" suffix={up ? undefined : '/bed'} />
-          </SettingRow>
-          <SettingRow label="E-Call renewal per bed" hint={k.ecall === 'ble' ? 'Every 4 years' : 'Every 3 years'}>
-            <Price name={k.ecall === 'ble' ? 'commercial.capex.bleRenewal' : 'commercial.capex.inovonicsRenewal'} label="E-Call renewal" />
-          </SettingRow>
-        </>
-      )}
     </Group>
   );
 }
 
-/** The items reps can add, in price book order (implementation is added on its own). */
-const PICKABLE = [SKU.platform, SKU.snf, SKU.bundleBle, SKU.bundleInovonics, SKU.ecallBle, SKU.ecallInovonics, SKU.sensor, SKU.commonAreaSetup, SKU.capexBase, 'FINISH-CONCEALED-LOW'];
-
-/** The price book, to pick products from: a drawer on the right (a bottom sheet on phones). */
-function Picker({ open, onClose, book, have, system, onAdd }: { open: boolean; onClose: () => void; book: PriceBook; have: DealProduct[]; system: string; onAdd: (skus: string[], mode?: 'both' | 'switch') => void }) {
-  const phone = usePhone();
-  const [sel, setSel] = useState<string[]>([]);
-  const [q, setQ] = useState('');
-  const [mode, setMode] = useState<'both' | 'switch'>('switch');
-  const [shown, setShown] = useState(open);
-  const [leaving, setLeaving] = useState(false);
-  useEffect(() => {
-    if (open) {
-      setShown(true);
-      setLeaving(false);
-      setSel([]);
-      setQ('');
-      setMode('switch');
-      return;
-    }
-    if (!shown) return;
-    setLeaving(true);
-    const t = setTimeout(() => (setShown(false), setLeaving(false)), 200);
-    return () => clearTimeout(t);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!open) return;
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-  }, [open, onClose]);
-  const onDeal = (sku: string) => {
-    const m = productsForSku(sku);
-    return !!m && m.add.every((p) => have.includes(p)) && (!m.ecall || m.ecall === system);
-  };
-  const items = PICKABLE.filter((s) => book[s] || s === 'FINISH-CONCEALED-LOW').filter((s) => !q || `${book[s]?.name ?? ''} ${book[s]?.itemCode ?? ''} ${s}`.toLowerCase().includes(q.toLowerCase()));
-  const groups = Array.from(new Set(items.map((s) => `${placeOf(s).category} · ${placeOf(s).sub}`)));
-  const label = (s: string) => (s === SKU.commonAreaSetup ? 'Common-area sensors' : s === 'FINISH-CONCEALED-LOW' ? 'Concealed finish' : book[s]?.name ?? s);
-  const priceText = (s: string) => {
-    const p = book[s];
-    if (s === SKU.commonAreaSetup) return `${money(p?.list)} + ${money(book[SKU.commonAreaMonthly]?.list)}/mo`;
-    if (s === 'FINISH-CONCEALED-LOW') return `${money(p?.list)}–${money(book['FINISH-CONCEALED-HIGH']?.list)}/room`;
-    if (!p) return '';
-    const unit = p.pricingModel === 'per_bed_month' ? '/bed/mo' : p.pricingModel === 'per_bed_once' ? '/bed' : p.pricingModel === 'per_unit_month' ? '/mo' : '';
-    return `${money(p.list)}${unit}`;
-  };
-  // Picking the other way to buy (equipment purchase on a subscription deal, or the reverse): offer both, or switch?
-  const picks = (p: DealProduct) => sel.some((s) => productsForSku(s)?.add.includes(p));
-  const conflict = picks('capex') && have.includes('subscription') && !have.includes('capex') ? 'capex' : picks('subscription') && have.includes('capex') && !have.includes('subscription') ? 'subscription' : null;
-  const toggle = (s: string) => setSel((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]));
-  const willShow = (() => {
-    const add = new Set<DealProduct>();
-    sel.forEach((s) => productsForSku(s)?.add.forEach((p) => add.add(p)));
-    const v = visibleSettings([...have, ...add]);
-    const before = visibleSettings(have);
-    const out: string[] = [];
-    if (v.pilot && !before.pilot) out.push('Pilot');
-    if (v.ecall && !before.ecall) out.push('E-Call');
-    if (v.capex && !before.capex) out.push('Equipment purchase');
-    if (v.finish && !before.finish) out.push('Concealed finish');
-    if (v.introRate && !before.introRate) out.push('Introductory rate');
-    return out;
-  })();
-  const body = (
-    <>
-      <div className="px-5 pb-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items, SKUs…" aria-label="Search the price book" className="h-9 w-full rounded-[10px] border border-[#E4E0D6] px-3 text-[13px] outline-none focus:border-[#3F8CEA]" />
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-3">
-        {groups.map((g) => (
-          <div key={g}>
-            <p className={`${eyebrow} mt-3 mb-1 px-1`}>{g}</p>
-            {items
-              .filter((s) => `${placeOf(s).category} · ${placeOf(s).sub}` === g)
-              .map((s) => {
-                const already = onDeal(s);
-                const on = already || sel.includes(s);
-                return (
-                  <button key={s} type="button" disabled={already} onClick={() => toggle(s)} role="checkbox" aria-checked={on} className={`w-full grid grid-cols-[20px_28px_1fr_auto] gap-2.5 items-center px-1.5 py-2 border-b border-[#F3F0EA] text-left ${sel.includes(s) ? 'bg-[#F3F8FE]' : ''} ${already ? 'opacity-55' : 'hover:bg-[#FBFAF7]'}`}>
-                    <span className={`w-4 h-4 rounded-[4px] border-[1.5px] grid place-items-center text-[10px] text-white ${on ? 'bg-[#3F8CEA] border-[#3F8CEA]' : 'border-[#C9C4BA]'}`}>{on ? '✓' : ''}</span>
-                    <ItemIcon sku={s} size="w-[28px] h-[28px]" />
-                    <span className="min-w-0">
-                      <b className="block text-[12.5px] font-semibold">{label(s)}</b>
-                      <small className="font-mono text-[11px] text-[#8A919C]">{book[s]?.itemCode ?? s}{already ? ' · on the deal' : ''}</small>
-                    </span>
-                    <span className="text-right text-[12.5px] font-bold tabular-nums whitespace-nowrap">{priceText(s)}</span>
-                  </button>
-                );
-              })}
-            {g.startsWith('Platform · Subscriptions') && (
-              <div className="w-full grid grid-cols-[20px_28px_1fr_auto] gap-2.5 items-center px-1.5 py-2 border-b border-[#F3F0EA] opacity-60">
-                <span className="text-[#8A919C]" aria-hidden="true">🔒</span>
-                <ItemIcon sku={SKU.install} size="w-[28px] h-[28px]" />
-                <span className="min-w-0">
-                  <b className="block text-[12.5px] font-semibold">{book[SKU.install]?.name ?? 'Installation & implementation'}</b>
-                  <small className="font-mono text-[11px] text-[#8A919C]">{book[SKU.install]?.itemCode ?? SKU.install} · added automatically</small>
-                </span>
-                <span className="text-right text-[12.5px] font-bold tabular-nums">{money(book[SKU.install]?.list)}/bed</span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      {conflict && (
-        <div className="mx-5 mb-3" role="radiogroup" aria-label="How the proposal shows it">
-          <p className="text-[12.5px] font-bold mb-1.5">This deal has {conflict === 'capex' ? 'a subscription' : 'equipment purchase'}. How should the proposal show it?</p>
-          {(
-            [
-              ['both', 'Offer both', 'Subscription and equipment purchase side by side (OpEx + CapEx).'],
-              ['switch', conflict === 'capex' ? 'Switch to equipment purchase' : 'Switch to the subscription', conflict === 'capex' ? 'Replaces the subscription. Additional sensors and E-Call price at their purchase prices; implementation is included in the base package.' : 'Replaces equipment purchase. Additional sensors and E-Call price at their subscription prices.'],
-            ] as const
-          ).map(([v, t, note]) => (
-            <button key={v} type="button" role="radio" aria-checked={mode === v} onClick={() => setMode(v)} className={`w-full flex gap-2.5 items-start text-left rounded-[12px] border-[1.5px] px-3 py-2.5 mb-2 transition-colors ${mode === v ? 'border-[#3F8CEA] bg-[#F3F8FE]' : 'border-[#E4E0D6] hover:bg-[#FBFAF7]'}`}>
-              <span className={`mt-0.5 w-4 h-4 rounded-full flex-shrink-0 transition-[border-width] duration-200 ${mode === v ? 'border-[5px] border-[#3F8CEA]' : 'border-[1.5px] border-[#C9C4BA]'}`} aria-hidden="true" />
-              <span>
-                <b className="block text-[13px]">{t}</b>
-                <small className="block text-[11.5px] leading-snug text-[#6B7380] mt-0.5">{note}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      {willShow.length > 0 && !(conflict && mode === 'switch') && (
-        <p className="mx-5 mb-3 rounded-[10px] bg-[#F6F3EE] px-3 py-2 text-[11.5px] leading-relaxed text-[#6B7380]">
-          Adding {sel.length === 1 ? 'this' : 'these'} shows the <b className="text-teton-ink">{willShow.join(', ')}</b> settings. Implementation comes with the first platform product.
-        </p>
-      )}
-      <div className="flex items-center gap-2 border-t border-[#ECE8DF] px-5 py-3 bg-white">
-        <p className="flex-1 text-[12px] text-[#6B7380]"><b className="text-teton-ink">{sel.length} selected</b></p>
-        <button type="button" onClick={onClose} className="h-9 rounded-[10px] border border-[#E4E0D6] px-3 text-[12.5px] font-semibold">Cancel</button>
-        <button
-          type="button"
-          disabled={!sel.length}
-          onClick={() => {
-            onAdd(sel, conflict ? mode : 'both');
-            onClose();
-          }}
-          className="h-9 rounded-[10px] bg-teton-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-40"
-        >
-          {conflict && mode === 'switch' ? 'Switch' : sel.length > 1 ? `Add ${sel.length} products` : 'Add product'}
-        </button>
-      </div>
-    </>
-  );
-  if (phone)
-    return (
-      <SwipeSheet open={open} onClose={onClose} eyebrow="Price book · United States" title="Add products">
-        <div className="flex flex-col max-h-[70dvh] -mx-5">{body}</div>
-      </SwipeSheet>
-    );
-  if (!shown) return null;
-  return (
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Add products">
-      <div className={`absolute inset-0 bg-[#1C1F24]/20 transition-opacity duration-200 ${leaving ? 'opacity-0' : 'opacity-100'}`} onClick={onClose} />
-      <div className={`absolute right-0 top-0 h-full w-[400px] max-w-full bg-white border-l border-[#ECE8DF] shadow-xl flex flex-col ${leaving ? 'drawer-out' : 'drawer-in'}`}>
-        <div className="px-5 pt-4 pb-3">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[11px] text-[#5A6270]">PRICE BOOK · UNITED STATES</span>
-            <button type="button" onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-full bg-[#F1EEE8] text-[#5A6270] grid place-items-center hover:bg-[#E9E4DB]">✕</button>
-          </div>
-          <p className="mt-2 text-[17px] font-bold">Add products</p>
-          <p className="text-[12px] text-[#6B7380]">Prices start at list; change them on the deal.</p>
-        </div>
-        {body}
-      </div>
-    </div>
-  );
-}

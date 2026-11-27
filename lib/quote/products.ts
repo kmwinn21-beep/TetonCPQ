@@ -8,7 +8,9 @@
  */
 import { applyRoomTypes } from './roomTypes';
 import { BED_KEYS, defaultProducts, hasEcall, monitors, productsOf, type DraftCommunity, type EcallOption, type QuoteDraft } from './draft';
+import type { Presentation } from './draft';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
+import { ITEM_CODES } from '@/lib/pricing/markets';
 
 /** A product on the deal (the bundle, devices and skilled nursing rate follow from these). */
 export type DealProduct = 'subscription' | 'ecall' | 'capex' | 'snf' | 'sensor' | 'commonArea' | 'finish';
@@ -23,7 +25,7 @@ export function dealProducts(d: QuoteDraft): DealProduct[] {
   const out = new Set<DealProduct>();
   const ecall = d.commercial.ecall !== 'none';
   if (d.presentation !== 'capex' && (none || has(d, monitors) || !ecall)) out.add('subscription');
-  if (d.presentation !== 'opex') out.add('capex');
+  if (d.presentation !== 'opex' && (none || has(d, monitors) || !ecall)) out.add('capex');
   if (ecall && (none || has(d, hasEcall))) out.add('ecall');
   if (has(d, (c) => (Number(c.snfBeds) || 0) > 0)) out.add('snf');
   if (has(d, (c) => (Number(c.additionalSensors) || 0) > 0)) out.add('sensor');
@@ -35,11 +37,11 @@ export function dealProducts(d: QuoteDraft): DealProduct[] {
 /** Whether the deal has implementation (always, once it has a platform product). */
 export const hasImplementation = (ps: DealProduct[]) => ps.includes('subscription') || ps.includes('ecall') || ps.includes('capex');
 
-/** Which settings groups the deal page shows. */
-export function visibleSettings(ps: DealProduct[]) {
+/** Which settings groups the deal page shows (E-Call only sold as equipment purchase still shows its settings). */
+export function visibleSettings(ps: DealProduct[], presentation?: Presentation) {
   const sub = ps.includes('subscription');
-  const capex = ps.includes('capex');
   const ecall = ps.includes('ecall');
+  const capex = ps.includes('capex') || (ecall && presentation != null && presentation !== 'opex');
   return {
     pilot: sub || capex || ecall,
     introRate: sub,
@@ -237,4 +239,90 @@ export function clearSensors(d: QuoteDraft): { draft: QuoteDraft; kept: string[]
   const ps = new Set(dealProducts(d));
   if (!kept.length) ps.delete('sensor');
   return { draft: { ...d, communities, products: DEAL_PRODUCTS.filter((x) => ps.has(x)) }, kept };
+}
+
+/* ---------- Building a deal from core products ---------- */
+
+/** How the customer buys: the subscription (OpEx), equipment purchase (CapEx), or both side by side. */
+export type Structure = 'subscription' | 'capex' | 'both';
+
+/** What the rep picks; the price book items on the deal follow from these (plus the scope). */
+export interface Choices {
+  structure: Structure;
+  /** Resident monitoring. */
+  monitoring: boolean;
+  /** E-Call and its system ('none': no E-Call). */
+  ecall: EcallOption;
+  /** Common area sensors (not offered on equipment purchase). */
+  commonArea: boolean;
+  /** Option: concealed finish. */
+  finish: boolean;
+}
+
+export const structureOf = (p: Presentation | undefined): Structure => (p === 'capex' ? 'capex' : p === 'both' ? 'both' : 'subscription');
+const presentationFor = (s: Structure): Presentation => (s === 'capex' ? 'capex' : s === 'both' ? 'both' : 'opex');
+/** Common area sensors are sold with the subscription only. */
+export const commonAreaOffered = (s: Structure) => s !== 'capex';
+const commonAreaCount = (d: QuoteDraft) => (d.communities ?? []).reduce((n, c) => n + (Number(c.commonAreaSensors) || 0), 0);
+
+/** The choices a deal's products and settings amount to. */
+export function choicesOf(d: QuoteDraft): Choices {
+  const ps = dealProducts(d);
+  return {
+    structure: structureOf(d.presentation),
+    monitoring: ps.includes('subscription') || ps.includes('capex'),
+    ecall: ps.includes('ecall') ? (d.commercial.ecall === 'none' ? 'ble' : d.commercial.ecall) : 'none',
+    commonArea: ps.includes('commonArea') || commonAreaCount(d) > 0,
+    finish: ps.includes('finish'),
+  };
+}
+
+/**
+ * Apply the rep's choices: writes the same draft fields the engine has always read (presentation, E-Call system at its
+ * list price, monitoring / E-Call on the communities, concealed finish). Unticking common area sensors sets their
+ * counts to 0 (the engine prices any that are set); switching to equipment purchase keeps them for switching back.
+ */
+export function applyChoices(d: QuoteDraft, c: Choices, book: PriceBook): QuoteDraft {
+  const before = choicesOf(d);
+  const ps = new Set<DealProduct>(dealProducts(d).filter((p) => p === 'snf' || p === 'sensor'));
+  const opex = c.structure !== 'capex';
+  const capex = c.structure !== 'subscription';
+  if (c.monitoring && opex) ps.add('subscription');
+  if (c.monitoring && capex) ps.add('capex');
+  if (c.ecall !== 'none') ps.add('ecall');
+  if (c.commonArea && opex) ps.add('commonArea');
+  if (c.finish) ps.add('finish');
+  const next: QuoteDraft = { ...d, commercial: { ...d.commercial }, communities: [...(d.communities ?? [])] };
+  if (c.monitoring !== before.monitoring) next.communities = next.communities.map((x) => withMonitoring(x, c.monitoring));
+  if (c.ecall !== 'none') {
+    if (before.ecall === 'none' || c.ecall !== d.commercial.ecall) {
+      next.commercial.ecall = c.ecall;
+      next.commercial.ecallRate = ecallList(book, c.ecall);
+      next.commercial.ecallPilotRate = 0;
+    }
+    if (before.ecall === 'none') next.communities = next.communities.map((x) => withEcall(x, true));
+  } else if (before.ecall !== 'none') next.commercial.ecall = 'none';
+  if (!c.commonArea && before.commonArea) next.communities = next.communities.map((x) => (Number(x.commonAreaSensors) ? { ...x, commonAreaSensors: 0 } : x));
+  if (c.finish !== before.finish) next.commercial.finish = { ...next.commercial.finish, concealed: c.finish };
+  return { ...next, presentation: presentationFor(c.structure), products: DEAL_PRODUCTS.filter((p) => ps.has(p)) };
+}
+
+/** A one-line note on what changed on the deal, for the Undo toast (null when nothing worth saying). */
+export function changeNote(a: Choices, b: Choices, book: PriceBook): string | null {
+  const nm = (sku: string) => `${book[sku]?.name ?? sku} (${book[sku]?.itemCode ?? ITEM_CODES[sku] ?? sku})`;
+  const opex = b.structure !== 'capex';
+  const sys = b.ecall === 'inovonics' ? 'inovonics' : 'ble';
+  if (a.structure !== b.structure) {
+    const to = b.structure === 'capex' ? 'equipment purchase' : b.structure === 'both' ? 'subscription and equipment purchase side by side' : 'the subscription';
+    const ca = a.commonArea && !commonAreaOffered(b.structure) ? ' Common area sensors aren’t offered on equipment purchase, so they’re off the deal.' : '';
+    return `Switched to ${to}. Every item now prices that way.${ca}`;
+  }
+  if (b.monitoring && a.ecall === 'none' && b.ecall !== 'none') {
+    if (opex) return `Teton subscription is now ${nm(sys === 'ble' ? SKU.bundleBle : SKU.bundleInovonics)}.`;
+    return `Base package is now ${nm(sys === 'ble' ? SKU.capexBaseBle : SKU.capexBaseInovonics)}.`;
+  }
+  if (b.monitoring && a.ecall !== 'none' && b.ecall === 'none') return opex ? `Back to ${nm(SKU.platform)}, without E-Call.` : `Back to ${nm(SKU.capexBase)}, without E-Call.`;
+  if (a.ecall !== 'none' && b.ecall !== 'none' && a.ecall !== b.ecall) return `E-Call is now ${b.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'}, at its list price.`;
+  if (a.commonArea && !b.commonArea) return 'Common area sensors removed; their counts are set to 0.';
+  return null;
 }

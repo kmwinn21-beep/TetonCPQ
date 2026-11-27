@@ -234,7 +234,7 @@ export function PricingSection({ book }: SectionProps) {
     <Section
       id="pricing"
       title="Products & Pricing"
-      description="Products from the price book, and only the settings they need. The live preview updates as you type."
+      description="Pick how they buy and what they’re getting; the price book items follow. The live preview updates as you type."
       summary={products.length ? dot(
         `${money(k.platformRate)}/bed`,
         d.schedule?.withPilot ? `pilot ${money(k.pilotRate)} for ${d.schedule.pilotLengthMonths} mo` : 'no pilot',
