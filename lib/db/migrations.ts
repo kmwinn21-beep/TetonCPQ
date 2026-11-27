@@ -768,4 +768,19 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE share_links ADD COLUMN archived_off INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: 32,
+    name: 'deal seen markers',
+    sql: [
+      // When each person last opened each deal: comments by others after it are "new" (the Deals page bubble).
+      `CREATE TABLE deal_seen (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, deal_id)
+      )`,
+      // Start everyone as caught up, so existing deals don't all light up at once.
+      `INSERT INTO deal_seen (user_id, deal_id) SELECT u.id, d.id FROM users u CROSS JOIN deals d`,
+    ],
+  },
 ];

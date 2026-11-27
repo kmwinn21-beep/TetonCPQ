@@ -4,6 +4,7 @@ import { getQuoteEditor } from '@/lib/data/quotes';
 import { QuoteEditor } from '@/components/quote/QuoteEditor';
 import { requirePageUser } from '@/lib/auth/server';
 import { accessForQuote } from '@/lib/data/access';
+import { markDealSeen } from '@/lib/data/dealGlance';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,5 +15,6 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
   const db = await getDb();
   const data = await getQuoteEditor(db, id);
   if (!data) notFound();
+  await markDealSeen(db, user.id, data.dealId);
   return <QuoteEditor initial={data} access={await accessForQuote(db, id, user)} />;
 }

@@ -19,6 +19,7 @@ import { bedsOf, hasEcall, defaultDraft, normalizeDraft, type QuoteDraft } from 
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { changeLines, diffDrafts } from '@/lib/quote/diff';
 import { fitCommunity } from '@/lib/quote/products';
+import { newCommentsByDeal } from './dealGlance';
 
 export interface DealSummary {
   dealId: number;
@@ -38,6 +39,8 @@ export interface DealSummary {
   myPerms: { inputs: boolean; scope: boolean; deliverables: boolean } | null;
   /** A prospect asked for the agreement and nobody has marked it sent yet. */
   agreementRequested: boolean;
+  /** Comments by others since this person last opened the deal (prospects' included), and who wrote them. */
+  newComments: { count: number; authors: string[] };
   /** Archived: when, by whom, why (null when active). */
   archived: { at: string; by: string | null; reason: string; note: string | null } | null;
 }
@@ -113,6 +116,7 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
     ORDER BY d.updated_at DESC, d.id DESC`,
     args: [userId ?? 0],
   });
+  const fresh = userId ? await newCommentsByDeal(db, userId) : new Map<number, { count: number; authors: string[] }>();
   return rs.rows.map((r) => {
     const draft = r.draft_json ? (JSON.parse(String(r.draft_json)) as QuoteDraft) : null;
     return {
@@ -130,6 +134,7 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
       overdueTasks: Number(r.overdue_tasks ?? 0),
       myPerms: r.collab == null ? null : { inputs: Number(r.can_inputs) === 1, scope: Number(r.can_scope) === 1, deliverables: Number(r.can_deliverables) === 1 },
       agreementRequested: Number(r.agreement_open ?? 0) === 1,
+      newComments: fresh.get(Number(r.deal_id)) ?? { count: 0, authors: [] },
       archived: r.archived_at ? { at: String(r.archived_at), by: r.archived_by_name == null ? null : String(r.archived_by_name), reason: String(r.archive_reason ?? 'other'), note: r.archive_note == null ? null : String(r.archive_note) } : null,
     };
   });
