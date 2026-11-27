@@ -23,7 +23,7 @@ import { TermsSection } from './TermsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { RailSlotContext, type RailSlot } from './RailSlot';
 import { FloorPlansProvider } from './FloorPlans';
-import { KpiPreview, VersionsPanel } from './ResultsRail';
+import { KpiPreview, RailHero, VersionsPanel } from './ResultsRail';
 import { carryScope, describeScope, scopeChanges } from '@/lib/quote/scopeWork';
 import { NotificationsPanel } from './NotificationsPanel';
 import { InputCommentsButton, InputCommentsProvider } from './InputComments';
@@ -44,27 +44,7 @@ import { DealLinkButtons } from './DealLinkButtons';
 import { DealNavigator, PageDots } from './DealNavigator';
 import { DealMenu } from './DealMenu';
 import { ArchivedBanner } from './ArchivedBanner';
-import { OPEN_PANEL } from './panelNav';
-import { SegGroup } from '@/components/form/SegGroup';
 import { AgreementAlert, useDealAgreement } from './AgreementAlert';
-
-type RailTab = 'summary' | 'details' | 'tasks' | 'versions';
-const TAB_OF: Record<string, RailTab> = { collaborators: 'details', 'deal-details': 'details', 'floor-plans': 'details', tasks: 'tasks', notifications: 'tasks', 'live-preview': 'summary', 'version-history': 'versions' };
-
-/** Summary · Details · Tasks · Versions over the right panel (Versions shows a dot while there are unsaved changes). */
-function RailTabs({ tab, onTab, unsaved }: { tab: RailTab; onTab: (t: RailTab) => void; unsaved: number }) {
-  const tabs: Array<[RailTab, string]> = [['summary', 'Summary'], ['details', 'Details'], ['tasks', 'Tasks'], ['versions', 'Versions']];
-  return (
-    <SegGroup label="Panel" className="relative flex rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]">
-      {tabs.map(([v, l]) => (
-        <button key={v} type="button" role="radio" aria-checked={tab === v} onClick={() => onTab(v)} className={`relative z-[1] flex-1 h-8 rounded-[8px] text-[12.5px] transition-colors duration-200 ${tab === v ? 'font-semibold text-teton-ink' : 'text-[#4E5562] hover:text-teton-ink'}`}>
-          {l}
-          {v === 'versions' && unsaved > 0 && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-[#E2A72B] align-middle" aria-label={`${unsaved} unsaved`} />}
-        </button>
-      ))}
-    </SegGroup>
-  );
-}
 
 const navLink = (active: boolean) => `block px-3 py-1.5 rounded-md hover:bg-teton-off-white ${active ? 'text-teton-ink font-medium' : 'text-teton-dark-gray'}`;
 
@@ -117,13 +97,6 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     const ro = new ResizeObserver(set);
     ro.observe(h);
     return () => ro.disconnect();
-  }, []);
-  // The right panel's tabs (a panel opened from the phone menu switches to its tab).
-  const [railTab, setRailTab] = useState<RailTab>('summary');
-  useEffect(() => {
-    const on = (e: Event) => setRailTab(TAB_OF[(e as CustomEvent<string>).detail] ?? 'summary');
-    window.addEventListener(OPEN_PANEL, on);
-    return () => window.removeEventListener(OPEN_PANEL, on);
   }, []);
   // The section menu beside the form: collapsed by default, remembered per browser.
   const [navOpen, setNavOpen] = usePersistedOpen('teton.sectionNav.open', true);
@@ -559,20 +532,17 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             {/* The Communities editor panel renders here on wide screens, in place of the results. */}
             <div ref={setRailEl} className={railActive && railBeside ? '' : 'hidden'} />
             <div className={railActive && railBeside ? 'hidden' : 'space-y-4 rail-back'}>
-              <RailTabs tab={railTab} onTab={setRailTab} unsaved={pending.length} />
-              <div className={railTab === 'details' ? 'space-y-4' : 'hidden'}>
+              {/* One card: the headline numbers, then a row per panel (each shows its status, and opens in place). */}
+              <div className="rounded-[14px] border border-[#ECE8DF] bg-white shadow-sm overflow-hidden [&>.card]:!rounded-none [&>.card]:!border-x-0 [&>.card]:!border-t-0 [&>.card]:!border-b [&>.card]:!border-[#F1EEE7] [&>.card]:!shadow-none [&>.card]:!px-4 [&>.card]:!py-3.5 [&>.card:last-child]:!border-b-0">
+              <div className="border-b border-[#F1EEE7]">
+                <RailHero result={computed.result} draft={deferred} inputs={computed.inputs} book={book} unsaved={canEdit && active.inputs ? pending.length : 0} onSave={() => void saveVersion()} saving={savingVersion} draftNo={draftNo} />
+              </div>
               <CollaboratorsPanel />
               <DealDetailsPanel quoteId={initial.quoteId} prospectUpdated={!!agreement.data?.open && (agreement.data.open.payload.entity.status === 'updated' || agreement.data.open.payload.signatory.status === 'updated')} />
               <FloorPlansPanel />
-              </div>
-              <div className={railTab === 'tasks' ? 'space-y-4' : 'hidden'}>
               <TasksPanel quoteId={initial.quoteId} />
               <NotificationsPanel />
-              </div>
-              <div className={railTab === 'summary' ? 'space-y-4' : 'hidden'}>
               <KpiPreview result={computed.result} error={computed.error} draft={deferred} inputs={computed.inputs} book={book} />
-              </div>
-              <div className={railTab === 'versions' ? 'space-y-4' : 'hidden'}>
               <VersionsPanel
                 agreement={agreement.data}
                 versions={versions}

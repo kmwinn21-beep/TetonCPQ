@@ -10,7 +10,7 @@ import { previewTotals, type PreviewTotals } from '@/lib/quote/previewTotals';
 import type { VersionSummary } from '@/lib/data/quotes';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { count, dateLabel, usd } from '@/lib/format';
-import { panelElId, usePanelOpener } from './panelNav';
+import { openPanel, panelElId, usePanelOpener } from './panelNav';
 import type { DealAgreement } from '@/lib/data/agreements';
 import { AGREEMENT_OPEN, firstOf, partChips } from './AgreementAlert';
 
@@ -42,7 +42,7 @@ function Rows({ title, tag, rows }: { title: string; tag?: string; rows: Array<[
  */
 export function KpiPreview({ result, error, draft, inputs, book }: { result: ModelResult | null; error: string | null; draft?: QuoteDraft; inputs?: ModelInputs | null; book?: PriceBook }) {
   // Collapsible; open by default, and remembered on this browser.
-  const [open, setOpen] = usePersistedOpen('teton.livePreview.open', true);
+  const [open, setOpen] = usePersistedOpen('teton.livePreview.open', false);
   usePanelOpener('live-preview', setOpen);
   if (error) return <div className="card text-sm"><p className="font-medium">Can’t calculate yet</p><p className="text-teton-ui-gray mt-1">{error}</p></div>;
   if (!result || !draft || !inputs || !book) return null;
@@ -107,6 +107,58 @@ export function KpiPreview({ result, error, draft, inputs, book }: { result: Mod
         )}
       </div>
       </Collapse>
+    </div>
+  );
+}
+
+/**
+ * The top of the deal panel: the headline number (contract value for a subscription, cost of ownership for an
+ * equipment purchase) and three supporting figures, always visible. Details opens the full live preview below.
+ */
+export function RailHero({ result, draft, inputs, book, unsaved, onSave, saving, draftNo }: { result: ModelResult | null; draft?: QuoteDraft; inputs?: ModelInputs | null; book?: PriceBook; unsaved: number; onSave?: () => void; saving?: boolean; draftNo: number }) {
+  let t: PreviewTotals | null = null;
+  try {
+    if (result && draft && inputs && book) t = previewTotals(draft, inputs, result, book);
+  } catch {
+    t = null;
+  }
+  const head = t?.opex ? { v: t.opex.contract, label: `contract value · ${t.opex.termMonths} months` } : t?.capex ? { v: t.capex.ownership, label: `${t.capex.years === 4 ? 'four' : t.capex.years}-year cost of ownership` } : null;
+  const tiles: Array<[string, string]> = t?.capex && !t.opex
+    ? [['Equipment', usd(t.capex.equipment)], ['Software', t.capex.softwareUpfront ? usd(t.capex.softwareUpfront) : `${usd(t.capex.softwareMonthly)}/mo`], ['Pilot cost', t.pilot ? usd(t.pilot.total) : '—']]
+    : t?.opex
+      ? [['Monthly', `${usd(t.opex.monthly)}/mo`], ['One-time', usd(t.opex.install + t.opex.sensors)], ['Pilot cost', t.pilot ? usd(t.pilot.total) : '—']]
+      : [];
+  return (
+    <div className="px-4 pt-3.5 pb-3.5">
+      <p className="flex items-center justify-between text-[10.5px] font-semibold uppercase tracking-[.14em] text-[#8A919C]">
+        <span>Live preview · {result ? result.roiCase.charAt(0).toUpperCase() + result.roiCase.slice(1) : 'Target'} case</span>
+        <button type="button" onClick={() => openPanel('live-preview')} className="normal-case tracking-normal text-[12px] font-semibold text-[#2F78C8] hover:underline">Details ›</button>
+      </p>
+      {head ? (
+        <p className="flex flex-wrap items-baseline gap-x-2 mt-1.5">
+          <b className="text-[24px] font-bold tabular-nums tracking-tight">{usd(head.v)}</b>
+          <span className="text-[12px] text-[#6B7380]">{head.label}</span>
+        </p>
+      ) : (
+        <p className="mt-1.5 text-[13px] text-[#6B7380]">Add products and a community to see the price.</p>
+      )}
+      {tiles.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          {tiles.map(([k, v]) => (
+            <div key={k} className="rounded-[10px] border border-[#F0ECE4] bg-[#FBFAF7] px-2.5 py-2 min-w-0">
+              <p className="text-[10.5px] text-[#8A919C]">{k}</p>
+              <b className="block text-[13px] mt-0.5 tabular-nums truncate">{v}</b>
+            </div>
+          ))}
+        </div>
+      )}
+      {unsaved > 0 && onSave && (
+        <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[#F0D58A] bg-[#FFF6DD] px-3 py-2 text-[12px] drawer-in">
+          <span className="w-2 h-2 rounded-full bg-[#E2A72B]" aria-hidden="true" />
+          <span className="flex-1"><b>{unsaved} unsaved {unsaved === 1 ? 'change' : 'changes'}</b></span>
+          <button type="button" onClick={onSave} disabled={saving} className="h-7 rounded-[8px] bg-teton-ink px-2.5 text-[12px] font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : `Save v${draftNo}`}</button>
+        </div>
+      )}
     </div>
   );
 }
