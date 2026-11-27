@@ -206,7 +206,6 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
         <b className="block text-[16px]">Price Book</b>
         <small className="text-[12px] text-[#6B7380]">US prices deals · 8 markets for reference</small>
       </div>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items, SKUs…" aria-label="Search the price book" className="mt-3 w-full h-9 rounded-[10px] border border-[#E3DFD8] bg-white px-3 text-[13px] outline-none focus:border-[#3F8CEA] focus:ring-[3px] focus:ring-[#3F8CEA]/15" />
       <p data-nv-sec className={eb}>Catalog</p>
       <button type="button" className={node(!cat)} onClick={() => (setCat(null), setSub(null))}>
         <span className="w-6 h-6 rounded-[7px] grid place-items-center bg-[#F1EEE7] text-[#3F4753] text-[12px]" aria-hidden="true">▦</span>
@@ -472,6 +471,19 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
     </div>
   );
 
+  // Search: above the table, beside Expand all (phones have their own, above the list).
+  const search = (
+    <div className="relative flex-1 min-w-0 max-w-[380px]">
+      <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A919C]" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" /></svg>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search items, SKUs…" aria-label="Search the price book" className="w-full h-[34px] rounded-[10px] border border-[#E3DFD8] bg-white pl-8 pr-8 text-[13px] outline-none focus:border-[#3F8CEA] focus:ring-[3px] focus:ring-[#3F8CEA]/15" />
+      {q && (
+        <button type="button" onClick={() => setQ('')} aria-label="Clear search" className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 grid place-items-center rounded-full text-[11px] text-[#8A919C] hover:bg-[#F1EEE8]">
+          ✕
+        </button>
+      )}
+    </div>
+  );
+
   const sectionNames = ['Overview', ...groups.filter((g) => g.title).map((g) => g.title)];
   const content = (
     <>
@@ -486,7 +498,8 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
             {view === 'list' && kpis}
             {view === 'list' ? (
               <>
-                <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex flex-wrap items-center gap-2 mb-2.5">
+                  {search}
                   {group === 'sub' && (() => {
                     const titled = groups.filter((g) => g.title);
                     const all = titled.length > 0 && titled.every((g) => opened.has(g.key));
