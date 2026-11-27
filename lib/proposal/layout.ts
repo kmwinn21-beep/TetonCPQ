@@ -111,6 +111,12 @@ export interface ProposalLayout {
   bcCompareCosts?: 'table';
   /** Business case, E-Call only: the example E-Call dashboard added to the investment page (off by default). */
   bcEcDash?: true;
+  /** Business case returns page: the four outcome cases (stretch / target / base / underperforming), added by the rep. */
+  bcCases?: true;
+  /** That block as four cards instead of the table (default). */
+  bcCasesView?: 'cards';
+  /** Cases the rep took out of it (at least one stays). */
+  bcCasesHide?: Array<'stretch' | 'target' | 'base' | 'underperforming'>;
   /** Business case, E-Call comparison: the unit price cards show the extras (devices, buying instead). */
   bcCmpCards?: 'extras';
   /** Business case: that dashboard in dark colors (light by default). */
@@ -269,6 +275,13 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecNoPageRefs: raw.bcExecNoPageRefs === true ? true : undefined,
     bcCompareCosts: raw.bcCompareCosts === 'table' ? 'table' : undefined,
     bcEcDash: raw.bcEcDash === true ? true : undefined,
+    bcCases: raw.bcCases === true ? true : undefined,
+    bcCasesView: raw.bcCasesView === 'cards' ? 'cards' : undefined,
+    bcCasesHide: (() => {
+      const all = ['stretch', 'target', 'base', 'underperforming'] as const;
+      const h = Array.isArray(raw.bcCasesHide) ? all.filter((c) => (raw.bcCasesHide as unknown[]).includes(c)) : [];
+      return h.length && h.length < all.length ? h : undefined;
+    })(),
     bcCmpCards: raw.bcCmpCards === 'extras' ? 'extras' : undefined,
     bcEcDashTheme: raw.bcEcDashTheme === 'dark' ? 'dark' : undefined,
     bcEcDashSize: raw.bcEcDashSize === 'full' ? 'full' : undefined,

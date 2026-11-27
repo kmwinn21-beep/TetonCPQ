@@ -881,6 +881,7 @@ export function useAddables({ bothPricing = false, ecallOnly = false, onePagers 
     ...(bothPricing && !layout.bcFourYears ? [['fourYears', 'Four years from go-live', 'scope', (l: ProposalLayout) => ({ ...l, bcFourYears: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
     ...(!layout.bcExecHardware ? [['execHardware', 'What gets installed', 'execsum', (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
     ...(ecallOnly && !layout.bcEcDash ? [['ecDash', 'E-Call dashboard', 'scope', (l: ProposalLayout) => ({ ...l, bcEcDash: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
+    ...(!layout.bcCases ? [['cases', 'All four cases', 'roi', (l: ProposalLayout) => ({ ...l, bcCases: true as const })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
     ...(layout.bcExecNoPageRefs ? [['execPageRefs', 'Page numbers', 'execsum', (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined })] as [string, string, string, (l: ProposalLayout) => ProposalLayout]] : []),
     ...(onePagers?.scope === 'rm' && onePagers.pilot
       ? OP_MODES.map((m) => onePagerId('rm', m))
@@ -998,6 +999,7 @@ export function RemovedPanel({ bothPricing = false, ecallOnly = false, onePagers
         ...(bothPricing && !layout.bcFourYears ? [{ key: 'fourYears', label: 'Four years from go-live · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcFourYears: true as const }) }] : []),
         ...(!layout.bcExecHardware ? [{ key: 'execHardware', label: 'What gets installed · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecHardware: true as const }) }] : []),
         ...(ecallOnly && !layout.bcEcDash ? [{ key: 'ecDash', label: 'E-Call dashboard · The investment', page: 'scope', add: (l: ProposalLayout) => ({ ...l, bcEcDash: true as const }) }] : []),
+        ...(!layout.bcCases ? [{ key: 'cases', label: 'All four cases · What the program returns', page: 'roi', add: (l: ProposalLayout) => ({ ...l, bcCases: true as const }) }] : []),
         ...(layout.bcExecNoPageRefs ? [{ key: 'execPageRefs', label: 'Page numbers · Executive summary', page: 'execsum', add: (l: ProposalLayout) => ({ ...l, bcExecNoPageRefs: undefined }) }] : []),
         // Resident Monitoring one pagers on a pilot deal: the pilot community table (off by default).
         ...(onePagers?.scope === 'rm' && onePagers.pilot

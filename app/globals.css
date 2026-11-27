@@ -767,6 +767,34 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @media print { .bc-fp-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .bc-tbl td.bc-neg { color: #C2412D; font-weight: 600; }
 .bc-tbl td.bc-neg small { color: var(--bc-muted); font-weight: 400; }
+/* All four cases (returns page): the table, the modeled case's tag, the cards, and the rep's ✕ to take a case out. */
+.bc-cases-tbl th { position: relative; }
+.bc-cases-tbl th.bc-hl { color: #1E7A4C; }
+.bc-cases-tbl td { vertical-align: middle; }
+.bc-cases-tbl td.bc-r { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 13px; }
+.bc-cases-tbl td.bc-hl { color: var(--bc-ink); font-weight: 700; font-size: 14px; }
+.bc-cases-tag { display: block; width: max-content; margin: 4px 0 0 auto; font-size: 8.5px; letter-spacing: .6px; font-weight: 800; background: #1E7A4C; color: #fff; border-radius: 99px; padding: 1px 6px; }
+.bc-cases-note { font-size: 11px; color: var(--bc-muted); margin-top: 10px; }
+.bc-cases-tiles { display: grid; gap: 8px; }
+.bc-cases-tile { position: relative; border-radius: 12px; padding: 12px 11px 13px; background: #fff; border: 1px solid var(--bc-line); min-width: 0; }
+.bc-cases-tile.bc-on { background: var(--bc-night); border-color: var(--bc-night); color: #fff; }
+.bc-cases-tile h5 { font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 800; color: var(--bc-muted); }
+.bc-cases-tile.bc-on h5 { color: var(--bc-mint); }
+.bc-cases-tile > b { display: block; font-size: 22px; font-weight: 500; letter-spacing: -.5px; margin-top: 6px; line-height: 1.1; white-space: nowrap; }
+.bc-cases-tile.bc-on > b { color: var(--bc-mint); }
+.bc-cases-s { display: block; font-size: 10px; color: var(--bc-muted); margin-top: 1px; }
+.bc-cases-tile.bc-on .bc-cases-s, .bc-cases-tile.bc-on dt { color: #A9B3BE; }
+.bc-cases-tile dl { margin-top: 10px; display: grid; gap: 4px; font-size: 10.5px; }
+.bc-cases-tile dl > div { display: flex; justify-content: space-between; gap: 6px; }
+.bc-cases-tile dt { color: var(--bc-muted); }
+.bc-cases-tile dd { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bc-cases-tile .bc-neg { color: #C2412D; }
+.bc-cases-tile.bc-on .bc-neg { color: #FF9C8A; }
+.bc-cases-x { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 99px; font-size: 9px; line-height: 18px; text-align: center; color: var(--bc-muted); background: rgba(255,255,255,.9); opacity: 0; transition: opacity .15s; }
+.bc-cases-tbl th:hover .bc-cases-x, .bc-cases-tile:hover .bc-cases-x, .bc-cases-x:focus-visible { opacity: 1; }
+.bc-cases-x:hover { color: #C2412D; }
+@media (prefers-reduced-motion: reduce) { .bc-cases-x { transition: none; } }
+@media (max-width: 640px) { .bc-cases-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 
 /* Scope page: the hardware that gets installed, each photo whole beside its caption. */
 .bc-hw { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

@@ -29,6 +29,7 @@ import { buildCashFlow } from '@/lib/model';
 import { AREA_KINDS, bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
 import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
+import { CASE_LABEL, FourCases } from './FourCases';
 import { hiddenColsOf } from '@/lib/proposal/layout';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { dealVars } from '@/lib/proposal/templates';
@@ -2871,6 +2872,51 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   }
 
   // The asset value / fall risk callout under the returns table (single and Both pages), with its screen-only switches.
+  // All four cases (added by the rep): the outcome cases side by side, as a table or cards; cases can be taken out.
+  const casesBlock = () =>
+    layout.bcCases ? (
+      <B
+        id="cases"
+        label="All four cases"
+        onRemove={() => setLayout((l) => ({ ...l, bcCases: undefined, bcCasesView: undefined, bcCasesHide: undefined }))}
+        view={
+          editable ? (
+            <>
+              <ViewSwitch
+                field="bcCasesView"
+                position="relative mx-0.5"
+                hover="!opacity-100"
+                label="Cases shown as"
+                options={[['table', 'Table'], ['cards', 'Cards']] as const}
+                value={layout.bcCasesView === 'cards' ? 'cards' : 'table'}
+                onChange={(v) => setLayout((l) => ({ ...l, bcCasesView: v === 'cards' ? 'cards' : undefined }))}
+              />
+              {(layout.bcCasesHide ?? []).map((rc) => (
+                <button
+                  key={rc}
+                  type="button"
+                  className="mx-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white/15"
+                  title={`Put ${CASE_LABEL[rc]} back`}
+                  onClick={() => setLayout((l) => ({ ...l, bcCasesHide: (l.bcCasesHide ?? []).filter((x) => x !== rc).length ? (l.bcCasesHide ?? []).filter((x) => x !== rc) : undefined }))}
+                >
+                  + {CASE_LABEL[rc]}
+                </button>
+              ))}
+            </>
+          ) : null
+        }
+      >
+        <p className="bc-eyebrow bc-gray"><T k="bc.cases.eyebrow" d="If outcomes land higher or lower" /></p>
+        <FourCases
+          outputs={outputs}
+          capRate={capRate}
+          cards={layout.bcCasesView === 'cards'}
+          hidden={layout.bcCasesHide ?? []}
+          editable={editable}
+          onHide={(rc) => setLayout((l) => ({ ...l, bcCasesHide: [...(l.bcCasesHide ?? []).filter((x) => x !== rc), rc] }))}
+        />
+      </B>
+    ) : null;
   const roiCallout = () => (
         <div className="relative group/view">
           {editable && (
@@ -3089,6 +3135,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </div>
         )}
         </B>
+        {casesBlock()}
         <B id="callout" label="Asset value / Fall risk">
         {roiCallout()}
         </B>
@@ -3875,6 +3922,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               </RTable>
             </div>
           </B>
+          {casesBlock()}
           <B id="callout" label="Asset value / Fall risk">
             {roiCallout()}
           </B>
