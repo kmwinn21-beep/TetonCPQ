@@ -16,16 +16,34 @@ export const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target:
 
 type Row = { key: string; label: string; sub?: string; fmt: (rc: RoiCase) => string; neg: (rc: RoiCase) => boolean };
 
-export function caseRows(outputs: Pick<ModelResult, 'annual'>, capRate: string): Row[] {
+/**
+ * How the cases are costed. Subscription: the yearly cost is the fees once every community is live (`annualCost`).
+ * Equipment purchase: the yearly cost of ownership (`annualCost`), year 1 is the equipment plus a year of software
+ * (`year1`), and the running cost is the software and renewals (`running`): the equipment is capital, kept out of NOI.
+ */
+export type CaseBasis =
+  | { kind: 'subscription'; annualCost: number }
+  | { kind: 'capex'; annualCost: number; year1: number; running: number; occupied: number; capRate: number };
+
+/** The rows, per case: annual ROI, stabilized return on cost, breakeven, net RevPOR, net NOI, asset value. */
+export function caseRows(outputs: Pick<ModelResult, 'annual'>, capRate: string, basis: CaseBasis = { kind: 'subscription', annualCost: 0 }): Row[] {
   const t = (rc: RoiCase) => outputs.annual[rc].totals;
   const money = (n: number) => usd(n, { compact: Math.abs(n) >= 10_000 });
+  // Subscription without a yearly cost given (tests, older callers): the fees at post-pilot prices.
+  const cost = (rc: RoiCase) => (basis.annualCost > 0 ? basis.annualCost : t(rc).annualRecurringCost);
+  const ret = (rc: RoiCase) => (cost(rc) > 0 ? t(rc).annualRoi / cost(rc) : 0);
+  const cx = basis.kind === 'capex' ? basis : null;
+  const breakeven = (rc: RoiCase) => (cx ? (t(rc).annualRoi > 0 ? cx.year1 / (t(rc).annualRoi / 12) : 0) : t(rc).breakevenMonths);
+  const noi = (rc: RoiCase) => (cx ? t(rc).annualNetNoiImpact + t(rc).annualRecurringCost - cx.running : t(rc).annualNetNoiImpact);
+  const revpor = (rc: RoiCase) => (cx ? (cx.occupied > 0 ? (t(rc).annualRoi - cx.running) / cx.occupied : 0) : t(rc).netRevpor);
+  const value = (rc: RoiCase) => (cx ? (cx.capRate > 0 ? noi(rc) / cx.capRate : 0) : t(rc).valuationImpact);
   return [
     { key: 'roi', label: 'Annual ROI', sub: 'Benefit per year, every community live', fmt: (rc) => money(t(rc).annualRoi), neg: (rc) => t(rc).annualRoi < 0 },
-    { key: 'return', label: 'Return on cost', sub: 'Benefit ÷ the cost of Teton', fmt: (rc) => multiple(t(rc).returnOnCost, 1), neg: (rc) => t(rc).returnOnCost < 0 },
-    { key: 'breakeven', label: 'Breakeven', fmt: (rc) => `${t(rc).breakevenMonths.toFixed(1)} mo`, neg: () => false },
-    { key: 'revpor', label: 'Net RevPOR', sub: 'Per occupied room, per year', fmt: (rc) => usd(t(rc).netRevpor), neg: (rc) => t(rc).netRevpor < 0 },
-    { key: 'noi', label: 'Annual net NOI impact', fmt: (rc) => money(t(rc).annualNetNoiImpact), neg: (rc) => t(rc).annualNetNoiImpact < 0 },
-    { key: 'value', label: 'Asset value added', sub: `At a ${capRate} cap rate`, fmt: (rc) => money(t(rc).valuationImpact), neg: (rc) => t(rc).valuationImpact < 0 },
+    { key: 'return', label: 'Stabilized return on cost', sub: cx ? 'Benefit ÷ the yearly cost of ownership' : 'Benefit ÷ the yearly subscription', fmt: (rc) => multiple(ret(rc), 1), neg: (rc) => ret(rc) < 0 },
+    { key: 'breakeven', label: 'Breakeven', sub: cx ? 'Equipment and the first year of software' : undefined, fmt: (rc) => `${breakeven(rc).toFixed(1)} mo`, neg: () => false },
+    { key: 'revpor', label: 'Net RevPOR', sub: 'Per occupied room, per year', fmt: (rc) => usd(revpor(rc)), neg: (rc) => revpor(rc) < 0 },
+    { key: 'noi', label: 'Annual net NOI impact', sub: cx ? 'The equipment is capital, not an operating cost' : undefined, fmt: (rc) => money(noi(rc)), neg: (rc) => noi(rc) < 0 },
+    { key: 'value', label: 'Asset value added', sub: `At a ${capRate} cap rate`, fmt: (rc) => money(value(rc)), neg: (rc) => value(rc) < 0 },
   ];
 }
 
@@ -36,9 +54,11 @@ export function FourCases({
   hidden,
   editable,
   onHide,
+  basis,
 }: {
   outputs: Pick<ModelResult, 'annual' | 'roiCase'>;
   capRate: string;
+  basis: CaseBasis;
   cards: boolean;
   hidden: RoiCase[];
   editable: boolean;
@@ -46,7 +66,7 @@ export function FourCases({
   onHide: (rc: RoiCase) => void;
 }) {
   const shown = CASES.filter((rc) => !hidden.includes(rc));
-  const rows = caseRows(outputs, capRate);
+  const rows = caseRows(outputs, capRate, basis);
   const modeled = outputs.roiCase;
   const hideBtn = (rc: RoiCase) =>
     editable && shown.length > 1 ? (
@@ -54,7 +74,15 @@ export function FourCases({
         ✕
       </button>
     ) : null;
-  const note = <p className="bc-note bc-cases-note"><T k="bc.cases.note" d="Every unit at its post-pilot price plus full installation. Each case applies higher or lower outcome assumptions to the same deal." /></p>;
+  const note = (
+    <p className="bc-note bc-cases-note">
+      {basis.kind === 'capex' ? (
+        <T k="bc.cases.note.capex" d="Equipment purchase: the yearly cost of ownership over the hardware’s useful life; breakeven counts the equipment and the first year of software. Each case applies higher or lower outcome assumptions to the same deal." />
+      ) : (
+        <T k="bc.cases.note" d="Subscription: the yearly fees once every community is live; breakeven counts installation and the first year of fees. Each case applies higher or lower outcome assumptions to the same deal." />
+      )}
+    </p>
+  );
 
   if (cards) {
     const main = rows[0];
@@ -105,8 +133,8 @@ export function FourCases({
             {rows.map((r) => (
               <tr key={r.key}>
                 <td className="bc-m">
-                  <T k={`bc.cases.r.${r.key}`} d={r.label} />
-                  {r.sub && <small><T k={`bc.cases.r.${r.key}.sub`} d={r.sub} /></small>}
+                  <T k={`bc.cases.r.${r.key}${basis.kind === 'capex' ? '.cx' : ''}`} d={r.label} />
+                  {r.sub && <small><T k={`bc.cases.r.${r.key}.sub${basis.kind === 'capex' ? '.cx' : ''}`} d={r.sub} /></small>}
                 </td>
                 {shown.map((rc) => (
                   <td key={rc} className={`bc-r ${rc === modeled ? 'bc-hl' : ''} ${r.neg(rc) ? 'bc-neg' : ''}`}>

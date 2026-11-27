@@ -29,7 +29,8 @@ import { buildCashFlow } from '@/lib/model';
 import { AREA_KINDS, bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
 import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
-import { CASE_LABEL, FourCases } from './FourCases';
+import { CASE_LABEL, FourCases, type CaseBasis } from './FourCases';
+import { totalOccupiedUnits } from '@/lib/model/annual';
 import { hiddenColsOf } from '@/lib/proposal/layout';
 import { paginate, textRowHeight } from '@/lib/proposal/paginate';
 import { dealVars } from '@/lib/proposal/templates';
@@ -1183,7 +1184,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   // uses the cost of ownership, so the Year 1 page and the returns page show the same figure.
   const stabilizedNet = sel.annualRoi - tetonAnnual;
   // Stabilized return on cost: yearly gross benefit ÷ the annual cost of Teton (the cost of ownership per year on an equipment purchase).
-  const stabilizedReturn = capexShown ? (tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0) : sel.returnOnCost;
+  // (Both ways: the subscription's yearly fees once live, or the yearly cost of ownership; not the workbook's year-1 figure.)
+  const stabilizedReturn = tetonAnnual > 0 ? sel.annualRoi / tetonAnnual : 0;
   const benefitRows: Array<{ key: string; label: string; value: number; means: string; sub: string; v?: Record<string, string> }> = [
     { key: 'roi.benefit.care', label: 'Care Revenue Capture', value: sel.recapturedCareRevenue, means: 'Identifying & correcting residents who are receiving care/services outside of their assessed LOC, earlier', sub: '' },
     { key: 'roi.benefit.moveIn', label: 'Move-in impact', value: sel.moveInImpact, means: 'Total annual move-ins attributed to Teton’s community presence', sub: '' },
@@ -2873,6 +2875,21 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
 
   // The asset value / fall risk callout under the returns table (single and Both pages), with its screen-only switches.
   // All four cases (added by the rep): the outcome cases side by side, as a table or cards; cases can be taken out.
+  // Equipment purchase proposals cost them as a purchase (see CaseBasis); others as the subscription.
+  const casesBasis: CaseBasis = (() => {
+    if (draft.presentation !== 'capex') return { kind: 'subscription', annualCost: sel.annualRoi - kp.runRateAnnualNetBenefit };
+    const yrs = capex.ownershipMonths / 12 || 1;
+    const upfront = capex.softwareBilling === 'upfront';
+    const items12 = (capex.itemsMonthly ?? 0) * 12;
+    return {
+      kind: 'capex',
+      annualCost: capex.ownershipTotal / yrs,
+      year1: capex.equipment + (upfront ? capex.softwareUpfront ?? 0 : capex.softwareMonthly * 12) + items12,
+      running: (upfront ? (capex.softwareUpfront ?? 0) / yrs : capex.softwareMonthly * 12) + items12 + (capex.renewals + (capex.itemsRenewals ?? 0)) / yrs,
+      occupied: totalOccupiedUnits(inputs),
+      capRate: inputs.valuation.capRate,
+    };
+  })();
   const casesBlock = () =>
     layout.bcCases ? (
       <B
@@ -2912,6 +2929,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
           capRate={capRate}
           cards={layout.bcCasesView === 'cards'}
           hidden={layout.bcCasesHide ?? []}
+          basis={casesBasis}
           editable={editable}
           onHide={(rc) => setLayout((l) => ({ ...l, bcCasesHide: [...(l.bcCasesHide ?? []).filter((x) => x !== rc), rc] }))}
         />
@@ -3782,7 +3800,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       y1: kp.totalInvestment12,
       annualCost: sel.annualRoi - kp.runRateAnnualNetBenefit,
       netAnnual: kp.runRateAnnualNetBenefit,
-      ret: sel.returnOnCost,
+      ret: sel.annualRoi - kp.runRateAnnualNetBenefit > 0 ? sel.annualRoi / (sel.annualRoi - kp.runRateAnnualNetBenefit) : 0,
       payback: kp.discountedPaybackMonth,
       revpor: kp.netBenefitPerOccupiedUnitMonth,
       total: sum(opNet),
