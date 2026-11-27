@@ -12,7 +12,7 @@ import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { SwitchButton } from '@/components/quote/sections';
 import { ItemIcon } from './ItemIcon';
 import { BILLING_LABEL, COUNT_LABEL, SKU, billingOf } from '@/lib/pricing/catalog';
-import { BUILTIN_CORES, OFFER_LOCKED, removedRoles, ROLE_BY_SKU, ROLES, roleOf, SIDE_LABEL, SIDES, sameLineup, type CoreProduct, type Lineup, type LineupEntry, type RoleId, type Side } from '@/lib/pricing/lineup';
+import { BUILTIN_CORES, FINISH_ROLES, OFFER_LOCKED, removedRoles, ROLE_BY_SKU, ROLES, roleOf, SIDE_LABEL, SIDES, sameLineup, type CoreProduct, type Lineup, type LineupEntry, type RoleId, type Side } from '@/lib/pricing/lineup';
 import type { LineupInfo } from '@/lib/data/lineup';
 import type { PriceBookRow } from '@/lib/data/priceBook';
 
@@ -299,6 +299,8 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange, onRemove }: 
     if (custom && !r.generic) continue;
     const role = ROLE_BY_SKU[r.sku];
     if (role === 'bundle' || role === 'capexBaseEcall') continue;
+    // The concealed finish is an installation upgrade (on the deal's implementation line), not part of a core product.
+    if (role && FINISH_ROLES.includes(role)) continue;
     if (role && ROLES[role].side !== 'both' && ROLES[role].side !== side) continue;
     candidates.push({ sku: r.sku });
     if (r.sku === SKU.install && side === 'subscription') candidates.push({ sku: r.sku, role: 'ecallInstall' });

@@ -17,8 +17,14 @@ export const SIDES: Side[] = ['subscription', 'capex'];
 export const SIDE_LABEL: Record<Side, string> = { subscription: 'Subscription', capex: 'Equipment purchase' };
 
 /** The built-in core products (custom ones get ids like "core-…"). */
-export type BuiltinCore = 'monitoring' | 'ecall' | 'commonArea' | 'finish';
-export const BUILTIN_CORES: BuiltinCore[] = ['monitoring', 'ecall', 'commonArea', 'finish'];
+export type BuiltinCore = 'monitoring' | 'ecall' | 'commonArea';
+export const BUILTIN_CORES: BuiltinCore[] = ['monitoring', 'ecall', 'commonArea'];
+
+/**
+ * The concealed finish is an upgrade of the installation (a switch on the deal's implementation line), not a core
+ * product: its items aren't in the line-up and always price as they are.
+ */
+export const FINISH_ROLES: RoleId[] = ['finishLow', 'finishHigh', 'finishCredit'];
 
 /** A built-in item's pricing behaviour. */
 export type RoleId =
@@ -228,16 +234,6 @@ export const DEFAULT_LINEUP: Lineup = {
         capex: side(false, []),
       },
     },
-    {
-      id: 'finish',
-      name: 'Concealed finish',
-      note: 'Optional install add-on, quoted per room',
-      kind: 'option',
-      sides: {
-        subscription: side(true, [e(SKU.finishConcealedLow), e(SKU.finishConcealedHigh), e(SKU.finishStandardCredit)]),
-        capex: side(true, [e(SKU.finishConcealedLow), e(SKU.finishConcealedHigh), e(SKU.finishStandardCredit)]),
-      },
-    },
   ],
   combos: [
     { id: 'bundle-ble', when: ['monitoring', 'ecall'], side: 'subscription', system: 'ble', replace: [SKU.platform, SKU.ecallBle], with: [e(SKU.bundleBle)], enabled: true, builtin: 'bundle' },
@@ -339,6 +335,7 @@ export function normalizeLineup(raw: unknown): Lineup {
     const id = str(c.id, 60);
     if (!id || cores.some((x) => x.id === id)) continue;
     const def = DEFAULT_LINEUP.cores.find((x) => x.id === id);
+    // (Line-ups saved before the concealed finish moved to the implementation line had a 'finish' core: dropped here.)
     if (!def && !/^core-[a-z0-9-]+$/.test(id)) continue;
     const sides = isObj(c.sides) ? c.sides : {};
     cores.push({
@@ -349,7 +346,7 @@ export function normalizeLineup(raw: unknown): Lineup {
       sides: { subscription: sideOf(sides.subscription, def?.sides.subscription ?? side(true, [])), capex: sideOf(sides.capex, def?.sides.capex ?? side(true, [])) },
     });
     // Resident monitoring, E-Call and the finish are always offered both ways (see OFFER_LOCKED).
-    if (def && (id === 'monitoring' || id === 'ecall' || id === 'finish')) for (const s of SIDES) cores[cores.length - 1].sides[s].offered = true;
+    if (def && (id === 'monitoring' || id === 'ecall')) for (const s of SIDES) cores[cores.length - 1].sides[s].offered = true;
   }
   // Built-in core products can't be removed: missing ones come back in their default place.
   DEFAULT_LINEUP.cores.forEach((def, i) => {
@@ -413,7 +410,7 @@ export const coreOf = (l: Lineup, id: string) => l.cores.find((c) => c.id === id
  * Built-in core products whose "offered" switches can't change: Resident monitoring, E-Call and the concealed finish
  * price the same way on both sides (the engine has one E-Call system and one finish per deal).
  */
-export const OFFER_LOCKED = new Set<string>(['monitoring', 'ecall', 'finish']);
+export const OFFER_LOCKED = new Set<string>(['monitoring', 'ecall']);
 
 /** Whether a core product is offered for a structure (Both: offered either way). */
 export function offeredFor(l: Lineup, id: string, structure: 'subscription' | 'capex' | 'both'): boolean {

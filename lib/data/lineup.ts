@@ -1,6 +1,6 @@
 /** The core products line-up (lib/pricing/lineup): the current one, and saving a new version (admins). */
 import type { Client } from '@libsql/client';
-import { DEFAULT_LINEUP, normalizeLineup, ROLES, roleOf, SIDES, sameLineup, SIDE_LABEL, type ItemSpec, type Lineup, type LineupEntry } from '@/lib/pricing/lineup';
+import { DEFAULT_LINEUP, FINISH_ROLES, normalizeLineup, ROLES, roleOf, SIDES, sameLineup, SIDE_LABEL, type ItemSpec, type Lineup, type LineupEntry } from '@/lib/pricing/lineup';
 import { billingOf, type Product } from '@/lib/pricing/catalog';
 import { DETAIL_COLS, productDetails } from './priceBook';
 
@@ -53,6 +53,7 @@ export async function saveLineup(db: Client, raw: unknown, userId: number | null
       for (const en of c.sides[s].items) {
         if (!names.has(en.sku)) throw bad(`${c.name}: an item isn’t in the price book (${en.sku}).`);
         const role = roleOf(en);
+        if (role && FINISH_ROLES.includes(role)) throw bad(`${c.name}: the concealed finish is an installation upgrade on the deal’s implementation line, not part of a core product.`);
         if (role && ROLES[role].side !== 'both' && ROLES[role].side !== s) throw bad(`${c.name}: ${names.get(en.sku)} is priced with ${ROLES[role].side === 'capex' ? 'equipment purchase' : 'the subscription'}, so it can’t go under ${SIDE_LABEL[s].toLowerCase()}.`);
       }
     }

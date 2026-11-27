@@ -186,7 +186,6 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     if (opexSide) out.push({ key: 'sensor', sku: SKU.sensor, name: both ? 'Additional sensor · subscription' : name(SKU.sensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · OpEx' : ''}`, once: true, list: list(SKU.sensor), field: 'commercial.sensorPrice', applies, sensors: true });
     if (capexSide) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: both ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
   }
-  if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
   // Items priced generically (added in the price book): quantity from the communities × the deal price.
   const both = opexSide && capexSide;
   for (const it of activeItems(d)) {
@@ -209,7 +208,6 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
   if (!removed.size) return out;
   return out.filter((l) => {
     if (l.key === 'impl') return l.field === 'commercial.installRate' ? !isRemoved(removed, 'install') : l.field === 'commercial.ecallInstallRate' ? !isRemoved(removed, 'ecallInstall') : true;
-    if (l.key === 'finish') return !(isRemoved(removed, 'finishLow') && isRemoved(removed, 'finishHigh'));
     if (l.key.startsWith('item:')) return true; // generic: priced by its own details, not a built-in role
     const r = ROLE_BY_SKU[l.sku];
     return !r || !isRemoved(removed, r, l.sku);
@@ -265,7 +263,6 @@ function BuildPanel({ c, onChange, disabled, lineup, extra, onExtra }: { c: Choi
   const mon = core('monitoring', 'Resident monitoring', 'Teton sensors in resident rooms');
   const ec = core('ecall', 'E-Call', 'Pendants and pull-cords');
   const ca = core('commonArea', 'Common area sensors', 'Dining, halls, lounges; count per community');
-  const fin = core('finish', 'Concealed finish', 'Optional install add-on, quoted per room');
   const card = (on: boolean, off = false) =>
     `relative w-full rounded-[12px] border-[1.5px] px-3 py-2.5 text-left transition-colors duration-200 ${off ? 'border-[#ECE8DF] bg-[#FBFAF7] cursor-not-allowed' : on ? 'border-[#3F8CEA] bg-[#F3F8FE]' : 'border-[#E4E0D6] bg-white hover:bg-[#FBFAF7]'}`;
   const tick = (on: boolean) => (
@@ -354,17 +351,9 @@ function BuildPanel({ c, onChange, disabled, lineup, extra, onExtra }: { c: Choi
             );
           })}
       </div>
+      {customs.some((x) => x.kind === 'option' && !notOffered(x.id)) && (
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className={`${eyebrow} mr-1`}>Options</span>
-        <button
-          type="button"
-          aria-pressed={c.finish}
-          disabled={disabled}
-          onClick={() => onChange({ ...c, finish: !c.finish })}
-          className={`h-8 rounded-full px-3 text-[12px] transition-colors duration-200 ${c.finish ? 'border border-teton-ink bg-teton-ink text-white' : 'border border-dashed border-[#C9C4BA] text-[#4E5562] hover:bg-[#FBFAF7]'}`}
-        >
-          {c.finish ? `✓ ${fin.name}` : `+ ${fin.name}`}
-        </button>
         {customs
           .filter((x) => x.kind === 'option' && !notOffered(x.id))
           .map((x) => {
@@ -376,6 +365,7 @@ function BuildPanel({ c, onChange, disabled, lineup, extra, onExtra }: { c: Choi
             );
           })}
       </div>
+      )}
     </div>
   );
 }
@@ -426,6 +416,41 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     const note = changeNote(a, next, book, lineupOf(before));
     setToast(note ? { text: note, undo: before } : null);
   };
+
+  // The concealed finish: an upgrade of the installation (cables behind the wall or above the ceiling), quoted as a
+  // range per room after the site survey. Outside the equipment price and the ROI, as before.
+  const fin = k.finish ?? { concealed: false, low: 0, high: 0, credit: 0 };
+  const finishUpgrade = (
+    <div className="px-4 md:pl-[58px] py-2.5 border-b border-[#F1EEE7] bg-[#FCFBF8]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <SwitchButton label="Upgrade to concealed finish" on={choices.finish} disabled={readOnly} onChange={(on) => choose({ ...choices, finish: on })} />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[12.5px] font-semibold">Upgrade to concealed finish</b>
+          <small className="block text-[11.5px] leading-snug text-[#8A919C]">Cables behind the wall or above the ceiling, no raceway · quoted per room after the site survey</small>
+        </span>
+        {choices.finish && <span className="max-sm:basis-full max-sm:pl-[48px] text-[12.5px] font-semibold tabular-nums whitespace-nowrap">{money(fin.low)}–{money(fin.high)} / room</span>}
+      </div>
+      <Collapse open={choices.finish}>
+        <div className="mt-2.5 grid gap-x-4 gap-y-2.5 sm:grid-cols-3">
+          <label className="block">
+            <span className="block mb-1 text-[11.5px] font-semibold text-[#4E5562]">Low / room</span>
+            <Price name="commercial.finish.low" label="Concealed finish low per room" list={book[SKU.finishConcealedLow]?.list ?? null} pill={false} />
+          </label>
+          <label className="block">
+            <span className="block mb-1 text-[11.5px] font-semibold text-[#4E5562]">High / room</span>
+            <Price name="commercial.finish.high" label="Concealed finish high per room" list={book[SKU.finishConcealedHigh]?.list ?? null} pill={false} />
+          </label>
+          <label className="block">
+            <span className="block mb-1 text-[11.5px] font-semibold text-[#4E5562]">Standard install credit / room</span>
+            <Price name="commercial.finish.credit" label="Standard credit per room" list={book[SKU.finishStandardCredit]?.list ?? null} pill={false} />
+          </label>
+        </div>
+        <p className="mt-2 text-[12px] text-[#6B7380]">
+          Add-on for the deal: <b className="text-teton-ink tabular-nums">{money(n.rooms * Math.max(0, (fin.low ?? 0) - (fin.credit ?? 0)))} to {money(n.rooms * Math.max(0, (fin.high ?? 0) - (fin.credit ?? 0)))}</b> · {n.rooms} rooms × (concealed price − standard credit)
+        </p>
+      </Collapse>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -536,6 +561,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                   <span className="max-md:col-start-2 text-[12px] text-[#6B7380]">{l.applies}</span>
                   <span className="max-md:hidden justify-self-end">{action(l)}</span>
                 </div>
+                {l.key === 'impl' && finishUpgrade}
                 {l.key === 'impl' && l.field === 'commercial.installRate' && (
                   <Collapse open={implOpen} id="impl-credit">
                     <div className="px-4 md:pl-[58px] pb-3 pt-1 bg-[#FCFBF8] border-b border-[#ECE8DF] space-y-2.5">
@@ -568,6 +594,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                 )}
               </div>
             ))}
+            {!lines.some((l) => l.key === 'impl') && finishUpgrade}
             {err && <p role="alert" className="mx-4 my-2 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
             <Collapse open={!!ask}>
               {ask && (
@@ -652,20 +679,6 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
           )}
           {vis.ecall && <EcallSettings book={book} opex={d.presentation !== 'capex'} />}
           {vis.capex && <CapexSettings />}
-          {vis.finish && (
-            <Group title="Concealed finish">
-              <SettingRow label="Low / room"><Price name="commercial.finish.low" label="Concealed finish low per room" /></SettingRow>
-              <SettingRow label="High / room"><Price name="commercial.finish.high" label="Concealed finish high per room" /></SettingRow>
-              <SettingRow label="Standard credit / room" hint="Value of the standard install"><Price name="commercial.finish.credit" label="Standard credit per room" /></SettingRow>
-              <div className="px-4 py-3">
-                <DerivedField
-                  label="Add-on for the deal"
-                  value={`${money(n.rooms * Math.max(0, (k.finish.low ?? 0) - (k.finish.credit ?? 0)))} to ${money(n.rooms * Math.max(0, (k.finish.high ?? 0) - (k.finish.credit ?? 0)))}`}
-                  formula={`${n.rooms} rooms × (concealed price − standard credit)`}
-                />
-              </div>
-            </Group>
-          )}
           {d.communities?.some((c) => c.coverage === 'full_facility') && (
             <Group title="Older deal">
               <SettingRow label="Full-facility multiplier" hint="Communities still on full facility">

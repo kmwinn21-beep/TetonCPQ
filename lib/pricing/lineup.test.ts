@@ -42,10 +42,17 @@ describe('the line-up', () => {
     const c = effectiveCommercial(k(), without(DEFAULT_LINEUP, 'ecall', 'capex', SKU.capexBleRenewal));
     expect([c.capex.bleRenewal, c.capex.inovonicsRenewal]).toEqual([0, k().capex.inovonicsRenewal]);
   });
+  it('the concealed finish isn’t a core product: older line-ups lose it, and its items always price', () => {
+    const old = normalizeLineup({ ...structuredClone(DEFAULT_LINEUP), cores: [...structuredClone(DEFAULT_LINEUP.cores), { id: 'finish', name: 'Concealed finish', kind: 'option', sides: { subscription: { offered: true, items: [{ sku: SKU.finishConcealedLow }] }, capex: { offered: true, items: [] } } }] });
+    expect(old.cores.map((c) => c.id)).toEqual(['monitoring', 'ecall', 'commonArea']);
+    const c = k();
+    expect(effectiveCommercial(c, old)).toBe(c);
+    expect(effectiveCommercial(c, old).finish).toEqual(c.finish);
+  });
   it('normalizing keeps built-in core products and combinations, drops junk', () => {
     const n = normalizeLineup({ version: 3, cores: [{ id: 'ecall', name: 'E-Call', sides: { subscription: { offered: false, items: [{ sku: SKU.ecallBle }, { sku: SKU.ecallBle }] } } }, { id: 'bogus' }, { id: 'core-x1', name: 'Extra', sides: {} }], combos: [{ id: 'capex-ecall-ble', enabled: false }, { id: 'bundle-ble', enabled: false }] });
     expect(n.version).toBe(3);
-    expect(n.cores.map((c) => c.id)).toEqual(['monitoring', 'ecall', 'commonArea', 'finish', 'core-x1']);
+    expect(n.cores.map((c) => c.id)).toEqual(['monitoring', 'ecall', 'commonArea', 'core-x1']);
     const ec = n.cores.find((c) => c.id === 'ecall')!;
     // E-Call is always offered both ways (OFFER_LOCKED); duplicates are dropped.
     expect(ec.sides.subscription).toEqual({ offered: true, items: [{ sku: SKU.ecallBle }] });
