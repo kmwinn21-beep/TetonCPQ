@@ -18,6 +18,8 @@ import { ContentsButton, ContentsPanel, useContents } from './ProspectContents';
 import { ResourcesView, SectionsButton, TabSwitch, useResourcesTab } from './ProspectResources';
 import { AgreementDialog, AgreementFab, AgreementPhoneFab, useAgreement } from './ProspectAgreement';
 import { PageQuestionBadges, QuestionsButton, QuestionsPanel, useQuestions } from './ProspectQuestions';
+import { ProspectAgreementTab, useAgreementTab } from './ProspectAgreementTab';
+import type { ProspectTabId } from './ProspectResources';
 
 const longDay = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
@@ -27,8 +29,9 @@ interface Props {
   quoteId: number;
   versionNo: number;
   savedAt: string | null;
-  draft: QuoteDraft;
-  outputs: StoredOutputs;
+  /** The proposal (null when this person's access hides it: they see the agreement and/or deal room only). */
+  draft: QuoteDraft | null;
+  outputs: StoredOutputs | null;
   lines: PriceLine[];
   edits: Record<string, string>;
   layout: ProposalLayout;
@@ -65,6 +68,20 @@ function Body(p: Props) {
   const questions = useQuestions(p.token);
   const rt = useResourcesTab(p.token, contents.current, !!p.team);
   const agreement = useAgreement(p.token, !!p.team);
+  const ag = useAgreementTab(p.token);
+  // The tabs this person sees: the proposal and deal room (unless their access hides them) and the agreement once sent.
+  const allowed = ag.data?.tabs ?? { proposal: true, resources: true };
+  const tabs: ProspectTabId[] = [...(p.draft && allowed.proposal ? (['proposal'] as const) : []), ...(rt.room && allowed.resources ? (['resources'] as const) : []), ...(ag.ready ? (['agreement'] as const) : [])];
+  const tabsKey = tabs.join();
+  const { tab, setTab } = rt;
+  useEffect(() => {
+    if (!ag.data || !tabs.length || tabs.includes(tab)) return;
+    setTab(tabs[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabsKey, tab, ag.data]);
+  useEffect(() => {
+    if (ag.ready && new URLSearchParams(window.location.search).get('tab') === 'agreement') setTab('agreement');
+  }, [ag.ready, setTab]);
   const onProposal = rt.tab === 'proposal';
   // Leaving the proposal closes its contents panel and comment mode.
   useEffect(() => {
@@ -105,7 +122,7 @@ function Body(p: Props) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/TetonLogoWordmark.png" alt="Teton" width={3037} height={686} className="h-[18px] sm:h-[22px] w-auto" />
           </span>
-          <TabSwitch rt={rt} className="hidden sm:inline-flex" />
+          <TabSwitch rt={rt} tabs={tabs} className="hidden sm:inline-flex" />
           {onProposal && <ContentsButton c={contents} className={rt.room ? 'hidden sm:inline-flex h-9 px-3' : 'inline-flex h-9 px-2.5 sm:px-3'} />}
           <span className={`${onProposal ? 'hidden lg:block' : 'hidden'} min-w-0 truncate border-l border-[#E6E8EB] pl-3 text-[13px] text-[#6B7380]`}>
             Proposal for <b className="text-teton-ink">{p.dealName}</b> · from {p.ownerName}
@@ -142,10 +159,10 @@ function Body(p: Props) {
           </p>
         )}
         {/* Phones: the Proposal / Resources switch, with the menu beside it: the proposal's contents, or the Resources sections. */}
-        {rt.room && (
+        {tabs.length > 1 && (
           <div className="sm:hidden flex items-center gap-2.5 px-3 pb-2 pt-0.5">
-            <TabSwitch rt={rt} className="flex flex-1 min-w-0" />
-            {onProposal ? <ContentsButton c={contents} className="inline-flex flex-shrink-0 w-10 h-10" /> : <SectionsButton rt={rt} />}
+            <TabSwitch rt={rt} tabs={tabs} className="flex flex-1 min-w-0" />
+            {onProposal ? <ContentsButton c={contents} className="inline-flex flex-shrink-0 w-10 h-10" /> : rt.tab === 'resources' ? <SectionsButton rt={rt} /> : null}
           </div>
         )}
         {commenting && (
@@ -169,10 +186,11 @@ function Body(p: Props) {
       <AgreementFab a={agreement} />
       <AgreementPhoneFab a={agreement} />
       <AgreementDialog a={agreement} />
-      {!onProposal && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} agreement={p.team ? null : agreement} />}
+      {rt.tab === 'resources' && rt.room && <ResourcesView rt={rt} token={p.token} allowComments={p.allowComments} agreement={p.team ? null : agreement} />}
+      {rt.tab === 'agreement' && ag.ready && <ProspectAgreementTab token={p.token} a={ag} />}
       <div className={`transition-[padding] duration-200 motion-reduce:transition-none ${onProposal ? '' : 'hidden print:block'} ${contents.open && contents.mode === 'push' ? 'pl-[264px] print:pl-0' : ''}`}>
       <div className={`proposal-doc relative max-w-[8.5in] mx-auto pt-4 ${commenting ? 'prospect-commenting' : ''}`}>
-        <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />
+        {p.draft && p.outputs && <DocumentInFormat draft={p.draft} outputs={p.outputs} lines={p.lines} versionNo={p.versionNo} savedAt={p.savedAt} />}
       </div>
       </div>
     </>

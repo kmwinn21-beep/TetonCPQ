@@ -357,6 +357,18 @@ function NotificationsDrawer({ onClose, onChanged }: { onClose: () => void; onCh
                 />
                 ),
               )}
+              {(d.agreement ?? []).map((n) =>
+                row(
+                  `ag${n.id}`,
+                  <span className="w-full h-full rounded-full flex items-center justify-center bg-[#F0EBFB] text-[#5B3FA8]" aria-hidden="true">§</span>,
+                  <>
+                    <b>{n.who}</b> {n.message}
+                  </>,
+                  `Agreement · ${ago(n.createdAt)}`,
+                  () => go(`/quotes/${d.quoteId}?agreement=1`, { prospect: [n.id] }),
+                  () => void read({ prospect: [n.id] }),
+                ),
+              )}
             </ul>
           </section>
         ))}

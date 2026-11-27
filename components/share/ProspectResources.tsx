@@ -72,10 +72,12 @@ function useHeartbeat(push: (e: Record<string, unknown>) => void, target: Target
   }, [key, push]);
 }
 
+export type ProspectTabId = 'proposal' | 'resources' | 'agreement';
+
 export function useResourcesTab(token: string, proposalPage: string | null, team = false) {
   const [room, setRoom] = useState<ProspectRoom | null>(null);
   const [plans, setPlans] = useState<FloorPlanInfo[]>([]);
-  const [tab, setTabState] = useState<'proposal' | 'resources'>('proposal');
+  const [tab, setTabState] = useState<ProspectTabId>('proposal');
   const [sel, setSel] = useState<Sel>('team');
   // Phones: the sections sheet.
   const [menu, setMenu] = useState(false);
@@ -156,7 +158,7 @@ export function useResourcesTab(token: string, proposalPage: string | null, team
     [push, room, markSeen],
   );
   const setTab = useCallback(
-    (t: 'proposal' | 'resources') => {
+    (t: ProspectTabId) => {
       setTabState(t);
       if (t === 'resources') push(sel === 'team' ? { target: 'team', kind: 'open' } : { target: 'item', resourceId: sel, kind: 'open' });
       window.scrollTo({ top: 0 });
@@ -197,13 +199,13 @@ export function SectionsButton({ rt }: { rt: ResourcesTab }) {
   );
 }
 
-export function TabSwitch({ rt, className = '' }: { rt: ResourcesTab; className?: string }) {
-  if (!rt.room) return null;
+export function TabSwitch({ rt, tabs, className = '' }: { rt: ResourcesTab; /** The tabs this person sees. */ tabs: ProspectTabId[]; className?: string }) {
+  if (tabs.length < 2) return null;
   return (
-    <SegGroup className={`relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5 ${className}`} thumbClass="bg-white shadow-sm rounded-[8px]" label="Proposal or resources">
-      {(['proposal', 'resources'] as const).map((t) => (
+    <SegGroup className={`relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5 ${className}`} thumbClass="bg-white shadow-sm rounded-[8px]" label="Proposal, resources or agreement">
+      {tabs.map((t) => (
         <button key={t} type="button" role="radio" aria-checked={rt.tab === t} onClick={() => rt.setTab(t)} className={`relative z-[1] flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[30px] px-3 rounded-[8px] text-[13px] font-semibold whitespace-nowrap transition-colors duration-200 ${rt.tab === t ? 'text-teton-ink' : 'text-[#6B7380]'}`}>
-          {t === 'proposal' ? 'Proposal' : rt.room!.tabName}
+          {t === 'proposal' ? 'Proposal' : t === 'agreement' ? 'Agreement' : rt.room?.tabName ?? 'Resources'}
           {t === 'resources' && rt.newCount > 0 && <span className="min-w-[17px] h-[17px] px-1 rounded-full bg-[#3F8CEA] text-white text-[10px] font-bold grid place-items-center">{rt.newCount}</span>}
         </button>
       ))}

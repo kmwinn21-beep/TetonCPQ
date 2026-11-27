@@ -6,6 +6,7 @@
  * default). Then the email they get: the proposal's name, the opening line ("Hey {first name} - …") and a note, sent
  * from here. The link to copy, who was emailed and who opened it, and a way to turn it off.
  */
+import { PersonAccess, usePeopleAccess } from './PersonAccess';
 import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
 import { SegGroup } from '@/components/form/SegGroup';
@@ -80,6 +81,8 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
   const [dealName, setDealName] = useState('');
   const [link, setLink] = useState<ShareLink | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  // Each person's tabs and agreement access (for people already on the link; saved right away).
+  const access = usePeopleAccess(quoteId);
   const [draft, setDraft] = useState('');
   const [allowComments, setAllowComments] = useState(true);
   const [allowPdf, setAllowPdf] = useState(true);
@@ -305,7 +308,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                 {people.map((p, i) => {
                   const lp = link?.people.find((x) => x.email === p.email);
                   return (
-                    <li key={p.email} className="flex items-center gap-2 px-2.5 py-1.5 [animation:fadeIn_.15s_ease-out]">
+                    <li key={p.email} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-1.5 [animation:fadeIn_.15s_ease-out]">
                       <input
                         className="w-[110px] h-8 rounded-lg border border-transparent hover:border-[#D5D9DE] focus:border-[#3F8CEA] px-2 text-[13px] font-semibold outline-none"
                         value={p.name}
@@ -321,6 +324,7 @@ function ShareDialog({ quoteId, versionId, versionNo, onClose }: { quoteId: numb
                           ✕
                         </button>
                       )}
+                      {lp && <PersonAccess email={p.email} pa={access} />}
                     </li>
                   );
                 })}

@@ -23,7 +23,7 @@ export const GROUPS: Array<{ id: GroupId; title: string; soon?: string }> = [
   { id: 'templates', title: 'Templates' },
   { id: 'pricebook', title: 'Price book' },
   { id: 'approvals', title: 'Approvals', soon: 'Arrives with the approval workflow' },
-  { id: 'agreements', title: 'Agreements', soon: 'Arrives with agreement redlines' },
+  { id: 'agreements', title: 'Agreements' },
   { id: 'users', title: 'Users & settings' },
 ];
 
@@ -87,12 +87,12 @@ export const CAPABILITIES: Capability[] = [
   { key: 'approve.tier1', group: 'approvals', label: 'Approve tier 1', sub: 'e.g. price under 90% of list, term under 36 months', kind: 'reach', defaults: { rep: 'off', deal_desk: 'all', vp_sales: 'all', ceo: 'all' }, shipped: false },
   { key: 'approve.tier2', group: 'approvals', label: 'Approve tier 2', sub: 'e.g. price under 75% of list, free pilot', kind: 'reach', defaults: { rep: 'off', deal_desk: 'off', vp_sales: 'all', ceo: 'all' }, shipped: false },
   { key: 'approve.rules', group: 'approvals', label: 'Edit approval rules', sub: 'Thresholds and approvers', kind: 'flag', defaults: every('off'), shipped: false },
-  // Agreements (backlog: agreement redlines V1)
-  { key: 'agreement.view', group: 'agreements', label: 'See the agreement', sub: 'Rounds, comments, Teton-only notes', kind: 'reach', defaults: { rep: 'collab', deal_desk: 'all', vp_sales: 'all', ceo: 'all' }, shipped: false },
-  { key: 'agreement.upload', group: 'agreements', label: 'Upload rounds', kind: 'reach', defaults: { rep: 'off', deal_desk: 'all', vp_sales: 'off', ceo: 'off' }, shipped: false },
-  { key: 'agreement.review', group: 'agreements', label: 'Accept / reject changes, send rounds', kind: 'reach', defaults: { rep: 'own', deal_desk: 'off', vp_sales: 'off', ceo: 'off' }, shipped: false },
-  { key: 'agreement.people', group: 'agreements', label: 'Manage prospect reviewers and what they see', kind: 'reach', defaults: { rep: 'own', deal_desk: 'off', vp_sales: 'off', ceo: 'off' }, shipped: false },
-  { key: 'agreement.finish', group: 'agreements', label: 'Mark final and signed', kind: 'reach', defaults: { rep: 'own', deal_desk: 'all', vp_sales: 'off', ceo: 'off' }, shipped: false },
+  // Agreements (Word file rounds, V1)
+  { key: 'agreement.view', group: 'agreements', label: 'See the agreement', sub: 'Rounds, comments, Teton-only notes', kind: 'reach', defaults: { rep: 'collab', deal_desk: 'all', vp_sales: 'all', ceo: 'all' }, shipped: true },
+  { key: 'agreement.upload', group: 'agreements', label: 'Upload rounds', kind: 'reach', defaults: { rep: 'off', deal_desk: 'all', vp_sales: 'off', ceo: 'off' }, shipped: true },
+  { key: 'agreement.review', group: 'agreements', label: 'Accept / reject changes, reply, send rounds', kind: 'reach', defaults: { rep: 'own', deal_desk: 'off', vp_sales: 'off', ceo: 'off' }, shipped: true },
+  { key: 'agreement.people', group: 'agreements', label: 'Manage prospect reviewers and what they see', kind: 'reach', defaults: { rep: 'own', deal_desk: 'off', vp_sales: 'off', ceo: 'off' }, shipped: true },
+  { key: 'agreement.finish', group: 'agreements', label: 'Mark final and signed', kind: 'reach', defaults: { rep: 'own', deal_desk: 'all', vp_sales: 'off', ceo: 'off' }, shipped: true },
   // Users & settings (Admin only, by design)
   { key: 'users.manage', group: 'users', label: 'Add users, change roles, deactivate', sub: 'Admin only', kind: 'flag', defaults: every('off'), shipped: true, fixed: true },
   { key: 'permissions.manage', group: 'users', label: 'Edit roles & permissions', sub: 'Admin only', kind: 'flag', defaults: every('off'), shipped: true, fixed: true },

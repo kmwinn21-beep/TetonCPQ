@@ -45,9 +45,16 @@ Decisions for the team:
 5. Show prospects an "Estimate based on room counts" note until scoped? (Recommended: yes.)
 6. DocuSign now or later? (Recommended: later.)
 
-## 4. Agreement redlines in the deal room (after #3's approval workflow)
+## 4. Agreement redlines in the deal room — V1 built
 
-Mocks: `docs/mocks/agreement-redlines/` (1 overview, 2 access, 3 deal room views, matrix, finishing). Not started.
+Mocks: `docs/mocks/agreement-redlines/` (1 overview, 2 access, 3 deal room views, matrix, finishing). V1 built; V2 and V3 not started.
+
+V1 as built, and where it falls short of the plan below:
+- Rejecting a change made with Track Changes off is recorded, but the Word file isn't changed for it: Teton writes the counter in Word. Mark final stays blocked while such a rejection is open.
+- No approval workflow yet (#2): changes touching price, fees, term, pilot, renewal or termination get a "Commercial terms" flag, and Mark final asks the person to confirm the deal's active version matches (a checkbox, not an automatic check).
+- Teton's response file accepts the accepted changes and shows each rejection as Teton's own tracked change, so the other side sees it in Word.
+- Word's automatic numbering isn't shown on the page (it isn't stored as text in the file).
+- Sales reps can't upload rounds by default (RevOps uploads, per the matrix); change "Upload rounds" in Roles & permissions if reps should.
 
 **V1: Word file rounds, changes read in.** Everyone edits in Word. Each side uploads its round as a .docx; the system reads the tracked changes and comments out of the file (and finds edits made with Track Changes off by comparing with the previous round) and shows them as a list of changes.
 

@@ -118,3 +118,29 @@ export function fileResponse(r: Awaited<ReturnType<typeof readFile>>, req: Reque
   }
   return new Response(r.data as unknown as BodyInit, { headers: { ...base, 'content-length': String(r.data.byteLength) } });
 }
+
+/** Save bytes the server already has (e.g. a Word file it made or received) as a deal file, kept in the database. */
+export async function saveBytes(db: Client, dealId: number, f: { name: string; mime: string; data: Uint8Array }, userId: number | null): Promise<number> {
+  const chunks = Math.max(1, Math.ceil(f.data.byteLength / FILE_CHUNK));
+  const r = await db.execute({
+    sql: 'INSERT INTO stored_files (deal_id, name, mime, size, chunks, complete, created_by) VALUES (?, ?, ?, ?, ?, 1, ?) RETURNING id',
+    args: [dealId, f.name.slice(0, 200), f.mime, f.data.byteLength, chunks, userId],
+  });
+  const id = Number(r.rows[0].id);
+  for (let i = 0; i < chunks; i++) {
+    await db.execute({ sql: 'INSERT INTO stored_file_chunks (file_id, idx, data) VALUES (?, ?, ?)', args: [id, i, f.data.subarray(i * FILE_CHUNK, (i + 1) * FILE_CHUNK)] });
+  }
+  return id;
+}
+
+/** A deal file's bytes on the server (files kept in R2 are fetched from there). */
+export async function readBytes(db: Client, dealId: number, id: number): Promise<{ name: string; mime: string; data: Uint8Array }> {
+  const r = await readFile(db, dealId, id);
+  if ('redirect' in r) {
+    const res = await fetch(r.redirect);
+    if (!res.ok) throw httpError('File not found', 404);
+    const f = await row(db, dealId, id);
+    return { name: f.name, mime: f.mime, data: new Uint8Array(await res.arrayBuffer()) };
+  }
+  return r;
+}

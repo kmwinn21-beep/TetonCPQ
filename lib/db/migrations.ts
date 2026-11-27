@@ -888,4 +888,105 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE deals ADD COLUMN duplicated_from_version INTEGER`,
     ],
   },
+  {
+    id: 39,
+    name: 'agreement rounds',
+    sql: [
+      // One agreement per deal, worked out in rounds of Word files (V1: everyone edits in Word).
+      `CREATE TABLE agreement_docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL UNIQUE REFERENCES deals(id),
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','with_prospect','with_teton','final','signed')),
+        title TEXT,
+        settings TEXT NOT NULL DEFAULT '{}',
+        prospect_accepted_round INTEGER,
+        prospect_accepted_by TEXT,
+        prospect_accepted_at TEXT,
+        final_file_id INTEGER REFERENCES stored_files(id),
+        finalized_by INTEGER REFERENCES users(id),
+        finalized_at TEXT,
+        signed_by INTEGER REFERENCES users(id),
+        signed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      // A round: one side's Word file. Teton rounds are uploaded by Teton; prospect rounds by their reviewers. A round
+      // is 'sent' once it goes to the other side (a prospect upload waits for a lead reviewer to send it).
+      `CREATE TABLE agreement_rounds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agreement_id INTEGER NOT NULL REFERENCES agreement_docs(id),
+        no INTEGER NOT NULL,
+        side TEXT NOT NULL CHECK (side IN ('teton','prospect')),
+        file_id INTEGER NOT NULL REFERENCES stored_files(id),
+        file_name TEXT NOT NULL,
+        doc_json TEXT NOT NULL,
+        note TEXT,
+        uploaded_by INTEGER REFERENCES users(id),
+        uploaded_email TEXT,
+        uploaded_name TEXT,
+        sent_at TEXT,
+        sent_by_email TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (agreement_id, no)
+      )`,
+      // Each change in a round (tracked in Word, or found by comparing with the previous round) and its decision.
+      `CREATE TABLE agreement_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        round_id INTEGER NOT NULL REFERENCES agreement_rounds(id),
+        cid TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        author TEXT,
+        changed_at TEXT,
+        deleted TEXT NOT NULL DEFAULT '',
+        inserted TEXT NOT NULL DEFAULT '',
+        paragraph INTEGER,
+        before_text TEXT NOT NULL DEFAULT '',
+        after_text TEXT NOT NULL DEFAULT '',
+        commercial INTEGER NOT NULL DEFAULT 0,
+        decision TEXT CHECK (decision IN ('accepted','rejected')),
+        decided_by INTEGER REFERENCES users(id),
+        decided_email TEXT,
+        decided_at TEXT,
+        UNIQUE (round_id, cid)
+      )`,
+      // Notes on the agreement, a round or one change: Teton-only ('internal') or seen by the prospect ('shared').
+      `CREATE TABLE agreement_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agreement_id INTEGER NOT NULL REFERENCES agreement_docs(id),
+        round_id INTEGER REFERENCES agreement_rounds(id),
+        change_id INTEGER REFERENCES agreement_changes(id),
+        visibility TEXT NOT NULL CHECK (visibility IN ('internal','shared')),
+        body TEXT NOT NULL,
+        author_id INTEGER REFERENCES users(id),
+        author_email TEXT,
+        author_name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      // The prospect's people on the agreement: what they can do, which tabs they see, who invited them.
+      `CREATE TABLE agreement_people (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL REFERENCES deals(id),
+        email TEXT NOT NULL,
+        name TEXT,
+        organization TEXT,
+        level TEXT NOT NULL DEFAULT 'none' CHECK (level IN ('none','view','comment','redline','lead')),
+        show_proposal INTEGER NOT NULL DEFAULT 1,
+        show_resources INTEGER NOT NULL DEFAULT 1,
+        invited_by_email TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE (deal_id, email)
+      )`,
+      // What happened (for Recent activity and the owner's notifications).
+      `CREATE TABLE agreement_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agreement_id INTEGER NOT NULL REFERENCES agreement_docs(id),
+        kind TEXT NOT NULL,
+        message TEXT NOT NULL,
+        actor_id INTEGER REFERENCES users(id),
+        actor_email TEXT,
+        actor_name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
 ];

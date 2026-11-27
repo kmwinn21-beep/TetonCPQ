@@ -9,6 +9,7 @@ import { prospectSession } from '@/lib/auth/prospect';
 import { markSeen } from '@/lib/data/prospectMail';
 import { ProspectClosed, ProspectGate } from '@/components/share/ProspectGate';
 import { ProspectView } from '@/components/share/ProspectView';
+import { prospectAccess } from '@/lib/data/agreementDocs';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,8 @@ export default async function SharedProposalPage({ params }: { params: { token: 
     await markSeen(db, l, who.email).catch(() => {});
   }
   const left = daysLeft(l.expiresOn);
+  // Their access can hide the proposal (e.g. outside counsel a signatory invited sees the agreement only).
+  const hideProposal = !who.team && !(await prospectAccess(db, l.dealId, who.email)).showProposal;
   return (
     <ProspectView
       token={l.token}
@@ -48,10 +51,10 @@ export default async function SharedProposalPage({ params }: { params: { token: 
       quoteId={v.quoteId}
       versionNo={v.versionNo}
       savedAt={v.savedAt}
-      draft={v.inputs}
-      outputs={v.outputs}
-      lines={lines}
-      edits={custom.edits}
+      draft={hideProposal ? null : v.inputs}
+      outputs={hideProposal ? null : v.outputs}
+      lines={hideProposal ? [] : lines}
+      edits={hideProposal ? {} : custom.edits}
       layout={custom.layout}
       dealName={l.dealName}
       team={!!who.team}

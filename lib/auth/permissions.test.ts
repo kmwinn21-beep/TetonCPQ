@@ -35,14 +35,14 @@ describe('saved values', () => {
   it('apply only to editable, built permissions with valid values', () => {
     expect(grantOf('rep', 'pricebook.edit', { 'pricebook.edit': 'on' })).toBe('on');
     expect(grantOf('rep', 'deal.view', { 'deal.view': 'own' })).toBe('all'); // fixed
-    expect(grantOf('rep', 'agreement.review', { 'agreement.review': 'all' })).toBe('own'); // not built yet
+    expect(grantOf('rep', 'approve.tier1', { 'approve.tier1': 'all' })).toBe('off'); // not built yet
     expect(grantOf('rep', 'deal.manage', { 'deal.manage': 'collab' })).toBe('own'); // collab doesn't apply
     expect(grantOf('rep', 'pricebook.edit', { 'pricebook.edit': 'all' })).toBe('off'); // not a flag value
     expect(grantOf('stranger', 'deal.inputs')).toBe('collab'); // unknown roles read as reps
   });
 
   it('only changes from the defaults are stored', () => {
-    expect(changedFromDefaults('rep', { ...grantsFor('rep'), 'pricebook.edit': 'on', 'agreement.review': 'all', 'deal.view': 'own' })).toEqual({ 'pricebook.edit': 'on' });
+    expect(changedFromDefaults('rep', { ...grantsFor('rep'), 'pricebook.edit': 'on', 'approve.tier1': 'all', 'deal.view': 'own' })).toEqual({ 'pricebook.edit': 'on' });
     expect(changedFromDefaults('admin', { 'pricebook.edit': 'off' })).toEqual({});
   });
 });

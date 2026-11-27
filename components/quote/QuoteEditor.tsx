@@ -8,6 +8,7 @@
  */
 import { LineupContext } from './LineupContext';
 import Link from 'next/link';
+import { AgreementPanel } from '@/components/agreement/AgreementPanel';
 import { useRouter } from 'next/navigation';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
@@ -542,6 +543,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               </div>
               <CollaboratorsPanel />
               <DealDetailsPanel quoteId={initial.quoteId} prospectUpdated={!!agreement.data?.open && (agreement.data.open.payload.entity.status === 'updated' || agreement.data.open.payload.signatory.status === 'updated')} />
+              <AgreementPanel quoteId={initial.quoteId} dealName={values.customerName ?? ''} />
               <FloorPlansPanel />
               <TasksPanel quoteId={initial.quoteId} />
               <NotificationsPanel />

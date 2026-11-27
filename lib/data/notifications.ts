@@ -7,6 +7,7 @@ import { unreadPlanItems, markPlanItemsRead, type UnreadItem, type Viewer } from
 import { markMentionsRead, unreadMentions, type MentionItem } from './proposalComments';
 import { markTaskNotificationsRead, taskNotifications, todayIso, type TaskNotification } from './tasks';
 import { markProspectNotificationsRead, prospectNotifications, type ProspectNotification } from './shareLinks';
+import { agreementNotifications } from './agreementDocs';
 
 export interface DealNotifications {
   quoteId: number;
@@ -16,6 +17,8 @@ export interface DealNotifications {
   plan: UnreadItem[];
   /** Prospects on the deal's shared link: their comments, and their first visits (the owner's). */
   prospect: ProspectNotification[];
+  /** The prospect's activity on the agreement: rounds sent, acceptance, comments, reviewers invited (marked read like prospect items). */
+  agreement: Array<{ id: number; who: string; email: string; message: string; createdAt: string }>;
 }
 
 async function myDeals(db: Client, v: Viewer): Promise<Array<{ quoteId: number; dealName: string }>> {
@@ -35,11 +38,11 @@ export async function allNotifications(db: Client, v: Viewer, today = todayIso()
   const tasks = await taskNotifications(db, v, undefined, today);
   const deals: DealNotifications[] = [];
   for (const d of await myDeals(db, v)) {
-    const [mentions, plan, prospect] = await Promise.all([unreadMentions(db, d.quoteId, v), unreadPlanItems(db, d.quoteId, v), prospectNotifications(db, v.id, d.quoteId)]);
+    const [mentions, plan, prospect, agreement] = await Promise.all([unreadMentions(db, d.quoteId, v), unreadPlanItems(db, d.quoteId, v), prospectNotifications(db, v.id, d.quoteId), agreementNotifications(db, v.id, d.quoteId)]);
     const t = tasks.filter((x) => x.quoteId === d.quoteId);
-    if (t.length || mentions.length || plan.length || prospect.length) deals.push({ ...d, tasks: t, mentions, plan, prospect });
+    if (t.length || mentions.length || plan.length || prospect.length || agreement.length) deals.push({ ...d, tasks: t, mentions, plan, prospect, agreement });
   }
-  return { deals, total: deals.reduce((s, d) => s + d.tasks.length + d.mentions.length + d.plan.length + d.prospect.length, 0) };
+  return { deals, total: deals.reduce((s, d) => s + d.tasks.length + d.mentions.length + d.plan.length + d.prospect.length + d.agreement.length, 0) };
 }
 
 export interface ReadRequest {
