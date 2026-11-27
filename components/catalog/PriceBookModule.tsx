@@ -12,6 +12,7 @@ import { NumInput } from '@/components/form/NumInput';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { ItemIcon } from './ItemIcon';
+import { SoftwareBillingDefault } from './SoftwareBillingDefault';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
 import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeOf } from '@/lib/pricing/markets';
 import { POLICY, type PricingModel } from '@/lib/pricing/catalog';
@@ -85,7 +86,8 @@ function Dots({ r }: { r: PriceBookRow }) {
   );
 }
 
-export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: PriceBookRow[]; canEdit: boolean; policy?: React.ReactNode }) {
+export function PriceBookModule({ rows: initial, canEdit, softwareBilling }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront' }) {
+  const [swBilling, setSwBilling] = useState(softwareBilling);
   const phone = usePhone('(max-width: 1023px)');
   const [rows, setRows] = useState(initial);
   const [cat, setCat] = useState<string | null>(null);
@@ -97,7 +99,8 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
   const [group, setGroup] = useState<'sub' | 'none'>('sub');
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string | null>(null);
-  const [shut, setShut] = useState<Set<string>>(() => new Set());
+  // Subcategory groups that are open (all start collapsed; a search or a picked subcategory opens them).
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
   // The drawer keeps showing its item while it slides away.
   const [shown, setShown] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -308,11 +311,11 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
         <span>Status</span>
       </div>
       {groups.map((g) => {
-        const open = !shut.has(g.key);
+        const open = !g.title || opened.has(g.key) || !!q.trim() || !!sub;
         return (
           <div key={g.key}>
             {g.title && (
-              <button type="button" data-nv-sec aria-expanded={open} onClick={() => setShut((s) => { const x = new Set(s); if (x.has(g.key)) x.delete(g.key); else x.add(g.key); return x; })} className="w-full flex items-center gap-2 px-4 py-2 bg-[#FCFBF8] border-b border-[#F1EEE7] text-left text-[10.5px] font-extrabold uppercase tracking-[1.2px] text-[#5A6270]">
+              <button type="button" data-nv-sec aria-expanded={open} onClick={() => setOpened((s) => { const x = new Set(s); if (x.has(g.key)) x.delete(g.key); else x.add(g.key); return x; })} className="w-full flex items-center gap-2 px-4 py-2 bg-[#FCFBF8] border-b border-[#F1EEE7] text-left text-[10.5px] font-extrabold uppercase tracking-[1.2px] text-[#5A6270]">
                 <span className={`text-[8px] text-[#8A919C] transition-transform duration-300 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`} aria-hidden="true">▶</span>
                 {g.title}
                 <span className="min-w-[20px] h-[18px] px-1.5 rounded-full bg-[#E9E5DE] text-[10.5px] tracking-normal grid place-items-center">{g.items.length}</span>
@@ -456,7 +459,7 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
     </div>
   );
 
-  const sectionNames = ['Overview', ...groups.filter((g) => g.title).map((g) => g.title), ...(policy ? ['Settings & policy'] : [])];
+  const sectionNames = ['Overview', ...groups.filter((g) => g.title).map((g) => g.title)];
   const content = (
     <>
         {phone && view === 'list' ? (
@@ -471,7 +474,16 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
             {view === 'list' ? (
               <>
                 <div className="flex items-center gap-2 mb-2.5">
-                  <span className="text-[12px] text-[#6B7380] ml-auto">Group by</span>
+                  {group === 'sub' && (() => {
+                    const titled = groups.filter((g) => g.title);
+                    const all = titled.length > 0 && titled.every((g) => opened.has(g.key));
+                    return (
+                      <button type="button" onClick={() => setOpened(all ? new Set() : new Set(titled.map((g) => g.key)))} className="ml-auto h-[34px] px-3 rounded-[10px] text-[12.5px] font-semibold text-[#3F4753] hover:bg-[#F1EEE8]">
+                        {all ? 'Collapse all' : 'Expand all'}
+                      </button>
+                    );
+                  })()}
+                  <span className={`text-[12px] text-[#6B7380] ${group === 'sub' ? '' : 'ml-auto'}`}>Group by</span>
                   <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Group by">
                     <button type="button" role="radio" aria-checked={group === 'sub'} onClick={() => setGroup('sub')} className={pill(group === 'sub')}>
                       Subcategory
@@ -493,7 +505,6 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
             )}
           </>
         )}
-        {policy && <div data-nv-sec className="mt-8 space-y-4">{policy}</div>}
     </>
   );
 
@@ -534,12 +545,12 @@ export function PriceBookModule({ rows: initial, canEdit, policy }: { rows: Pric
       {body}
       {!phone && shownRow && (
         <div className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving ? 'drawer-out' : 'drawer-in'}`}>
-          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} />
+          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} billing={swBilling} onBilling={setSwBilling} />
         </div>
       )}
       {phone && (
         <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
-          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} bare />}
+          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} billing={swBilling} onBilling={setSwBilling} bare />}
         </SwipeSheet>
       )}
     </div>
@@ -575,7 +586,7 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   ];
 }
 
-function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; bare?: boolean }) {
+function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; bare?: boolean }) {
   const [tab, setTab] = useState<Tab>('pricing');
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -660,6 +671,9 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, bare = false }: { r:
       <div className={`${bare ? 'mt-3' : 'pl-[18px] pr-8 pt-3 pb-6'} [animation:fadeIn_.2s_ease-out] motion-reduce:[animation:none]`} key={tab}>
         <p className="mb-3 text-[12.5px] leading-relaxed text-[#3F4753]">{r.description}</p>
         {err && <p className="mb-3 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
+        {tab === 'pricing' && (r.sku === 'CAPEX-SOFTWARE' || r.sku === 'CAPEX-SOFTWARE-UPFRONT') && (
+          <SoftwareBillingDefault initial={billing} canEdit={canEdit} onSaved={onBilling} />
+        )}
         {tab === 'pricing' && (
           <div className={box}>
             <p className={h4}>Price by market</p>
