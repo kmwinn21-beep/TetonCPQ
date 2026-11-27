@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agreement Access Mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--card:#fff;
+--ins:#1F6B3A;--insBg:#E3F4E8;--del:#B4442C;--delBg:#FBE6E1;--blue:#1F5FB5;--blueBg:#E8F1FD;--amber:#8A5A00;--amberBg:#FFF3D6;--coral:#E8664A;--coralBg:#FDEDE8;--vio:#5B3FA8;--vioBg:#F0EBFB}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:48px 0 4px;letter-spacing:-.2px}
+h3{font-size:15px;margin:0 0 4px}
+.lede{color:var(--ink2);max-width:780px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:840px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:14px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-g{background:var(--insBg);color:var(--ins)}.p-b{background:var(--blueBg);color:var(--blue)}.p-a{background:var(--amberBg);color:var(--amber)}.p-v{background:var(--vioBg);color:var(--vio)}.p-n{background:#F1EEE8;color:var(--ink2)}.p-c{background:var(--coralBg);color:#A63A22}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.sm{height:26px;padding:0 9px;font-size:11.5px;border-radius:7px}
+.btn.r{color:var(--del)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0}
+
+/* D+ explainer */
+.explain{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.phase{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.phase .hd{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.phase .hd .n{width:34px;height:34px;border-radius:10px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800}
+.phase .hd.b .n{background:var(--blue)}
+.phase .bd{padding:14px 16px}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+.steps li{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:8px 0;position:relative;font-size:13px}
+.steps li:not(:last-child)::after{content:'';position:absolute;left:13px;top:34px;bottom:-6px;width:2px;background:var(--line)}
+.steps .i{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:#F1EEE8}
+.steps .i.w{background:var(--blueBg)} .steps .i.t{background:var(--insBg)}
+.steps b{display:block;font-size:13px}
+.steps span{color:var(--ink2);font-size:12.5px}
+.word{display:inline-flex;align-items:center;gap:4px;font:700 10.5px/1 Inter;padding:3px 7px;border-radius:6px;background:var(--blueBg);color:var(--blue);margin-left:4px;vertical-align:1px}
+.web{display:inline-flex;align-items:center;gap:4px;font:700 10.5px/1 Inter;padding:3px 7px;border-radius:6px;background:var(--insBg);color:var(--ins);margin-left:4px;vertical-align:1px}
+.yesno{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-size:12.5px}
+.yesno div{border-radius:10px;padding:9px 11px}
+.yesno .y{background:var(--insBg)} .yesno .no{background:#F4F1EB;color:var(--ink2)}
+.yesno b{display:block;font-size:11px;letter-spacing:.6px;text-transform:uppercase;margin-bottom:3px}
+.analogy{margin-top:14px;background:#fff;border:1px dashed #CFC8BC;border-radius:14px;padding:12px 16px;font-size:13.5px;color:var(--ink2)}
+.analogy b{color:var(--ink)}
+
+/* people */
+.ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.lv{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.lv h4{margin:0 0 4px;font-size:13px}
+.lv p{margin:0;font-size:12px;color:var(--ink2)}
+.lv .ck{margin-top:8px;font-size:12px;display:flex;flex-direction:column;gap:3px}
+.lv .ck span::before{content:'✓ ';color:var(--ins);font-weight:800}
+.lv .ck span.x::before{content:'– ';color:var(--mut)}
+.lv .ck span.x{color:var(--mut)}
+
+.frame{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;display:flex;flex-direction:column}
+.fh{padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.6px;text-transform:uppercase;background:#FBFAF7}
+.fb{padding:14px;display:flex;flex-direction:column;gap:10px;flex:1}
+.ppl{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pp{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:9px 11px;border-top:1px solid var(--line);font-size:12.5px}
+.pp:first-child{border-top:0}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800}
+.av.s{background:#7C5CC4}.av.c{background:#0F6B6E}.av.f{background:#B5762A}.av.r{background:var(--ink)}
+.pp b{display:block;font-size:12.5px}
+.pp small{color:var(--mut);font-size:11px}
+.lvl{font-size:11.5px;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:4px 8px;white-space:nowrap}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+.inp{height:34px;border:1px solid #DCD6CC;border-radius:9px;padding:0 10px;display:flex;align-items:center;font-size:13px;color:var(--ink)}
+.inp.ph{color:var(--mut)}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:grid;grid-template-columns:18px 1fr;gap:9px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px}
+.opt.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.opt .rd{width:16px;height:16px;border-radius:50%;border:2px solid #C9C2B6;margin-top:2px}
+.opt.on .rd{border:5px solid var(--ink)}
+.opt b{display:block}
+.opt small{color:var(--ink2)}
+.warn{background:var(--amberBg);color:#5E3E00;border-radius:10px;padding:9px 11px;font-size:12px}
+.mail{border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:12.5px;background:#FDFCFA}
+.mail .mh{font-size:11px;color:var(--mut);margin-bottom:6px}
+.banner{background:var(--vioBg);border:1px solid #DCD0F5;border-radius:12px;padding:10px 12px;font-size:12.5px;color:#3B2873}
+.banner b{display:block;color:#2C1C5E}
+.tabs{display:flex;gap:2px;background:#F1EEE8;border-radius:10px;padding:3px;width:max-content}
+.tabs span{font-size:12px;font-weight:600;padding:5px 11px;border-radius:8px;color:var(--ink2)}
+.tabs span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tabs span.off{color:#C2BCB2;text-decoration:line-through}
+.act{display:flex;flex-direction:column;gap:7px;font-size:12px}
+.act div{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:start}
+.act small{color:var(--mut);white-space:nowrap}
+.sw{width:34px;height:20px;border-radius:999px;background:var(--ink);position:relative;flex:0 0 34px}
+.sw::after{content:'';position:absolute;top:3px;left:17px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw.off{background:#D5CFC5}.sw.off::after{left:3px}
+.set{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:8px 0;border-top:1px solid var(--line)}
+.set:first-child{border-top:0}
+.set div{flex:1}
+.set small{display:block;color:var(--mut);font-size:11px}
+
+/* matrix */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:16px;margin-top:14px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px}
+th{text-align:left;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FBFAF7}
+th small{display:block;text-transform:none;letter-spacing:0;font-weight:500}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.grp td{background:#FBFAF7;font-size:10.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
+td.c{text-align:center}
+.cell{display:inline-flex;align-items:center;justify-content:center;min-width:76px;height:24px;padding:0 8px;border-radius:7px;font-size:11px;font-weight:700}
+.all{background:var(--ink);color:#fff}.own{background:var(--insBg);color:var(--ins)}.none{background:#F4F1EB;color:#B6B0A6}.tier{background:var(--coralBg);color:#A63A22}
+.lock{background:#2B3440;color:#fff}
+
+.dec{counter-reset:d;list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.dec li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 48px;position:relative;font-size:13px}
+.dec li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:12px;width:22px;height:22px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.dec li b{display:block}
+.dec li span{color:var(--ink2);font-size:12.5px}
+.rc{color:var(--ins);font-weight:700}
+
+@media (max-width:960px){
+  .two,.three,.explain{grid-template-columns:1fr}
+  .ladder{grid-template-columns:1fr 1fr}
+  h1{font-size:24px}
+}
+@media (max-width:520px){.ladder{grid-template-columns:1fr}.yesno{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.sw::after{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Mock · nothing built · follows the redlining mock</p>
+  <h1>Agreement redlines: who can do what</h1>
+  <p class="lede">Three things: what "D+" (the first step) means, how the signatory can bring in their own reviewers, and how Teton's side fits the permission matrix.</p>
+
+  <h2>1 · What "D+" means</h2>
+  <p class="sub">The redlining mock suggested two steps. The difference is <b>where the typing happens</b>. In step 1 (D+), everyone still edits in Word and the deal room handles the rest. In step 2 (A), people can also type their edits straight into the deal room.</p>
+  <div class="explain">
+    <div class="phase">
+      <div class="hd"><span class="n">1</span><div><h3>Step 1 · "D+" = file rounds, with the changes read in</h3><span style="color:var(--ink2);font-size:12.5px">D = upload/download. The + = we read the tracked changes inside the file.</span></div></div>
+      <div class="bd">
+        <ol class="steps">
+          <li><span class="i w">📄</span><div><b>RevOps uploads the draft</b><span>The Word file goes to the Agreement tab.</span> <span class="word">Word</span></div></li>
+          <li><span class="i w">✎</span><div><b>Prospect's counsel downloads it and redlines in Word</b><span>Track Changes, comments: what lawyers already do.</span> <span class="word">Word</span></div></li>
+          <li><span class="i">⤒</span><div><b>They upload the redlined file</b><span>The deal room reads every tracked change and comment out of the file.</span></div></li>
+          <li><span class="i t">✓</span><div><b>Teton reviews each change in the deal room</b><span>Accept, reject, Teton-only notes, approval flags: the review panel from the last mock.</span> <span class="web">In the app</span></div></li>
+          <li><span class="i w">⤓</span><div><b>Download Teton's response</b><span>A Word file with your decisions applied and counters as tracked changes, uploaded as round 3.</span> <span class="word">Word</span></div></li>
+        </ol>
+        <div class="yesno">
+          <div class="y"><b>You get</b>One place for every round, a reviewable list of changes, internal notes, approvals, no lost email attachments.</div>
+          <div class="no"><b>You don't get yet</b>Typing edits in the browser. Counter-wording is written in Word.</div>
+        </div>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="hd b"><span class="n">2</span><div><h3>Step 2 · "A" = redline in the browser too</h3><span style="color:var(--ink2);font-size:12.5px">Everything in step 1, plus a Suggesting mode on the document.</span></div></div>
+      <div class="bd">
+        <ol class="steps">
+          <li><span class="i w">📄</span><div><b>RevOps uploads the draft</b><span>Same as step 1.</span> <span class="word">Word</span></div></li>
+          <li><span class="i t">✎</span><div><b>Prospect types edits right in the Agreement tab</b><span>Like Google Docs' Suggesting mode. Counsel can still use Word and upload instead.</span> <span class="web">In the app</span></div></li>
+          <li><span class="i t">→</span><div><b>"Send redlines to Teton"</b><span>No file needed.</span> <span class="web">In the app</span></div></li>
+          <li><span class="i t">✓</span><div><b>Teton accepts, rejects or types a counter in place</b><span>No round trip to Word for counters.</span> <span class="web">In the app</span></div></li>
+          <li><span class="i w">⤓</span><div><b>Word file on demand</b><span>With tracked changes for counsel, or clean for DocuSign.</span> <span class="word">Word</span></div></li>
+        </ol>
+        <div class="yesno">
+          <div class="y"><b>Adds</b>Faster rounds for people who don't want to touch Word; counters without leaving the app.</div>
+          <div class="no"><b>Costs</b>The biggest build: our own editor, and the formatting limits mentioned before.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="analogy"><b>Analogy:</b> step 1 is a shared mailbox with a smart sorter. Letters (Word files) still get written elsewhere, but every one lands in one place, already sorted into "changes to decide on". Step 2 lets people write the letter at the mailbox. Most of the value (one place, the review list, approvals) comes in step 1.</div>
+
+  <h2>2 · Who on the prospect's side can see and redline</h2>
+  <p class="sub">The signatory always has access. The rep can give access to others, and (if the rep allows it) the signatory can invite their own people: counsel, a CFO, an operations lead. Each person gets one of four levels.</p>
+  <div class="ladder">
+    <div class="lv"><span class="pill p-n">View</span><h4 style="margin-top:8px">Read only</h4><p>e.g. an executive who wants to see it</p><div class="ck"><span>Read and download</span><span class="x">Comment</span><span class="x">Redline</span><span class="x">Send to Teton</span></div></div>
+    <div class="lv"><span class="pill p-b">Comment</span><h4 style="margin-top:8px">Questions, no edits</h4><p>e.g. CFO checking payment terms</p><div class="ck"><span>Read and download</span><span>Comment</span><span class="x">Redline</span><span class="x">Send to Teton</span></div></div>
+    <div class="lv"><span class="pill p-a">Redline</span><h4 style="margin-top:8px">Suggest changes</h4><p>e.g. a paralegal or an operations lead</p><div class="ck"><span>Read and download</span><span>Comment</span><span>Redline / upload Word</span><span class="x">Send to Teton</span></div></div>
+    <div class="lv"><span class="pill p-v">Lead reviewer</span><h4 style="margin-top:8px">Redline and send</h4><p>The signatory, and e.g. outside counsel they name</p><div class="ck"><span>Read and download</span><span>Comment</span><span>Redline / upload Word</span><span>Send redlines to Teton</span></div></div>
+  </div>
+  <p class="cap">Recommended: many people can suggest, but only a Lead reviewer can send a round to Teton. That way the prospect sends one consolidated set of redlines instead of four lawyers sending separately.</p>
+
+  <h2>3 · The signatory invites a reviewer</h2>
+  <div class="three">
+    <div class="frame">
+      <div class="fh">Prospect · Agreement tab · People</div>
+      <div class="fb">
+        <div class="row"><b style="font-size:13.5px">People on this agreement</b><span class="sp"></span><span class="btn sm k">+ Invite a reviewer</span></div>
+        <div class="ppl">
+          <div class="pp"><span class="av s">JO</span><div><b>Jordan Ortiz <span class="pill p-v" style="margin-left:4px">Signatory</span></b><small>COO · Maple Grove</small></div><span class="lvl">Lead reviewer</span></div>
+          <div class="pp"><span class="av c">AS</span><div><b>Alex Smith</b><small>Smith &amp; Lee LLP · invited by Jordan</small></div><span class="lvl">Lead reviewer ▾</span></div>
+          <div class="pp"><span class="av f">PN</span><div><b>Pat Nguyen</b><small>CFO · Maple Grove · invited by Kevin (Teton)</small></div><span class="lvl">Comment ▾</span></div>
+        </div>
+        <p class="cap" style="margin:0">The signatory can change or remove people <i>they</i> invited. The rep can change or remove anyone.</p>
+      </div>
+    </div>
+    <div class="frame">
+      <div class="fh">Invite a reviewer · dialog</div>
+      <div class="fb">
+        <div class="field"><label>Name</label><div class="inp">Alex Smith</div></div>
+        <div class="field"><label>Email</label><div class="inp">asmith@smithlee.law</div></div>
+        <div class="field"><label>Organization or role</label><div class="inp">Outside counsel, Smith &amp; Lee LLP</div></div>
+        <div class="field"><label>What can they do?</label>
+          <div class="opts">
+            <div class="opt"><span class="rd"></span><div><b>Comment</b><small>Read and ask questions</small></div></div>
+            <div class="opt"><span class="rd"></span><div><b>Redline</b><small>Suggest changes; you send them to Teton</small></div></div>
+            <div class="opt on"><span class="rd"></span><div><b>Lead reviewer</b><small>Suggest changes and send them to Teton for you</small></div></div>
+          </div>
+        </div>
+        <div class="warn">⚠ Outside your company's email domain. Teton is notified, and the agreement is the only thing they'll see.</div>
+        <div class="row"><span class="sp"></span><span class="btn sm">Cancel</span><span class="btn sm k">Send invite</span></div>
+      </div>
+    </div>
+    <div class="frame">
+      <div class="fh">What happens next</div>
+      <div class="fb">
+        <div class="mail"><div class="mh">To asmith@smithlee.law · from Teton on behalf of Jordan Ortiz</div><b>Jordan Ortiz asked you to review the Teton agreement for Maple Grove</b><br><span style="color:var(--ink2)">You can suggest changes and send them to Teton. A sign-in code will be emailed to you.</span><br><span class="btn sm k" style="margin-top:8px">Open the agreement</span></div>
+        <div class="act">
+          <div><span>🔔</span><span><b>Kevin (rep)</b> notified: "Jordan invited Alex Smith (Smith &amp; Lee LLP) as Lead reviewer"</span><small>now</small></div>
+          <div><span>🔐</span><span>Alex signs in with an emailed code (as prospects do today)</span><small></small></div>
+          <div><span>📝</span><span>Every change and comment carries Alex's name, and the activity log shows who invited whom</span><small></small></div>
+        </div>
+        <p class="cap" style="margin:0">If the rep turned on "approve invitations", Alex's access waits until Kevin approves it (see section 4).</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="frame">
+      <div class="fh">What an invited reviewer sees</div>
+      <div class="fb">
+        <div class="banner"><b>You're reviewing on behalf of Jordan Ortiz (Maple Grove)</b>Lead reviewer: you can suggest changes and send them to Teton · access until Apr 30</div>
+        <div class="tabs"><span class="off">Proposal</span><span class="off">Resources</span><span class="on">Agreement</span></div>
+        <p class="cap" style="margin:0">Recommended: invited reviewers see <b>only the Agreement tab</b>, not pricing proposals or the deal room. The rep can open more for a specific person.</p>
+      </div>
+    </div>
+    <div class="frame">
+      <div class="fh">Rep · deal page · Agreement access</div>
+      <div class="fb">
+        <div class="set"><div>Signatory can invite reviewers<small>On by default</small></div><span class="sw"></span></div>
+        <div class="set"><div>Invitations need my approval<small>Off: invites work right away and you're notified</small></div><span class="sw off"></span></div>
+        <div class="set"><div>Highest level a signatory can give<small>Lead reviewer</small></div><span class="lvl">Lead reviewer ▾</span></div>
+        <div class="set"><div>Reviewer access ends<small>When the agreement is signed, or on a date</small></div><span class="lvl">On signing ▾</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4 · Teton's side, in the permission matrix</h2>
+  <p class="sub">You said deal owner and admins by default, editable in the permission matrix. One wrinkle: <b>"deal owner" is a relationship, not a role</b>. A rep owns some deals and not others. So each cell in the matrix would say how far the permission reaches: <b>All deals</b>, <b>Own deals</b> (deals they own or collaborate on, your call), or <b>none</b>. Admin is all on and locked, as planned.</p>
+  <div class="tw">
+    <table>
+      <thead>
+        <tr><th>Agreement capability</th><th class="c">Sales rep</th><th class="c">Deal Desk / RevOps</th><th class="c">VP Sales</th><th class="c">CEO</th><th class="c">Admin<small>locked</small></th></tr>
+      </thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">Seeing it</td></tr>
+        <tr><td>View the agreement, its rounds and comments</td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Read and write Teton-only notes</td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr class="grp"><td colspan="6">Working on it</td></tr>
+        <tr><td>Upload a draft or a new round</td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td><b>Accept / reject / counter changes</b></td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Send a round to the prospect</td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Manage the prospect's reviewers</td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr class="grp"><td colspan="6">Approvals (from the approval workflow)</td></tr>
+        <tr><td>Approve a change that crosses a tier 1 rule<br><small style="color:var(--mut)">e.g. term under 36 months</small></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Approve a change that crosses a tier 2 rule<br><small style="color:var(--mut)">e.g. term under 24 months</small></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">Shown with your defaults: deal owner and admins accept changes. Every cell can be changed by an admin; Admin can't be. Even when the rep can accept, a change that crosses a price-book rule still needs that rule's approver before it counts.</p>
+
+  <h2>5 · Decisions</h2>
+  <ol class="dec">
+    <li><b>Can the signatory invite reviewers without the rep approving each one?</b><span><span class="rc">Recommended:</span> yes, with the rep notified and able to remove them (a switch per deal to require approval).</span></li>
+    <li><b>Only Lead reviewers send rounds to Teton?</b><span><span class="rc">Recommended:</span> yes, so Teton gets one consolidated set of redlines per round.</span></li>
+    <li><b>What invited reviewers can see</b><span><span class="rc">Recommended:</span> the Agreement tab only, unless the rep opens more.</span></li>
+    <li><b>"Own deals": owner only, or owner and collaborators?</b><span>Collaborators already exist on deals. Should a collaborating rep be able to accept changes?</span></li>
+    <li><b>Is RevOps the same as Deal Desk?</b><span>There's no RevOps role today. The matrix could rename Deal Desk to RevOps, or add RevOps as its own role.</span></li>
+  </ol>
+</div>
+</body>
+</html>

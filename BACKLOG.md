@@ -43,3 +43,21 @@ Decisions for the team:
 4. Slack: post only, or Approve / Reject from Slack (needs a Teton Slack app)?
 5. Show prospects an "Estimate based on room counts" note until scoped? (Recommended: yes.)
 6. DocuSign now or later? (Recommended: later.)
+
+## 4. Agreement redlines in the deal room (after #3's approval workflow)
+
+Mocks: `docs/mocks/agreement-redlines/` (1 overview, 2 access, 3 deal room views, matrix, finishing). Not started.
+
+**V1: Word file rounds, changes read in.** Everyone edits in Word. Each side uploads its round as a .docx; the system reads the tracked changes and comments out of the file (and finds edits made with Track Changes off by comparing with the previous round) and shows them as a list of changes.
+
+- Agreement tab on the shared link, next to Proposal and Deal room: rounds, people, files, the document, and a "whose turn" status.
+- Rep workspace (full-screen, like the Resources editor): accept / reject each change, Teton-only notes, approval flags on changes that cross a price-book rule, compare rounds, recent activity.
+- Teton's response: download a .docx with the decisions applied; counter-wording is written in Word and uploaded as the next round.
+- Prospect people: signatory always has access; the rep sets, per person, which tabs they see (Proposal / Resources / Agreement) and their agreement level (View, Comment, Redline, Lead reviewer). The signatory can invite reviewers without rep approval (rep notified, can remove anyone); invitees get the Agreement tab by default and the rep decides whether the signatory may give more. Only Lead reviewers send a round to Teton.
+- The signatory or a Lead reviewer can "Accept Teton's changes", which signals the agreement can be marked final.
+- Mark final: blocked until nothing is open, rule-crossing changes are approved, and the deal's active version matches the agreed price, term, pilot and rooms. Makes a clean .docx and locks the tab. "Signed" moves the deal to Won.
+- Permissions (to move into the matrix, #1): deal owner and admins accept / reject / send rounds and manage prospect people; collaborators view and write Teton-only notes only; RevOps (renamed from Deal Desk) uploads rounds; deal owner, RevOps and admins mark final and signed (may change once the matrix exists). Matrix cells have a reach: Own deals, + Collaborating, All deals.
+
+**V2: redline in the browser.** Suggesting mode on the document for prospects, Teton counters typed in place, "Send redlines to Teton" without a file, Word export with real tracked changes. Biggest single build; complex Word formatting may not look exactly the same in the browser.
+
+**V3 (optional): DocuSign.** Send the final from the deal; signed comes back on its own.

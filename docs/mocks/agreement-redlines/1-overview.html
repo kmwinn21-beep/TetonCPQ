@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deal Room Redlines</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--card:#fff;
+--ins:#1F6B3A;--insBg:#E3F4E8;--del:#B4442C;--delBg:#FBE6E1;--blue:#1F5FB5;--blueBg:#E8F1FD;--amber:#8A5A00;--amberBg:#FFF3D6;--coral:#E8664A;--coralBg:#FDEDE8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:48px 0 4px;letter-spacing:-.2px}
+.lede{color:var(--ink2);max-width:780px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:820px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut)}
+.answer{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;max-width:900px}
+.answer .yes{width:40px;height:40px;border-radius:12px;background:var(--ins);color:#fff;display:grid;place-items:center;font-weight:800}
+.answer p{margin:0;color:var(--ink2);font-size:13.5px}
+.answer b{color:var(--ink)}
+
+/* frame */
+.frame{margin-top:14px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#F3F0EA;box-shadow:0 10px 30px rgba(15,23,32,.06)}
+.fbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.logo{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px}
+.logo i{width:18px;height:18px;border-radius:50%;background:var(--ink);display:inline-block}
+.tabs{display:flex;gap:2px;background:#F1EEE8;border-radius:10px;padding:3px;position:relative}
+.tabs span{position:relative;z-index:1;font-size:12.5px;font-weight:600;padding:5px 12px;border-radius:8px;color:var(--ink2);white-space:nowrap}
+.tabs span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--coral);color:#fff;font-size:10px;font-weight:800;margin-left:4px}
+.sp{flex:1}
+.who{font-size:12px;color:var(--ink2)}
+.tool{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.sel{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:600;background:#fff;white-space:nowrap}
+.sel small{color:var(--mut);font-weight:500}
+.seg{display:inline-flex;background:#F1EEE8;border-radius:9px;padding:3px}
+.seg span{font-size:12px;font-weight:700;padding:5px 11px;border-radius:7px;color:var(--ink2);white-space:nowrap}
+.seg span.on{background:var(--ink);color:#fff}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.g{background:var(--ins);color:#fff;border-color:var(--ins)}
+.btn.r{color:var(--del)}
+.btn.sm{height:26px;padding:0 9px;font-size:11.5px;border-radius:7px}
+
+/* document + margin */
+.docarea{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;padding:22px}
+.paper{background:#fff;border-radius:6px;box-shadow:0 2px 12px rgba(15,23,32,.08);padding:44px 52px;font:15px/1.7 'Source Serif 4',Georgia,serif;color:#1d232b}
+.paper h4{font:700 13px/1.3 Inter,sans-serif;letter-spacing:1.4px;text-transform:uppercase;text-align:center;margin:0 0 22px}
+.paper p{margin:0 0 14px}
+.paper .cl{font-weight:600}
+ins{background:var(--insBg);color:var(--ins);text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:2px}
+del{background:var(--delBg);color:var(--del);text-decoration:line-through}
+.mk{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--coral);color:#fff;font:800 9px/1 Inter,sans-serif;vertical-align:3px;margin-left:2px}
+.mk.b{background:var(--blue)}
+.cur{outline:2px solid #3F8CEA;outline-offset:2px;border-radius:2px}
+.typing{border-right:2px solid var(--ins);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{border-color:transparent}}
+@media (prefers-reduced-motion:reduce){.typing{animation:none}}
+.margin{display:flex;flex-direction:column;gap:10px}
+.mc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12.5px}
+.mc.on{border-color:#3F8CEA;box-shadow:0 0 0 3px rgba(63,140,234,.15)}
+.mc .h{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;flex:0 0 22px}
+.av.p{background:#7C5CC4}.av.t{background:var(--ink)}.av.l{background:#0F6B6E}
+.mc .h b{font-size:12px}
+.mc .h small{color:var(--mut);font-size:11px;margin-left:auto;white-space:nowrap}
+.mc .what{color:var(--ink2)}
+.mc .rep{margin-top:7px;padding-top:7px;border-top:1px solid var(--line);display:flex;gap:7px}
+.mc .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px}
+.t-open{background:#F1EEE8;color:var(--ink2)}.t-acc{background:var(--insBg);color:var(--ins)}.t-rej{background:var(--delBg);color:var(--del)}
+.t-int{background:var(--amberBg);color:var(--amber)}.t-appr{background:var(--coralBg);color:#A63A22}
+.foot{display:flex;align-items:center;gap:10px;padding:12px 22px;background:#fff;border-top:1px solid var(--line);flex-wrap:wrap}
+.foot small{color:var(--ink2);font-size:12px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:900px}
+
+/* teton side */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0}
+.split .paper{margin:22px}
+.panel{background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column}
+.ph{padding:14px 16px;border-bottom:1px solid var(--line)}
+.ph h3{margin:0;font-size:15px}
+.prog{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:10px 0 6px;background:#EEE}
+.prog i{display:block}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:11px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.list{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.ci{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12.5px}
+.ci .top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ci .cl{font-weight:700;font-size:12px}
+.ci .diff{margin:6px 0;font:13.5px/1.55 'Source Serif 4',Georgia,serif}
+.note{margin-top:7px;background:var(--amberBg);border-radius:8px;padding:7px 9px;font-size:12px;color:#5E3E00}
+.note b{display:block;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px}
+.pf{margin-top:auto;padding:12px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+
+/* upload */
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:14px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.drop{border:2px dashed #CFC8BC;border-radius:12px;padding:22px 14px;text-align:center;color:var(--ink2);font-size:12.5px}
+.drop .ic{font-size:26px}
+.found{display:flex;flex-direction:column;gap:6px;font-size:12.5px;margin-top:10px}
+.found div{display:flex;gap:8px;align-items:flex-start}
+.found i{font-style:normal;width:20px;text-align:center}
+
+/* pipeline */
+.pipe{display:flex;align-items:stretch;gap:0;margin-top:14px;overflow-x:auto;padding-bottom:4px}
+.pn{flex:1 0 170px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 13px;font-size:12.5px}
+.pn b{display:block;font-size:13px;margin-bottom:3px}
+.pn span{color:var(--ink2)}
+.pn .ftype{display:inline-block;margin-top:6px;font:700 10.5px/1 Inter;padding:4px 7px;border-radius:6px;background:var(--blueBg);color:var(--blue)}
+.arr{flex:0 0 26px;display:grid;place-items:center;color:var(--mut);font-size:18px}
+
+/* options */
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:16px;margin-top:14px;background:#fff}
+th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;min-width:150px}
+tr:last-child td{border-bottom:0}
+tr.rec td{background:#F4FBF6}
+.dots{letter-spacing:2px;font-size:12px}
+.good{color:var(--ins);font-weight:700}.bad{color:var(--del);font-weight:700}
+.ul{margin:6px 0 0;padding-left:18px;color:var(--ink2);font-size:13px}
+.ul li{margin:4px 0}
+.dec{counter-reset:d;list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.dec li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 48px;position:relative;font-size:13px}
+.dec li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:12px;width:22px;height:22px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.dec li b{display:block}
+.dec li span{color:var(--ink2);font-size:12.5px}
+.rc{color:var(--ins);font-weight:700}
+
+@media (max-width:960px){
+  .docarea,.split{grid-template-columns:1fr}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .row3{grid-template-columns:1fr}
+  .paper{padding:26px 20px;font-size:14px}
+  .split .paper{margin:14px}
+  .docarea{padding:14px}
+  h1{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Mock · nothing built</p>
+  <h1>Redlining the agreement in the deal room</h1>
+  <p class="lede">RevOps uploads the Word draft to the deal room. The prospect's team can suggest edits in the browser, or keep working in Word and upload their redlined file. Teton accepts, rejects or counters each change, with internal notes the prospect never sees, and downloads a real Word file with tracked changes at every round.</p>
+
+  <div class="answer">
+    <div class="yes">Yes</div>
+    <p><b>It's doable, with one honest limit.</b> We read the .docx (including any tracked changes and comments already in it), show it as a page in the deal room, and record every edit as a suggestion. At any round we write it back out as a .docx with real Word tracked changes, so RevOps and outside counsel keep working in Word. The limit: complex Word formatting (multi-level auto-numbering, text boxes, fields, unusual headers and footers) may not look exactly like Word in the browser. The Word file stays the official copy, and a typical agreement (clauses, numbered sections, a pricing table) works well.</p>
+  </div>
+
+  <h2>1 · The prospect's view: Agreement tab</h2>
+  <p class="sub">A third tab next to Proposal and Resources, shown once RevOps uploads a draft. The prospect switches to <b>Suggesting</b> and types. Their edits show as insertions and deletions with their name on them, like Word's Track Changes.</p>
+  <div class="frame">
+    <div class="fbar">
+      <span class="logo"><i></i>Teton</span>
+      <span class="who">· Maple Grove Senior Living</span>
+      <span class="sp"></span>
+      <div class="tabs"><span>Proposal</span><span>Resources</span><span class="on">Agreement<span class="badge">2</span></span></div>
+    </div>
+    <div class="tool">
+      <span class="sel">Round 2 · Teton draft <small>· sent Mar 5</small> ▾</span>
+      <div class="seg" role="group" aria-label="Mode"><span>Viewing</span><span class="on">Suggesting</span></div>
+      <span class="sp"></span>
+      <span class="btn">⤒ Upload redlined Word file</span>
+      <span class="btn">⤓ Download .docx</span>
+    </div>
+    <div class="docarea">
+      <div class="paper">
+        <h4>Master Services Agreement</h4>
+        <p><span class="cl">2. Term.</span> The initial term of this Agreement begins on the Effective Date and continues for <del>thirty-six (36)</del> <ins>twenty-four (24)</ins> months <span class="mk">1</span> after the Go-Live Date of the last Community (the "Initial Term"), and renews for successive twelve (12) month terms unless either party gives notice at least sixty (60) days before renewal.</p>
+        <p><span class="cl">4. Fees and Payment.</span> Customer will pay the Fees in Order Form No. 1. Invoices are due within <del>thirty (30)</del> <ins>forty-five (45)</ins> days <span class="mk">2</span> of receipt. Late amounts accrue interest at the lesser of 1.0% per month or the maximum rate allowed by law.</p>
+        <p><span class="cl">5. Pilot.</span> The Pilot runs for three (3) months at the Pilot Rate. <ins class="cur">Customer may end this Agreement without penalty at the end of the Pilot if the Success Criteria in Exhibit B are not met<span class="typing"></span></ins> <span class="mk">3</span></p>
+        <p><span class="cl">9. Limitation of Liability.</span> Except for breaches of confidentiality, neither party's aggregate liability will exceed the Fees paid <span class="mk b">4</span> in the twelve (12) months before the claim.</p>
+      </div>
+      <div class="margin">
+        <div class="mc">
+          <div class="h"><span class="av p">JO</span><b>J. Ortiz</b><small>Mar 7</small></div>
+          <div class="what">Replaced <del>thirty-six (36)</del> with <ins>twenty-four (24)</ins></div>
+          <div class="rep"><span class="av t">KW</span><span>We can talk about this. Can we hold 36 with a price lock? <small style="color:var(--mut)">· Kevin, Mar 7</small></span></div>
+        </div>
+        <div class="mc">
+          <div class="h"><span class="av p">JO</span><b>J. Ortiz</b><small>Mar 7</small></div>
+          <div class="what">Replaced <del>thirty (30)</del> with <ins>forty-five (45)</ins></div>
+          <span class="tag t-acc">✓ Accepted by Teton</span>
+        </div>
+        <div class="mc on">
+          <div class="h"><span class="av p">JO</span><b>J. Ortiz</b><small>now</small></div>
+          <div class="what">Inserted an exit at the end of the pilot</div>
+          <div class="acts"><span class="btn sm">Add a note</span><span class="btn sm r">Undo</span></div>
+        </div>
+        <div class="mc">
+          <div class="h"><span class="av l">SL</span><b>Smith &amp; Lee LLP</b><small>Mar 7</small></div>
+          <div class="what">💬 "Fees paid" should be "Fees paid <i>or payable</i>"?</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <small>3 suggested changes · 1 comment · saved as you type</small>
+      <span class="sp"></span>
+      <span class="btn k">Send redlines to Teton →</span>
+    </div>
+  </div>
+  <p class="cap">The prospect can't accept their own changes. Only Teton can. Sending notifies the rep and moves the deal's agreement tracker to "Redlines back". Their counsel can be invited by email with the same verified link you use today.</p>
+
+  <h2>2 · Teton's view: review every change</h2>
+  <p class="sub">The same document, opened from the deal page. A changes panel goes through each edit with Accept, Reject or Counter. <b>Teton-only notes</b> are where the rep and leadership discuss a change without the prospect seeing it. Changes that cross a price-book rule (like a shorter term) are flagged for the approver.</p>
+  <div class="frame">
+    <div class="fbar">
+      <span class="logo"><i></i>Teton CPQ</span>
+      <span class="who">· Maple Grove · Agreement · Round 2 redlines</span>
+      <span class="sp"></span>
+      <span class="btn sm">Compare rounds</span>
+      <span class="btn sm">⤓ .docx with tracked changes</span>
+    </div>
+    <div class="split">
+      <div class="paper">
+        <h4>Master Services Agreement</h4>
+        <p><span class="cl">2. Term.</span> … continues for <del>thirty-six (36)</del> <ins class="cur">twenty-four (24)</ins> months <span class="mk">1</span> after the Go-Live Date of the last Community …</p>
+        <p><span class="cl">4. Fees and Payment.</span> … Invoices are due within forty-five (45) days of receipt. …</p>
+        <p><span class="cl">5. Pilot.</span> The Pilot runs for three (3) months at the Pilot Rate. <ins>Customer may end this Agreement without penalty at the end of the Pilot if the Success Criteria in Exhibit B are not met.</ins> <span class="mk">3</span></p>
+        <p><span class="cl">9. Limitation of Liability.</span> … neither party's aggregate liability will exceed the Fees paid <ins>or payable</ins> <span class="mk">4</span> in the twelve (12) months before the claim.</p>
+      </div>
+      <div class="panel">
+        <div class="ph">
+          <h3>Round 2 · 5 changes</h3>
+          <div class="prog"><i style="width:40%;background:var(--ins)"></i><i style="width:20%;background:var(--del)"></i><i style="width:40%;background:#D9D3C8"></i></div>
+          <small style="color:var(--ink2)">2 accepted · 1 rejected · 2 open</small>
+          <div class="chips"><span class="chip on">Open 2</span><span class="chip">Needs leadership 1</span><span class="chip">All 5</span></div>
+        </div>
+        <div class="list">
+          <div class="ci" style="border-color:#3F8CEA;box-shadow:0 0 0 3px rgba(63,140,234,.12)">
+            <div class="top"><span class="cl">§2 Term</span><span class="tag t-appr">◆ Below 36 months → VP Sales</span></div>
+            <div class="diff"><del>thirty-six (36)</del> <ins>twenty-four (24)</ins></div>
+            <div class="note"><b>🔒 Teton only</b>Sarah (VP Sales): OK with 24 only if they take the 140-room scope. Counter with 36 + price lock.</div>
+            <div class="acts" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><span class="btn sm g">Accept</span><span class="btn sm r">Reject</span><span class="btn sm k">Counter…</span><span class="btn sm">Note</span></div>
+          </div>
+          <div class="ci">
+            <div class="top"><span class="cl">§5 Pilot exit</span><span class="tag t-open">Open</span></div>
+            <div class="diff"><ins>Customer may end this Agreement without penalty at the end of the Pilot…</ins></div>
+            <div class="acts" style="display:flex;gap:6px;flex-wrap:wrap"><span class="btn sm g">Accept</span><span class="btn sm r">Reject</span><span class="btn sm k">Counter…</span><span class="btn sm">Note</span></div>
+          </div>
+          <div class="ci">
+            <div class="top"><span class="cl">§9 Liability</span><span class="tag t-acc">✓ Accepted · Kevin</span></div>
+            <div class="diff">Fees paid <ins>or payable</ins></div>
+          </div>
+          <div class="ci">
+            <div class="top"><span class="cl">§4 Payment</span><span class="tag t-acc">✓ Accepted · Kevin</span></div>
+          </div>
+          <div class="ci">
+            <div class="top"><span class="cl">§11 Governing law</span><span class="tag t-rej">✕ Rejected · Dana</span></div>
+            <div class="diff"><del>Delaware</del> <ins>Ohio</ins></div>
+          </div>
+        </div>
+        <div class="pf">
+          <span class="btn k" style="justify-content:center">Send round 3 to Maple Grove →</span>
+          <small style="color:var(--ink2);font-size:11.5px;text-align:center">Open changes and counters go as suggestions. Teton-only notes never leave.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap"><b>Counter</b> is Teton's own suggestion on top of theirs (for example "thirty-six (36) months, with Fees fixed for the Initial Term"). It shows to the prospect in round 3 as a Teton change.</p>
+
+  <h2>3 · When their lawyer stays in Word</h2>
+  <p class="sub">Many outside counsel will only work in Word. That's fine: both sides can upload a redlined .docx at any time. Its tracked changes and comments become the same reviewable suggestions.</p>
+  <div class="row3">
+    <div class="box">
+      <p class="eb" style="margin:0 0 8px">Upload</p>
+      <div class="drop"><div class="ic">📄</div><b>MSA_MapleGrove_SLredline.docx</b><br>drop a Word file, or tap to choose</div>
+      <div class="found">
+        <div><i>✓</i>Matched to Round 2 · Teton draft</div>
+        <div><i>±</i><span><b>9 tracked changes</b> from Smith &amp; Lee LLP</span></div>
+        <div><i>💬</i><span><b>4 comments</b></span></div>
+        <div><i>⚠</i><span>2 edits made <u>without</u> Track Changes on, found by comparing with Round 2 and added as suggestions</span></div>
+      </div>
+    </div>
+    <div class="box">
+      <p class="eb" style="margin:0 0 8px">Rounds</p>
+      <div class="found" style="margin-top:0;gap:10px">
+        <div><i>1</i><span><b>Teton draft</b> · RevOps upload · Mar 5</span></div>
+        <div><i>2</i><span><b>Prospect redlines</b> · 5 in browser + Word upload · Mar 7</span></div>
+        <div><i>3</i><span><b>Teton response</b> · 2 counters · Mar 9</span></div>
+        <div><i>✓</i><span><b>Final</b> · all changes resolved → clean .docx for DocuSign</span></div>
+      </div>
+      <p class="cap" style="margin:10px 0 0">Every round is kept. Compare any two rounds side by side.</p>
+    </div>
+    <div class="box">
+      <p class="eb" style="margin:0 0 8px">Downloads, any round</p>
+      <div class="found" style="margin-top:0;gap:10px">
+        <div><i>±</i><span><b>With tracked changes</b>: opens in Word with every change and comment, ready for counsel</span></div>
+        <div><i>▢</i><span><b>Clean</b>: changes applied, for the executable and DocuSign</span></div>
+        <div><i>🔒</i><span>Teton-only notes are never in a download the prospect can get</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4 · How it works under the hood</h2>
+  <div class="pipe">
+    <div class="pn"><b>Upload .docx</b><span>RevOps' draft or the prospect's redlined copy</span><br><span class="ftype">.docx</span></div>
+    <div class="arr">→</div>
+    <div class="pn"><b>Read it</b><span>Text, headings, numbering, tables, plus existing tracked changes and comments</span></div>
+    <div class="arr">→</div>
+    <div class="pn"><b>Redline in the browser</b><span>Suggest mode; each insert or delete stored with who and when</span></div>
+    <div class="arr">→</div>
+    <div class="pn"><b>Review</b><span>Accept, reject, counter, Teton-only notes, approval flags</span></div>
+    <div class="arr">→</div>
+    <div class="pn"><b>Write .docx</b><span>Real Word tracked changes and comments, or clean</span><br><span class="ftype">.docx</span></div>
+  </div>
+
+  <h2>5 · Ways to build it</h2>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Approach</th><th>Looks like Word</th><th>Prospect experience</th><th>Effort</th><th>Running cost</th><th>Catch</th></tr></thead>
+      <tbody>
+        <tr class="rec"><td><b>A · Built into the deal room</b> <span class="tag t-acc">Recommended</span><br><small style="color:var(--ink2)">Open-source .docx reading and writing, our own suggest-mode editor</small></td><td class="dots">●●●○</td><td><span class="good">Same link, same login</span>; matches the deal room</td><td>Large (biggest single build after approvals)</td><td>None beyond storage</td><td>Complex formatting can drift; we own the editor</td></tr>
+        <tr><td><b>B · Licensed document editor</b><br><small style="color:var(--ink2)">A commercial Word-compatible editor component dropped into the page</small></td><td class="dots">●●●●</td><td>Same link; editor looks like Word, not like the deal room</td><td>Medium</td><td><span class="bad">License fee</span> (often thousands a year)</td><td>Vendor lock-in; some need their own server</td></tr>
+        <tr><td><b>C · Microsoft Word for the web</b><br><small style="color:var(--ink2)">Open the file in Word Online from the deal room</small></td><td class="dots">●●●●</td><td><span class="bad">Prospect needs a Microsoft account</span> or an anonymous edit link</td><td>Medium</td><td>Microsoft 365 business plan</td><td>Files live in Teton's OneDrive/SharePoint; harder to track and gate</td></tr>
+        <tr><td><b>D · Upload/download only</b><br><small style="color:var(--ink2)">Each round is a file; comments per round</small></td><td class="dots">●●●●</td><td>Download, edit in Word, upload</td><td>Small</td><td>None</td><td>No in-browser redlining; does give one place for every round</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul class="ul">
+    <li><b>Recommendation:</b> start with <b>D plus reading tracked changes</b> (upload any round, see its changes and comments in the deal room, accept or reject, Teton-only notes, download). That covers counsel who stay in Word and gets the review flow working. Then add <b>in-browser suggesting (A)</b> as the second step.</li>
+    <li>If browser editing has to look exactly like Word from day one, B is the shortcut, and worth pricing out before we commit.</li>
+    <li>This plugs into the agreement tracker in the deal flow mock (backlog #3): rounds are the tracker's steps, and a §-change that crosses a price-book rule raises an approval.</li>
+  </ul>
+
+  <h2>6 · Decisions</h2>
+  <ol class="dec">
+    <li><b>Who can see the Agreement tab?</b><span><span class="rc">Recommended:</span> only people on the share link that the rep marks as "can review the agreement" (signer and counsel), not everyone on the deal room.</span></li>
+    <li><b>Who can accept changes on Teton's side?</b><span><span class="rc">Recommended:</span> rep for wording and payment terms; anything that crosses a price-book rule needs its approver (ties to the approval workflow).</span></li>
+    <li><b>Is the deal room the official record, or the Word file?</b><span><span class="rc">Recommended:</span> the Word file RevOps downloads is official; the deal room is where the back-and-forth happens.</span></li>
+    <li><b>Phase 1 scope:</b> upload rounds with tracked changes read in (D+), or wait for browser editing (A)?<span> <span class="rc">Recommended:</span> D+ first.</span></li>
+  </ol>
+</div>
+</body>
+</html>

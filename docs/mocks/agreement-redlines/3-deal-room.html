@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agreement Redlines v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--card:#fff;
+--ins:#1F6B3A;--insBg:#E3F4E8;--del:#B4442C;--delBg:#FBE6E1;--blue:#1F5FB5;--blueBg:#E8F1FD;--amber:#8A5A00;--amberBg:#FFF3D6;--coral:#E8664A;--coralBg:#FDEDE8;--vio:#5B3FA8;--vioBg:#F0EBFB}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:48px 0 4px;letter-spacing:-.2px}
+h3{font-size:15px;margin:0 0 4px}
+.lede{color:var(--ink2);max-width:800px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:840px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:900px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-g{background:var(--insBg);color:var(--ins)}.p-b{background:var(--blueBg);color:var(--blue)}.p-a{background:var(--amberBg);color:var(--amber)}.p-v{background:var(--vioBg);color:var(--vio)}.p-n{background:#F1EEE8;color:var(--ink2)}.p-c{background:var(--coralBg);color:#A63A22}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.g{background:var(--ins);color:#fff;border-color:var(--ins)}
+.btn.sm{height:26px;padding:0 9px;font-size:11.5px;border-radius:7px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+
+/* decided strip */
+.decided{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}
+.dd{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--ink2)}
+.dd b{display:block;color:var(--ink);font-size:12.5px;margin-bottom:2px}
+.dd b::before{content:'✓ ';color:var(--ins)}
+
+.frame{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;display:flex;flex-direction:column;margin-top:14px}
+.fh{padding:10px 14px;border-bottom:1px solid var(--line);font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.6px;text-transform:uppercase;background:#FBFAF7;display:flex;align-items:center;gap:8px}
+.fb{padding:16px}
+
+/* access table */
+.acc{width:100%;border-collapse:collapse;font-size:12.5px}
+.acc th{text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);font-weight:800;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.acc td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.acc tr:last-child td{border-bottom:0}
+.acc td.c,.acc th.c{text-align:center}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;flex:0 0 30px}
+.av.s{background:#7C5CC4}.av.c{background:#0F6B6E}.av.f{background:#B5762A}.av.o{background:#3F6FB5}
+.person{display:flex;gap:10px;align-items:center}
+.person b{display:block;font-size:12.5px}
+.person small{color:var(--mut);font-size:11px}
+.tg{display:inline-flex;align-items:center;justify-content:center;width:34px;height:20px;border-radius:999px;background:#D5CFC5;position:relative}
+.tg::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.tg.on{background:var(--ink)}.tg.on::after{transform:translateX(14px)}
+.tg.lock{background:#2B3440;opacity:.55}.tg.lock::after{transform:translateX(14px)}
+@media (prefers-reduced-motion:reduce){.tg::after{transition:none}}
+.lvl{font-size:11.5px;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:4px 8px;white-space:nowrap;display:inline-block}
+.lvl.off{color:#C2BCB2}
+.newrow td{background:#FBF8FF}
+.defaults{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.dbox{border:1px solid var(--line);border-radius:12px;padding:12px}
+.dbox h4{margin:0 0 8px;font-size:13px}
+.chk{display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 0}
+.cb{width:16px;height:16px;border-radius:4px;border:2px solid #C9C2B6;display:grid;place-items:center;font-size:10px;color:#fff;flex:0 0 16px}
+.cb.on{background:var(--ink);border-color:var(--ink)}
+.req{font-size:11.5px;color:var(--mut);margin-left:auto}
+.tw{overflow-x:auto}
+
+/* matrix */
+.mtx{width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px}
+.mtx th{text-align:left;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--mut);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FBFAF7}
+.mtx th small{display:block;text-transform:none;letter-spacing:0;font-weight:500}
+.mtx td{padding:9px 12px;border-bottom:1px solid var(--line)}
+.mtx td.c,.mtx th.c{text-align:center}
+.mtx tr.grp td{background:#FBFAF7;font-size:10.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--mut)}
+.cell{display:inline-flex;align-items:center;justify-content:center;min-width:86px;height:24px;padding:0 8px;border-radius:7px;font-size:11px;font-weight:700}
+.all{background:var(--ink);color:#fff}.own{background:var(--insBg);color:var(--ins)}.collab{background:var(--blueBg);color:var(--blue)}.none{background:#F4F1EB;color:#B6B0A6}.tier{background:var(--coralBg);color:#A63A22}.lock{background:#2B3440;color:#fff}
+.scope{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.scope div{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--ink2)}
+.scope b{display:block;margin-bottom:3px}
+
+/* compare */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--line)}
+.cmp > div{padding:18px 22px;font:14.5px/1.7 'Source Serif 4',Georgia,serif;color:#1d232b}
+.cmp > div + div{border-left:1px solid var(--line)}
+.cmp .lab{font:800 10px/1 Inter,sans-serif;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:10px}
+.cmp p{margin:0 0 12px}
+.cl{font-weight:600}
+ins{background:var(--insBg);color:var(--ins);text-decoration:underline;text-underline-offset:2px}
+del{background:var(--delBg);color:var(--del);text-decoration:line-through}
+.res{display:inline-flex;font:700 10px/1 Inter,sans-serif;padding:3px 6px;border-radius:5px;margin-left:4px;vertical-align:2px}
+.res.a{background:var(--insBg);color:var(--ins)}.res.r{background:var(--delBg);color:var(--del)}.res.k{background:var(--blueBg);color:var(--blue)}.res.o{background:#F1EEE8;color:var(--ink2)}
+.seg{display:inline-flex;background:#F1EEE8;border-radius:9px;padding:3px;text-transform:none;letter-spacing:0}
+.seg span{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:7px;color:var(--ink2)}
+.seg span.on{background:var(--ink);color:#fff}
+
+/* finish */
+.track{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin-top:14px;position:relative}
+.ts{position:relative;padding:0 8px;text-align:center;font-size:12px}
+.ts .dot{width:30px;height:30px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;font-weight:800;font-size:12px;background:#fff;border:2px solid var(--line);color:var(--mut);position:relative;z-index:1}
+.ts.d .dot{background:var(--ins);border-color:var(--ins);color:#fff}
+.ts.c .dot{background:var(--coral);border-color:var(--coral);color:#fff}
+.ts:not(:last-child)::after{content:'';position:absolute;top:15px;left:calc(50% + 15px);right:calc(-50% + 15px);height:2px;background:var(--line)}
+.ts.d:not(:last-child)::after{background:var(--ins)}
+.ts b{display:block;font-size:12px}
+.ts small{color:var(--mut);font-size:11px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
+.checklist{display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+.checklist div{display:flex;gap:8px;align-items:flex-start}
+.checklist i{font-style:normal;width:18px;text-align:center;flex:0 0 18px}
+.gate{background:var(--coralBg);border:1px solid #F2B6A6;border-radius:12px;padding:10px 12px;font-size:12.5px;color:#7A2A17;margin-top:10px}
+
+/* plan */
+.phases{display:grid;gap:12px;margin-top:14px}
+.ph{display:grid;grid-template-columns:52px 1fr 200px;gap:16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.ph .n{width:42px;height:42px;border-radius:12px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;font-size:17px}
+.ph.b .n{background:var(--blue)}
+.ph h3{margin:2px 0 4px}
+.ph p{margin:0;color:var(--ink2);font-size:13px}
+.ph ul{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink2)}
+.ph li{margin:2px 0}
+.meta{font-size:12px;color:var(--ink2);display:flex;flex-direction:column;gap:6px}
+.meta b{color:var(--ink)}
+.size{display:inline-flex;gap:3px;vertical-align:middle}
+.size i{width:14px;height:6px;border-radius:3px;background:#E7E2D9}
+.size i.on{background:var(--ink)}
+.dec{counter-reset:d;list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.dec li{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 48px;position:relative;font-size:13px}
+.dec li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:12px;width:22px;height:22px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.dec li b{display:block}
+.dec li span{color:var(--ink2);font-size:12.5px}
+.rc{color:var(--ins);font-weight:700}
+
+
+/* deal room frames */
+.dr{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#F7F4EE;margin-top:14px;box-shadow:0 10px 30px rgba(15,23,32,.06)}
+.dr-top{display:flex;align-items:center;gap:14px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dr-logo{font-weight:800;font-size:17px;display:flex;align-items:center;gap:7px}
+.dr-logo i{width:20px;height:20px;border-radius:50%;background:var(--ink);display:inline-block}
+.dr-tabs{display:flex;gap:2px;background:#F1EEE8;border-radius:11px;padding:3px}
+.dr-tabs > span{font-size:13px;font-weight:600;padding:6px 13px;border-radius:9px;color:var(--ink2);white-space:nowrap}
+.dr-tabs > span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.dr-b{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#3F8CEA;color:#fff;font-size:10px;font-weight:800;margin-left:5px}
+.dr-b.c{background:var(--coral)}
+.dr-me{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:7px}
+.dr-me .av{width:26px;height:26px;font-size:10px;flex:0 0 26px}
+.dr-dark{display:flex;align-items:center;gap:12px;padding:12px 18px;background:#14191F;color:#fff;flex-wrap:wrap}
+.dr-dark b{font-size:15px}
+.dr-dark small{display:block;color:#9AA3AE;font-size:12px}
+.dr-dark .btn{background:transparent;color:#fff;border-color:#3A434E}
+.dr-dark .btn.w{background:#fff;color:var(--ink);border-color:#fff}
+.dr-body{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:560px}
+.dr-rail{padding:16px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:8px;background:#F7F4EE}
+.dr-rail .eb{margin:8px 4px 2px}
+.dr-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:start;font-size:12px}
+.dr-card.on{border:2px solid var(--ink);padding:9px 11px}
+.dr-card .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:14px;background:#F1EEE8}
+.dr-card b{display:block;font-size:12.5px}
+.dr-card small{display:block;color:var(--ink2);font-size:11.5px}
+.dr-card .seen{color:var(--ins);font-weight:600;font-size:11px;margin-top:3px;display:block}
+.dr-card .dots{color:var(--mut)}
+.dr-add{border:1.5px dashed #CFC8BC;border-radius:12px;padding:10px;text-align:center;font-size:12px;font-weight:600;color:var(--ink2)}
+.dr-main{padding:22px 26px;min-width:0}
+.dr-main h2{margin:4px 0 4px;font-size:22px}
+.dr-eb{font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--coral)}
+.dr-status{border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0 16px}
+.dr-status.turn{background:#fff;border:1px solid var(--line);box-shadow:inset 4px 0 0 var(--coral)}
+.dr-status.wait{background:#fff;border:1px solid var(--line);box-shadow:inset 4px 0 0 #3F8CEA}
+.dr-status div{flex:1;min-width:220px;font-size:12.5px;color:var(--ink2)}
+.dr-status div b{display:block;color:var(--ink);font-size:13.5px}
+.dr-doc{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px}
+.dr-paper{background:#fff;border-radius:6px;box-shadow:0 2px 10px rgba(15,23,32,.08);padding:28px 32px;font:14px/1.7 'Source Serif 4',Georgia,serif;color:#1d232b}
+.dr-paper h4{font:700 12px/1.3 Inter,sans-serif;letter-spacing:1.4px;text-transform:uppercase;text-align:center;margin:0 0 16px}
+.dr-paper p{margin:0 0 12px}
+.mk{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--coral);color:#fff;font:800 9px/1 Inter,sans-serif;vertical-align:3px;margin-left:2px}
+.mk.t{background:var(--ink)}
+.dr-side{display:flex;flex-direction:column;gap:8px}
+.dr-mc{background:#fff;border:1px solid var(--line);border-radius:11px;padding:9px 11px;font-size:12px}
+.dr-mc .h{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.dr-mc .h .av{width:20px;height:20px;font-size:9px;flex:0 0 20px}
+.dr-mc .h small{margin-left:auto;color:var(--mut);font-size:10.5px}
+.dr-mc .w{color:var(--ink2)}
+.dr-mc.int{background:var(--amberBg);border-color:#F3DFAE}
+.dr-mc .acts{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.av.t{background:var(--ink)}.av.l{background:#0F6B6E}
+.dr-act{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.dr-act div{display:flex;gap:7px}
+.dr-act small{margin-left:auto;color:var(--mut);white-space:nowrap}
+/* phone */
+.phonewrap{display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start;margin-top:14px}
+.phone{width:320px;max-width:100%;border:10px solid #14191F;border-radius:36px;background:#F7F4EE;overflow:hidden}
+.phone .pt{background:#fff;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.phone .dr-tabs > span{font-size:11.5px;padding:5px 9px}
+.phone .pb{padding:12px;display:flex;flex-direction:column;gap:9px}
+.phone .dr-status{margin:0;padding:10px 12px}
+.phone .dr-paper{padding:16px;font-size:13px}
+.phone .chips{display:flex;gap:6px;overflow-x:auto}
+.phone .chips span{flex:0 0 auto;font-size:11px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 9px}
+.phone .chips span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.phone .bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:6px}
+.notes{display:flex;flex-direction:column;gap:10px}
+.notes .box{padding:12px 14px;font-size:12.5px;color:var(--ink2)}
+.notes .box b{color:var(--ink);display:block;margin-bottom:2px}
+@media (max-width:960px){
+  .dr-body{grid-template-columns:1fr}.dr-rail{border-right:0;border-bottom:1px solid var(--line)}
+  .dr-doc{grid-template-columns:1fr}.dr-main{padding:16px}.dr-paper{padding:18px}
+  .phonewrap{grid-template-columns:1fr;justify-items:center}
+}
+
+@media (max-width:960px){
+  .decided{grid-template-columns:1fr 1fr}
+  .defaults,.two,.scope{grid-template-columns:1fr}
+  .cmp{grid-template-columns:1fr}.cmp > div + div{border-left:0;border-top:1px solid var(--line)}
+  .track{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:18px}
+  .ts:nth-child(3)::after{display:none}
+  .ph{grid-template-columns:42px 1fr}.ph .meta{grid-column:2}.ph .n{width:36px;height:36px;font-size:15px}
+  h1{font-size:24px}
+}
+@media (max-width:520px){.decided{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Mock · nothing built · round 3 of the redlining mocks</p>
+  <h1>Agreement redlines: access, rounds and finishing</h1>
+  <p class="lede">How it looks in the deal room for the prospect and the rep, your decisions applied, and what's still needed to cover an agreement from first draft to DocuSign: per-person access in the Share dialog, the updated permission matrix, comparing rounds, finishing the agreement, and a build plan.</p>
+
+  <div class="decided">
+    <div class="dd"><b>Signatory invites freely</b>Rep is notified and can remove anyone</div>
+    <div class="dd"><b>Lead reviewers send rounds</b>One set of redlines per round</div>
+    <div class="dd"><b>Rep decides what each person sees</b>Proposal, resources, agreement, per person</div>
+    <div class="dd"><b>Collaborators can't accept</b>Deal owner and admins only</div>
+    <div class="dd"><b>RevOps = Deal Desk</b>One role, renamed RevOps</div>
+  </div>
+
+
+  <h2>1 · In the deal room: the prospect's view</h2>
+  <p class="sub">"Agreement" becomes a third tab next to Proposal and Deal room, for the people the rep gives it to. It uses the deal room's layout: rounds, people and files in the left rail, the document on the right. The status line at the top always says <b>whose turn it is</b>.</p>
+  <div class="dr">
+    <div class="dr-top">
+      <span class="dr-logo"><i></i>Teton</span>
+      <div class="dr-tabs"><span>Proposal</span><span>Deal room</span><span class="on">Agreement<span class="dr-b c">3</span></span></div>
+      <span class="sp"></span>
+      <span class="btn sm">💬 Comments</span>
+      <span class="dr-me"><span class="av s">JO</span>jordan.ortiz@maplegrovesl.com</span>
+    </div>
+    <div class="dr-body">
+      <div class="dr-rail">
+        <p class="eb">Rounds</p>
+        <div class="dr-card on"><span class="ic">↩</span><div><b>Round 3 · Teton's response</b><small>Kevin Winn · Mar 9</small><span class="seen">New · 3 changes from Teton</span></div><span class="dots">⋯</span></div>
+        <div class="dr-card"><span class="ic">✎</span><div><b>Round 2 · Your redlines</b><small>Sent by Alex Smith · Mar 7 · 5 changes</small></div><span class="dots">⋯</span></div>
+        <div class="dr-card"><span class="ic">📄</span><div><b>Round 1 · Teton draft</b><small>Mar 5 · Master Services Agreement</small></div><span class="dots">⋯</span></div>
+        <p class="eb">People</p>
+        <div class="dr-card"><span class="ic">👥</span><div><b>4 people on this agreement</b><small>You, Alex Smith (counsel), Pat Nguyen, Kevin (Teton)</small></div><span class="btn sm">Invite</span></div>
+        <p class="eb">Files</p>
+        <div class="dr-card"><span class="ic">⤓</span><div><b>Download round 3</b><small>.docx with tracked changes · or clean</small></div><span></span></div>
+        <div class="dr-add">⤒ Upload a redlined Word file</div>
+      </div>
+      <div class="dr-main">
+        <span class="dr-eb">Agreement · Maple Grove Senior Living</span>
+        <h2>Master Services Agreement</h2>
+        <div class="dr-status turn">
+          <div><b>Your turn: Teton responded to your redlines</b>1 accepted · 2 countered · 1 rejected. Accept Teton's changes, or suggest more and send them back.</div>
+          <span class="btn">Suggest changes</span><span class="btn k">Accept Teton's changes</span>
+        </div>
+        <div class="dr-doc">
+          <div class="dr-paper">
+            <h4>Master Services Agreement</h4>
+            <p><b>2. Term.</b> … continues for <del>twenty-four (24)</del> <ins>thirty-six (36)</ins> months<ins>, with Fees fixed for the Initial Term</ins> <span class="mk t">1</span> after the Go-Live Date …</p>
+            <p><b>4. Fees and Payment.</b> … Invoices are due within forty-five (45) days of receipt. …</p>
+            <p><b>5. Pilot.</b> … Customer may end this Agreement without penalty at the end of the Pilot if the Success Criteria are not met<ins>, with 30 days' notice</ins> <span class="mk t">2</span>.</p>
+            <p><b>11. Governing law.</b> … the laws of <del>Ohio</del> <ins>Delaware</ins> <span class="mk t">3</span>.</p>
+          </div>
+          <div class="dr-side">
+            <div class="dr-mc"><div class="h"><span class="av t">KW</span><b>Kevin · Teton</b><small>Countered</small></div><div class="w">"We can't do 24, but we'll lock your price for all 36 months."</div></div>
+            <div class="dr-mc"><div class="h"><span class="av t">KW</span><b>Kevin · Teton</b><small>Countered</small></div><div class="w">Kept your pilot exit; added 30 days' notice.</div></div>
+            <div class="dr-mc"><div class="h"><span class="av t">KW</span><b>Kevin · Teton</b><small>Rejected</small></div><div class="w">"We need Delaware across all our customer agreements."</div><div class="acts"><span class="btn sm">Reply</span></div></div>
+            <div class="dr-mc"><div class="h"><span class="av l">AS</span><b>Alex Smith</b><small>Mar 7</small></div><div class="w">✓ §4 payment: accepted by Teton</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">The prospect only ever sees Teton's replies and decisions, never Teton-only notes. "Accept Teton's changes" (signatory or a Lead reviewer) tells RevOps the agreement can be marked final.</p>
+
+  <h3 style="margin-top:26px">On a phone</h3>
+  <div class="phonewrap">
+    <div class="phone">
+      <div class="pt">
+        <div class="row"><span class="dr-logo" style="font-size:15px"><i></i>Teton</span><span class="sp"></span><span class="dr-me"><span class="av s">JO</span></span></div>
+        <div class="dr-tabs"><span>Proposal</span><span>Deal room</span><span class="on">Agreement<span class="dr-b c">3</span></span></div>
+      </div>
+      <div class="pb">
+        <div class="chips"><span class="on">Round 3 · Teton</span><span>Round 2 · yours</span><span>Round 1</span><span>People 4</span><span>Files</span></div>
+        <div class="dr-status turn"><div style="min-width:0"><b>Your turn</b>Teton accepted 1, countered 2, rejected 1.</div></div>
+        <div class="dr-paper">
+          <p><b>2. Term.</b> … for <del>twenty-four (24)</del> <ins>thirty-six (36)</ins> months<ins>, with Fees fixed for the Initial Term</ins> <span class="mk t">1</span></p>
+          <div class="dr-mc" style="font-family:Inter,sans-serif"><div class="h"><span class="av t">KW</span><b>Kevin · Teton</b><small>Countered</small></div><div class="w">"We'll lock your price for all 36 months."</div></div>
+        </div>
+      </div>
+      <div class="bar"><span class="btn sm" style="flex:1;justify-content:center">Suggest</span><span class="btn sm k" style="flex:1.4;justify-content:center">Accept Teton's changes</span></div>
+    </div>
+    <div class="notes">
+      <div class="box"><b>Rail becomes chips</b>Rounds, People and Files sit in a row the person can swipe, like the deal room on a phone today.</div>
+      <div class="box"><b>Notes sit under their paragraph</b>Each Teton reply shows right below the change it's about, instead of in a margin.</div>
+      <div class="box"><b>Actions stay at the bottom</b>Accept and Suggest are always one tap away. Uploading a Word file is in Files.</div>
+      <div class="box"><b>Before step 2 ("A")</b>"Suggest changes" opens the upload: download the .docx, redline in Word, upload. Step 2 makes it type-in-place.</div>
+    </div>
+  </div>
+
+  <h2>2 · In the deal room: the rep's workspace</h2>
+  <p class="sub">The rep opens the agreement the same way they edit Resources today: a full-screen editor with a dark header, <b>Preview as prospect</b>, <b>Activity</b> and <b>Done</b>. The rail shows rounds with who has opened them, the people and their access, and an upload slot for RevOps. The main area is the review panel from the earlier mock.</p>
+  <div class="dr">
+    <div class="dr-dark">
+      <div><b>Agreement</b><small>Maple Grove Senior Living · on the shared link</small></div>
+      <span class="sp"></span>
+      <span class="btn sm">👁 Preview as prospect</span>
+      <span class="btn sm">Activity</span>
+      <span class="btn sm">⤓ .docx</span>
+      <span class="btn sm w">Done</span>
+    </div>
+    <div class="dr-body">
+      <div class="dr-rail">
+        <p class="eb">Rounds</p>
+        <div class="dr-card on"><span class="ic">✎</span><div><b>Round 2 · Prospect redlines</b><small>Alex Smith · Mar 7 · 5 changes</small><span class="seen" style="color:#A63A22">Your turn · 2 open</span></div><span class="dots">⋯</span></div>
+        <div class="dr-card"><span class="ic">📄</span><div><b>Round 1 · Teton draft</b><small>Uploaded by Dana (RevOps)</small><span class="seen">👁 Jordan, Alex · 6 views</span></div><span class="dots">⋯</span></div>
+        <div class="dr-add">⤒ Upload a round (RevOps)</div>
+        <p class="eb">People</p>
+        <div class="dr-card"><span class="ic">👥</span><div><b>4 people · 1 new</b><small>Alex Smith invited by Jordan: Lead reviewer</small></div><span class="btn sm">Manage</span></div>
+        <p class="eb">Recent</p>
+        <div class="dr-act">
+          <div>✎<span>Alex sent round 2</span><small>Mar 7</small></div>
+          <div>👁<span>Pat opened round 1</span><small>Mar 6</small></div>
+          <div>➕<span>Jordan invited Alex</span><small>Mar 6</small></div>
+        </div>
+      </div>
+      <div class="dr-main">
+        <span class="dr-eb">Round 2 · Prospect redlines</span>
+        <h2>Master Services Agreement</h2>
+        <div class="dr-status wait">
+          <div><b>2 of 5 changes open</b>2 accepted, 1 rejected. §2 Term needs VP Sales if you accept it.</div>
+          <span class="btn">Compare rounds</span><span class="btn k">Send round 3 →</span>
+        </div>
+        <div class="dr-doc">
+          <div class="dr-paper">
+            <h4>Master Services Agreement</h4>
+            <p><b>2. Term.</b> … continues for <del>thirty-six (36)</del> <ins>twenty-four (24)</ins> months <span class="mk">1</span> …</p>
+            <p><b>4. Fees and Payment.</b> … due within <del>thirty (30)</del> <ins>forty-five (45)</ins> days <span class="pill p-g" style="font:700 10px Inter">Accepted</span></p>
+            <p><b>5. Pilot.</b> … <ins>Customer may end this Agreement without penalty at the end of the Pilot if the Success Criteria are not met.</ins> <span class="mk">2</span></p>
+            <p><b>11. Governing law.</b> … laws of <del>Delaware</del> <ins>Ohio</ins> <span class="pill p-c" style="font:700 10px Inter">Rejected</span></p>
+          </div>
+          <div class="dr-side">
+            <div class="dr-mc" style="border-color:#3F8CEA;box-shadow:0 0 0 3px rgba(63,140,234,.12)"><div class="h"><b>§2 Term</b><small><span class="pill p-c" style="font-size:10px;padding:1px 6px">◆ VP Sales</span></small></div><div class="w">Alex: 36 → 24 months</div><div class="acts"><span class="btn sm g">Accept</span><span class="btn sm" style="color:var(--del)">Reject</span><span class="btn sm k">Counter…</span></div></div>
+            <div class="dr-mc int"><div class="h"><span class="av" style="background:#B5762A">SR</span><b>Sarah · VP Sales</b><small>🔒 Teton only</small></div><div class="w">OK with 24 only for the 140-room scope. Counter 36 + price lock.</div></div>
+            <div class="dr-mc"><div class="h"><b>§5 Pilot exit</b><small>Open</small></div><div class="acts"><span class="btn sm g">Accept</span><span class="btn sm" style="color:var(--del)">Reject</span><span class="btn sm k">Counter…</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Where the rep gets in: an <b>Agreement</b> card on the deal page (status, whose turn, open changes) and the Share dialog. A collaborating rep sees the same workspace read-only, with Teton-only notes, but no Accept / Reject / Send.</p>
+
+  <h2>3 · The rep decides what each person sees</h2>
+  <p class="sub">The Share dialog's people list (it exists today) gets a switch per tab for each person, plus their agreement level. The rep also sets what people the signatory invites get by default, and whether the signatory may give them more.</p>
+  <div class="frame">
+    <div class="fh">Share dialog · People</div>
+    <div class="fb">
+      <div class="tw">
+      <table class="acc" style="min-width:720px">
+        <thead><tr><th>Person</th><th class="c">Proposal</th><th class="c">Resources</th><th class="c">Agreement</th><th>Agreement level</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div class="person"><span class="av s">JO</span><div><b>Jordan Ortiz <span class="pill p-v">Signatory</span></b><small>COO · Maple Grove</small></div></div></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg lock" title="The signatory always has the agreement"></span></td><td><span class="lvl">Lead reviewer</span></td><td><span class="btn sm">…</span></td></tr>
+          <tr><td><div class="person"><span class="av f">PN</span><div><b>Pat Nguyen</b><small>CFO · added by Kevin</small></div></div></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg on"></span></td><td><span class="lvl">Comment ▾</span></td><td><span class="btn sm">…</span></td></tr>
+          <tr><td><div class="person"><span class="av o">RB</span><div><b>Riley Brooks</b><small>Director of Nursing · added by Kevin</small></div></div></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg on"></span></td><td class="c"><span class="tg"></span></td><td><span class="lvl off">No access</span></td><td><span class="btn sm">…</span></td></tr>
+          <tr class="newrow"><td><div class="person"><span class="av c">AS</span><div><b>Alex Smith <span class="pill p-c">New · invited by Jordan</span></b><small>Smith &amp; Lee LLP · outside domain</small></div></div></td><td class="c"><span class="tg"></span></td><td class="c"><span class="tg"></span></td><td class="c"><span class="tg on"></span></td><td><span class="lvl">Lead reviewer ▾</span></td><td><span class="btn sm">…</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="defaults">
+        <div class="dbox">
+          <h4>People the signatory invites get</h4>
+          <div class="chk"><span class="cb on">✓</span>Agreement <span class="req">always</span></div>
+          <div class="chk"><span class="cb"></span>Proposal</div>
+          <div class="chk"><span class="cb"></span>Resources</div>
+          <p class="cap" style="margin:6px 0 0">Change it for one person in their row above.</p>
+        </div>
+        <div class="dbox">
+          <h4>The signatory can also give</h4>
+          <div class="chk"><span class="cb on">✓</span>Proposal and Resources to people they invite</div>
+          <div class="chk"><span class="cb on">✓</span>Any agreement level, up to Lead reviewer</div>
+          <p class="cap" style="margin:6px 0 0">With the first one on, the invite dialog shows "Also let them see the proposal and resources".</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Someone with only the Agreement tab never sees pricing in the proposal or the deal room. The agreement itself still has the agreed prices in it, which is expected.</p>
+
+  <h2>4 · Teton's side: permission matrix, updated</h2>
+  <p class="sub">Three reach levels. <b>Own deals</b> means deals the person owns. <b>+ Collaborating</b> also covers deals they've been added to as a collaborator. Accepting changes and sending rounds is Own deals only, so collaborators can't. Deal Desk is renamed RevOps.</p>
+  <div class="frame">
+    <div class="fh">Settings · Roles &amp; permissions · Agreements</div>
+    <div class="tw">
+    <table class="mtx">
+      <thead><tr><th>Capability</th><th class="c">Sales rep</th><th class="c">RevOps<small>was Deal Desk</small></th><th class="c">VP Sales</th><th class="c">CEO</th><th class="c">Admin<small>locked</small></th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="6">Seeing it</td></tr>
+        <tr><td>View the agreement, rounds and comments</td><td class="c"><span class="cell collab">+ Collaborating</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Read and write Teton-only notes</td><td class="c"><span class="cell collab">+ Collaborating</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr class="grp"><td colspan="6">Working on it</td></tr>
+        <tr><td>Upload a draft, a new round or the final</td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td><b>Accept / reject / counter changes</b></td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td><b>Send a round to the prospect</b></td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Manage the prospect's people and what they see</td><td class="c"><span class="cell own">Own deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Mark final, sent for signature, signed</td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell all">All deals</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr class="grp"><td colspan="6">Approvals</td></tr>
+        <tr><td>Approve a change crossing a tier 1 rule</td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+        <tr><td>Approve a change crossing a tier 2 rule</td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell none">–</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell tier">All deals</span></td><td class="c"><span class="cell lock">All deals</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="scope">
+    <div><b><span class="cell own">Own deals</span></b>Deals the person owns.</div>
+    <div><b><span class="cell collab">+ Collaborating</span></b>Owned deals plus ones they collaborate on.</div>
+    <div><b><span class="cell all">All deals</span></b>Every deal.</div>
+  </div>
+  <p class="cap">These are defaults; an admin can change any cell except Admin's. The same three reach levels would apply across the whole matrix (deals, proposals, deal room), not just agreements.</p>
+
+  <h2>5 · Comparing rounds</h2>
+  <p class="sub">"Compare rounds" puts any two rounds side by side, so the rep can see what came back and what Teton decided on each change. Useful for leadership reviewing a deal they haven't followed.</p>
+  <div class="frame">
+    <div class="fh">Compare rounds <span class="sp"></span><span class="seg"><span>Side by side</span><span class="on">Changes only</span></span></div>
+    <div class="cmp">
+      <div>
+        <div class="lab">Round 2 · prospect redlines · Mar 7</div>
+        <p><span class="cl">2. Term.</span> … continues for <del>thirty-six (36)</del> <ins>twenty-four (24)</ins> months …</p>
+        <p><span class="cl">4. Payment.</span> … due within <del>thirty (30)</del> <ins>forty-five (45)</ins> days …</p>
+        <p><span class="cl">5. Pilot.</span> … <ins>Customer may end this Agreement without penalty at the end of the Pilot if the Success Criteria are not met.</ins></p>
+        <p><span class="cl">11. Governing law.</span> … laws of <del>Delaware</del> <ins>Ohio</ins>.</p>
+      </div>
+      <div>
+        <div class="lab">Round 3 · Teton response · Mar 9</div>
+        <p><span class="cl">2. Term.</span> … continues for <ins>thirty-six (36)</ins> months<ins>, with Fees fixed for the Initial Term</ins> … <span class="res k">Countered</span></p>
+        <p><span class="cl">4. Payment.</span> … due within forty-five (45) days … <span class="res a">Accepted</span></p>
+        <p><span class="cl">5. Pilot.</span> … <ins>Customer may end … if the Success Criteria are not met</ins><ins>, with 30 days' notice</ins>. <span class="res k">Countered</span></p>
+        <p><span class="cl">11. Governing law.</span> … laws of Delaware. <span class="res r">Rejected</span></p>
+      </div>
+    </div>
+  </div>
+
+  <h2>6 · Finishing the agreement</h2>
+  <p class="sub">When nothing is open, RevOps marks the round final. The system makes a clean Word file, and the rest of the steps match the agreement tracker in the deal flow mock.</p>
+  <div class="box" style="margin-top:14px">
+    <div class="track">
+      <div class="ts d"><div class="dot">1</div><b>Teton draft</b><small>RevOps · Mar 5</small></div>
+      <div class="ts d"><div class="dot">2</div><b>Prospect redlines</b><small>Alex Smith · Mar 7</small></div>
+      <div class="ts d"><div class="dot">3</div><b>Teton response</b><small>Kevin · Mar 9</small></div>
+      <div class="ts d"><div class="dot">4</div><b>Prospect accepts</b><small>Jordan · Mar 11</small></div>
+      <div class="ts c"><div class="dot">✓</div><b>Final</b><small>Ready to mark</small></div>
+      <div class="ts"><div class="dot">✍</div><b>Signed</b><small>DocuSign</small></div>
+    </div>
+  </div>
+  <div class="two">
+    <div class="box">
+      <p class="eb">Before "Mark final" is allowed</p>
+      <div class="checklist">
+        <div><i>✓</i><span>No open changes or comments in the latest round</span></div>
+        <div><i>✓</i><span>Every change that crossed a price-book rule is approved (term 36 months, no approval needed)</span></div>
+        <div><i>✓</i><span>The agreed terms match the deal's active version: price, term, pilot, rooms</span></div>
+        <div><i>!</i><span><b>Pilot exit clause added in §5:</b> not a price-book rule; shown to the rep as a reminder</span></div>
+      </div>
+      <div class="gate">◆ If the agreement's terms differ from the deal's version (say the term changed to 24 months), the system asks the rep to update the deal first, so the proposal, the agreement and the approvals all say the same thing.</div>
+    </div>
+    <div class="box">
+      <p class="eb">What "Mark final" does</p>
+      <div class="checklist">
+        <div><i>▢</i><span>Makes a <b>clean .docx</b> (every change applied, no comments) and keeps it as the final</span></div>
+        <div><i>🔒</i><span>Locks the Agreement tab: prospects can read and download, no more edits</span></div>
+        <div><i>→</i><span>RevOps sends it through DocuSign (manually at first) and clicks "Sent for signature"</span></div>
+        <div><i>✍</i><span>"Signed" moves the deal to <b>Won</b>; reviewers' access ends (if set to "on signing")</span></div>
+      </div>
+      <div class="row" style="margin-top:12px"><span class="btn k">Mark final</span><span class="btn">⤓ Clean .docx</span><span class="btn">⤓ With all changes</span></div>
+    </div>
+  </div>
+
+  <h2>7 · Build plan for redlining</h2>
+  <p class="sub">Fits after the approval workflow in backlog #3, since the approval flags and the permission matrix come from there.</p>
+  <div class="phases">
+    <div class="ph">
+      <div class="n">1</div>
+      <div><h3>Agreement tab and people ("D+")</h3><p>File rounds with the changes read in. Everyone still edits in Word.</p>
+        <ul><li>Agreement tab on the shared link; per-person tab switches and agreement levels in the Share dialog</li><li>Signatory invites reviewers (with your defaults), rep notified, code sign-in</li><li>Upload a .docx round; tracked changes and comments read out of it; edits made with Track Changes off found by comparing rounds</li><li>Teton review panel: accept, reject, Teton-only notes, approval flags</li><li>Download with tracked changes or clean; compare rounds; mark final; tracker steps</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> roles &amp; permissions; approvals for the flags</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></span></div>
+    </div>
+    <div class="ph b">
+      <div class="n">2</div>
+      <div><h3>Redline in the browser ("A")</h3><p>Suggesting mode on the document for prospects, and Teton counters typed in place.</p>
+        <ul><li>Suggest-mode editor that keeps who changed what</li><li>Writes the edits back to Word as real tracked changes</li><li>"Send redlines to Teton" without a file</li></ul></div>
+      <div class="meta"><span><b>Needs:</b> 1</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></span></div>
+    </div>
+    <div class="ph">
+      <div class="n">3</div>
+      <div><h3>DocuSign (optional)</h3><p>Send the final from the deal; "signed" comes back on its own and the deal moves to Won.</p></div>
+      <div class="meta"><span><b>Needs:</b> 1; a DocuSign API account</span><span><b>Size</b> <span class="size"><i class="on"></i><i class="on"></i><i></i><i></i></span></span></div>
+    </div>
+  </div>
+
+  <h2>8 · Remaining decisions</h2>
+  <ol class="dec">
+    <li><b>Prospect "accepts" a round</b><span>When Teton's counters come back and the prospect is happy, should the signatory (or a Lead reviewer) click "Accept Teton's changes" in the app? <span class="rc">Recommended:</span> yes. It's a clear signal to RevOps that the agreement can be marked final.</span></li>
+    <li><b>Agreement terms that differ from the deal</b><span><span class="rc">Recommended:</span> block "Mark final" until the deal's version matches the agreed price, term, pilot and rooms, so the proposal, approvals and agreement never disagree.</span></li>
+    <li><b>Who marks final and signed?</b><span>Shown as RevOps (and Admin). Should the deal owner be able to as well?</span></li>
+  </ol>
+</div>
+</body>
+</html>
