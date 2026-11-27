@@ -45,7 +45,7 @@ export function toPlaceholders(text: string, v: DealVars): string {
 }
 
 /** Layout parts that belong to page structure (pages, their order, sections). */
-const PAGE_KEYS = ['bcPages', 'bcCustom', 'bcBlocks', 'bcHiddenBlocks', 'bcGaps', 'bcExecWide'] as const;
+const PAGE_KEYS = ['bcPages', 'bcCustom', 'bcBlocks', 'bcHiddenBlocks', 'bcCopies', 'bcGaps', 'bcExecWide'] as const;
 /** Layout parts for tables, figures and view switches. */
 const TABLE_KEYS = [
   'hiddenRows', 'hiddenCols', 'shownCols', 'colWidths', 'colOrder', 'hiddenValues', 'bcCompact',

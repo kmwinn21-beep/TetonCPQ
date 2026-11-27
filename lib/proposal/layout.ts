@@ -3,6 +3,7 @@
  * standard sections, removed figures, and added free-form sections. Stored
  * next to the wording edits; the numbers themselves never change.
  */
+import { sanitizeCopies, type BcCopy } from './bcCopies';
 import { sanitizeImpacts, type ImpactItem } from './impacts';
 
 
@@ -53,6 +54,8 @@ export interface ProposalLayout {
   bcBlocks?: Record<string, string[]>;
   /** Business-case format: sections removed from each page (page → section id → its name, to list it for adding back). */
   bcHiddenBlocks?: Record<string, Record<string, string>>;
+  /** Business-case format: sections copied from other pages, by page (see bcCopies.ts). */
+  bcCopies?: Record<string, BcCopy[]>;
   /** Business-case format: extra space above sections, in px (page → section id → px). The standard spacing is the minimum. */
   bcGaps?: Record<string, Record<string, number>>;
   /** Business-case format: the cash flow chart's style (standard bars by default). */
@@ -301,6 +304,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
       if (!t || typeof t !== 'object' || !Number.isInteger(t.id) || Number(t.id) <= 0) return undefined;
       return { id: Number(t.id), name: String(t.name ?? '').slice(0, 80), wording: (t as { wording?: unknown }).wording === true ? true : undefined };
     })(),
+    bcCopies: sanitizeCopies(raw.bcCopies, (id) => ID.test(id)),
     bcHiddenBlocks: (() => {
       const v = raw.bcHiddenBlocks;
       if (v == null) return {};
@@ -379,7 +383,7 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
 /** Number of ways a layout differs from the standard one (for the toolbar). */
 export function layoutChanges(l: ProposalLayout): number {
   const reordered = l.order.filter((id) => !isCustomId(id)).join() !== STANDARD_SECTIONS.join() ? 1 : 0;
-  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.values(l.bcGaps ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + (l.shownCols?.length ?? 0) + Object.keys(l.colOrder ?? {}).length;
+  return reordered + l.hiddenSections.length + l.hiddenValues.length + Object.keys(l.custom).length + (l.pageStarts ? 1 : 0) + (l.bcPages ? 1 : 0) + Object.keys(l.bcCustom ?? {}).length + (Object.keys(l.bcBlocks ?? {}).length ? 1 : 0) + Object.values(l.bcHiddenBlocks ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.values(l.bcCopies ?? {}).reduce((n, cs) => n + cs.length, 0) + Object.values(l.bcGaps ?? {}).reduce((n, m) => n + Object.keys(m).length, 0) + Object.keys(l.hiddenRows ?? {}).length + Object.keys(l.hiddenCols ?? {}).length + (l.shownCols?.length ?? 0) + Object.keys(l.colOrder ?? {}).length;
 }
 
 /** Table columns that start out removed (table id + heading key → their name in the Removed list). */

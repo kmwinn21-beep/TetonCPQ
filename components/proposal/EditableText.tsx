@@ -6,6 +6,7 @@
  * rendered as locked chips: they can be deleted with the text around them,
  * but not retyped. Edits save for this version a moment after typing stops.
  */
+import { scoped } from '@/lib/proposal/bcCopies';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fillTemplate, renderText, tidy, type TextEdits } from '@/lib/proposal/text';
 import { DEFAULT_LAYOUT, type ProposalLayout } from '@/lib/proposal/layout';
@@ -44,6 +45,13 @@ export const useProposalText = () => useContext(ProposalTextContext);
 
 /** The deal's names and counts for wording placeholders ({customer}, {communities}, {beds}) from templates. */
 export const DealVarsContext = createContext<Record<string, string>>({});
+
+/**
+ * Inside a copied section: the prefix of its own keys ("bc.cp.<key>."). Its wording, removed figures and table
+ * settings are stored under prefixed keys, falling back to the original's until changed.
+ */
+export const KeyScopeContext = createContext('');
+export const useKeyScope = () => useContext(KeyScopeContext);
 
 interface Saved {
   edits: TextEdits;
@@ -168,7 +176,11 @@ export function T({ k, d, v, placeholder = 'Add text' }: { k: string; d: string;
   const deal = useContext(DealVarsContext);
   // Bumped to throw away typing (Escape) by remounting the element.
   const [rev, setRev] = useState(0);
-  const template = edits[k] ?? d;
+  // A copied section: its own wording, else the original's (live), else the default.
+  const scope = useContext(KeyScopeContext);
+  const own = scope ? scoped(scope, k) : k;
+  const base = scope ? edits[k] ?? d : d;
+  const template = edits[own] ?? base;
   const vars = { ...deal, ...(v ?? {}) };
   if (!editable) return <>{renderText(template, vars)}</>;
 
@@ -182,7 +194,7 @@ export function T({ k, d, v, placeholder = 'Add text' }: { k: string; d: string;
       role="textbox"
       aria-label="Edit text"
       spellCheck
-      data-edit-key={k}
+      data-edit-key={own}
       data-placeholder={placeholder}
       className="proposal-editable rounded-sm outline-none decoration-dotted underline-offset-4 hover:bg-teton-pale-yellow/60 focus:bg-teton-pale-yellow/60 focus:ring-2 focus:ring-brand-accent/60 empty:inline-block empty:min-w-[3rem] empty:before:content-[attr(data-placeholder)] empty:before:text-teton-light-gray print:empty:before:content-none"
       onKeyDown={(e) => {
@@ -211,7 +223,7 @@ export function T({ k, d, v, placeholder = 'Add text' }: { k: string; d: string;
         }
         const next = tidy(serialize(el));
         if (next === template) return;
-        set(k, next === d ? null : next);
+        set(own, next === base ? null : next);
       }}
     >
       {segments.map((s, i) =>

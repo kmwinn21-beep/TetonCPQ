@@ -27,7 +27,9 @@ import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
 import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
-import { DealVarsContext, T, useProposalText } from './EditableText';
+import { DealVarsContext, KeyScopeContext, T, useProposalText } from './EditableText';
+import { BcRegistryContext, useBcRegistry, type BcRegistry, type BcSection } from './bcRegistry';
+import { copyBlockId, copyScope, dropCopies, removeCopy } from '@/lib/proposal/bcCopies';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { CASE_LABEL, FourCases, type CaseBasis } from './FourCases';
 import { totalOccupiedUnits } from '@/lib/model/annual';
@@ -190,10 +192,46 @@ function B(_props: BProps): null {
  * default order). Hover a section for ↑ / ↓ to move it within the page.
  */
 function Blocks({ page, children }: { page: string; children: React.ReactNode }) {
-  const { editable, layout, setLayout, set } = useProposalText();
+  const { editable, layout, setLayout, set, edits } = useProposalText();
   const slot = useContext(CommentPageContext);
   const comments = useComments();
-  const items = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
+  const own = Children.toArray(children).filter((c): c is ReactElement<BProps> => isValidElement(c) && c.type === B);
+  // Sections copied here from other pages: live, with their own wording; a copy of a section the deal doesn't have
+  // (or that its page no longer builds) isn't shown. Taking one off deletes it (it can be added again).
+  const reg = useBcRegistry();
+  const copies = reg
+    ? (layout.bcCopies?.[page] ?? []).flatMap((cp) => {
+        const src = reg.sections.get(cp.src);
+        if (!src) return [];
+        const from = reg.titleOf(src.page);
+        const bid = copyBlockId(cp.key);
+        return [
+          <B
+            key={bid}
+            id={bid}
+            label={`${src.label} (from ${from})`}
+            wide={src.el.props.wide}
+            view={src.el.props.view}
+            onRemove={() => {
+              // Its own wording and removed figures go with it.
+              const own = copyScope(cp.key);
+              for (const k of Object.keys(edits)) if (k.startsWith(own)) set(k, null);
+              setLayout((l) => ({ ...removeCopy(l, page, cp.key), hiddenValues: l.hiddenValues.filter((k) => !k.startsWith(own)) }));
+            }}
+          >
+            <KeyScopeContext.Provider value={copyScope(cp.key)}>
+              {editable && (
+                <span data-edit-ui className="no-print bc-copy-tag" title={`A live copy of ${src.label} from ${from}: same figures, its own wording`}>
+                  From {from}
+                </span>
+              )}
+              {src.el.props.children}
+            </KeyScopeContext.Provider>
+          </B>,
+        ];
+      })
+    : [];
+  const items = [...own, ...copies];
   const ids = items.map((c) => c.props.id);
   const hidden = layout.bcHiddenBlocks?.[page] ?? {};
   const saved = (layout.bcBlocks?.[page] ?? []).filter((id) => ids.includes(id));
@@ -758,6 +796,44 @@ const ResetIcon = () => (
 );
 
 /** A page with its screen-only controls: move earlier / later, reset, remove. */
+/**
+ * The deal's sections, read from its pages as built (without rendering them): each page's sections lists ("Blocks")
+ * and their sections. One pagers build theirs inside their own component, so they aren't offered.
+ */
+function buildRegistry(defs: Record<string, (no: number) => React.ReactNode>, custom: Record<string, { title: string }>): BcRegistry {
+  const sections = new Map<string, BcSection>();
+  const blocksOf: Record<string, string[]> = {};
+  const walk = (node: React.ReactNode, page: string, depth: number) => {
+    if (depth > 40 || typeof node === 'function') return;
+    Children.forEach(node, (c) => {
+      if (!isValidElement(c)) return;
+      const props = c.props as { page?: string; children?: React.ReactNode };
+      if (c.type === Blocks && props.page) {
+        const bp = props.page;
+        (blocksOf[page] ??= []).push(bp);
+        Children.forEach(props.children, (b) => {
+          if (isValidElement(b) && b.type === B) {
+            const bpr = b.props as BProps;
+            sections.set(`${bp}:${bpr.id}`, { page, blocksPage: bp, id: bpr.id, label: bpr.label, el: b as ReactElement<BProps> });
+          }
+        });
+        return;
+      }
+      if (props.children !== undefined) walk(props.children, page, depth + 1);
+    });
+  };
+  for (const [page, def] of Object.entries(defs)) {
+    if (ONE_PAGERS.includes(page as (typeof ONE_PAGERS)[number])) continue;
+    try {
+      walk(def(0), page, 0);
+    } catch {
+      // A page that can't be read here simply offers no sections.
+    }
+  }
+  for (const id of Object.keys(custom)) blocksOf[id] = [id];
+  return { sections, blocksOf, titleOf: (p) => (custom[p] ? custom[p].title || 'Added page' : bcPageTitle(p)) };
+}
+
 function PageSlot({ id, index, order, children }: { id: string; index: number; order: string[]; children: React.ReactNode }) {
   const { editable, layout, setLayout } = useProposalText();
   const custom = layout.bcCustom?.[id];
@@ -768,7 +844,8 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
     setLayout((l) => {
       const bcCustom = { ...(l.bcCustom ?? {}) };
       delete bcCustom[id];
-      return { ...l, bcPages: removeBcPage(bcPagesOf(l), id), bcCustom };
+      // An added page's copied sections go with it (a standard page keeps them, for when it comes back).
+      return { ...(custom ? dropCopies(l, (p) => p === id) : l), bcPages: removeBcPage(bcPagesOf(l), id), bcCustom };
     });
   };
   const btn = 'w-7 h-7 flex items-center justify-center rounded-md hover:bg-white/15 disabled:opacity-30 disabled:hover:bg-transparent';
@@ -785,7 +862,7 @@ function PageSlot({ id, index, order, children }: { id: string; index: number; o
       const n = Object.fromEntries(Object.entries(m).filter(([k]) => !mine(k)));
       return Object.keys(n).length ? n : undefined;
     };
-    setLayout((l) => ({ ...resetLayoutParts(l, parts), bcHiddenBlocks: keep(l.bcHiddenBlocks) ?? {}, bcBlocks: keep(l.bcBlocks), bcGaps: keep(l.bcGaps) }));
+    setLayout((l) => ({ ...dropCopies(resetLayoutParts(l, parts), mine), bcHiddenBlocks: keep(l.bcHiddenBlocks) ?? {}, bcBlocks: keep(l.bcBlocks), bcGaps: keep(l.bcGaps) }));
     // Sections that were removed are back now: reset what's inside them too (their wording, tables and switches).
     setTimeout(() => {
       const again = customisedIn(el);
@@ -4557,7 +4634,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
 
   const custom = layout.bcCustom ?? {};
   const order = bcPagesOf(layout).filter((id) => defs[id] || custom[id]);
+  const registry = buildRegistry(defs, custom);
   return (
+    <BcRegistryContext.Provider value={registry}>
     <InspectorProvider enabled={editable}>
     <article id="proposal" className="bc-doc" data-format="businessCase" data-insp={editable ? '' : undefined}>
       {/* Each sheet is a full Letter page with its own margins. Setting the document's page (rather than a named page)
@@ -4574,6 +4653,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <CustomTitle id={id} title={custom[id].title} store="bcCustom" />
               </h1>
               <RichBody id={id} html={custom[id].html} store="bcCustom" className="proposal-rich bc-rich" />
+              {/* Sections copied here from other pages. */}
+              <Blocks page={id}>{null}</Blocks>
             </Page>
           ) : (
             defs[id](no)
@@ -4585,5 +4666,6 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     </article>
     <AddMenu bothPricing={draft.presentation === 'both'} ecallOnly={isEcallOnlyDeal(draft)} onePagers={onePagerInfo(draft)} />
     </InspectorProvider>
+    </BcRegistryContext.Provider>
   );
 }

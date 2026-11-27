@@ -12,7 +12,8 @@ import { renderText } from '@/lib/proposal/text';
 import { addBackBcPage, addOnePager, BC_PAGE_TITLES, bcPageTitle, bcPagesOf, removedBcPages } from '@/lib/proposal/bcPages';
 import { OP_MODES, onePagerId, type OnePagerInfo } from '@/lib/proposal/onePager';
 import { BC_PAGES, DEFAULT_HIDDEN_COLS, hiddenColsOf, isCustomId, type ProposalLayout, type StandardSection } from '@/lib/proposal/layout';
-import { T, useProposalText } from './EditableText';
+import { T, useKeyScope, useProposalText } from './EditableText';
+import { scoped, scopedTable } from '@/lib/proposal/bcCopies';
 import { useFigure } from './WhatIf';
 import { canAutoFocus } from '@/lib/client/focus';
 
@@ -53,9 +54,12 @@ export function V({ k, label, children, block = false }: { k: string; label: str
   const { editable, layout, setLayout } = useProposalText();
   const { register } = useContext(LabelsCtx);
   const fig = useFigure(k, label);
-  useEffect(() => register(k, label), [k, label, register]);
+  // In a copied section the figure is removed on its own (its own key); the figure's inputs stay the original's.
+  const scope = useKeyScope();
+  const hk = scope ? scoped(scope, k) : k;
+  useEffect(() => register(hk, scope ? `${label} · copy` : label), [hk, scope, label, register]);
   // Removed: a hidden marker while editing, so resetting the page or section around it can find it.
-  if (layout.hiddenValues.includes(k)) return editable ? <span hidden data-fig-hidden={k} /> : null;
+  if (layout.hiddenValues.includes(hk)) return editable ? <span hidden data-fig-hidden={hk} /> : null;
   if (!editable && !fig.clickable) return <>{children}</>;
   const Tag = block ? 'div' : 'span';
   const open = fig.clickable ? fig.open : undefined;
@@ -96,7 +100,7 @@ export function V({ k, label, children, block = false }: { k: string; label: str
           className={`no-print absolute hidden items-center justify-center rounded-full bg-teton-near-black text-white shadow ${block ? 'z-10 -top-3 -right-3 w-6 h-6 group-hover/blk:flex focus:flex' : '-top-2 -right-3 w-4 h-4 group-hover/v:flex'}`}
           title={`Remove ${label}`}
           aria-label={`Remove ${label}`}
-          onClick={() => setLayout((l) => ({ ...l, hiddenValues: [...l.hiddenValues, k] }))}
+          onClick={() => setLayout((l) => ({ ...l, hiddenValues: [...l.hiddenValues, hk] }))}
         >
           <MinusIcon />
         </button>
@@ -162,7 +166,9 @@ export function RTable({ className, children }: { className?: string; children: 
   const { editable, layout, setLayout } = useProposalText();
   const parts = Children.toArray(children);
   const body = parts.find((c) => isValidElement(c) && c.type === RTbody) as React.ReactElement<{ id: string; name: string }> | undefined;
-  const id = body?.props.id;
+  // A copied section's table keeps its own rows, columns and widths.
+  const scope = useKeyScope();
+  const id = body?.props.id && scope ? scopedTable(scope, body.props.id) : body?.props.id;
   const name = body?.props.name ?? 'table';
   const rowsIn = (part: React.ReactNode) => (isValidElement(part) ? flatRows((part.props as { children?: React.ReactNode }).children).filter((r): r is React.ReactElement => isValidElement(r) && r.type === 'tr') : []);
   // The heading row: the first row made only of th cells.
@@ -335,8 +341,10 @@ export function RTable({ className, children }: { className?: string; children: 
  * removed row stays removed when figures change. A row with data-fixed (a
  * group heading, column labels) stays.
  */
-export function RTbody({ id, name, className, outside = false, children }: { id: string; name: string; className?: string; /** Put the remove button left of the table (cells with no left padding). */ outside?: boolean; children: React.ReactNode }) {
+export function RTbody({ id: id0, name, className, outside = false, children }: { id: string; name: string; className?: string; /** Put the remove button left of the table (cells with no left padding). */ outside?: boolean; children: React.ReactNode }) {
   const { editable, layout, setLayout } = useProposalText();
+  const scope = useKeyScope();
+  const id = scope ? scopedTable(scope, id0) : id0;
   const hidden = layout.hiddenRows ?? {};
   const clean = (k: string) => k.replace(/[^a-z0-9_.-]+/gi, '_').replace(/^[_.-]+/, '').slice(0, 50);
   const walk = (nodes: React.ReactNode, prefix: string): React.ReactNode[] =>
@@ -801,7 +809,7 @@ export function ProposalSections({ sections }: { sections: Partial<Record<Standa
 /** Something that can be added to the business case (the floating Add menu): what it is, where it goes, how. */
 export interface Addable {
   key: string;
-  group: 'onepager' | 'page' | 'section' | 'row' | 'figure';
+  group: 'onepager' | 'page' | 'section' | 'copy' | 'row' | 'figure';
   name: string;
   sub: string;
   add: (l: ProposalLayout) => ProposalLayout;

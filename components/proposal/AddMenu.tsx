@@ -11,11 +11,53 @@ import { useProposalText } from './EditableText';
 import { useInspector } from './inspectorContext';
 import { useAddables, type Addable } from './ProposalSections';
 import type { OnePagerInfo } from '@/lib/proposal/onePager';
+import { useBcRegistry, type BcRegistry } from './bcRegistry';
+import { addCopy, copyBlockId, hasCopy, newCopyKey } from '@/lib/proposal/bcCopies';
+import type { ProposalLayout } from '@/lib/proposal/layout';
+
+/** The page "here" is: the one selected in the options panel, else the one in the middle of the screen. */
+function pageHere(selected: string | null | undefined): string | null {
+  if (selected) return selected;
+  if (typeof document === 'undefined') return null;
+  const mid = window.innerHeight / 2;
+  let best: { id: string; d: number } | null = null;
+  document.querySelectorAll<HTMLElement>('[data-bc-page]').forEach((el) => {
+    const r = el.getBoundingClientRect();
+    const d = r.top <= mid && r.bottom >= mid ? 0 : Math.min(Math.abs(r.top - mid), Math.abs(r.bottom - mid));
+    if (!best || d < best.d) best = { id: el.dataset.bcPage ?? '', d };
+  });
+  return (best as { id: string } | null)?.id || null;
+}
+
+/**
+ * Sections from other pages that can be copied onto `here`: not its own sections, and not one already copied there
+ * (a section appears once per page). Only sections the deal has are in the registry.
+ */
+export function copyAddables(reg: BcRegistry, layout: Pick<ProposalLayout, 'bcCopies'>, here: string): Addable[] {
+  const bp = reg.blocksOf[here]?.[0];
+  if (!bp) return [];
+  const mine = reg.blocksOf[here] ?? [];
+  const out: Addable[] = [];
+  reg.sections.forEach((sec, src) => {
+    if (sec.page === here || mine.some((b) => hasCopy(layout, b, src))) return;
+    const key = newCopyKey();
+    out.push({
+      key: `copy-${src}`,
+      group: 'copy',
+      name: sec.label,
+      sub: `From ${reg.titleOf(sec.page)}`,
+      add: (l) => addCopy(l, bp, src, key),
+      go: { page: here, blocksPage: bp, block: copyBlockId(key) },
+    });
+  });
+  return out;
+}
 
 const GROUPS: Array<{ key: Addable['group']; title: string; note?: string; chip: string; icon: string; tone: string }> = [
   { key: 'onepager', title: 'One pagers', note: 'budgetary quotes', chip: 'One pagers', icon: '$', tone: 'bg-[#FDF0EE] text-[#A63A22]' },
   { key: 'page', title: 'Pages', chip: 'Pages', icon: '▤', tone: 'bg-[#EEF5FE] text-[#1F5FB5]' },
   { key: 'section', title: 'Sections', chip: 'Sections', icon: '▦', tone: 'bg-[#EEF8F1] text-[#1F6B3A]' },
+  { key: 'copy', title: 'Sections from other pages', chip: 'From other pages', icon: '⧉', tone: 'bg-[#E9F6F6] text-[#0F6B6E]' },
   { key: 'row', title: 'Table rows & columns', chip: 'Rows', icon: '≡', tone: 'bg-[#F1F0FC] text-[#3F3A8A]' },
   { key: 'figure', title: 'Figures', chip: 'Figures', icon: '#', tone: 'bg-[#FFF6DE] text-[#8A5A00]' },
 ];
@@ -25,7 +67,13 @@ const esc = (s: string) => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escap
 export function AddMenu({ bothPricing, ecallOnly, onePagers }: { bothPricing: boolean; ecallOnly: boolean; onePagers: OnePagerInfo | null }) {
   const { editable, setLayout } = useProposalText();
   const insp = useInspector();
-  const items = useAddables({ bothPricing, ecallOnly, onePagers });
+  const base = useAddables({ bothPricing, ecallOnly, onePagers });
+  const { layout } = useProposalText();
+  const reg = useBcRegistry();
+  // Where "Sections from other pages" go: picked when the menu opens.
+  const [here, setHere] = useState<string | null>(null);
+  const copies = useMemo(() => (reg && here && layout.format === 'businessCase' ? copyAddables(reg, layout, here) : []), [reg, here, layout]);
+  const items = useMemo(() => [...base, ...copies], [base, copies]);
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [q, setQ] = useState('');
@@ -133,6 +181,7 @@ export function AddMenu({ bothPricing, ecallOnly, onePagers }: { bothPricing: bo
                   <button type="button" className="w-full flex items-center gap-1.5 text-left text-[10.5px] font-bold uppercase tracking-[.8px] text-teton-ui-gray" aria-expanded={!isFolded} onClick={() => setFolded((f) => ({ ...f, [g.key]: !isFolded }))}>
                     {g.title}
                     {g.note && <span className="normal-case tracking-normal font-semibold text-teton-light-gray">{g.note}</span>}
+                    {g.key === 'copy' && here && reg && <span className="normal-case tracking-normal font-semibold text-teton-light-gray truncate">adds to {reg.titleOf(here)}</span>}
                     <svg className={`ml-auto w-3 h-3 text-teton-light-gray transition-transform duration-300 motion-reduce:transition-none ${isFolded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M5.2 12.8a.75.75 0 001.06 0L10 9.06l3.74 3.74a.75.75 0 101.06-1.06l-4.27-4.27a.75.75 0 00-1.06 0L5.2 11.74a.75.75 0 000 1.06z" /></svg>
                   </button>
                   <Collapse open={!isFolded}>
@@ -145,7 +194,7 @@ export function AddMenu({ bothPricing, ecallOnly, onePagers }: { bothPricing: bo
                             {it.sub && <small className="block truncate text-[11px] text-teton-ui-gray" title={it.sub}>{it.sub}</small>}
                           </span>
                           <button type="button" className="flex-shrink-0 inline-flex items-center h-7 px-2.5 rounded-lg bg-teton-ink text-white text-[12px] font-semibold hover:bg-black" onClick={() => add(it)} aria-label={`Add ${it.name}${it.sub ? ` (${it.sub})` : ''}`}>
-                            + Add
+                            {it.group === 'copy' ? '+ Add here' : '+ Add'}
                           </button>
                         </li>
                       ))}
@@ -161,13 +210,17 @@ export function AddMenu({ bothPricing, ecallOnly, onePagers }: { bothPricing: bo
         type="button"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => {
+          if (open) return close();
+          setHere(pageHere(insp.sel?.page));
+          setOpen(true);
+        }}
         className={`bc-addfab fixed z-[36] inline-flex items-center gap-2 h-[46px] pl-3.5 pr-4 rounded-full bg-teton-ink text-white text-[14px] font-semibold shadow-[0_10px_28px_rgba(15,23,32,.28),0_2px_6px_rgba(15,23,32,.18)] hover:bg-black ${isOpen ? 'max-sm:hidden' : ''}`}
         title="Add pages, sections, rows and figures"
       >
         <span className={`w-6 h-6 rounded-full bg-white text-teton-ink grid place-items-center text-[17px] leading-none transition-transform duration-200 motion-reduce:transition-none ${isOpen ? 'rotate-45' : ''}`} aria-hidden="true">+</span>
         Add
-        {items.length > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#3F8CEA] text-[11px] font-bold grid place-items-center">{items.length}</span>}
+        {base.length > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#3F8CEA] text-[11px] font-bold grid place-items-center">{base.length}</span>}
       </button>
     </div>
   );
