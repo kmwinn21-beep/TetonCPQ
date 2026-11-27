@@ -422,3 +422,14 @@ export function offeredFor(l: Lineup, id: string, structure: 'subscription' | 'c
   if (OFFER_LOCKED.has(id)) return true;
   return structure === 'both' ? c.sides.subscription.offered || c.sides.capex.offered : c.sides[structure].offered;
 }
+
+/**
+ * Built-in items that can switch to being priced from their own details (lossless enough to offer): what they're
+ * counted by, how pilots treat them, which built-in rules switching drops, and where a deal keeps their price.
+ */
+export const CONVERTIBLE: Record<string, { counted: CountBasis; pilot: PilotRule; drops: string; dealPrice: (k: Commercial) => number | null | undefined }> = {
+  [SKU.sensor]: { counted: 'additionalSensors', pilot: 'none', drops: 'the deal’s “credit additional sensors too” option on pilot sites', dealPrice: (k) => k.sensorPrice },
+  [SKU.capexSensor]: { counted: 'additionalSensors', pilot: 'none', drops: 'the conversion credit at pilot communities', dealPrice: (k) => k.capex?.sensorPrice },
+  [SKU.commonAreaMonthly]: { counted: 'commonAreaSensors', pilot: 'free', drops: 'nothing (it prices the same way)', dealPrice: (k) => k.commonArea?.monthly },
+  [SKU.commonAreaSetup]: { counted: 'commonAreaSensors', pilot: 'credited', drops: 'nothing (it prices the same way)', dealPrice: (k) => k.commonArea?.setup },
+};

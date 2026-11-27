@@ -102,6 +102,18 @@ export const CATALOG: Record<string, CatalogPlace> = {
 };
 export const placeOf = (sku: string): CatalogPlace => CATALOG[sku] ?? { category: 'Add-ons', sub: 'Other', icon: 'document', tint: 'stone' };
 
+/** Each category's icon and tint, for items added in the price book. */
+const CATEGORY_LOOK: Record<string, { icon: string; tint: string }> = {
+  Platform: { icon: 'sensor', tint: 'lilac' },
+  'Add-ons': { icon: 'community', tint: 'sky' },
+  'Capital purchase': { icon: 'room', tint: 'mint' },
+  'Installation finish': { icon: 'campus', tint: 'stone' },
+};
+
+/** Where an item sits: built-in items by their SKU, items added in the price book by their own category. */
+export const placeFor = (r: { sku: string; category?: string | null; sub?: string | null }): CatalogPlace =>
+  CATALOG[r.sku] ?? (r.category ? { category: r.category, sub: r.sub || 'Other', ...(CATEGORY_LOOK[r.category] ?? { icon: 'document', tint: 'stone' }) } : placeOf(r.sku));
+
 /** The price book's SKUs (what reps and the sheet call each item). Editable; the system key stays the same. */
 export const ITEM_CODES: Record<string, string> = {
   'TETON-PLATFORM': 'TT-PLT-ONE',

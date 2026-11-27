@@ -38,7 +38,7 @@ const sidesShown = (d: Pick<QuoteDraft, 'presentation'>): Side[] => (d.presentat
 /** The generic items on a deal, each once per way it's sold. */
 export function activeItems(d: QuoteDraft): ActiveItem[] {
   const l = d.lineup;
-  if (!l || !l.cores.some((c) => SIDES.some((s) => c.sides[s].items.some((e) => e.item)))) return [];
+  if (!l || !(l.cores.some((c) => SIDES.some((s) => c.sides[s].items.some((e) => e.item))) || l.combos.some((x) => x.with.some((e) => e.item)))) return [];
   const picked = selectedCores(d);
   const out: ActiveItem[] = [];
   const seen = new Set<string>();
@@ -50,6 +50,16 @@ export function activeItems(d: QuoteDraft): ActiveItem[] {
         if (!e.item || seen.has(`${s}:${e.sku}`)) continue;
         seen.add(`${s}:${e.sku}`);
         out.push({ sku: e.sku, spec: e.item, side: s, core: c.id });
+      }
+    }
+    // Combinations added in the price book (generic items only): with all their core products on the deal, the
+    // items they replace come off and their own items go on.
+    for (const x of l.combos) {
+      if (x.builtin || !x.enabled || x.side !== s || !x.when.every((w) => picked.has(w))) continue;
+      for (let i = out.length - 1; i >= 0; i--) if (out[i].side === s && x.replace.includes(out[i].sku)) out.splice(i, 1);
+      for (const e of x.with) {
+        if (!e.item || out.some((y) => y.side === s && y.sku === e.sku)) continue;
+        out.push({ sku: e.sku, spec: e.item, side: s, core: x.when[0] });
       }
     }
   }

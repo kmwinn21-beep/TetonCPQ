@@ -32,7 +32,20 @@ const bad = (message: string, status = 400) => Object.assign(new Error(message),
 export async function saveLineup(db: Client, raw: unknown, userId: number | null, baseVersion: number): Promise<LineupInfo> {
   const cur = await getLineup(db);
   if (cur.lineup.version !== baseVersion) throw bad('Someone saved the core products since you opened them. Reload to see their changes.', 409);
-  const next = withItemDetails(normalizeLineup(raw), await activeProducts(db));
+  const products = await activeProducts(db);
+  const next = withItemDetails(normalizeLineup(raw), products);
+  // Core products and combinations added in the price book hold items priced from their details only (built-in
+  // items price by their own rules wherever they're listed).
+  for (const c of next.cores) {
+    if (DEFAULT_LINEUP.cores.some((d) => d.id === c.id)) continue;
+    for (const s of SIDES) for (const en of c.sides[s].items) if (!en.item) throw bad(`${c.name}: only items priced from their details can go in a core product added in the price book.`);
+  }
+  for (const x of next.combos) {
+    if (x.builtin) continue;
+    if (!x.with.length && !x.replace.length) throw bad('A combination needs items to replace or to add.');
+    for (const en of x.with) if (!en.item) throw bad('A combination can only add items priced from their details.');
+    for (const r of x.replace) if (!products.get(r)?.generic) throw bad('A combination can only replace items priced from their details.');
+  }
   const rs = await db.execute('SELECT sku, name FROM products WHERE active = 1');
   const names = new Map(rs.rows.map((r) => [String(r.sku), String(r.name)]));
   for (const c of next.cores) {

@@ -3,6 +3,8 @@
  * stored outputs, price lines), so every proposal format shows the same figures.
  */
 import { pricedDraft } from '@/lib/pricing/lineup';
+import { itemPrice, itemsOn } from '@/lib/pricing/items';
+import { COUNT_LABEL } from '@/lib/pricing/catalog';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { RoiCase } from '@/lib/model';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
@@ -125,6 +127,13 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
       : []),
     { key: 'rate.install', label: 'Installation', value: `${money(k.installRate)}/bed one-time`, list: installList != null && installList > k.installRate ? money(installList) : undefined },
     ...(anyFull ? [{ key: 'rate.fullFacility', label: 'Full-facility coverage', value: `${k.fullFacilityMultiplier}× subscription and install` }] : []),
+    // Items priced from their own details, sold with the subscription.
+    ...itemsOn(draft, 'subscription').map((it) => {
+      const p = itemPrice(draft, it.sku, it.spec);
+      const unit = COUNT_LABEL[it.spec.counted].replace(/^per /, '/').replace(/^one per /, '/').replace(/ \(.*\)$/, '');
+      const when = it.spec.billing === 'monthly' ? '/mo' : it.spec.billing === 'years' ? ` every ${it.spec.everyYears ?? 1} years` : ' one-time';
+      return { key: `rate.item.${it.sku}`, label: it.spec.name, value: `${money(p)}${unit}${when}`, list: it.spec.list > p ? money(it.spec.list) : undefined };
+    }),
   ];
 
   // Values that can appear inside editable sentences. They render from the stored version and can't be retyped.

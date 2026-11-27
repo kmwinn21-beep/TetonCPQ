@@ -13,11 +13,13 @@ import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { ItemIcon } from './ItemIcon';
 import { CoreProducts } from './CoreProducts';
+import { ItemDetailsTab } from './ItemDetails';
+import { NewItem } from './NewItem';
 import type { LineupInfo } from '@/lib/data/lineup';
 import { SoftwareBillingDefault } from './SoftwareBillingDefault';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
-import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeOf } from '@/lib/pricing/markets';
-import { POLICY, type PricingModel } from '@/lib/pricing/catalog';
+import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeFor } from '@/lib/pricing/markets';
+import { BILLING_LABEL, COUNT_LABEL, POLICY, billingOf, type Billing as ItemBilling, type CountBasis, type PricingModel } from '@/lib/pricing/catalog';
 import type { PriceBookRow } from '@/lib/data/priceBook';
 
 type Billing = 'all' | 'monthly' | 'once';
@@ -91,6 +93,13 @@ function Dots({ r }: { r: PriceBookRow }) {
 export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineup }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null }) {
   // Admins also see the Core products tab (what each card on the deal page adds).
   const [area, setArea] = useState<'items' | 'cores'>('items');
+  // The current core products line-up (refreshed when an item change makes a new version) and whether the Core
+  // products tab has unsaved changes (then it keeps the admin's edits instead of reloading).
+  const [lineupInfo, setLineupInfo] = useState<LineupInfo | null>(lineup ?? null);
+  const [coresDirty, setCoresDirty] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newerLineup, setNewerLineup] = useState<LineupInfo | null>(null);
+  const onLineup = (l: LineupInfo) => (coresDirty ? setNewerLineup(l) : (setLineupInfo(l), setNewerLineup(null)));
   const [swBilling, setSwBilling] = useState(softwareBilling);
   const phone = usePhone('(max-width: 1023px)');
   const [rows, setRows] = useState(initial);
@@ -121,7 +130,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const m = MARKETS.find((x) => x.code === market) ?? MARKETS[0];
-  const inCat = (r: PriceBookRow) => (!cat || placeOf(r.sku).category === cat) && (!sub || placeOf(r.sku).sub === sub);
+  const inCat = (r: PriceBookRow) => (!cat || placeFor(r).category === cat) && (!sub || placeFor(r).sub === sub);
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     return rows.filter((r) => {
@@ -140,7 +149,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
     if (group === 'none') return [{ key: 'all', title: '', items: list }];
     const out: Array<{ key: string; title: string; items: PriceBookRow[] }> = [];
     for (const r of list) {
-      const p = placeOf(r.sku);
+      const p = placeFor(r);
       const key = `${p.category} · ${p.sub}`;
       const g = out.find((x) => x.key === key) ?? (out.push({ key, title: cat ? p.sub : key, items: [] }), out[out.length - 1]);
       g.items.push(r);
@@ -162,7 +171,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const exportCsv = () => {
     const head = ['SKU', 'Item', 'System key', 'Category', 'Subcategory', 'Unit', ...MARKETS.map((x) => `${x.code} (${x.currency})`)];
     const lines = list.map((r) => {
-      const p = placeOf(r.sku);
+      const p = placeFor(r);
       return [r.itemCode ?? '', r.name, r.sku, p.category, p.sub, UNIT[r.pricingModel], ...MARKETS.map((x) => {
         const v = priceIn(r, x.code);
         return v.notSold ? 'not sold' : v.price == null ? '' : String(v.price);
@@ -182,8 +191,8 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const chip = (on: boolean) => `relative z-[1] h-[26px] px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${on ? 'text-white' : 'text-[#5A6270]'}`;
 
   // ---------------------------------------------------------------- catalog panel
-  const count = (c?: string, s?: string) => rows.filter((r) => (!c || placeOf(r.sku).category === c) && (!s || placeOf(r.sku).sub === s)).length;
-  const subsOf = (c: string) => Array.from(new Set(rows.filter((r) => placeOf(r.sku).category === c).map((r) => placeOf(r.sku).sub)));
+  const count = (c?: string, s?: string) => rows.filter((r) => (!c || placeFor(r).category === c) && (!s || placeFor(r).sub === s)).length;
+  const subsOf = (c: string) => Array.from(new Set(rows.filter((r) => placeFor(r).category === c).map((r) => placeFor(r).sub)));
   const node = (on: boolean) => `w-full flex items-center gap-2 px-2 py-1.5 rounded-[9px] text-left text-[13px] transition-colors duration-150 ${on ? 'bg-white shadow-[0_0_0_1px_#E3DFD8] font-semibold text-teton-ink' : 'text-[#3F4753] hover:bg-white/70'}`;
   const n = (on: boolean, v: number) => <span className={`ml-auto min-w-[22px] h-5 px-1.5 rounded-full text-[11px] font-bold grid place-items-center ${on ? 'bg-teton-ink text-white' : 'bg-[#E9E5DE] text-[#5A6270]'}`}>{v}</span>;
   const eb = 'mt-4 mb-1.5 mx-1.5 text-[10px] font-extrabold uppercase tracking-[1.6px] text-[#8A919C]';
@@ -288,7 +297,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 my-4">
       {(
         [
-          ['Items', String(list.length), `${new Set(list.map((r) => placeOf(r.sku).sub)).size} groups`],
+          ['Items', String(list.length), `${new Set(list.map((r) => placeFor(r).sub)).size} groups`],
           [`Priced in ${m.name}`, String(hereSold), `${list.length - hereSold} not offered or no price`],
           ['Monthly / one-time', `${list.filter((r) => isMonthly(r.pricingModel)).length} / ${list.filter((r) => isOnce(r.pricingModel)).length}`, 'recurring vs. upfront'],
           ['Market gaps', String(gaps), `“not sold” cells across ${MARKETS.length} markets`],
@@ -339,7 +348,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
                     </span>
                     <span className="truncate font-mono text-[11px] text-[#5A6270]" title={`System key ${r.sku}`}>{r.itemCode ?? r.sku}</span>
                     <span>
-                      <span className={`inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold ${isMonthly(r.pricingModel) ? 'bg-[#EAF2FD] text-[#1F5FB5]' : isOnce(r.pricingModel) ? 'bg-[#FFF4D6] text-[#8A5A00]' : 'bg-[#F1EEE7] text-[#5A6270]'}`}>{isMonthly(r.pricingModel) ? 'Monthly' : isOnce(r.pricingModel) ? 'One-time' : 'Multiplier'}</span>
+                      <BillingPill r={r} />
                     </span>
                     <span className="text-right tabular-nums">
                       {here.notSold ? <span className="text-[12px] font-semibold text-[#A9ADB4]">Not sold</span> : here.price == null ? <span className="text-[12px] text-[#A9ADB4]">—</span> : <b className="text-[14px]">{fmt(r, market, here.price)}</b>}
@@ -514,7 +523,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
 
   const body = (
     <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 lg:px-6 py-3 border-b border-[#ECE8DF] bg-white">
+      <div className="flex flex-wrap items-center gap-2.5 px-4 lg:px-6 py-3 border-b border-[#ECE8DF] bg-white">
         {lineup ? (
           <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Price book area">
             <button type="button" role="radio" aria-checked={area === 'items'} onClick={() => setArea('items')} className={pill(area === 'items')}>
@@ -545,11 +554,39 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
           ⤓ Export
         </button>
         )}
+        {area === 'items' && canEdit && (
+          <button type="button" onClick={() => setAdding(true)} className="h-9 px-3 rounded-[10px] bg-teton-ink text-white text-[12.5px] font-semibold whitespace-nowrap">
+            ＋ New item
+          </button>
+        )}
       </div>
+      {canEdit && (
+        <NewItem
+          open={adding}
+          onClose={() => setAdding(false)}
+          rows={rows}
+          lineup={lineupInfo}
+          coresDirty={coresDirty}
+          onCreated={(row, l) => {
+            setRows((rs) => [...rs, row]);
+            if (l) onLineup(l);
+            setSel(row.sku);
+          }}
+        />
+      )}
       {/* Both stay mounted, so unsaved core product changes survive switching tabs. */}
       {lineup && (
         <div className={area === 'cores' ? 'flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 pt-5 pb-12' : 'hidden'}>
-          <CoreProducts initial={lineup} rows={rows} />
+          {lineupInfo && (
+            <CoreProducts
+              key={lineupInfo.lineup.version}
+              initial={lineupInfo}
+              rows={rows}
+              onDirty={setCoresDirty}
+              newer={newerLineup ? newerLineup.lineup.version : null}
+              onReload={() => newerLineup && (setLineupInfo(newerLineup), setNewerLineup(null), setCoresDirty(false))}
+            />
+          )}
         </div>
       )}
       <div className={area === 'items' ? 'contents' : 'hidden'}>
@@ -572,12 +609,12 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
       {body}
       {!phone && area === 'items' && shownRow && (
         <div className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving ? 'drawer-out' : 'drawer-in'}`}>
-          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} billing={swBilling} onBilling={setSwBilling} />
+          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} />
         </div>
       )}
       {phone && (
         <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
-          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} billing={swBilling} onBilling={setSwBilling} bare />}
+          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} bare />}
         </SwipeSheet>
       )}
     </div>
@@ -586,7 +623,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
 
 // ---------------------------------------------------------------- one item
 
-type Tab = 'pricing' | 'guardrails' | 'used' | 'history';
+type Tab = 'pricing' | 'details' | 'guardrails' | 'used' | 'history';
 
 function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   const money = (n: number) => `$${n.toLocaleString('en-US')}`;
@@ -613,12 +650,12 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   ];
 }
 
-function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; bare?: boolean }) {
+function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; bare?: boolean }) {
   const [tab, setTab] = useState<Tab>('pricing');
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [typed, setTyped] = useState<Record<string, number | null>>({});
-  const p = placeOf(r.sku);
+  const p = placeFor(r);
   const save = async (code: string, value: number | null | 'default' | 'not_sold') => {
     setErr(null);
     setBusy(code);
@@ -643,7 +680,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, 
     const d = new Date(s.replace(' ', 'T') + 'Z');
     return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
-  const pillCls = (on: boolean) => `relative z-[1] h-8 px-3 rounded-[8px] text-[12.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${on ? 'text-teton-ink' : 'text-teton-ui-gray'}`;
+  const pillCls = (on: boolean) => `relative z-[1] h-8 px-1.5 rounded-[8px] text-[12px] font-semibold whitespace-nowrap transition-colors duration-200 ${on ? 'text-teton-ink' : 'text-teton-ui-gray'}`;
   const box = 'rounded-[14px] border border-[#E8E4DC] px-3.5 py-3 mb-3';
   const h4 = 'mb-2 text-[10px] font-extrabold uppercase tracking-[1.5px] text-[#8A919C]';
 
@@ -661,13 +698,13 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, 
             <Icon sku={r.sku} size="w-11 h-11" />
             <span className="min-w-0">
               <NameField r={r} canEdit={canEdit} onSaved={onSaved} />
-              <small className="text-[12px] text-[#6B7380]">{UNIT[r.pricingModel]}</small>
+              <small className="text-[12px] text-[#6B7380]">{r.generic && r.counted ? `${COUNT_LABEL[r.counted]}${billingOf(r) === 'monthly' ? ' / month' : billingOf(r) === 'years' ? `, every ${r.everyYears ?? 1} years` : ', one-time'}` : UNIT[r.pricingModel]}</small>
             </span>
           </div>
         </div>
       )}
       <div className={`flex flex-wrap gap-1.5 ${bare ? 'mb-3' : 'px-[18px] pt-3'}`}>
-        <span className={`inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold ${isMonthly(r.pricingModel) ? 'bg-[#EAF2FD] text-[#1F5FB5]' : isOnce(r.pricingModel) ? 'bg-[#FFF4D6] text-[#8A5A00]' : 'bg-[#F1EEE7] text-[#5A6270]'}`}>{isMonthly(r.pricingModel) ? 'Monthly' : isOnce(r.pricingModel) ? 'One-time' : 'Multiplier'}</span>
+        <BillingPill r={r} />
         <span className="inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold bg-[#EEF8F1] text-[#1E7A4C]">
           {p.category} · {p.sub}
         </span>
@@ -677,6 +714,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, 
           {(
             [
               ['pricing', 'Pricing'],
+              ['details', 'Details'],
               ['guardrails', 'Guardrails'],
               ['used', 'Used in'],
               ['history', 'History'],
@@ -748,6 +786,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, billing, onBilling, 
             <p className="mt-2 text-[11px] leading-snug text-[#8A919C]">US is the list price new deals start from. Other markets are reference prices from the official pricing sheet{canEdit ? '; ⊘ marks one as not sold there' : ''}.</p>
           </div>
         )}
+        {tab === 'details' && <ItemDetailsTab r={r} canEdit={canEdit} onSaved={onSaved} onLineup={onLineup} />}
         {tab === 'guardrails' && (
           <div className={box}>
             <p className={h4}>Guardrails · US</p>
@@ -838,16 +877,27 @@ function Scroll({ bare, children }: { bare: boolean; children: React.ReactNode }
   );
 }
 
+/** How an item bills: Monthly, One-time, Every N years (or the old multiplier). */
+function BillingPill({ r }: { r: PriceBookRow }) {
+  if (r.pricingModel === 'multiplier') return <span className="inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold bg-[#F1EEE7] text-[#5A6270]">Multiplier</span>;
+  const b = billingOf(r);
+  const cls = b === 'monthly' ? 'bg-[#EAF2FD] text-[#1F5FB5]' : b === 'years' ? 'bg-[#EEEBFB] text-[#6E5BD0]' : 'bg-[#FFF4D6] text-[#8A5A00]';
+  return <span className={`inline-flex h-[22px] items-center px-2 rounded-full text-[11px] font-semibold whitespace-nowrap ${cls}`}>{b === 'years' ? `Every ${r.everyYears ?? 1} yr` : BILLING_LABEL[b]}</span>;
+}
+
+/** Item-detail changes (see lib/data/items): their labels. */
+const DETAIL_FIELDS: Record<string, string> = { created: 'Added', billing: 'Billing', 'every years': 'Every N years', 'priced per': 'Priced per', 'counted by': 'Counted by', pilot: 'Pilot', category: 'Category', group: 'Group', description: 'Description', 'priced by': 'Priced by' };
 const changeLabel = (field: string) => {
   if (field === 'sku') return 'SKU';
   if (field === 'name') return 'Name';
   if (field === 'list') return 'US list price';
+  if (DETAIL_FIELDS[field]) return DETAIL_FIELDS[field];
   const code = field.replace('market:', '');
   return `${MARKETS.find((m) => m.code === code)?.name ?? code} price`;
 };
 const changeValue = (r: PriceBookRow, field: string, v: string | null) => {
   if (v == null) return '—';
-  if (field === 'sku' || field === 'name' || v === 'not sold') return v;
+  if (field === 'sku' || field === 'name' || v === 'not sold' || DETAIL_FIELDS[field]) return field === 'billing' ? BILLING_LABEL[v as ItemBilling] ?? v : field === 'counted by' ? COUNT_LABEL[v as CountBasis] ?? v : v;
   const n = Number(v);
   return Number.isFinite(n) ? fmt(r, field === 'list' ? 'US' : field.replace('market:', ''), n) : v;
 };

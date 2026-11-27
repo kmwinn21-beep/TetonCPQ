@@ -47,19 +47,21 @@ export function DealNavigator({
   const d = useWatch<QuoteDraft>() as QuoteDraft;
   const fp = useFloorPlans();
   const ps = dealProducts(d);
+  // Core products added in the price book count too (their items are on the deal).
+  const extra = (d.extraCores ?? []).length;
   const cs = d.communities ?? [];
   const roles = normalizeResources(d.resources).filter((r) => r.role).length;
   const stages = normalizePlan(d.implementationPlan).order.length;
   const withPlan = fp ? cs.filter((c) => fp.plans.some((p) => p.communityId === c.id)).length : null;
   const items: Item[] = [
-    { id: 'pricing', label: 'Products & pricing', icon: 'pricing', tint: 'lilac', count: ps.length ? ps.length + (hasImplementation(ps) ? 1 : 0) : null, dot: ps.length ? null : 'bad' },
+    { id: 'pricing', label: 'Products & pricing', icon: 'pricing', tint: 'lilac', count: ps.length + extra ? ps.length + extra + (hasImplementation(ps) ? 1 : 0) : null, dot: ps.length + extra ? null : 'bad' },
     { id: 'communities', label: 'Communities', icon: 'building', tint: 'sky', count: cs.length || null, dot: cs.length ? null : 'bad' },
     { id: 'implplan', label: 'Implementation', icon: 'checklist', tint: 'mint', count: stages || null },
     { id: 'resources', label: 'Resource allocation', icon: 'community', tint: 'teal', count: roles || null },
     { id: 'terms', label: 'Terms / notes', icon: 'document', tint: 'sand' },
   ];
   const ready: Array<[string, 'ok' | 'warn' | 'bad', string]> = [
-    ['Products', ps.length ? 'ok' : 'bad', ps.length ? String(ps.length + (hasImplementation(ps) ? 1 : 0)) : 'none yet'],
+    ['Products', ps.length + extra ? 'ok' : 'bad', ps.length + extra ? String(ps.length + extra + (hasImplementation(ps) ? 1 : 0)) : 'none yet'],
     ['Communities', cs.length ? 'ok' : 'bad', cs.length ? `${cs.length}${cs.some((c) => c.pilot) ? ` · ${cs.filter((c) => c.pilot).length} pilot` : ''}` : 'none yet'],
     ...(withPlan != null && cs.length ? [['Floor plans', withPlan === cs.length ? 'ok' : withPlan ? 'warn' : 'bad', `${withPlan} of ${cs.length}`] as [string, 'ok' | 'warn' | 'bad', string]] : []),
   ];

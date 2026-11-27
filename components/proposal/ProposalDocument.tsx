@@ -275,6 +275,18 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                   <td className="py-1 text-right"><V k={r.credit ? 'capex.sensors.credited.value' : 'capex.sensors.value'} label="Additional sensors amount">{usd(r.total)}</V></td>
                 </tr>
               ))}
+              {(capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => (
+                <tr key={x.sku} className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k={`capex.item.${x.sku}`} d={x.name} />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(x.qty)} × {usd(x.perUnit)}
+                      {x.billing === 'years' ? `, again every ${x.everyYears ?? 1} years` : ''}
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k={`capex.item.${x.sku}.value`} label={`${x.name} amount`}>{usd(x.total)}</V></td>
+                </tr>
+              ))}
               <tr className="font-semibold border-b border-teton-off-white">
                 <td className="py-1.5"><T k="capex.price" d="One-time equipment cost, paid at install" /></td>
                 <td className="py-1.5 text-right"><V k="capex.price.value" label="One-time equipment cost">{usd(capex.equipment)}</V></td>
@@ -296,6 +308,23 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                     </span>
                   </td>
                   <td className="py-1 text-right"><V k="capex.software.value" label="Software and services per month">{usd(capex.softwareMonthly)} / mo</V></td>
+                </tr>
+              )}
+              {(capex.items ?? []).filter((x) => x.billing === 'monthly').map((x) => (
+                <tr key={x.sku} className="border-b border-teton-off-white">
+                  <td className="py-1">
+                    <T k={`capex.item.${x.sku}`} d={x.name} />
+                    <span className="block text-[11px] text-teton-dark-gray">
+                      {count(x.qty)} × {usd(x.perUnit, { cents: !Number.isInteger(x.perUnit) })} per month
+                    </span>
+                  </td>
+                  <td className="py-1 text-right"><V k={`capex.item.${x.sku}.value`} label={`${x.name} per month`}>{usd(x.total)} / mo</V></td>
+                </tr>
+              ))}
+              {(capex.itemsRenewals ?? 0) > 0 && (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1"><T k="capex.itemRenewals" d="Item renewals within {years} years" v={{ years: String(capex.ownershipMonths / 12) }} /></td>
+                  <td className="py-1 text-right"><V k="capex.itemRenewals.value" label="Item renewals amount">{usd(capex.itemsRenewals ?? 0)}</V></td>
                 </tr>
               )}
               {capex.renewals > 0 && (

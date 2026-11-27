@@ -13,8 +13,8 @@ import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft
 import { applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, hasImplementation, hasSensors, KITS, sensorCounts, visibleSettings, type Choices, type DealProduct, type Structure } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
 import { activeItems, itemQty } from '@/lib/pricing/items';
-import { COUNT_LABEL } from '@/lib/pricing/catalog';
-import { isRemoved, lineupOf, offeredFor, removedRoles, ROLE_BY_SKU, sameLineup, type Lineup } from '@/lib/pricing/lineup';
+import { COUNT_LABEL, type CountBasis } from '@/lib/pricing/catalog';
+import { BUILTIN_CORES, CONVERTIBLE, isRemoved, lineupOf, offeredFor, removedRoles, ROLE_BY_SKU, sameLineup, SIDES, type Lineup } from '@/lib/pricing/lineup';
 import { Collapse, DerivedField, ReadOnlyContext } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SegGroup } from '@/components/form/SegGroup';
@@ -202,7 +202,7 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
       field: `commercial.items.${it.sku}` as FieldName,
       nullable: true,
       placeholder: String(it.spec.list),
-      applies: any ? `${qty.toLocaleString('en-US')} ${it.spec.counted === 'perCommunity' ? (qty === 1 ? 'community' : 'communities') : 'units'}` : '',
+      applies: any ? `${qty.toLocaleString('en-US')} ${UNIT_WORD[it.spec.counted][qty === 1 ? 0 : 1]}` : '',
       code: it.spec.code,
     });
   }
@@ -215,6 +215,9 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     return !r || !isRemoved(removed, r, l.sku);
   });
 }
+
+/** What a generic item's quantity counts, for "Applies to". */
+const UNIT_WORD: Record<CountBasis, [string, string]> = { monitoredBeds: ['bed', 'beds'], ecallBeds: ['bed', 'beds'], ecallOnlyBeds: ['bed', 'beds'], monitoredEcallBeds: ['bed', 'beds'], snfBeds: ['bed', 'beds'], rooms: ['room', 'rooms'], commonAreaSensors: ['sensor', 'sensors'], additionalSensors: ['sensor', 'sensors'], perCommunity: ['community', 'communities'] };
 
 /** The bundle's deal price: subscription + E-Call less the bundle saving. Editing it changes the saving. */
 function BundlePrice({ sys, list, label }: { sys: 'ble' | 'inovonics'; list: number | null; label: string }) {
@@ -248,7 +251,11 @@ const STRUCTURES: Array<[Structure, string]> = [
 ];
 
 /** The two questions: how they buy, and what they're getting (plus options). */
-function BuildPanel({ c, onChange, disabled, lineup }: { c: Choices; onChange: (next: Choices) => void; disabled: boolean; lineup: Lineup }) {
+function BuildPanel({ c, onChange, disabled, lineup, extra, onExtra }: { c: Choices; onChange: (next: Choices) => void; disabled: boolean; lineup: Lineup; extra: string[]; onExtra: (ids: string[]) => void }) {
+  // Core products added in the price book: cards (or option chips) of their own, picked per deal.
+  const customs = lineup.cores.filter((x) => !BUILTIN_CORES.includes(x.id as never));
+  const notOffered = (id: string) => !offeredFor(lineup, id, c.structure);
+  const flip = (id: string) => onExtra(extra.includes(id) ? extra.filter((x) => x !== id) : [...extra, id]);
   const caOk = commonAreaOffered(c.structure, lineup);
   // Names and notes come from the line-up (admins can rename them in the price book).
   const core = (id: string, name: string, note: string) => {
@@ -333,6 +340,19 @@ function BuildPanel({ c, onChange, disabled, lineup }: { c: Choices; onChange: (
           <b className={`block pr-6 text-[13px] ${caOk ? '' : 'text-[#9AA0A8]'}`}>{ca.name}</b>
           <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{caOk ? ca.note : 'Not offered on equipment purchase'}</small>
         </button>
+        {customs
+          .filter((x) => x.kind === 'core')
+          .map((x) => {
+            const off = notOffered(x.id);
+            const on = !off && extra.includes(x.id);
+            return (
+              <button key={x.id} type="button" role="checkbox" aria-checked={on} aria-disabled={off} disabled={disabled || off} onClick={() => flip(x.id)} className={card(on, off)} title={off ? `Not offered with ${c.structure === 'capex' ? 'equipment purchase' : 'the subscription'}` : undefined}>
+                {tick(on)}
+                <b className={`block pr-6 text-[13px] ${off ? 'text-[#9AA0A8]' : ''}`}>{x.name}</b>
+                <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{off ? `Not offered with ${c.structure === 'capex' ? 'equipment purchase' : 'the subscription'}` : x.note}</small>
+              </button>
+            );
+          })}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className={`${eyebrow} mr-1`}>Options</span>
@@ -345,6 +365,16 @@ function BuildPanel({ c, onChange, disabled, lineup }: { c: Choices; onChange: (
         >
           {c.finish ? `✓ ${fin.name}` : `+ ${fin.name}`}
         </button>
+        {customs
+          .filter((x) => x.kind === 'option' && !notOffered(x.id))
+          .map((x) => {
+            const on = extra.includes(x.id);
+            return (
+              <button key={x.id} type="button" aria-pressed={on} disabled={disabled} onClick={() => flip(x.id)} title={x.note || undefined} className={`h-8 rounded-full px-3 text-[12px] transition-colors duration-200 ${on ? 'border border-teton-ink bg-teton-ink text-white' : 'border border-dashed border-[#C9C4BA] text-[#4E5562] hover:bg-[#FBFAF7]'}`}>
+                {on ? `✓ ${x.name}` : `+ ${x.name}`}
+              </button>
+            );
+          })}
       </div>
     </div>
   );
@@ -378,6 +408,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     if (JSON.stringify(cur.schedule) !== JSON.stringify(next.schedule)) setValue('schedule', next.schedule, o);
     if (JSON.stringify(cur.communities) !== JSON.stringify(next.communities)) setValue('communities', next.communities, o);
     if (JSON.stringify(cur.lineup ?? null) !== JSON.stringify(next.lineup ?? null)) setValue('lineup', next.lineup, o);
+    if (JSON.stringify(cur.extraCores ?? null) !== JSON.stringify(next.extraCores ?? null)) setValue('extraCores', next.extraCores, o);
   };
   const [ask, setAsk] = useState<null | 'sensors'>(null);
   const [toast, setToast] = useState<{ text: string; undo: QuoteDraft } | null>(null);
@@ -412,6 +443,15 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                 onClick={() => {
                   const before = getValues();
                   setValue('lineup', structuredClone(current), { shouldDirty: true });
+                  // Built-in items the price book switched to their own details: keep this deal's price for them.
+                  const carried: Record<string, number> = { ...(before.commercial.items ?? {}) };
+                  for (const sku of Object.keys(CONVERTIBLE)) {
+                    const was = dealLineup.cores.some((x) => SIDES.some((s) => x.sides[s].items.some((e) => e.sku === sku && !e.item)));
+                    const now = current.cores.some((x) => SIDES.some((s) => x.sides[s].items.some((e) => e.sku === sku && e.item)));
+                    const v = CONVERTIBLE[sku].dealPrice(before.commercial);
+                    if (was && now && carried[sku] == null && v != null) carried[sku] = Number(v);
+                  }
+                  if (JSON.stringify(carried) !== JSON.stringify(before.commercial.items ?? {})) setValue('commercial.items', carried, { shouldDirty: true });
                   setToast({ text: `Updated to the price book’s core products (version ${current.version}). Prices follow it.`, undo: before });
                 }}
               >
@@ -420,7 +460,14 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
             )}
           </div>
         </Collapse>
-        <BuildPanel c={choices} onChange={choose} disabled={readOnly} lineup={dealLineup} />
+        <BuildPanel
+          c={choices}
+          onChange={choose}
+          disabled={readOnly}
+          lineup={dealLineup}
+          extra={(d.extraCores ?? []).filter((id) => dealLineup.cores.some((x) => x.id === id))}
+          onExtra={(ids) => setValue('extraCores', ids, { shouldDirty: true })}
+        />
         <Collapse open={!!toast}>
           {toast && (
             <div role="status" className="mx-4 mt-3 flex items-center gap-3 rounded-[10px] bg-teton-ink px-3 py-2 text-[12.5px] text-white">
@@ -431,7 +478,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
             </div>
           )}
         </Collapse>
-        {!ps.length ? (
+        {!ps.length && !lines.length ? (
           <div className="px-4 py-6 text-center">
             <p className="text-[13px] text-[#6B7380]">Pick a core product above. Its price book items, and implementation, are added for you.</p>
             {!readOnly && KITS.filter((x) => x.mostUsed).map((kit) => (

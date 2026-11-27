@@ -2768,6 +2768,11 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           <td className="bc-m">
                             <T k="bc.scope.subscription" d="Monthly Cost" />
                             <small><T k="bc.inv.monthlySub" d={anyPilot ? 'After the {pilot}-month pilot' : 'Billed monthly'} v={{ pilot: String(inputs.schedule.pilotLengthMonths) }} /></small>
+                            {(() => {
+                              // Items priced from their own details that bill monthly are in this figure: name them.
+                              const its = itemsOn(draft, 'subscription').filter((it) => it.spec.billing === 'monthly');
+                              return its.length ? <small><T k="bc.inv.monthlyItems" d="Includes {items}" v={{ items: its.map((it) => it.spec.name).join(', ') }} /></small> : null;
+                            })()}
                           </td>
                           <td>{perBedMonthly} per room, per month</td>
                           <td>{count(term)} Months</td>

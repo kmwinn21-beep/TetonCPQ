@@ -169,3 +169,22 @@ export const BUILTIN_DETAILS: Record<string, { billing: Billing; everyYears?: nu
     return [p.sku, { billing, ...(years ? { everyYears: years } : {}), per: sensor ? 'sensor' : device ? 'device' : room ? 'room' : 'bed' }];
   }),
 );
+
+/** Items priced from their own details that ship with the app (see migrate). Admins add them to core products. */
+export const GENERIC_SEED: Array<Required<Pick<Product, 'sku' | 'name' | 'pricingModel' | 'list' | 'description'>> & { itemCode: string; billing: Billing; per: PerUnit; counted: CountBasis; pilotRule: PilotRule; category: string; sub: string }> = [
+  {
+    sku: 'CAPEX-COMMON-AREA',
+    name: 'Common area sensor (purchase)',
+    itemCode: 'TT-CAP-014',
+    pricingModel: 'per_unit_once',
+    // A starting price (the purchase price of an additional sensor) until one is set.
+    list: 450,
+    description: 'A common-area sensor bought outright and installed. One-time, per sensor; no software fee.',
+    billing: 'once',
+    per: 'sensor',
+    counted: 'commonAreaSensors',
+    pilotRule: 'none',
+    category: 'Capital purchase',
+    sub: 'Components',
+  },
+];

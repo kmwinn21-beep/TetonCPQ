@@ -1,5 +1,5 @@
 import type { Client } from '@libsql/client';
-import { BUILTIN_DETAILS, SEED_PRODUCTS } from '@/lib/pricing/catalog';
+import { BUILTIN_DETAILS, GENERIC_SEED, SEED_PRODUCTS } from '@/lib/pricing/catalog';
 import { ITEM_CODES, MARKET_SEED } from '@/lib/pricing/markets';
 import { MIGRATIONS } from './migrations';
 
@@ -55,6 +55,16 @@ export async function migrate(db: Client): Promise<void> {
     Object.entries(BUILTIN_DETAILS).map(([sku, d]) => ({
       sql: 'UPDATE products SET billing = ?, every_years = ?, per_unit = ? WHERE sku = ? AND billing IS NULL',
       args: [d.billing, d.everyYears ?? null, d.per, sku],
+    })),
+    'write',
+  );
+  // Items priced from their own details that ship with the app (added once; edits are kept). Not in any core
+  // product until an admin adds one: the equipment-purchase common area sensor has no confirmed price yet.
+  await db.batch(
+    GENERIC_SEED.map((g) => ({
+      sql: `INSERT OR IGNORE INTO products (sku, name, pricing_model, list_price, description, item_code, billing, per_unit, counted, pilot_rule, category, sub, generic)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM products x WHERE x.item_code = ? AND x.sku <> ?)`,
+      args: [g.sku, g.name, g.pricingModel, g.list, g.description, g.itemCode, g.billing, g.per, g.counted, g.pilotRule, g.category, g.sub, g.itemCode, g.sku],
     })),
     'write',
   );

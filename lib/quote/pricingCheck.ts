@@ -8,7 +8,7 @@
  * agrees with itself: the price lines add up to the model's billing and the cash flow, the Year 1 card matches,
  * and the equipment rows add up to the equipment total.
  */
-import { pricedDraft } from '@/lib/pricing/lineup';
+import { isRemoved, pricedDraft, removedRoles, type RoleId } from '@/lib/pricing/lineup';
 import { activeItems, itemPrice } from '@/lib/pricing/items';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 import { subscriptionTotals } from '@/lib/model';
@@ -138,8 +138,12 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
   // ---- Inputs, next to the price book
   const list = (sku: string) => book[sku]?.list;
   const inRows: CheckInputRow[] = [];
+  // Built-in items the deal's line-up takes away (or prices from their own details) aren't shown as built-in prices.
+  const removed = removedRoles(draft.lineup);
+  const KEY_ROLE: Record<string, RoleId> = { platform: 'platform', install: 'install', sensor: 'sensor', snf: 'snf', caSetup: 'commonAreaSetup', caMonthly: 'commonAreaMonthly', ecall: 'ecallFee', bundle: 'bundle', ecallDevice: 'ecallDevice', cxBase: 'capexBase', cxBaseEc: 'capexBaseEcall', cxSensor: 'capexSensor', cxSoftware: 'capexSoftware', cxSoftwareUp: 'capexSoftwareUpfront', cxRenewal: 'capexRenewal', cxEo: 'capexEcallInstall', cxEoSw: 'capexEcallSoftware', cxEoSwUp: 'capexEcallSoftwareUpfront' };
   const price = (key: string, label: string, product: CheckInputRow['product'], deal: number | null | undefined, bookVal: number | undefined | null, fmt = cents) => {
     if (deal == null) return;
+    if (removed.size && KEY_ROLE[key] && isRemoved(removed, KEY_ROLE[key])) return;
     inRows.push({ key, label, product, deal: fmt(deal), book: bookVal == null ? '—' : fmt(bookVal), differs: bookVal != null && !near(deal, bookVal) });
   };
   const anyMonitoring = draft.communities.some((c) => scopeOf(c, ecallOn).monitored > 0 || (scopeOf(c, ecallOn).beds === 0 && scopeOf(c, ecallOn).uniform?.monitoring));
@@ -156,7 +160,9 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     if (anyFull) price('full', 'Full-facility coverage multiplier (older deals)', 'subscription', k.fullFacilityMultiplier, list(SKU.fullFacility), (n) => `${n}×`);
     const anySnf = draft.communities.some((c) => scopeOf(c, ecallOn).monitoredByCare.snf > 0);
     if (anySnf) {
-      if (k.snfRate == null) inRows.push({ key: 'snf', label: 'Skilled nursing beds per bed / month', product: 'subscription', deal: 'Subscription rate (older deal)', book: cents(list(SKU.snf) ?? 49), differs: true });
+      if (k.snfRate == null && isRemoved(removed, 'snf')) {
+        // The line-up takes skilled nursing away: SNF beds at the subscription rate (not an older-deal gap).
+      } else if (k.snfRate == null) inRows.push({ key: 'snf', label: 'Skilled nursing beds per bed / month', product: 'subscription', deal: 'Subscription rate (older deal)', book: cents(list(SKU.snf) ?? 49), differs: true });
       else price('snf', 'Skilled nursing beds per bed / month', 'subscription', k.snfRate, list(SKU.snf));
     }
     const anyCa = draft.communities.some((c) => (Number(c.commonAreaSensors) || 0) > 0 && c.coverage !== 'full_facility');

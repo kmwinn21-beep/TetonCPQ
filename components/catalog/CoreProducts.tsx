@@ -11,8 +11,8 @@ import { Collapse } from '@/components/form/fields';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { SwitchButton } from '@/components/quote/sections';
 import { ItemIcon } from './ItemIcon';
-import { SKU } from '@/lib/pricing/catalog';
-import { OFFER_LOCKED, removedRoles, ROLE_BY_SKU, ROLES, roleOf, SIDE_LABEL, SIDES, sameLineup, type CoreProduct, type Lineup, type LineupEntry, type RoleId, type Side } from '@/lib/pricing/lineup';
+import { BILLING_LABEL, COUNT_LABEL, SKU, billingOf } from '@/lib/pricing/catalog';
+import { BUILTIN_CORES, OFFER_LOCKED, removedRoles, ROLE_BY_SKU, ROLES, roleOf, SIDE_LABEL, SIDES, sameLineup, type CoreProduct, type Lineup, type LineupEntry, type RoleId, type Side } from '@/lib/pricing/lineup';
 import type { LineupInfo } from '@/lib/data/lineup';
 import type { PriceBookRow } from '@/lib/data/priceBook';
 
@@ -28,7 +28,7 @@ function useLabels(rows: PriceBookRow[]) {
     return {
       code: r?.itemCode ?? e.sku,
       name: role === 'ecallInstall' ? 'E-Call installation' : r?.name ?? e.sku,
-      counted: role ? ROLES[role].counted : 'Priced from its price book details',
+      counted: role ? ROLES[role].counted : r?.generic && r.counted ? `${COUNT_LABEL[r.counted]} · ${r.billing === 'years' ? `every ${r.everyYears ?? 1} years` : BILLING_LABEL[billingOf(r)].toLowerCase()}` : 'Priced from its price book details',
       missing: !r,
     };
   };
@@ -41,7 +41,7 @@ const when = (s: string | null) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: PriceBookRow[] }) {
+export function CoreProducts({ initial, rows, onDirty, newer, onReload }: { initial: LineupInfo; rows: PriceBookRow[]; onDirty?: (dirty: boolean) => void; newer?: number | null; onReload?: () => void }) {
   const [info, setInfo] = useState(initial);
   const [draft, setDraft] = useState<Lineup>(() => structuredClone(initial.lineup));
   const [sel, setSel] = useState<string | null>(null);
@@ -54,6 +54,7 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
   const freeNow = useMemo(() => Array.from(removedRoles(draft)), [draft]);
   const freeSaved = useMemo(() => new Set(removedRoles(info.lineup)), [info.lineup]);
 
+  useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -78,6 +79,19 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
     }
   };
   const updateCore = (id: string, f: (c: CoreProduct) => CoreProduct) => setDraft((l) => ({ ...l, cores: l.cores.map((c) => (c.id === id ? f(structuredClone(c)) : c)) }));
+  const rid = () => Math.random().toString(36).slice(2, 8);
+  /** A core product added here: a card (or an option chip) for items priced from their details. */
+  const addCore = () => {
+    const id = `core-${rid()}`;
+    setDraft((l) => ({ ...l, cores: [...l.cores, { id, name: 'New core product', note: '', kind: 'core', sides: { subscription: { offered: true, items: [] }, capex: { offered: true, items: [] } } }] }));
+    setSel(id);
+  };
+  const removeCore = (id: string) => {
+    setSel(null);
+    setDraft((l) => ({ ...l, cores: l.cores.filter((c) => c.id !== id), combos: l.combos.filter((x) => x.builtin || !x.when.includes(id)) }));
+  };
+  const [combo, setCombo] = useState<null | { when: string[]; side: Side; replace: string[]; with: string[] }>(null);
+  const genericRows = rows.filter((r) => r.generic);
   const current = draft.cores.find((c) => c.id === sel) ?? null;
 
   return (
@@ -90,6 +104,9 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
           </p>
         </div>
         {dirty && <span className="text-[12px] font-semibold text-[#9A6512]">● Unsaved changes</span>}
+        <button type="button" onClick={addCore} className={`${btn} border border-[#E4E0D6] bg-white`}>
+          ＋ New core product
+        </button>
         <button type="button" disabled={!dirty || saving} onClick={() => (setDraft(structuredClone(info.lineup)), setErr(null))} className={`${btn} border border-[#E4E0D6] bg-white disabled:opacity-40`}>
           Discard
         </button>
@@ -99,6 +116,12 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
       </div>
       <Collapse open={!!err}>
         <p role="alert" className="mb-3 rounded-[10px] bg-[#FDF0EE] px-3 py-2 text-[12.5px] text-[#B4442C]">{err}</p>
+      </Collapse>
+      <Collapse open={!!newer}>
+        <div role="status" className="mb-3 flex flex-wrap items-center gap-2 rounded-[10px] border border-[#CFE2F8] bg-[#F3F8FE] px-3 py-2 text-[12.5px]">
+          <span className="flex-1 min-w-[220px]">An item change saved core products version {newer}. Your unsaved changes here are on an older version: discard them to load it.</span>
+          <button type="button" onClick={onReload} className="h-8 px-3 rounded-[8px] bg-teton-ink text-white text-[12px] font-semibold">Discard and load version {newer}</button>
+        </div>
       </Collapse>
       <Collapse open={!!note && !dirty}>
         <p role="status" className="mb-3 rounded-[10px] bg-[#EEF8F1] px-3 py-2 text-[12.5px] text-[#1E7A4C]">✓ {note}</p>
@@ -161,7 +184,27 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
         <div className="flex flex-wrap items-baseline gap-x-2.5 px-4 py-2.5 bg-[#FBFAF7] border-b border-[#ECE8DF]">
           <b className="text-[14px]">Combinations</b>
           <span className="text-[12px] text-[#6B7380]">when two core products are on the same deal, swap items</span>
+          <button type="button" onClick={() => setCombo(combo ? null : { when: [], side: 'subscription', replace: [], with: [] })} aria-expanded={!!combo} className="ml-auto h-8 px-3 rounded-[8px] border border-[#E4E0D6] bg-white text-[12px] font-semibold">
+            ＋ Add combination
+          </button>
         </div>
+        <Collapse open={!!combo}>
+          {combo && (
+            <ComboEditor
+              value={combo}
+              onChange={setCombo}
+              cores={draft.cores}
+              lineup={draft}
+              generic={genericRows}
+              label={label}
+              onCancel={() => setCombo(null)}
+              onAdd={() => {
+                setDraft((l) => ({ ...l, combos: [...l.combos, { id: `combo-${rid()}`, when: combo.when, side: combo.side, replace: combo.replace, with: combo.with.map((sku) => ({ sku })), enabled: true }] }));
+                setCombo(null);
+              }}
+            />
+          )}
+        </Collapse>
         {draft.combos.map((x) => {
           const names = x.when.map((w) => draft.cores.find((c) => c.id === w)?.name ?? w).join(' + ');
           const sys = x.system === 'inovonics' ? 'Inovonics' : x.system === 'ble' ? 'Bluetooth' : null;
@@ -176,7 +219,7 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
                 </small>
               </span>
               <span className={`text-[#4E5562] ${x.enabled || locked ? '' : 'line-through opacity-60'}`}>
-                Replace {x.replace.map((r) => <span key={r} className="font-mono text-[11px]">{label({ sku: r }).code} </span>)}with{' '}
+                {x.replace.length ? <>Replace {x.replace.map((r) => <span key={r} className="font-mono text-[11px]">{label({ sku: r }).code} </span>)}{x.with.length ? 'with ' : ''}</> : 'Add '}
                 {x.with.map((w) => (
                   <span key={w.sku}>
                     <span className="font-mono text-[11px]">{label(w).code}</span> {label(w).name}
@@ -186,6 +229,13 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
               </span>
               {locked ? (
                 <span className="text-[11.5px] text-[#8A919C] whitespace-nowrap" title="How equipment purchase prices beds with both">🔒 Always on</span>
+              ) : !x.builtin ? (
+                <span className="flex items-center gap-2 text-[12px] text-[#6B7380]">
+                  <SwitchButton label={`${names} combination`} on={x.enabled} onChange={(on) => setDraft((l) => ({ ...l, combos: l.combos.map((y) => (y.id === x.id ? { ...y, enabled: on } : y)) }))} />
+                  <button type="button" aria-label={`Remove the ${names} combination`} onClick={() => setDraft((l) => ({ ...l, combos: l.combos.filter((y) => y.id !== x.id) }))} className="w-8 h-8 grid place-items-center rounded-[8px] text-[#A3A9B2] hover:bg-[#F6F3EE] hover:text-[#B4442C]">
+                    ✕
+                  </button>
+                </span>
               ) : (
                 <span className="flex items-center gap-2 text-[12px] text-[#6B7380]">
                   <SwitchButton label={`${names} (${sys ?? 'any'}) bundle`} on={x.enabled} onChange={(on) => setDraft((l) => ({ ...l, combos: l.combos.map((y) => (y.id === x.id ? { ...y, enabled: on } : y)) }))} />
@@ -197,13 +247,13 @@ export function CoreProducts({ initial, rows }: { initial: LineupInfo; rows: Pri
         })}
       </div>
 
-      <CoreDrawer core={current} rows={rows} lineup={draft} label={label} onClose={() => setSel(null)} onChange={(f) => current && updateCore(current.id, f)} />
+      <CoreDrawer core={current} rows={rows} lineup={draft} label={label} onClose={() => setSel(null)} onChange={(f) => current && updateCore(current.id, f)} onRemove={current && !BUILTIN_CORES.includes(current.id as never) ? () => removeCore(current.id) : undefined} />
     </div>
   );
 }
 
 /** Edit one core product: name, note, and per way to buy whether it's offered and which items it adds. */
-function CoreDrawer({ core, rows, lineup, label, onClose, onChange }: { core: CoreProduct | null; rows: PriceBookRow[]; lineup: Lineup; label: ReturnType<typeof useLabels>; onClose: () => void; onChange: (f: (c: CoreProduct) => CoreProduct) => void }) {
+function CoreDrawer({ core, rows, lineup, label, onClose, onChange, onRemove }: { core: CoreProduct | null; rows: PriceBookRow[]; lineup: Lineup; label: ReturnType<typeof useLabels>; onClose: () => void; onChange: (f: (c: CoreProduct) => CoreProduct) => void; onRemove?: () => void }) {
   const phone = usePhone('(max-width: 1023px)');
   const [side, setSide] = useState<Side>('subscription');
   const [adding, setAdding] = useState(false);
@@ -226,6 +276,10 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange }: { core: Co
     setAdding(false);
     setQ('');
   }, [core?.id, side]);
+  // Each core product opens on the subscription tab.
+  useEffect(() => {
+    if (core?.id) setSide('subscription');
+  }, [core?.id]);
   useEffect(() => {
     if (!core) return;
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -239,8 +293,10 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange }: { core: Co
   // Items that can go here: built-in ones priced this way (bundles and the base package with E-Call live in
   // combinations; the old full-facility multiplier isn't an item), and items priced from their own details.
   const candidates: LineupEntry[] = [];
+  const custom = !BUILTIN_CORES.includes(c.id as never);
   for (const r of rows) {
     if (r.pricingModel === 'multiplier') continue;
+    if (custom && !r.generic) continue;
     const role = ROLE_BY_SKU[r.sku];
     if (role === 'bundle' || role === 'capexBaseEcall') continue;
     if (role && ROLES[role].side !== 'both' && ROLES[role].side !== side) continue;
@@ -280,6 +336,23 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange }: { core: Co
           <input value={c.note} onChange={(e) => onChange((x) => ({ ...x, note: e.target.value }))} className={input} maxLength={120} />
         </label>
       </div>
+      {custom && (
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SegGroup label="Shown as" className="inline-flex rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white">
+            {(
+              [
+                ['core', 'A card'],
+                ['option', 'An option chip'],
+              ] as const
+            ).map(([v, t]) => (
+              <button key={v} type="button" role="radio" aria-checked={c.kind === v} onClick={() => onChange((x) => ({ ...x, kind: v }))} className={`h-9 sm:h-8 px-3.5 rounded-[8px] text-[12.5px] transition-colors duration-200 ${c.kind === v ? 'font-semibold text-teton-ink' : 'text-[#4E5562]'}`}>
+                {t}
+              </button>
+            ))}
+          </SegGroup>
+          <small className="text-[11.5px] text-[#8A919C]">Only items priced from their details can go here.</small>
+        </div>
+      )}
       <SegGroup label="Way to buy" className="inline-flex self-start rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white">
         {SIDES.map((s) => (
           <button key={s} type="button" role="radio" aria-checked={side === s} onClick={() => setSide(s)} className={`h-9 sm:h-8 px-3.5 rounded-[8px] text-[12.5px] transition-colors duration-200 ${side === s ? 'font-semibold text-teton-ink' : 'text-[#4E5562]'}`}>
@@ -369,11 +442,86 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange }: { core: Co
           </button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">{body}</div>
-        <div className="border-t border-[#ECE8DF] px-5 py-3 flex justify-end">
+        <div className="border-t border-[#ECE8DF] px-5 py-3 flex justify-end gap-2">
+          {onRemove && (
+            <button type="button" onClick={onRemove} className={`${btn} mr-auto border border-[#E4E0D6] bg-white text-[#B4442C]`}>
+              Remove core product
+            </button>
+          )}
           <button type="button" onClick={onClose} className={`${btn} bg-teton-ink text-white`}>
             Done
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** A combination added here: with all these core products on a deal, replace some generic items with others. */
+function ComboEditor({ value, onChange, cores, lineup, generic, label, onCancel, onAdd }: { value: { when: string[]; side: Side; replace: string[]; with: string[] }; onChange: (v: { when: string[]; side: Side; replace: string[]; with: string[] }) => void; cores: CoreProduct[]; lineup: Lineup; generic: PriceBookRow[]; label: ReturnType<typeof useLabels>; onCancel: () => void; onAdd: () => void }) {
+  const v = value;
+  const toggle = (xs: string[], x: string) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
+  // Items that can be replaced: generic items in the chosen core products' lists for this way to buy.
+  const replaceable = Array.from(new Set(lineup.cores.filter((c) => v.when.includes(c.id)).flatMap((c) => c.sides[v.side].items.filter((e) => e.item).map((e) => e.sku))));
+  const chip = (on: boolean) => `h-8 px-3 rounded-full text-[12px] border transition-colors duration-200 ${on ? 'border-teton-ink bg-teton-ink text-white' : 'border-[#D3D6DA] bg-white text-[#4E5562] hover:bg-[#FBFAF7]'}`;
+  const ok = v.when.length >= 2 && (v.replace.length > 0 || v.with.length > 0);
+  return (
+    <div className="px-4 py-3 border-b border-[#ECE8DF] bg-[#FCFBF8] space-y-3 text-[12.5px]">
+      <div>
+        <p className={`${eb} mb-1.5`}>When all of these are on the deal (2 or more)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {cores.map((c) => (
+            <button key={c.id} type="button" aria-pressed={v.when.includes(c.id)} onClick={() => onChange({ ...v, when: toggle(v.when, c.id), replace: [] })} className={chip(v.when.includes(c.id))}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className={`${eb} mb-1.5`}>Sold as</p>
+        <SegGroup label="Sold as" className="inline-flex rounded-[11px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white">
+          {SIDES.map((s) => (
+            <button key={s} type="button" role="radio" aria-checked={v.side === s} onClick={() => onChange({ ...v, side: s, replace: [] })} className={`h-9 sm:h-8 px-3.5 rounded-[8px] text-[12.5px] transition-colors duration-200 ${v.side === s ? 'font-semibold text-teton-ink' : 'text-[#4E5562]'}`}>
+              {SIDE_LABEL[s]}
+            </button>
+          ))}
+        </SegGroup>
+      </div>
+      <div>
+        <p className={`${eb} mb-1.5`}>Take off</p>
+        {replaceable.length ? (
+          <div className="flex flex-wrap gap-1.5">
+            {replaceable.map((sku) => (
+              <button key={sku} type="button" aria-pressed={v.replace.includes(sku)} onClick={() => onChange({ ...v, replace: toggle(v.replace, sku) })} className={chip(v.replace.includes(sku))}>
+                {label({ sku }).name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12px] text-[#8A919C]">{v.when.length < 2 ? 'Pick the core products first.' : 'Those core products have no items priced from their details for this way to buy.'}</p>
+        )}
+      </div>
+      <div>
+        <p className={`${eb} mb-1.5`}>Put on instead</p>
+        {generic.length ? (
+          <div className="flex flex-wrap gap-1.5">
+            {generic.map((r) => (
+              <button key={r.sku} type="button" aria-pressed={v.with.includes(r.sku)} onClick={() => onChange({ ...v, with: toggle(v.with, r.sku) })} className={chip(v.with.includes(r.sku))}>
+                {r.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12px] text-[#8A919C]">Add an item on the Items tab first (only items priced from their details can be combined).</p>
+        )}
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className={`${btn} border border-[#E4E0D6] bg-white`}>
+          Cancel
+        </button>
+        <button type="button" disabled={!ok} onClick={onAdd} className={`${btn} bg-teton-ink text-white disabled:opacity-40`}>
+          Add combination
+        </button>
       </div>
     </div>
   );
