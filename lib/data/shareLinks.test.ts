@@ -102,7 +102,7 @@ describe('share links', () => {
     expect(mine).toMatchObject({ prospect: 'dana@fh.com', mine: false, shareLinkId: l.id });
     // Nobody on the team edits a prospect's words; only an admin deletes them.
     await expect(editComment(db, v2, t, { body: 'x' }, users.kw)).rejects.toThrow(/Only the author/);
-    await expect(deleteComment(db, v2, t, users.kw)).rejects.toThrow(/Only the author or an admin/);
+    await expect(deleteComment(db, v2, t, users.kw)).rejects.toThrow(/Only the author/);
     // A prospect replies only on their link's threads.
     const internal = team.find((x) => x.body.startsWith('Internal'))!;
     await expect(addProspectComment(db, l, { email: 'dana@fh.com' }, { parentId: internal.id, body: 'Peek' })).rejects.toThrow(/not found/);

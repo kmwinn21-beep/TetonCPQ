@@ -150,7 +150,7 @@ export const POLICY = {
   standardPilotMonths: 3,
   serviceTermMonths: 36,
   postPilotFloor: 89,
-  /** Below this fraction of list routes to Deal Desk. */
+  /** Below this fraction of list routes to RevOps. */
   hardFloorPct: 0.5,
   /** Service-term rate below this fraction of list is a soft warning. */
   serviceTermFloorPct: 0.9,

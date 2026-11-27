@@ -2,7 +2,7 @@
  * Delete a deal for good: the deal and everything that belongs to it (its proposal, versions, communities, floor
  * plans and notes, comments, tasks, notifications, share links and their emails, the deal room, files, agreement
  * requests). Found by walking the schema's foreign keys from `deals`, so tables added later are covered too, plus the
- * few links the schema doesn't declare. Only the deal's owner or an admin may do it.
+ * few links the schema doesn't declare. Who may do it comes from the roles & permissions matrix.
  */
 import type { Client, InValue } from '@libsql/client';
 import type { DealAccess } from './access';
@@ -16,12 +16,12 @@ const EXTRA_LINKS: Array<[string, string, string]> = [
 /** Never deleted (shared across deals). */
 const KEEP = new Set(['users', 'products', '_migrations']);
 
-export function canDeleteDeal(a: Pick<DealAccess, 'isOwner' | 'isAdmin'>): boolean {
-  return a.isOwner || a.isAdmin;
+export function canDeleteDeal(a: Pick<DealAccess, 'canDelete'>): boolean {
+  return a.canDelete;
 }
 
 export async function deleteDeal(db: Client, a: DealAccess): Promise<{ rows: number }> {
-  if (!canDeleteDeal(a)) throw Object.assign(new Error('Only the deal’s owner or an admin can delete it'), { status: 403 as const });
+  if (!canDeleteDeal(a)) throw Object.assign(new Error('You don’t have permission to delete this deal'), { status: 403 as const });
   const tables = (await db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")).rows.map((r) => String(r.name)).filter((t) => !KEEP.has(t));
   // child table → [column, parent table]
   const links: Array<[string, string, string]> = [...EXTRA_LINKS];

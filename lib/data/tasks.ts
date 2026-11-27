@@ -6,6 +6,7 @@
  * Notifications: assignees hear when they're assigned. An overdue task reminds its assignees (its creator if it's
  * unassigned) at 3, 6, 9 … days past due; reminders are created when notifications are read, so no scheduler.
  */
+import { allowed } from '@/lib/auth/permissions';
 import type { Client, Row } from '@libsql/client';
 import { initialsOf, type Person, type Viewer } from './planNotes';
 
@@ -104,7 +105,7 @@ async function toTasks(db: Client, rows: Row[], v: Viewer): Promise<Task[]> {
     createdAt: String(x.created_at),
     completedAt: x.completed_at == null ? null : String(x.completed_at),
     completedBy: x.completed_by == null ? null : person(x.completed_by, x.completed_name),
-    canEdit: Number(x.created_by) === v.id || v.role === 'admin',
+    canEdit: Number(x.created_by) === v.id || allowed(v, 'notes.moderate'),
   }));
 }
 
@@ -166,7 +167,7 @@ async function taskRow(db: Client, quoteId: number, taskId: number) {
 /** Edit (creator or admin): title, assignees, priority, due date. Newly added assignees are notified. */
 export async function updateTask(db: Client, quoteId: number, taskId: number, input: TaskInput, v: Viewer): Promise<void> {
   const { row, dealId } = await taskRow(db, quoteId, taskId);
-  if (Number(row.created_by) !== v.id && v.role !== 'admin') throw httpError('Only the person who added this task or an admin can change it', 403);
+  if (Number(row.created_by) !== v.id && !allowed(v, 'notes.moderate')) throw httpError('Only the person who added this task (or someone allowed to change others’ tasks) can change it', 403);
   const c = await cleanInput(db, dealId, input, true);
   const before = ids(row.assignees);
   await db.execute({
@@ -191,7 +192,7 @@ export async function setTaskDone(db: Client, quoteId: number, taskId: number, d
 /** Delete (creator or admin), with its comments and notifications. */
 export async function deleteTask(db: Client, quoteId: number, taskId: number, v: Viewer): Promise<void> {
   const { row, dealId } = await taskRow(db, quoteId, taskId);
-  if (Number(row.created_by) !== v.id && v.role !== 'admin') throw httpError('Only the person who added this task or an admin can delete it', 403);
+  if (Number(row.created_by) !== v.id && !allowed(v, 'notes.moderate')) throw httpError('Only the person who added this task (or someone allowed to delete others’ tasks) can delete it', 403);
   const page = String(taskId);
   await db.execute({ sql: "DELETE FROM comment_reads WHERE comment_id IN (SELECT id FROM proposal_comments WHERE deal_id = ? AND area = 'task' AND page = ?)", args: [dealId, page] });
   await db.execute({ sql: "DELETE FROM proposal_comments WHERE deal_id = ? AND area = 'task' AND page = ?", args: [dealId, page] });

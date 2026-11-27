@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'share');
     const b = (await req.json().catch(() => ({}))) as { emails?: string[] };
     const sent = await sendShareEmails(db, q, baseUrlOf(req), u, Array.isArray(b.emails) ? b.emails.map((e) => String(e).toLowerCase()) : undefined);
     return NextResponse.json({ sent, link: await getDealShareLink(db, q) });

@@ -11,7 +11,7 @@ export async function POST(_req: Request, { params }: { params: { id: string; ve
     const user = await requireApiUser();
     const quoteId = idParam(params.id);
     const db = await getDb();
-    need(await accessForQuote(db, quoteId, user), 'inputs');
+    need(await accessForQuote(db, quoteId, user), 'versions');
     await activateVersion(db, quoteId, idParam(params.versionId));
     return NextResponse.json({ editor: await getQuoteEditor(db, quoteId) });
   } catch (e) {

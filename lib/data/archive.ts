@@ -1,7 +1,7 @@
 /**
  * Archived deals: out of the Active list and open-task views, read-only for everyone, shared links off. Nothing is
- * deleted; unarchiving brings the deal back as it was, including the links archiving turned off. Only the deal's owner
- * or an admin can archive or unarchive.
+ * deleted; unarchiving brings the deal back as it was, including the links archiving turned off. Who can archive or
+ * unarchive comes from the roles & permissions matrix (Archive or delete a deal; the owner and admins by default).
  */
 import type { Client } from '@libsql/client';
 import type { DealAccess } from './access';
@@ -17,10 +17,10 @@ export interface ArchiveInfo {
   note: string | null;
 }
 
-const forbidden = () => Object.assign(new Error('Only the deal’s owner or an admin can archive it'), { status: 403 as const });
+const forbidden = () => Object.assign(new Error('You don’t have permission to archive this deal'), { status: 403 as const });
 
-export async function archiveDeal(db: Client, a: Pick<DealAccess, 'dealId' | 'isOwner' | 'isAdmin'>, input: { reason?: unknown; note?: unknown }, userId: number): Promise<{ linksOff: number }> {
-  if (!(a.isOwner || a.isAdmin)) throw forbidden();
+export async function archiveDeal(db: Client, a: Pick<DealAccess, 'dealId' | 'canDelete'>, input: { reason?: unknown; note?: unknown }, userId: number): Promise<{ linksOff: number }> {
+  if (!a.canDelete) throw forbidden();
   const reason = String(input.reason ?? '') as ArchiveReason;
   if (!ARCHIVE_REASONS.includes(reason)) throw new Error('Pick why you’re archiving it');
   const note = String(input.note ?? '').trim().slice(0, 500) || null;
@@ -36,8 +36,8 @@ export async function archiveDeal(db: Client, a: Pick<DealAccess, 'dealId' | 'is
   return { linksOff: res[1].rowsAffected };
 }
 
-export async function unarchiveDeal(db: Client, a: Pick<DealAccess, 'dealId' | 'isOwner' | 'isAdmin'>): Promise<{ linksOn: number }> {
-  if (!(a.isOwner || a.isAdmin)) throw forbidden();
+export async function unarchiveDeal(db: Client, a: Pick<DealAccess, 'dealId' | 'canDelete'>): Promise<{ linksOn: number }> {
+  if (!a.canDelete) throw forbidden();
   const res = await db.batch(
     [
       { sql: 'UPDATE deals SET archived_at = NULL, archived_by = NULL, archive_reason = NULL, archive_note = NULL WHERE id = ?', args: [a.dealId] },

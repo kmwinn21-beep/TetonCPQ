@@ -2,20 +2,13 @@
 
 Agreed work not started yet, in the order to build it.
 
-## 1. Roles & permissions (matrix)
+## 1. Roles & permissions (matrix) — built
 
-Mock: Settings → Roles & permissions, modeled on parlay-demo's Role Scope (`lib/auth-shared.ts`, `lib/requireCapability.ts`).
+Settings → Permissions (`/admin/permissions`). Permissions are defined in `lib/auth/permissions.ts` (defaults per role, flag or reach: All deals / + Collaborating / Own deals / Off), stored as changes from the defaults in `role_permissions`, and checked on the server (`allowed`, `reaches`, `requireAllowed`). A test fails if an editable permission isn't checked anywhere.
 
-- A capability list with recommended defaults per role (Sales rep, Deal Desk, VP Sales, CEO, Admin), editable by admins and saved.
-- Every capability checked on the server, not only hidden in the UI.
-- Admin column all on and locked; admins can't make or remove Admins.
-- **Super Admin**: reserved for Kevin, can't be assigned by anyone; scope to be defined later (for now: everything Admin has, plus making or removing Admins).
-- Approval rows ("approve prices below the hard floor", "approve deep discounts") shown as coming soon until #2 exists.
-- Open questions before building:
-  1. Reps see only deals they own or collaborate on, or every deal (as today)?
-  2. Approval flow in this build, or approvals stay warnings for now?
-  3. Price book Admin-only, or can Deal Desk change list prices?
-  4. Can reps delete their own deals (as today), or only Admins?
+Decided: everyone sees every deal; planned rows (approvals, agreements) are a read-only preview behind "Show coming soon"; RevOps (renamed from Deal Desk) edits prices and items and scopes any deal by default; reps can delete their own deals. Still open: Super Admin (making or removing Admins).
+
+When a backlog feature ships, flip its permissions to `shipped: true`, check them on the server, and review the defaults.
 
 ## 2. Deal approval workflow (after #1)
 

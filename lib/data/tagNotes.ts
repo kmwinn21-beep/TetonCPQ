@@ -4,6 +4,7 @@
  * room it's on or for one room only (that room gets its own copy). The author or
  * an admin can delete it. Notes belong to the deal, not a version.
  */
+import { allowed } from '@/lib/auth/permissions';
 import type { Client, Row } from '@libsql/client';
 import { initialsOf, type Person, type Viewer } from './planNotes';
 
@@ -40,7 +41,7 @@ const toNote = (r: Row, v: Viewer): TagNote => ({
   createdAt: String(r.created_at),
   updatedAt: String(r.updated_at),
   mine: Number(r.author_id) === v.id,
-  canDelete: Number(r.author_id) === v.id || v.role === 'admin',
+  canDelete: Number(r.author_id) === v.id || allowed(v, 'notes.moderate'),
 });
 
 async function quoteExists(db: Client, quoteId: number) {
@@ -95,6 +96,6 @@ export async function updateTagNote(db: Client, quoteId: number, id: number, inp
 /** Its author or an admin deletes a note (from every room it's on). */
 export async function deleteTagNote(db: Client, quoteId: number, id: number, v: Viewer): Promise<void> {
   const r = await row(db, quoteId, id);
-  if (Number(r.author_id) !== v.id && v.role !== 'admin') throw httpError('Only the author or an admin can delete this note', 403);
+  if (Number(r.author_id) !== v.id && !allowed(v, 'notes.moderate')) throw httpError('Only the author (or someone allowed to delete others’ notes) can delete this note', 403);
   await db.execute({ sql: 'DELETE FROM tag_notes WHERE id = ?', args: [id] });
 }

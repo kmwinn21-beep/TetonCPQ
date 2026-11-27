@@ -5,6 +5,7 @@
  * comments; the author edits their own; the author or an admin deletes. A thread is resolved (or reopened) by its
  * author, the deal's owner, or anyone mentioned in it. @mentions show in the mentioned person's notifications.
  */
+import { allowed } from '@/lib/auth/permissions';
 import type { Client, Row } from '@libsql/client';
 import { initialsOf, type Person, type Viewer } from './planNotes';
 
@@ -97,7 +98,7 @@ const toComment = (r: Row, v: Viewer): ProposalComment => {
     versionNo: r.version_no == null ? null : Number(r.version_no),
     draft: r.area === 'inputs' && r.version_no == null,
     mine: !prospect && Number(r.author_id) === v.id,
-    canDelete: prospect ? v.role === 'admin' : Number(r.author_id) === v.id || v.role === 'admin',
+    canDelete: v.role !== 'prospect' && (prospect ? allowed(v, 'notes.moderate') : Number(r.author_id) === v.id || allowed(v, 'notes.moderate')),
     prospect,
     questionId: r.question_id == null ? null : Number(r.question_id),
   };
@@ -269,7 +270,7 @@ export async function resolveThread(db: Client, versionId: number | CommentScope
 /** Its author or an admin deletes a comment (a thread goes with its replies). */
 export async function deleteComment(db: Client, versionId: number | CommentScope, id: number, v: Viewer): Promise<void> {
   const { row } = await commentRow(db, versionId, id);
-  if ((row.prospect_email != null || Number(row.author_id) !== v.id) && v.role !== 'admin') throw httpError('Only the author or an admin can delete this comment', 403);
+  if ((row.prospect_email != null || Number(row.author_id) !== v.id) && !allowed(v, 'notes.moderate')) throw httpError('Only the author (or someone allowed to delete others’ comments) can delete this comment', 403);
   await db.execute({ sql: 'DELETE FROM comment_reads WHERE comment_id IN (SELECT id FROM proposal_comments WHERE id = ? OR parent_id = ?)', args: [id, id] });
   await db.execute({ sql: 'DELETE FROM proposal_comments WHERE id = ? OR parent_id = ?', args: [id, id] });
 }

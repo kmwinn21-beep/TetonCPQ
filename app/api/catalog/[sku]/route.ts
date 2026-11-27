@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
 import { jsonError } from '@/lib/db/server';
 import { setItemCode, setListPrice, setProductName } from '@/lib/data/priceBook';
-import { requireApiUser } from '@/lib/auth/server';
+import { requireAllowed, requireApiUser } from '@/lib/auth/server';
 import { refreshLineupItems } from '@/lib/data/items';
 
-/** Admin: change a product's list price ({ list: number | 'default' }) its SKU ({ itemCode }) or its name ({ name }). */
+/** Price book editors (roles & permissions): change a product's list price ({ list: number | 'default' }) its SKU ({ itemCode }) or its name ({ name }). */
 export async function PATCH(req: Request, { params }: { params: { sku: string } }) {
   try {
-    const user = await requireApiUser({ admin: true });
+    const user = await requireApiUser();
+    requireAllowed(user, 'pricebook.edit');
     const b = (await req.json()) as { list?: unknown; itemCode?: unknown; name?: unknown };
     const db = await getDb();
     const sku = decodeURIComponent(params.sku);

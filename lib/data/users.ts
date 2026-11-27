@@ -33,6 +33,12 @@ export async function listUsers(db: Client): Promise<User[]> {
   return (await db.execute('SELECT * FROM users ORDER BY active DESC, name')).rows.map(toUser);
 }
 
+/** Active users per role (for the roles & permissions page). */
+export async function countByRole(db: Client): Promise<Record<string, number>> {
+  const r = await db.execute('SELECT role, COUNT(*) AS n FROM users WHERE active = 1 GROUP BY role');
+  return Object.fromEntries(r.rows.map((x) => [String(x.role), Number(x.n)]));
+}
+
 export async function createUser(db: Client, u: { email: string; name: string; role: Role; password: string }): Promise<User> {
   const email = normalizeEmail(u.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email');

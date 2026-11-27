@@ -39,7 +39,7 @@ const linkOff = async (tok: string) => (await db.execute({ sql: 'SELECT revoked_
 
 describe('archiving a deal', () => {
   it('only the owner or an admin; a reason is required', async () => {
-    await expect(archiveDeal(db, await accessForQuote(db, quoteId, u.col), { reason: 'won' }, u.col.id)).rejects.toThrow('owner or an admin');
+    await expect(archiveDeal(db, await accessForQuote(db, quoteId, u.col), { reason: 'won' }, u.col.id)).rejects.toThrow('permission');
     await expect(archiveDeal(db, await accessForQuote(db, quoteId, u.own), {}, u.own.id)).rejects.toThrow('Pick why');
   });
   it('makes it read-only, turns its links off, and hides its tasks', async () => {

@@ -822,4 +822,20 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE products ADD COLUMN icon_tint TEXT`,
     ],
   },
+  {
+    id: 36,
+    name: 'role permissions',
+    sql: [
+      // Roles & permissions: a role's value for a permission, where an admin changed it from the default (the
+      // defaults live in lib/auth/permissions.ts). Admin is never stored: it has everything.
+      `CREATE TABLE role_permissions (
+        role TEXT NOT NULL CHECK (role IN ('rep','deal_desk','vp_sales','ceo')),
+        capability TEXT NOT NULL,
+        value TEXT NOT NULL CHECK (value IN ('all','collab','own','off','on')),
+        updated_by INTEGER REFERENCES users(id),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (role, capability)
+      )`,
+    ],
+  },
 ];

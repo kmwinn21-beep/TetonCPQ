@@ -73,3 +73,27 @@ describe('deal access', () => {
     expect((await accessForQuote(db, quoteId, u.own)).inputs).toBe(false);
   });
 });
+
+describe('access from the roles & permissions matrix', () => {
+  it('RevOps scopes any deal; changes saved in the matrix apply', async () => {
+    const { getMatrix, grantsForRole, saveMatrix } = await import('./permissions');
+    const r = await db.execute("INSERT INTO users (email, name, role) VALUES ('ops@x.test', 'Ops Person', 'deal_desk') RETURNING id");
+    const ops = { id: Number(r.rows[0].id), role: 'deal_desk' };
+    const a = await accessForQuote(db, quoteId, { ...ops, grants: await grantsForRole(db, 'deal_desk') });
+    expect(a).toMatchObject({ scope: true, inputs: false, canManage: false, canDelete: false });
+
+    // Reps lose sharing on deals they only collaborate on; the owner keeps it.
+    await saveMatrix(db, { rep: { 'deal.share': 'own', 'deal.view': 'own' } }, u.adm.id);
+    const stored = await db.execute("SELECT capability, value FROM role_permissions WHERE role = 'rep'");
+    expect(stored.rows.map((x) => [x.capability, x.value])).toEqual([['deal.share', 'own']]); // fixed rows never stored
+    const grants = await grantsForRole(db, 'rep');
+    const mine = (await createDeal(db, 'Beta', { userId: u.view.id })).quoteId;
+    expect((await accessForQuote(db, mine, { ...u.view, grants })).share).toBe(true);
+    await setCollaborator(db, await accessForQuote(db, mine, u.view), u.col.id, { inputs: true, scope: true, deliverables: true }, u.view.id);
+    const col = await accessForQuote(db, mine, { ...u.col, grants });
+    expect(col).toMatchObject({ share: false, deliverables: true, room: true, canManage: false, canDelete: false });
+    expect((await getMatrix(db)).roles.rep['deal.share']).toBe('own');
+    await saveMatrix(db, { rep: {} }, u.adm.id);
+    expect((await db.execute("SELECT COUNT(*) AS n FROM role_permissions WHERE role = 'rep'")).rows[0].n).toBe(0);
+  });
+});

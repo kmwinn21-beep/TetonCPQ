@@ -35,7 +35,7 @@ const when = (iso: string) => {
   return d === today ? 'Today' : dateLabel(d).replace(/, \d{4}$/, (m) => (d.slice(0, 4) === today.slice(0, 4) ? '' : m));
 };
 
-export function DealsModule({ deals, userId, archivedView, reason, justArchived }: { deals: DealSummary[]; userId: number; archivedView: boolean; reason?: string; justArchived?: DealSummary }) {
+export function DealsModule({ deals, userId, archivedView, reason, justArchived, canCreate = true }: { deals: DealSummary[]; userId: number; /** The user may create deals (roles & permissions). */ canCreate?: boolean; archivedView: boolean; reason?: string; justArchived?: DealSummary }) {
   const phone = usePhone();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState<Group | 'all'>('all');
@@ -126,7 +126,7 @@ export function DealsModule({ deals, userId, archivedView, reason, justArchived 
       <div className="-m-4 bg-[#FBF8F3] min-h-full text-teton-ink">
         <div className="flex items-center gap-2 px-4 pt-4 pb-2">
           <b className="text-[19px] flex-1">Deals</b>
-          <NewDealButton />
+          {canCreate && <NewDealButton />}
         </div>
         <div className="flex gap-1.5 overflow-x-auto px-4 py-2.5 bg-[#F6F3EE] border-y border-[#ECE8DF] no-scrollbar">
           <Chip href="/deals" on={!archivedView && group === 'all'} onClick={() => setGroup('all')}>Active · {active.length}</Chip>
@@ -191,7 +191,7 @@ export function DealsModule({ deals, userId, archivedView, reason, justArchived 
       <main className="flex-1 min-w-0 flex flex-col">
         <div className="h-[60px] flex-shrink-0 flex items-center gap-3 px-6 border-b border-[#ECE8DF]">
           <p className="flex-1 text-[12.5px] text-[#6B7380]">Sales / <b className="text-teton-ink">Deals</b></p>
-          <NewDealButton />
+          {canCreate && <NewDealButton />}
         </div>
         <div className="flex-1 min-h-0">
           <ScrollPanel names={['Overview', ...groups.map((g) => g.title)]} fade="#FBF8F3">

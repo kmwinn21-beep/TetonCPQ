@@ -23,7 +23,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         customer,
         me: u.id,
         ownerId,
-        canEdit: a.deliverables,
+        canEdit: a.room,
         r2: r2Configured(),
         hasLink: !!link,
       },

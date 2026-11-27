@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
 import { jsonError } from '@/lib/db/server';
 import { createDeal, listDeals } from '@/lib/data/quotes';
-import { requireApiUser } from '@/lib/auth/server';
+import { requireAllowed, requireApiUser } from '@/lib/auth/server';
 
 export async function GET() {
   try {
@@ -16,6 +16,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await requireApiUser();
+    requireAllowed(user, 'deal.create');
     const { customerName } = (await req.json()) as { customerName?: string };
     return NextResponse.json(await createDeal(await getDb(), customerName ?? '', { userId: user.id }), { status: 201 });
   } catch (e) {

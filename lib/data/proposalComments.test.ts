@@ -70,7 +70,7 @@ describe('business case comments', () => {
     await editComment(db, v2, id, { body: 'Fixed typo' }, users.js);
     expect((await listComments(db, v2, users.js)).find((x) => x.id === id)!.body).toBe('Fixed typo');
     await addComment(db, v2, { parentId: id, body: 'reply' }, users.mo);
-    await expect(deleteComment(db, v2, id, users.kw)).rejects.toThrow(/author or an admin/);
+    await expect(deleteComment(db, v2, id, users.kw)).rejects.toThrow(/Only the author/);
     await deleteComment(db, v2, id, users.ad);
     expect((await listComments(db, v2, users.js)).some((x) => x.id === id)).toBe(false);
     const n = await db.execute({ sql: 'SELECT COUNT(*) AS n FROM proposal_comments WHERE parent_id = ?', args: [id] });

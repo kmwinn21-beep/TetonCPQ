@@ -23,7 +23,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     // The deal room is "active" when the link is on and its Resources tab is turned on.
     const d0 = await dealOfQuote(db, q);
     const roomEnabled = link ? (await getRoom(db, d0.dealId, d0.ownerId)).enabled : false;
-    return NextResponse.json({ link, roomEnabled, canEdit: a.deliverables, dealName: String(d.rows[0]?.customer_name ?? ''), me: { name: u.name, email: u.email }, from: EMAIL_FROM, preparedOn }, { headers: { 'cache-control': 'no-store' } });
+    return NextResponse.json({ link, roomEnabled, canEdit: a.share, dealName: String(d.rows[0]?.customer_name ?? ''), me: { name: u.name, email: u.email }, from: EMAIL_FROM, preparedOn }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
   }
@@ -35,7 +35,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'share');
     return NextResponse.json({ link: await saveShareLink(db, q, (await req.json()) as ShareLinkInput, u.id) });
   } catch (e) {
     return jsonError(e);
@@ -48,7 +48,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'share');
     await revokeShareLink(db, q);
     return NextResponse.json({ link: null });
   } catch (e) {

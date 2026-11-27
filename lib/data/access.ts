@@ -1,17 +1,18 @@
 /**
- * Who can change a deal. The deal's owner (its creator, unless it was handed
- * over) and admins can do everything. Collaborators the owner adds can edit
- * the inputs, use Scope Mode (room types, in the floor plans and the drawer),
- * and/or edit the deliverables (the proposal's wording and layout). Everyone
- * else can view, and add floor plan notes and comments.
+ * Who can change a deal, from the roles & permissions matrix (lib/auth/permissions.ts). Each permission reaches every
+ * deal, the person's own deals plus ones they collaborate on (with the owner's switch for it on), only their own
+ * deals, or none. Collaborator switches the owner sets: inputs, Scope Mode (room types, in the floor plans and the
+ * drawer), and deliverables (the proposal's wording and layout, sharing it, the deal room). Admins can do everything.
+ * Everyone can view every deal, and add floor plan notes and comments.
  */
 import { SCOPE_FIELDS } from '@/lib/quote/scopeWork';
 import { archiveInfo, type ArchiveInfo } from './archive';
 import type { Client } from '@libsql/client';
 import { normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { initialsOf } from './planNotes';
+import { reaches, type Grants } from '@/lib/auth/permissions';
 
-export type Permission = 'inputs' | 'scope' | 'deliverables';
+export type Permission = 'inputs' | 'scope' | 'deliverables' | 'versions' | 'share' | 'room';
 export interface DealAccess {
   dealId: number;
   quoteId: number;
@@ -21,8 +22,16 @@ export interface DealAccess {
   inputs: boolean;
   scope: boolean;
   deliverables: boolean;
+  /** Save versions and make one active. */
+  versions: boolean;
+  /** Share the proposal with prospects (link, emails, people). */
+  share: boolean;
+  /** Edit the deal room (resources, questions for prospects). */
+  room: boolean;
   /** Add, change and remove collaborators; hand the deal over. */
   canManage: boolean;
+  /** Archive, unarchive or delete the deal. */
+  canDelete: boolean;
   /** A collaborator (not the owner). */
   isCollaborator: boolean;
   /** Archived: read-only for everyone (null when active). */
@@ -31,6 +40,8 @@ export interface DealAccess {
 export interface Actor {
   id: number;
   role: string;
+  /** Their role's permissions (the signed-in user has them; without them the defaults apply). */
+  grants?: Grants;
 }
 export interface Collaborator {
   user: { id: number; name: string; email: string; initials: string };
@@ -53,19 +64,23 @@ async function accessForDeal(db: Client, dealId: number, quoteId: number, u: Act
   const c = await db.execute({ sql: 'SELECT can_inputs, can_scope, can_deliverables FROM deal_collaborators WHERE deal_id = ? AND user_id = ?', args: [dealId, u.id] });
   const r = c.rows[0];
   const archived = await archiveInfo(db, dealId);
-  // Archived deals are read-only for everyone (the owner or an admin can unarchive or delete).
-  const all = (isOwner || isAdmin) && !archived;
-  const can = (v: unknown) => !archived && (all || Number(v) === 1);
+  // Archived deals are read-only for everyone (whoever may archive it can unarchive or delete it).
+  const on = (v: unknown) => Number(v) === 1;
+  const can = (key: string, collaboratorSwitch: boolean) => !archived && reaches(u, key, { isOwner, collaboratorSwitch });
   return {
     dealId,
     quoteId,
     owner,
     isOwner,
     isAdmin,
-    inputs: can(r?.can_inputs),
-    scope: can(r?.can_scope),
-    deliverables: can(r?.can_deliverables),
-    canManage: all,
+    inputs: can('deal.inputs', on(r?.can_inputs)),
+    scope: can('deal.scope', on(r?.can_scope)),
+    deliverables: can('deal.proposal', on(r?.can_deliverables)),
+    versions: can('deal.versions', on(r?.can_inputs) || on(r?.can_scope)),
+    share: can('deal.share', on(r?.can_deliverables)),
+    room: can('deal.room', on(r?.can_deliverables)),
+    canManage: can('deal.manage', false),
+    canDelete: reaches(u, 'deal.delete', { isOwner, collaboratorSwitch: false }),
     isCollaborator: !isOwner && !!r,
     archived,
   };
@@ -87,6 +102,9 @@ const MESSAGES: Record<Permission | 'manage', string> = {
   inputs: 'You can view this deal but not edit its inputs. Ask the owner to add you as a collaborator.',
   scope: 'You can view this deal but not change its scope. Ask the owner for Edit Scope.',
   deliverables: 'You can view this proposal but not edit it. Ask the owner for Edit Deliverables.',
+  versions: 'You can view this deal but not save versions of it. Ask the owner to add you as a collaborator.',
+  share: 'You can view this proposal but not share it. Ask the owner for Edit Deliverables.',
+  room: 'You can view this deal room but not edit it. Ask the owner for Edit Deliverables.',
   manage: 'Only the deal’s owner or an admin can do that.',
 };
 /** Throws 403 unless the user has at least one of these. */

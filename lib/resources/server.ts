@@ -13,7 +13,7 @@ export async function repFor(quoteParam: string, edit = false) {
   const quoteId = Number(quoteParam);
   if (!Number.isInteger(quoteId) || quoteId <= 0) throw Object.assign(new Error('Bad id'), { status: 400 });
   const a = await accessForQuote(db, quoteId, u);
-  if (edit) need(a, 'deliverables');
+  if (edit) need(a, 'room');
   const d = await dealOfQuote(db, quoteId);
   return { u, db, quoteId, a, ...d };
 }

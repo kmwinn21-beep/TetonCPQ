@@ -11,7 +11,7 @@ export async function PUT(req: Request, { params }: { params: { id: string; qid:
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'room');
     const question = await saveQuestion(db, q, (await req.json()) as QuestionInput, u.id, idParam(params.qid));
     return NextResponse.json({ question, questions: await questionsForQuote(db, q) });
   } catch (e) {
@@ -25,7 +25,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string; 
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'room');
     await deleteQuestion(db, q, idParam(params.qid));
     return NextResponse.json({ questions: await questionsForQuote(db, q) });
   } catch (e) {

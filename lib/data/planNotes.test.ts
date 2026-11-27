@@ -65,7 +65,7 @@ describe('floor plan notes and comments', () => {
     const l = await listPlanNotes(db, quoteId, planId, users.ad);
     expect(l.notes[0].comments.map((c) => [c.body, c.canDelete])).toEqual([['Confirmed with maintenance', true]]);
     expect(l.general.map((c) => c.body)).toEqual(['Ask for the 2024 plans']);
-    await expect(deletePlanComment(db, quoteId, planId, c2, users.js)).rejects.toThrow(/author or an admin/);
+    await expect(deletePlanComment(db, quoteId, planId, c2, users.js)).rejects.toThrow(/Only the author/);
     await deletePlanComment(db, quoteId, planId, c1, users.ad);
     expect((await listPlanNotes(db, quoteId, planId, users.kw)).notes[0].comments).toEqual([]);
   });

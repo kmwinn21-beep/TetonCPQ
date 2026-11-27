@@ -89,7 +89,7 @@ export function evaluateGuardrails(d: QuoteDraft, listPlatform = 99, listEcall =
   if (k.specialRate != null && k.specialTermMonths > 0) rates.push([`Intro rate (first ${k.specialTermMonths} mo)`, k.specialRate]);
   for (const [label, rate] of rates) {
     if (rate < hardFloor) {
-      findings.push({ code: 'BELOW_HARD_FLOOR', severity: 'approval', requiredApprover: 'deal_desk', message: `${label} ${money(rate)} is below the hard floor of ${money(hardFloor)} (50% of list). Route to Deal Desk.` });
+      findings.push({ code: 'BELOW_HARD_FLOOR', severity: 'approval', requiredApprover: 'deal_desk', message: `${label} ${money(rate)} is below the hard floor of ${money(hardFloor)} (50% of list). Route to RevOps.` });
     } else if (rate < POLICY.postPilotFloor) {
       findings.push({ code: 'BELOW_POST_PILOT_FLOOR', severity: 'warning', message: `${label} ${money(rate)} is below the post-pilot floor of ${money(POLICY.postPilotFloor)}.` });
     } else if (rate < termFloor) {
@@ -115,7 +115,7 @@ export function evaluateGuardrails(d: QuoteDraft, listPlatform = 99, listEcall =
         code: 'PILOT_BELOW_LADDER',
         severity: 'approval',
         requiredApprover: 'deal_desk',
-        message: `Pilot rate ${money(k.pilotRate)} is more than 50% off the standard ${money(POLICY.standardPilotRate)} pilot — below rung 4. Route to Deal Desk.`,
+        message: `Pilot rate ${money(k.pilotRate)} is more than 50% off the standard ${money(POLICY.standardPilotRate)} pilot — below rung 4. Route to RevOps.`,
       });
     } else if (k.pilotRate < POLICY.standardPilotRate) {
       rung = 4;

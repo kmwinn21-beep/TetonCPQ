@@ -11,7 +11,7 @@ import { useAccess } from './AccessContext';
 
 export function DealMenu({ quoteId, dealName }: { quoteId: number; dealName: string }) {
   const access = useAccess();
-  const canDelete = access.isOwner || access.isAdmin;
+  const canDelete = access.canDelete;
   const archived = !!access.archived;
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);

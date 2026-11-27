@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const db = await getDb();
     // Saving a version: anyone who can edit the inputs or the scope (what they send must be theirs to change).
     const a = await accessForQuote(db, quoteId, user);
-    need(a, 'inputs', 'scope');
+    need(a, 'versions');
     if (draft) {
       assertDraft(draft);
       needDraftEdit(a, (await getQuoteEditor(db, quoteId))?.draft ?? null, draft);

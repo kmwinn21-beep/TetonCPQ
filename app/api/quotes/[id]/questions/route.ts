@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const db = await getDb();
     const q = idParam(params.id);
     const a = await accessForQuote(db, q, u);
-    return NextResponse.json({ questions: await questionsForQuote(db, q), canEdit: a.deliverables }, { headers: { 'cache-control': 'no-store' } });
+    return NextResponse.json({ questions: await questionsForQuote(db, q), canEdit: a.room }, { headers: { 'cache-control': 'no-store' } });
   } catch (e) {
     return jsonError(e);
   }
@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'room');
     const question = await saveQuestion(db, q, (await req.json()) as QuestionInput, u.id);
     return NextResponse.json({ question, questions: await questionsForQuote(db, q) });
   } catch (e) {
@@ -38,7 +38,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const u = await requireApiUser();
     const db = await getDb();
     const q = idParam(params.id);
-    need(await accessForQuote(db, q, u), 'deliverables');
+    need(await accessForQuote(db, q, u), 'room');
     const { order } = (await req.json()) as { order?: unknown };
     return NextResponse.json({ questions: await reorderQuestions(db, q, Array.isArray(order) ? order.map(Number) : []) });
   } catch (e) {

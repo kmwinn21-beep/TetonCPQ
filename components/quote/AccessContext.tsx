@@ -4,6 +4,6 @@
 import { createContext, useContext } from 'react';
 import type { DealAccess } from '@/lib/data/access';
 
-const FULL: DealAccess = { dealId: 0, quoteId: 0, owner: null, isOwner: true, isAdmin: false, inputs: true, scope: true, deliverables: true, canManage: true, isCollaborator: false, archived: null };
+const FULL: DealAccess = { dealId: 0, quoteId: 0, owner: null, isOwner: true, isAdmin: false, inputs: true, scope: true, deliverables: true, versions: true, share: true, room: true, canManage: true, canDelete: true, isCollaborator: false, archived: null };
 export const AccessContext = createContext<DealAccess>(FULL);
 export const useAccess = () => useContext(AccessContext);

@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db/client';
 import { listDeals } from '@/lib/data/quotes';
 import { requirePageUser } from '@/lib/auth/server';
 import { DealsModule } from '@/components/deals/DealsModule';
+import { allowed } from '@/lib/auth/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,5 +10,5 @@ export default async function DealsPage({ searchParams }: { searchParams: { view
   const user = await requirePageUser();
   const deals = await listDeals(await getDb(), user.id);
   const justArchived = searchParams.archived ? deals.find((d) => d.archived && String(d.quoteId) === searchParams.archived) : undefined;
-  return <DealsModule deals={deals} userId={user.id} archivedView={searchParams.view === 'archived'} reason={searchParams.reason} justArchived={justArchived} />;
+  return <DealsModule deals={deals} userId={user.id} canCreate={allowed(user, 'deal.create')} archivedView={searchParams.view === 'archived'} reason={searchParams.reason} justArchived={justArchived} />;
 }

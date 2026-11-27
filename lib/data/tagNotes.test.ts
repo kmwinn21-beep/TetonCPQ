@@ -59,7 +59,7 @@ describe('notes on tagged rooms', () => {
 
   it('lets the author or an admin delete a note', async () => {
     const id = await createTagNote(db, quoteId, { markIds: ['d1'], body: 'Gone soon' }, users.js);
-    await expect(deleteTagNote(db, quoteId, id, users.kw)).rejects.toThrow(/author or an admin/);
+    await expect(deleteTagNote(db, quoteId, id, users.kw)).rejects.toThrow(/Only the author/);
     await deleteTagNote(db, quoteId, id, users.ad);
     await expect(deleteTagNote(db, quoteId, id, users.js)).rejects.toThrow(/not found/);
   });

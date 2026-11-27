@@ -347,7 +347,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
 
   return (
     <FormProvider {...methods}>
-      <FloorPlansProvider quoteId={initial.quoteId} onScopeChange={(t) => canEdit && setScopePrompt(t)}>
+      <FloorPlansProvider quoteId={initial.quoteId} onScopeChange={(t) => access.versions && setScopePrompt(t)}>
       <ReadOnlyContext.Provider value={!access.inputs}>
       <LineupContext.Provider value={initial.lineup}>
       <InputCommentsProvider quoteId={initial.quoteId} activeVersionId={activeVersion?.id ?? null} activeVersionNo={activeVersion?.versionNo ?? null} draft={!activeVersion || pending.length > 0}>
@@ -398,7 +398,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                     View changes ({pending.length})
                   </button>
                 )}
-                {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length} aria-label="Save version"><span className="sm:hidden">Save</span><span className="hidden sm:inline">Save version</span></button>}
+                {access.versions && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length} aria-label="Save version"><span className="sm:hidden">Save</span><span className="hidden sm:inline">Save version</span></button>}
               </>
             )}
             <DealMenu quoteId={initial.quoteId} dealName={values.customerName ?? ''} />
@@ -411,7 +411,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </div>
           )}
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
-          {access.archived && <ArchivedBanner quoteId={initial.quoteId} info={access.archived} canUnarchive={access.isOwner || access.isAdmin} />}
+          {access.archived && <ArchivedBanner quoteId={initial.quoteId} info={access.archived} canUnarchive={access.canDelete} />}
           {!access.inputs && !access.archived && (
             <div className="w-full flex items-center gap-2 rounded-lg bg-teton-pale-yellow border border-[#F0D58A] px-3 py-2 text-sm" role="status">
               <span aria-hidden="true">🔒</span>
@@ -537,7 +537,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               {/* One card: the headline numbers, then a row per panel (each shows its status, and opens in place). */}
               <div className="rounded-[14px] border border-[#ECE8DF] bg-white shadow-sm overflow-hidden [&>.card]:!rounded-none [&>.card]:!border-x-0 [&>.card]:!border-t-0 [&>.card]:!border-b [&>.card]:!border-[#F1EEE7] [&>.card]:!shadow-none [&>.card]:!px-4 [&>.card]:!py-3.5 [&>.card:last-child]:!border-b-0">
               <div className="border-b border-[#F1EEE7]">
-                <RailHero result={computed.result} draft={deferred} inputs={computed.inputs} book={book} unsaved={canEdit && active.inputs ? pending.length : 0} onSave={() => void saveVersion()} saving={savingVersion} draftNo={draftNo} />
+                <RailHero result={computed.result} draft={deferred} inputs={computed.inputs} book={book} unsaved={access.versions && active.inputs ? pending.length : 0} onSave={() => void saveVersion()} saving={savingVersion} draftNo={draftNo} />
               </div>
               <CollaboratorsPanel />
               <DealDetailsPanel quoteId={initial.quoteId} prospectUpdated={!!agreement.data?.open && (agreement.data.open.payload.entity.status === 'updated' || agreement.data.open.payload.signatory.status === 'updated')} />

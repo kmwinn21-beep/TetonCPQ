@@ -1,23 +1,24 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
 import { jsonError } from '@/lib/db/server';
-import { requireApiUser } from '@/lib/auth/server';
+import { requireAllowed, requireApiUser } from '@/lib/auth/server';
 import { archiveInfo, archiveItem, restoreItem } from '@/lib/data/items';
 
-/** Admin: where an item is used, before deleting it. */
+/** Price book editors (roles & permissions): where an item is used, before deleting it. */
 export async function GET(_req: Request, { params }: { params: { sku: string } }) {
   try {
-    await requireApiUser({ admin: true });
+    requireAllowed(await requireApiUser(), 'pricebook.delete');
     return NextResponse.json(await archiveInfo(await getDb(), decodeURIComponent(params.sku)));
   } catch (e) {
     return jsonError(e);
   }
 }
 
-/** Admin: delete (archive) an item — `{ confirm: its name, removeFromCores }` — or `{ restore: true }` to bring it back. */
+/** Price book editors (roles & permissions): delete (archive) an item — `{ confirm: its name, removeFromCores }` — or `{ restore: true }` to bring it back. */
 export async function POST(req: Request, { params }: { params: { sku: string } }) {
   try {
-    const user = await requireApiUser({ admin: true });
+    const user = await requireApiUser();
+    requireAllowed(user, 'pricebook.delete');
     const b = (await req.json()) as { confirm?: unknown; removeFromCores?: unknown; restore?: unknown };
     const db = await getDb();
     const sku = decodeURIComponent(params.sku);

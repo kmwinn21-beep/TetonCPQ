@@ -11,7 +11,9 @@ export async function DELETE(_req: Request, { params }: { params: { id: string; 
     const user = await requireApiUser();
     const quoteId = idParam(params.id);
     const db = await getDb();
-    need(await accessForQuote(db, quoteId, user), 'inputs');
+    const a = await accessForQuote(db, quoteId, user);
+    need(a, 'versions');
+    need(a, 'inputs');
     await deleteVersion(db, quoteId, idParam(params.versionId));
     return NextResponse.json({ editor: await getQuoteEditor(db, quoteId) });
   } catch (e) {

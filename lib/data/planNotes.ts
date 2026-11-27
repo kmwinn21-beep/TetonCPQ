@@ -4,6 +4,7 @@
  * everyone sees the same ones whichever version is active. Only the author
  * edits or deletes a note; a comment can be deleted by its author or an admin.
  */
+import { allowed, type Grants } from '@/lib/auth/permissions';
 import type { Client, Row } from '@libsql/client';
 
 export const NOTE_COLORS = ['#E0A21B', '#D64B7A', '#1F9BB0', '#7A5BD6', '#2E9E6B', '#E0782B', '#3F6FD8', '#5B6472'] as const;
@@ -55,6 +56,8 @@ export interface Viewer {
   id: number;
   name: string;
   role: string;
+  /** Their role's permissions (roles & permissions); without them the defaults apply. */
+  grants?: Grants;
 }
 export interface UnreadItem {
   kind: 'note' | 'comment';
@@ -97,7 +100,7 @@ const toComment = (r: Row, v: Viewer): PlanComment => ({
   author: person(r.author_id, r.author_name),
   createdAt: String(r.created_at),
   mine: Number(r.author_id) === v.id,
-  canDelete: Number(r.author_id) === v.id || v.role === 'admin',
+  canDelete: Number(r.author_id) === v.id || allowed(v, 'notes.moderate'),
 });
 
 /** A plan's notes (with their comments) and its general comments. */
@@ -214,7 +217,7 @@ export async function addPlanComment(db: Client, quoteId: number, planId: number
 export async function deletePlanComment(db: Client, quoteId: number, planId: number, commentId: number, v: Viewer): Promise<void> {
   const r = await db.execute({ sql: 'SELECT author_id FROM plan_comments WHERE id = ? AND floor_plan_id = ? AND quote_id = ?', args: [commentId, planId, quoteId] });
   if (!r.rows.length) throw httpError('Comment not found', 404);
-  if (Number(r.rows[0].author_id) !== v.id && v.role !== 'admin') throw httpError('Only the author or an admin can delete this comment', 403);
+  if (Number(r.rows[0].author_id) !== v.id && !allowed(v, 'notes.moderate')) throw httpError('Only the author (or someone allowed to delete others’ comments) can delete this comment', 403);
   await db.execute({ sql: "DELETE FROM plan_reads WHERE kind = 'comment' AND item_id = ?", args: [commentId] });
   await db.execute({ sql: 'DELETE FROM plan_comments WHERE id = ?', args: [commentId] });
 }

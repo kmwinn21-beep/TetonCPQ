@@ -93,7 +93,7 @@ function Dots({ r }: { r: PriceBookRow }) {
   );
 }
 
-export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineup, archived: archivedInitial = [] }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null; archived?: PriceBookRow[] }) {
+export function PriceBookModule({ rows: initial, canEdit, canDelete = canEdit, canSettings = canEdit, softwareBilling, lineup, archived: archivedInitial = [] }: { rows: PriceBookRow[]; /** Edit prices and items (roles & permissions). */ canEdit: boolean; /** Delete and restore items. */ canDelete?: boolean; /** Price book settings (the software billing default). */ canSettings?: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null; archived?: PriceBookRow[] }) {
   // Admins also see the Core products tab (what each card on the deal page adds).
   const [area, setArea] = useState<'items' | 'cores'>('items');
   // The current core products line-up (refreshed when an item change makes a new version) and whether the Core
@@ -337,7 +337,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
           <span className="text-[#B7791F]" aria-hidden="true">★</span> {l}
         </button>
       ))}
-      {canEdit && (
+      {canDelete && (
         <button type="button" aria-pressed={showArchived} className={`${node(showArchived)} mt-1`} onClick={() => toggleArchived(!showArchived)}>
           <span className="text-[#C2412D]" aria-hidden="true">⌫</span> Deleted items
           <span className="ml-auto text-[11px] tabular-nums text-[#8A919C]">{archivedRows.length}</span>
@@ -690,12 +690,12 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
       {!phone && area === 'items' && shownRow && fold.folded && !leaving && <FoldStrip label={shownRow.name} dot={drafts.current.has(shownRow.sku)} onExpand={fold.unfold} />}
       {!phone && area === 'items' && shownRow && !fold.folded && (
         <div ref={drawerRef} className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving || fold.leaving ? 'drawer-out' : 'drawer-in'}`}>
-          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={closeItem} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} />
+          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} canDelete={canDelete} canSettings={canSettings} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={closeItem} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} />
         </div>
       )}
       {phone && (
         <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
-          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} bare />}
+          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} canDelete={canDelete} canSettings={canSettings} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} bare />}
         </SwipeSheet>
       )}
     </div>
@@ -713,7 +713,7 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
       ['List', money(r.list), 'bg-[#F6F3EE]'],
       ['Post-pilot floor (warning)', money(POLICY.postPilotFloor), 'bg-[#EEF8F1] text-[#1E7A4C]'],
       [`Service term below ${POLICY.serviceTermFloorPct * 100}% of list`, 'Warning', 'bg-[#FFF6E5] text-[#8A5A00]'],
-      [`Below ${POLICY.hardFloorPct * 100}% of list`, 'Deal Desk', 'bg-[#FDF0EE] text-[#C2412D]'],
+      [`Below ${POLICY.hardFloorPct * 100}% of list`, 'RevOps', 'bg-[#FDF0EE] text-[#C2412D]'],
       ['Standard pilot', `${money(POLICY.standardPilotRate)} × ${POLICY.standardPilotMonths} months`, 'bg-[#F3F7FD] text-[#1F5FB5]'],
     ];
   if (r.sku === 'TETON-INSTALL')
@@ -731,7 +731,7 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   ];
 }
 
-function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, draft, onDraft, archived, onDeleted, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void; /** A deleted item: shown read-only, with Restore. */ archived?: (r: PriceBookRow) => void; onDeleted?: (l: LineupInfo | null) => void; bare?: boolean }) {
+function ItemDetail({ r, canEdit, canDelete = canEdit, canSettings = canEdit, market, onClose, onSaved, onLineup, billing, onBilling, draft, onDraft, archived, onDeleted, bare = false }: { r: PriceBookRow; canEdit: boolean; canDelete?: boolean; canSettings?: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void; /** A deleted item: shown read-only, with Restore. */ archived?: (r: PriceBookRow) => void; onDeleted?: (l: LineupInfo | null) => void; bare?: boolean }) {
   // Coming back to an item with unsaved detail edits opens on them.
   const [tab, setTab] = useState<Tab>(draft ? 'details' : 'pricing');
   const [busy, setBusy] = useState<string | null>(null);
@@ -819,7 +819,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, o
         <p className="mb-3 text-[12.5px] leading-relaxed text-[#3F4753]">{r.description}</p>
         {err && <p className="mb-3 rounded-lg bg-[#FDF0EE] px-3 py-2 text-[12px] text-[#B4442C]">{err}</p>}
         {tab === 'pricing' && (r.sku === 'CAPEX-SOFTWARE' || r.sku === 'CAPEX-SOFTWARE-UPFRONT') && (
-          <SoftwareBillingDefault initial={billing} canEdit={canEdit} onSaved={onBilling} />
+          <SoftwareBillingDefault initial={billing} canEdit={canSettings} onSaved={onBilling} />
         )}
         {tab === 'pricing' && (
           <div className={box}>
@@ -870,7 +870,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, o
         )}
         {archived && <RestoreBanner r={r} onRestored={archived} />}
         {tab === 'details' && <ItemDetailsTab r={r} canEdit={canEdit} onSaved={onSaved} onLineup={onLineup} draft={draft} onDraft={onDraft} />}
-        {tab === 'details' && canEdit && onDeleted && <DeleteItemBox r={r} onDeleted={onDeleted} />}
+        {tab === 'details' && canDelete && !archived && onDeleted && <DeleteItemBox r={r} onDeleted={onDeleted} />}
         {tab === 'guardrails' && (
           <div className={box}>
             <p className={h4}>Guardrails · US</p>

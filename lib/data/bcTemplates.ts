@@ -3,6 +3,7 @@
  * edited by anyone, a private one only by its owner. Its owner or an admin deletes it. Applying one formats a
  * version's business case; the template is copied in, so later edits to it don't change that business case.
  */
+import { allowed } from '@/lib/auth/permissions';
 import type { Client, Row } from '@libsql/client';
 import { initialsOf, type Person, type Viewer } from './planNotes';
 import { getProposalCustomization, saveProposalCustomization, type ProposalCustomization } from './proposalText';
@@ -75,8 +76,8 @@ function toTemplate(x: Row, v: Viewer): BcTemplate {
     updatedAt: String(x.updated_at),
     usage: Number(x.usage ?? 0),
     pages: templatePages(content),
-    canEdit: mine || shared || v.role === 'admin',
-    canDelete: mine || v.role === 'admin',
+    canEdit: mine || shared || allowed(v, 'templates.manage'),
+    canDelete: mine || allowed(v, 'templates.manage'),
     ...content,
   };
 }
@@ -88,7 +89,7 @@ export async function listTemplates(db: Client, v: Viewer): Promise<BcTemplate[]
 }
 
 export async function getTemplate(db: Client, id: number, v: Viewer): Promise<BcTemplate> {
-  const r = await db.execute({ sql: `${SELECT} WHERE t.id = ? AND (t.shared = 1 OR t.owner_id = ? OR ? = 'admin')`, args: [id, v.id, v.role] });
+  const r = await db.execute({ sql: `${SELECT} WHERE t.id = ? AND (t.shared = 1 OR t.owner_id = ? OR ? = 1)`, args: [id, v.id, allowed(v, 'templates.manage') ? 1 : 0] });
   if (!r.rows.length) throw httpError('Template not found', 404);
   return toTemplate(r.rows[0], v);
 }
@@ -106,7 +107,10 @@ function cleanMeta(m: TemplateMeta, partial: boolean) {
 }
 
 async function insert(db: Client, v: Viewer, meta: TemplateMeta, content: TemplateContent): Promise<number> {
+  if (!allowed(v, 'templates.create')) throw httpError('You don’t have permission to create templates', 403);
   const m = cleanMeta(meta, false);
+  // Without permission to share with everyone, a new template is saved for its owner only.
+  if (!allowed(v, 'templates.share')) m.shared = false;
   const r = await db.execute({
     sql: 'INSERT INTO bc_templates (name, persona, description, edits_json, layout_json, owner_id, shared, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
     args: [m.name!, m.persona!, m.description!, JSON.stringify(content.edits), JSON.stringify(content.layout), v.id, m.shared ? 1 : 0, v.id],
@@ -131,7 +135,8 @@ export async function templateFromVersion(db: Client, versionId: number, v: View
 export async function updateTemplate(db: Client, id: number, v: Viewer, input: TemplateMeta & { edits?: unknown; layout?: unknown }): Promise<void> {
   const t = await getTemplate(db, id, v);
   if (!t.canEdit) throw httpError('Only its owner can change a private template', 403);
-  if (input.shared !== undefined && t.owner.id !== v.id && v.role !== 'admin') throw httpError('Only its owner can change who can use it', 403);
+  if (input.shared !== undefined && t.owner.id !== v.id && !allowed(v, 'templates.manage')) throw httpError('Only its owner can change who can use it', 403);
+  if (input.shared === true && !t.shared && !allowed(v, 'templates.share')) throw httpError('You don’t have permission to share templates with everyone', 403);
   const m = cleanMeta(input, true);
   const content = input.edits !== undefined || input.layout !== undefined ? cleanContent({ edits: input.edits ?? t.edits, layout: input.layout ?? t.layout }) : null;
   await db.execute({

@@ -9,7 +9,7 @@ import { accessForVersion, need } from '@/lib/data/access';
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireApiUser();
-    need(await accessForVersion(await getDb(), idParam(params.id), user), 'deliverables');
+    need(await accessForVersion(await getDb(), idParam(params.id), user), 'share');
     const { sentTo, html } = (await req.json()) as { sentTo?: string; html?: string };
     return NextResponse.json(await markSent(await getDb(), idParam(params.id), sentTo ?? '', html ?? '', user.id), { status: 201 });
   } catch (e) {

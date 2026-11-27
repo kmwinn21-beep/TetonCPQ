@@ -48,7 +48,7 @@ async function seed(name: string) {
 describe('deleting a deal', () => {
   it('only the owner or an admin can', async () => {
     const { quoteId } = await seed('Keep');
-    await expect(deleteDeal(db, await accessForQuote(db, quoteId, u.other))).rejects.toThrow('owner or an admin');
+    await expect(deleteDeal(db, await accessForQuote(db, quoteId, u.other))).rejects.toThrow('permission');
   });
   it('removes the deal and everything under it, and nothing of other deals', async () => {
     const a = await seed('Alpha');
