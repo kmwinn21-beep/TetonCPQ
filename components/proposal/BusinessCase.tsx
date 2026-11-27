@@ -11,6 +11,7 @@
  * inputs or removed (<V>, the same keys as the standard format). Pages follow
  * the sections the rep keeps: a removed section drops its page.
  */
+import { pricedDraft } from '@/lib/pricing/lineup';
 import { Children, Fragment, isValidElement, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { basePackageRows, conversionCreditOf, grossBaseRows, partsOf, grossSensorRow, perUnitText, sensorRows, unitPriceText } from '@/lib/pricing/capex';
@@ -1126,9 +1127,11 @@ type BcProps = { draft: QuoteDraft; outputs: StoredOutputs; lines: PriceLine[]; 
 /** The business case; wording placeholders from templates ({customer}, {communities}, {beds}) show this deal's values. */
 export function BusinessCaseDocument(props: BcProps) {
   const vars = useMemo(() => dealVars(props.draft), [props.draft]);
+  // Shown as the deal prices: items its line-up takes away are free (display only; never edited from here).
+  const draft = useMemo(() => pricedDraft(props.draft), [props.draft]);
   return (
     <DealVarsContext.Provider value={vars}>
-      <BusinessCaseBody {...props} />
+      <BusinessCaseBody {...props} draft={draft} />
     </DealVarsContext.Provider>
   );
 }

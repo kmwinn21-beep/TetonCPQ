@@ -12,6 +12,8 @@ import { NumInput } from '@/components/form/NumInput';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { ItemIcon } from './ItemIcon';
+import { CoreProducts } from './CoreProducts';
+import type { LineupInfo } from '@/lib/data/lineup';
 import { SoftwareBillingDefault } from './SoftwareBillingDefault';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
 import { CATEGORIES, LIVE_MARKET, MARKETS, formatMarketPrice, placeOf } from '@/lib/pricing/markets';
@@ -86,7 +88,9 @@ function Dots({ r }: { r: PriceBookRow }) {
   );
 }
 
-export function PriceBookModule({ rows: initial, canEdit, softwareBilling }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront' }) {
+export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineup }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null }) {
+  // Admins also see the Core products tab (what each card on the deal page adds).
+  const [area, setArea] = useState<'items' | 'cores'>('items');
   const [swBilling, setSwBilling] = useState(softwareBilling);
   const phone = usePhone('(max-width: 1023px)');
   const [rows, setRows] = useState(initial);
@@ -511,10 +515,22 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling }: { r
   const body = (
     <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 lg:px-6 py-3 border-b border-[#ECE8DF] bg-white">
-        <span className="text-[12px] text-[#8A919C] hidden sm:inline">
-          Settings / <b className="text-teton-ink">Price Book</b>
-        </span>
+        {lineup ? (
+          <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="Price book area">
+            <button type="button" role="radio" aria-checked={area === 'items'} onClick={() => setArea('items')} className={pill(area === 'items')}>
+              Items
+            </button>
+            <button type="button" role="radio" aria-checked={area === 'cores'} onClick={() => (setArea('cores'), setSel(null))} className={pill(area === 'cores')}>
+              Core products
+            </button>
+          </SegGroup>
+        ) : (
+          <span className="text-[12px] text-[#8A919C] hidden sm:inline">
+            Settings / <b className="text-teton-ink">Price Book</b>
+          </span>
+        )}
         <span className="flex-1" />
+        {area === 'items' && (
         <SegGroup className="relative inline-flex rounded-[10px] bg-[#F1EEE8] p-[3px] gap-0.5" thumbClass="bg-white shadow-sm rounded-[8px]" label="View">
           <button type="button" role="radio" aria-checked={view === 'list'} onClick={() => setView('list')} className={pill(view === 'list')}>
             List
@@ -523,10 +539,20 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling }: { r
             Compare markets
           </button>
         </SegGroup>
+        )}
+        {area === 'items' && (
         <button type="button" onClick={exportCsv} className="h-9 px-3 rounded-[10px] border border-[#D5D9DE] bg-white text-[12.5px] font-semibold hover:bg-teton-almost-white">
           ⤓ Export
         </button>
+        )}
       </div>
+      {/* Both stay mounted, so unsaved core product changes survive switching tabs. */}
+      {lineup && (
+        <div className={area === 'cores' ? 'flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 pt-5 pb-12' : 'hidden'}>
+          <CoreProducts initial={lineup} rows={rows} />
+        </div>
+      )}
+      <div className={area === 'items' ? 'contents' : 'hidden'}>
       {phone ? (
         <div className="flex-1 px-4 pt-5 pb-12">{content}</div>
       ) : (
@@ -536,14 +562,15 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling }: { r
           </ScrollPanel>
         </div>
       )}
+      </div>
     </div>
   );
 
   return (
     <div className="-m-4 lg:-m-6 flex lg:h-[calc(100%+3rem)] bg-[#FBF8F3] text-teton-ink" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-      {!phone && panel}
+      {!phone && area === 'items' && panel}
       {body}
-      {!phone && shownRow && (
+      {!phone && area === 'items' && shownRow && (
         <div className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving ? 'drawer-out' : 'drawer-in'}`}>
           <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} billing={swBilling} onBilling={setSwBilling} />
         </div>

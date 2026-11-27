@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db/client";
 import { getPriceBookSettings, listPriceBookRows } from "@/lib/data/priceBook";
 import { PriceBookModule } from "@/components/catalog/PriceBookModule";
 import { requirePageUser } from "@/lib/auth/server";
+import { getLineup } from "@/lib/data/lineup";
 
 export const dynamic = "force-dynamic";
 
@@ -10,5 +11,7 @@ export default async function CatalogPage() {
   const db = await getDb();
   const rows = await listPriceBookRows(db);
   const settings = await getPriceBookSettings(db);
-  return <PriceBookModule rows={rows} canEdit={user.role === "admin"} softwareBilling={settings.softwareBilling} />;
+  // Core products: admins only.
+  const lineup = user.role === "admin" ? await getLineup(db) : null;
+  return <PriceBookModule rows={rows} canEdit={user.role === "admin"} softwareBilling={settings.softwareBilling} lineup={lineup} />;
 }

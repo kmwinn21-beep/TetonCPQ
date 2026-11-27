@@ -2,6 +2,7 @@
  * Everything a proposal shows, worked out once from a saved version (inputs,
  * stored outputs, price lines), so every proposal format shows the same figures.
  */
+import { pricedDraft } from '@/lib/pricing/lineup';
 import type { StoredOutputs } from '@/lib/data/quotes';
 import type { RoiCase } from '@/lib/model';
 import { lineTotal, type PriceLine } from '@/lib/pricing/lines';
@@ -21,6 +22,8 @@ export const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target:
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lines: PriceLine[]) {
+  // Prices as the deal is priced (items its line-up takes away are free).
+  draft = pricedDraft(draft);
   const inputs = toModelInputs(draft);
   const start = inputs.schedule.startDate;
   const kp = outputs.kpis;

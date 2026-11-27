@@ -6,6 +6,7 @@
 import { applyRoomTypes, type CommonArea, type EcallBilling, type RoomType } from './roomTypes';
 import { capexPricingFrom, type CapexPricing } from '@/lib/pricing/capex';
 import { finishFrom, normalizeFinish, type FinishSetting } from '@/lib/pricing/finish';
+import { normalizeLineup } from '@/lib/pricing/lineup';
 import { STANDARD_CASE_METRICS, DEFAULT_CLIENT, type CaseMetrics, type ClientAssumptions, type ComponentToggles, type RoiCase } from '@/lib/model';
 import { POLICY, SEED_PRODUCTS, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { defaultPlan, normalizePlan, type ImplementationPlan } from './implementationPlan';
@@ -160,6 +161,8 @@ export interface QuoteDraft {
   communities: DraftCommunity[];
   /** The products the rep added from the price book (see lib/quote/products). Missing on older deals: implied by the settings. */
   products?: import('./products').DealProduct[];
+  /** The core products line-up this deal was built with (lib/pricing/lineup). Missing: the default line-up. */
+  lineup?: import('@/lib/pricing/lineup').Lineup;
 }
 
 const { avgRevenuePerResident: _derived, ...clientDefaults } = DEFAULT_CLIENT;
@@ -260,6 +263,7 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
     resources: normalizeResources(d.resources),
     commercial: normalizeCommercial(d.commercial),
     communities: (d.communities ?? []).map((c) => applyRoomTypes(normalizeCommunity(c))),
+    ...(d.lineup ? { lineup: normalizeLineup(d.lineup) } : {}),
   };
 }
 

@@ -76,12 +76,16 @@ export interface QuoteEditorData {
   draftUpdatedAt: string;
   versions: VersionSummary[];
   products: Product[];
+  /** The price book's current core products line-up (the deal keeps its own copy; see the update banner). */
+  lineup: Lineup;
 }
 
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
 export { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { computeOutputs, type StoredOutputs } from '@/lib/quote/outputs';
 import { getPriceBookSettings } from './priceBook';
+import { assertKnownLineup, getLineup } from './lineup';
+import type { Lineup } from '@/lib/pricing/lineup';
 
 const json = (v: unknown) => JSON.stringify(v);
 
@@ -141,9 +145,11 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
 }
 
 /** A new deal: no products yet (the rep adds them from the price book; implementation comes with the first). */
-export function newDealDraft(name: string, book: PriceBook, now: Date, softwareBilling: 'monthly' | 'upfront'): QuoteDraft {
+export function newDealDraft(name: string, book: PriceBook, now: Date, softwareBilling: 'monthly' | 'upfront', lineup?: Lineup): QuoteDraft {
   const d = defaultDraft(name, book, now, { softwareBilling });
   d.products = [];
+  // The price book's line-up, once an admin has saved one (until then: the default, so nothing to keep).
+  if (lineup && lineup.version > 0) d.lineup = structuredClone(lineup);
   d.commercial.ecall = 'none';
   d.communities = d.communities.map((c) => fitCommunity(d, c));
   return d;
@@ -156,6 +162,7 @@ export async function createDeal(db: Client, customerName: string, opts: { userI
   if (!name) throw new Error('Customer name is required');
   const { book } = await loadPriceBook(db);
   const { softwareBilling } = await getPriceBookSettings(db);
+  const { lineup } = await getLineup(db);
   const tx = await db.transaction('write');
   try {
     const deal = await tx.execute({ sql: 'INSERT INTO deals (customer_name, owner_id) VALUES (?, ?) RETURNING id', args: [name, userId] });
@@ -164,7 +171,7 @@ export async function createDeal(db: Client, customerName: string, opts: { userI
     const quoteId = Number(quote.rows[0].id);
     await tx.execute({
       sql: "INSERT INTO quote_versions (quote_id, version_no, status, inputs_json, created_by) VALUES (?, 1, 'draft', ?, ?)",
-      args: [quoteId, json(newDealDraft(name, book, now, softwareBilling)), userId],
+      args: [quoteId, json(newDealDraft(name, book, now, softwareBilling, lineup)), userId],
     });
     await tx.commit();
     return { dealId, quoteId };
@@ -233,6 +240,7 @@ export async function getQuoteEditor(db: Client, quoteId: number): Promise<Quote
     draftUpdatedAt: String(draftRow.updated_at),
     versions: vs.rows.filter((r) => r.status !== 'draft').map(versionSummary),
     products,
+    lineup: (await getLineup(db)).lineup,
   };
 }
 
@@ -259,6 +267,7 @@ export class DraftConflictError extends Error {
  */
 export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, baseUpdatedAt?: string | null): Promise<{ updatedAt: string }> {
   assertDraft(draft);
+  await assertKnownLineup(db, draft);
   const guard = baseUpdatedAt ? ' AND updated_at = ?' : '';
   const rs = await db.execute({
     // Millisecond timestamps so two saves within the same second are still distinguishable.

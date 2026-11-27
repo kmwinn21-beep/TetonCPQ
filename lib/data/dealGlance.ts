@@ -9,6 +9,7 @@ import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { previewTotals } from '@/lib/quote/previewTotals';
 import { dealProducts } from '@/lib/quote/products';
 import { loadPriceBook } from './quotes';
+import { pricedDraft } from '@/lib/pricing/lineup';
 
 /** Opening a deal marks its comments as seen (for the Deals page bubble). */
 export async function markDealSeen(db: Client, userId: number, dealId: number): Promise<void> {
@@ -62,7 +63,7 @@ export async function dealGlance(db: Client, quoteId: number, userId: number): P
   const v = (await db.execute({ sql: "SELECT version_no, inputs_json FROM quote_versions WHERE quote_id = ? AND status = 'draft'", args: [quoteId] })).rows[0];
   const d = normalizeDraft(JSON.parse(String(v?.inputs_json ?? '{}')) as QuoteDraft);
   const ps = dealProducts(d);
-  const k = d.commercial;
+  const k = pricedDraft(d).commercial;
   const names: Record<string, string> = { subscription: 'Subscription', capex: 'Equipment purchase', ecall: 'E-Call', snf: 'Skilled nursing', sensor: 'Additional sensors', commonArea: 'Common areas', finish: 'Concealed finish' };
   const pricing: Array<[string, string]> = [];
   if (ps.includes('subscription')) pricing.push(['Teton subscription', `${money(k.platformRate)} / bed / mo`]);

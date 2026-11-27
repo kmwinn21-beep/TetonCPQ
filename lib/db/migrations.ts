@@ -783,4 +783,18 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `INSERT INTO deal_seen (user_id, deal_id) SELECT u.id, d.id FROM users u CROSS JOIN deals d`,
     ],
   },
+  {
+    id: 33,
+    name: 'core products line-up',
+    sql: [
+      // What each core product adds to a deal (lib/pricing/lineup). Every save is a new version; the newest is current.
+      // No rows: the built-in default line-up (today's rules).
+      `CREATE TABLE lineup_versions (
+        version INTEGER PRIMARY KEY,
+        lineup_json TEXT NOT NULL,
+        created_by INTEGER REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
 ];

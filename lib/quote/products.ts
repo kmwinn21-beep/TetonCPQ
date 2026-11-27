@@ -11,6 +11,7 @@ import { BED_KEYS, defaultProducts, hasEcall, monitors, productsOf, type DraftCo
 import type { Presentation } from './draft';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { ITEM_CODES } from '@/lib/pricing/markets';
+import { DEFAULT_LINEUP, isRemoved, lineupOf, offeredFor, removedRoles, type Lineup } from '@/lib/pricing/lineup';
 
 /** A product on the deal (the bundle, devices and skilled nursing rate follow from these). */
 export type DealProduct = 'subscription' | 'ecall' | 'capex' | 'snf' | 'sensor' | 'commonArea' | 'finish';
@@ -261,8 +262,8 @@ export interface Choices {
 
 export const structureOf = (p: Presentation | undefined): Structure => (p === 'capex' ? 'capex' : p === 'both' ? 'both' : 'subscription');
 const presentationFor = (s: Structure): Presentation => (s === 'capex' ? 'capex' : s === 'both' ? 'both' : 'opex');
-/** Common area sensors are sold with the subscription only. */
-export const commonAreaOffered = (s: Structure) => s !== 'capex';
+/** Whether common area sensors are offered for a structure (the line-up says; by default with the subscription only). */
+export const commonAreaOffered = (s: Structure, l: Lineup = DEFAULT_LINEUP) => offeredFor(l, 'commonArea', s);
 const commonAreaCount = (d: QuoteDraft) => (d.communities ?? []).reduce((n, c) => n + (Number(c.commonAreaSensors) || 0), 0);
 
 /** The choices a deal's products and settings amount to. */
@@ -290,7 +291,7 @@ export function applyChoices(d: QuoteDraft, c: Choices, book: PriceBook): QuoteD
   if (c.monitoring && opex) ps.add('subscription');
   if (c.monitoring && capex) ps.add('capex');
   if (c.ecall !== 'none') ps.add('ecall');
-  if (c.commonArea && opex) ps.add('commonArea');
+  if (c.commonArea && commonAreaOffered(c.structure, lineupOf(d))) ps.add('commonArea');
   if (c.finish) ps.add('finish');
   const next: QuoteDraft = { ...d, commercial: { ...d.commercial }, communities: [...(d.communities ?? [])] };
   if (c.monitoring !== before.monitoring) next.communities = next.communities.map((x) => withMonitoring(x, c.monitoring));
@@ -308,19 +309,23 @@ export function applyChoices(d: QuoteDraft, c: Choices, book: PriceBook): QuoteD
 }
 
 /** A one-line note on what changed on the deal, for the Undo toast (null when nothing worth saying). */
-export function changeNote(a: Choices, b: Choices, book: PriceBook): string | null {
+export function changeNote(a: Choices, b: Choices, book: PriceBook, lineup: Lineup = DEFAULT_LINEUP): string | null {
   const nm = (sku: string) => `${book[sku]?.name ?? sku} (${book[sku]?.itemCode ?? ITEM_CODES[sku] ?? sku})`;
   const opex = b.structure !== 'capex';
   const sys = b.ecall === 'inovonics' ? 'inovonics' : 'ble';
   if (a.structure !== b.structure) {
     const to = b.structure === 'capex' ? 'equipment purchase' : b.structure === 'both' ? 'subscription and equipment purchase side by side' : 'the subscription';
-    const ca = a.commonArea && !commonAreaOffered(b.structure) ? ' Common area sensors aren’t offered on equipment purchase, so they’re off the deal.' : '';
+    const ca = a.commonArea && !commonAreaOffered(b.structure, lineup) ? ' Common area sensors aren’t offered on equipment purchase, so they’re off the deal.' : '';
     return `Switched to ${to}. Every item now prices that way.${ca}`;
   }
   if (b.monitoring && a.ecall === 'none' && b.ecall !== 'none') {
-    if (opex) return `Teton subscription is now ${nm(sys === 'ble' ? SKU.bundleBle : SKU.bundleInovonics)}.`;
+    const bsku = sys === 'ble' ? SKU.bundleBle : SKU.bundleInovonics;
+    // The line-up can turn the bundle off: then E-Call is simply added beside the subscription.
+    if (opex && isRemoved(removedRoles(lineup), 'bundle', bsku)) return `E-Call (${sys === 'ble' ? 'Bluetooth' : 'Inovonics'}) added beside the subscription.`;
+    if (opex) return `Teton subscription is now ${nm(bsku)}.`;
     return `Base package is now ${nm(sys === 'ble' ? SKU.capexBaseBle : SKU.capexBaseInovonics)}.`;
   }
+  if (b.monitoring && a.ecall !== 'none' && b.ecall === 'none' && opex && isRemoved(removedRoles(lineup), 'bundle', a.ecall === 'inovonics' ? SKU.bundleInovonics : SKU.bundleBle)) return 'E-Call removed.';
   if (b.monitoring && a.ecall !== 'none' && b.ecall === 'none') return opex ? `Back to ${nm(SKU.platform)}, without E-Call.` : `Back to ${nm(SKU.capexBase)}, without E-Call.`;
   if (a.ecall !== 'none' && b.ecall !== 'none' && a.ecall !== b.ecall) return `E-Call is now ${b.ecall === 'ble' ? 'Bluetooth' : 'Inovonics'}, at its list price.`;
   if (a.commonArea && !b.commonArea) return 'Common area sensors removed; their counts are set to 0.';

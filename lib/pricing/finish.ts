@@ -13,6 +13,7 @@
 import { SEED_PRODUCTS, SKU } from './catalog';
 import type { QuoteDraft } from '@/lib/quote/draft';
 import { pricedBedsOf } from '@/lib/quote/draft';
+import { pricedDraft } from './lineup';
 
 export interface FinishSetting {
   /** true = the customer is considering the concealed finish. */
@@ -53,6 +54,7 @@ export interface FinishResult extends FinishSetting {
 }
 
 export function computeFinish(draft: QuoteDraft): FinishResult {
+  draft = pricedDraft(draft); // the line-up's removed items are free
   const f = normalizeFinish(draft.commercial.finish);
   // Rooms getting an installation (beds with a product).
   const rooms = draft.communities.reduce((s, c) => s + pricedBedsOf(c, draft.commercial.ecall !== 'none'), 0);

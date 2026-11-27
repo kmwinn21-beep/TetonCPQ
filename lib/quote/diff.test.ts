@@ -64,3 +64,18 @@ describe('products', () => {
     expect(diffDrafts(a, c)).toEqual([expect.objectContaining({ label: 'Products', from: 'Subscription, E-Call', to: 'Subscription, E-Call, Additional sensors' })]);
   });
 });
+
+describe('the core products line-up', () => {
+  it('is one line, by version', async () => {
+    const { DEFAULT_LINEUP } = await import('@/lib/pricing/lineup');
+    const { diffDrafts } = await import('./diff');
+    const { defaultDraft } = await import('./draft');
+    const { priceBook } = await import('@/lib/pricing/catalog');
+    const a = defaultDraft('X', priceBook(), new Date('2026-11-01T00:00:00Z'));
+    const l = structuredClone(DEFAULT_LINEUP);
+    l.version = 4;
+    l.cores[0].sides.subscription.items.pop();
+    expect(diffDrafts(a, { ...a, lineup: structuredClone(DEFAULT_LINEUP) })).toEqual([]);
+    expect(diffDrafts(a, { ...a, lineup: l })).toEqual([{ group: 'Pricing', label: 'Core products (price book)', from: 'standard', to: 'version 4' }]);
+  });
+});

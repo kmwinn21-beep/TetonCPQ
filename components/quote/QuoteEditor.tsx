@@ -6,6 +6,7 @@
  * autosaves the draft, and freezes it as a version on demand — the server
  * recomputes outputs from the stored inputs when it freezes.
  */
+import { LineupContext } from './LineupContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -348,6 +349,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     <FormProvider {...methods}>
       <FloorPlansProvider quoteId={initial.quoteId} onScopeChange={(t) => canEdit && setScopePrompt(t)}>
       <ReadOnlyContext.Provider value={!access.inputs}>
+      <LineupContext.Provider value={initial.lineup}>
       <InputCommentsProvider quoteId={initial.quoteId} activeVersionId={activeVersion?.id ?? null} activeVersionNo={activeVersion?.versionNo ?? null} draft={!activeVersion || pending.length > 0}>
       <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="max-w-[1600px] mx-auto [&_section[id]]:scroll-mt-[calc(var(--hdr-h,0px)+16px)]" noValidate>
         {/* Always in view: the page scrolls behind it. Its height feeds --hdr-h, so the menus and panel stick below it. */}
@@ -617,6 +619,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           </div>
         </div>
       )}
+      </LineupContext.Provider>
       </ReadOnlyContext.Provider>
       </FloorPlansProvider>
     </FormProvider>

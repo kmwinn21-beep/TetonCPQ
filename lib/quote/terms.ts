@@ -8,6 +8,7 @@
  *
  * Stored on the draft as `terms`: null means "standard terms".
  */
+import { pricedDraft } from '@/lib/pricing/lineup';
 import { POLICY } from '@/lib/pricing/catalog';
 import { usd } from '@/lib/format';
 import { renderText } from '@/lib/proposal/text';
@@ -89,7 +90,7 @@ export function standardTerms(d: QuoteDraft, kind: ListKind = 'terms'): Array<{ 
   if (kind === 'nextSteps') return standardSteps(d);
   const term = POLICY.serviceTermMonths;
   const pilot = hasPilot(d);
-  const k = d.commercial;
+  const k = pricedDraft(d).commercial;
   const ecallFree = k.ecall !== 'none' && k.ecallPilotRate === 0;
   const out: Array<{ id: string; template: string; vars: Record<string, string> }> = [];
   if (pilot)

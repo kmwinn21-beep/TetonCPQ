@@ -12,9 +12,11 @@ import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
 import { applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, hasImplementation, hasSensors, KITS, sensorCounts, visibleSettings, type Choices, type DealProduct, type Structure } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
+import { isRemoved, lineupOf, offeredFor, removedRoles, ROLE_BY_SKU, sameLineup, type Lineup } from '@/lib/pricing/lineup';
 import { Collapse, DerivedField, ReadOnlyContext } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
 import { SegGroup } from '@/components/form/SegGroup';
+import { usePriceBookLineup } from './LineupContext';
 import { ItemIcon } from '@/components/catalog/ItemIcon';
 import { InstallCreditChoice, Seg, Switch, SwitchButton, type FieldName } from './sections';
 
@@ -118,6 +120,8 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
   const perRoom = k.ecallBilling !== 'device';
   // Beds with monitoring but no E-Call, and E-Call without monitoring (shown only when the communities have some).
   const monOnly = Math.max(0, n.monitored - n.monitoredEcall);
+  // Items the deal's line-up takes away aren't on the deal (they're free): their lines are left out.
+  const removed = removedRoles(d.lineup);
   const out: Line[] = [];
   const ecallLine = (applies: string): Line => {
     const sku = ino ? SKU.ecallInovonics : SKU.ecallBle;
@@ -126,13 +130,17 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
   const subLine = (applies: string): Line => ({ key: 'sub', sku: SKU.platform, name: name(SKU.platform, 'Teton subscription'), unit: 'per bed / month', once: false, list: list(SKU.platform), field: 'commercial.platformRate', suffix: '/bed', applies });
 
   if (opexSide) {
-    if (sub && ec) {
+    // The bundle (unless the line-up turns it off: then the subscription and E-Call are billed separately).
+    const bundleOn = !isRemoved(removed, 'bundle', ino ? SKU.bundleInovonics : SKU.bundleBle);
+    if (sub && ec && bundleOn) {
       const sku = ino ? SKU.bundleInovonics : SKU.bundleBle;
       out.push({ key: 'bundle', sku, name: name(sku, ino ? 'Teton One + E-Call (Inovonics)' : 'Teton One + E-Call (Bluetooth)'), unit: 'per bed / month', once: false, list: list(sku), applies: beds(any ? n.monitoredEcall : 0), bundle: ino ? 'inovonics' : 'ble' });
       if (any && monOnly > 0) out.push(subLine(`${beds(monOnly)} without E-Call`));
       if (any && n.ecallOnly > 0) out.push(ecallLine(`${beds(n.ecallOnly)} without monitoring`));
-    } else if (sub) out.push(subLine(beds(n.monitored)));
-    else if (ec && !cx) out.push(ecallLine(beds(n.ecall)));
+    } else if (sub) {
+      out.push(subLine(beds(n.monitored)));
+      if (ec) out.push(ecallLine(beds(n.ecall)));
+    } else if (ec && !cx) out.push(ecallLine(beds(n.ecall)));
     if (ps.includes('snf')) out.push({ key: 'snf', sku: SKU.snf, name: name(SKU.snf, 'Skilled nursing'), unit: 'per bed / month', once: false, list: list(SKU.snf), field: 'commercial.snfRate', nullable: true, placeholder: String(k.platformRate), suffix: '/bed', applies: beds(n.snf) });
   }
   if (capexSide) {
@@ -175,7 +183,13 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     if (capexSide) out.push({ key: 'sensorCx', sku: SKU.capexSensor, name: both ? 'Additional sensor · purchase' : name(SKU.capexSensor, 'Additional sensor'), unit: `per sensor, one-time${both ? ' · CapEx' : ''}`, once: true, list: list(SKU.capexSensor), field: 'commercial.capex.sensorPrice', applies, sensors: true });
   }
   if (ps.includes('finish')) out.push({ key: 'finish', sku: 'FINISH-CONCEALED-LOW', name: 'Concealed finish', unit: 'per room, quoted pending the site survey', once: true, list: null, applies: `${n.rooms} rooms`, text: `${money(k.finish?.low)}–${money(k.finish?.high)} / room` });
-  return out;
+  if (!removed.size) return out;
+  return out.filter((l) => {
+    if (l.key === 'impl') return l.field === 'commercial.installRate' ? !isRemoved(removed, 'install') : l.field === 'commercial.ecallInstallRate' ? !isRemoved(removed, 'ecallInstall') : true;
+    if (l.key === 'finish') return !(isRemoved(removed, 'finishLow') && isRemoved(removed, 'finishHigh'));
+    const r = ROLE_BY_SKU[l.sku];
+    return !r || !isRemoved(removed, r, l.sku);
+  });
 }
 
 /** The bundle's deal price: subscription + E-Call less the bundle saving. Editing it changes the saving. */
@@ -210,8 +224,17 @@ const STRUCTURES: Array<[Structure, string]> = [
 ];
 
 /** The two questions: how they buy, and what they're getting (plus options). */
-function BuildPanel({ c, onChange, disabled }: { c: Choices; onChange: (next: Choices) => void; disabled: boolean }) {
-  const caOk = commonAreaOffered(c.structure);
+function BuildPanel({ c, onChange, disabled, lineup }: { c: Choices; onChange: (next: Choices) => void; disabled: boolean; lineup: Lineup }) {
+  const caOk = commonAreaOffered(c.structure, lineup);
+  // Names and notes come from the line-up (admins can rename them in the price book).
+  const core = (id: string, name: string, note: string) => {
+    const x = lineup.cores.find((y) => y.id === id);
+    return { name: x?.name || name, note: x?.note || note };
+  };
+  const mon = core('monitoring', 'Resident monitoring', 'Teton sensors in resident rooms');
+  const ec = core('ecall', 'E-Call', 'Pendants and pull-cords');
+  const ca = core('commonArea', 'Common area sensors', 'Dining, halls, lounges; count per community');
+  const fin = core('finish', 'Concealed finish', 'Optional install add-on, quoted per room');
   const card = (on: boolean, off = false) =>
     `relative w-full rounded-[12px] border-[1.5px] px-3 py-2.5 text-left transition-colors duration-200 ${off ? 'border-[#ECE8DF] bg-[#FBFAF7] cursor-not-allowed' : on ? 'border-[#3F8CEA] bg-[#F3F8FE]' : 'border-[#E4E0D6] bg-white hover:bg-[#FBFAF7]'}`;
   const tick = (on: boolean) => (
@@ -241,14 +264,14 @@ function BuildPanel({ c, onChange, disabled }: { c: Choices; onChange: (next: Ch
       <div className="grid gap-2.5 sm:grid-cols-3">
         <button type="button" role="checkbox" aria-checked={c.monitoring} disabled={disabled} onClick={() => onChange({ ...c, monitoring: !c.monitoring })} className={card(c.monitoring)}>
           {tick(c.monitoring)}
-          <b className="block pr-6 text-[13px]">Resident monitoring</b>
-          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">Teton sensors in resident rooms</small>
+          <b className="block pr-6 text-[13px]">{mon.name}</b>
+          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{mon.note}</small>
         </button>
         <div className={card(c.ecall !== 'none')}>
-          <button type="button" role="checkbox" aria-checked={c.ecall !== 'none'} disabled={disabled} onClick={() => onChange({ ...c, ecall: c.ecall === 'none' ? 'ble' : 'none' })} className="absolute inset-0 rounded-[12px]" aria-label="E-Call" />
+          <button type="button" role="checkbox" aria-checked={c.ecall !== 'none'} disabled={disabled} onClick={() => onChange({ ...c, ecall: c.ecall === 'none' ? 'ble' : 'none' })} className="absolute inset-0 rounded-[12px]" aria-label={ec.name} />
           {tick(c.ecall !== 'none')}
-          <b className="pointer-events-none relative block pr-6 text-[13px]">E-Call</b>
-          <small className="pointer-events-none relative mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">Pendants and pull-cords</small>
+          <b className="pointer-events-none relative block pr-6 text-[13px]">{ec.name}</b>
+          <small className="pointer-events-none relative mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{ec.note}</small>
           <Collapse open={c.ecall !== 'none'}>
             <SegGroup label="E-Call system" className="relative mt-2 inline-flex rounded-[9px] bg-white p-[2px] shadow-[0_0_0_1px_#D3D6DA]" thumbClass="bg-teton-ink">
               {(
@@ -283,8 +306,8 @@ function BuildPanel({ c, onChange, disabled }: { c: Choices; onChange: (next: Ch
           title={caOk ? undefined : 'Not offered on equipment purchase'}
         >
           {tick(caOk && c.commonArea)}
-          <b className={`block pr-6 text-[13px] ${caOk ? '' : 'text-[#9AA0A8]'}`}>Common area sensors</b>
-          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{caOk ? 'Dining, halls, lounges; count per community' : 'Not offered on equipment purchase'}</small>
+          <b className={`block pr-6 text-[13px] ${caOk ? '' : 'text-[#9AA0A8]'}`}>{ca.name}</b>
+          <small className="mt-0.5 block text-[11.5px] leading-snug text-[#6B7380]">{caOk ? ca.note : 'Not offered on equipment purchase'}</small>
         </button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -296,7 +319,7 @@ function BuildPanel({ c, onChange, disabled }: { c: Choices; onChange: (next: Ch
           onClick={() => onChange({ ...c, finish: !c.finish })}
           className={`h-8 rounded-full px-3 text-[12px] transition-colors duration-200 ${c.finish ? 'border border-teton-ink bg-teton-ink text-white' : 'border border-dashed border-[#C9C4BA] text-[#4E5562] hover:bg-[#FBFAF7]'}`}
         >
-          {c.finish ? '✓ Concealed finish' : '+ Concealed finish'}
+          {c.finish ? `✓ ${fin.name}` : `+ ${fin.name}`}
         </button>
       </div>
     </div>
@@ -309,6 +332,10 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
   const readOnly = useContext(ReadOnlyContext);
   const ps = useMemo(() => dealProducts(d), [d]);
   const choices = useMemo(() => choicesOf(d), [d]);
+  // The deal prices with its own copy of the line-up; the price book's may have changed since.
+  const dealLineup = lineupOf(d);
+  const current = usePriceBookLineup();
+  const outdated = current.version > dealLineup.version && !sameLineup(current, dealLineup);
   const vis = visibleSettings(ps, d.presentation);
   const lines = linesOf(d, ps, book);
   const [implOpen, setImplOpen] = useState(false);
@@ -326,6 +353,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     if (JSON.stringify(cur.commercial) !== JSON.stringify(next.commercial)) setValue('commercial', next.commercial, o);
     if (JSON.stringify(cur.schedule) !== JSON.stringify(next.schedule)) setValue('schedule', next.schedule, o);
     if (JSON.stringify(cur.communities) !== JSON.stringify(next.communities)) setValue('communities', next.communities, o);
+    if (JSON.stringify(cur.lineup ?? null) !== JSON.stringify(next.lineup ?? null)) setValue('lineup', next.lineup, o);
   };
   const [ask, setAsk] = useState<null | 'sensors'>(null);
   const [toast, setToast] = useState<{ text: string; undo: QuoteDraft } | null>(null);
@@ -340,14 +368,35 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
     const a = choicesOf(before);
     write(applyChoices(before, next, book));
     setErr(null);
-    const note = changeNote(a, next, book);
+    const note = changeNote(a, next, book, lineupOf(before));
     setToast(note ? { text: note, undo: before } : null);
   };
 
   return (
     <div className="space-y-5">
       <div className="rounded-[14px] border border-[#ECE8DF] bg-white overflow-hidden">
-        <BuildPanel c={choices} onChange={choose} disabled={readOnly} />
+        <Collapse open={outdated}>
+          <div role="status" className="mx-4 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border border-[#CFE2F8] bg-[#F3F8FE] px-3 py-2.5 text-[12.5px]">
+            <span aria-hidden="true">ⓘ</span>
+            <span className="flex-1 min-w-[200px]">
+              <b>The core products changed in the price book</b> (version {current.version}). This deal still prices with {dealLineup.version ? `version ${dealLineup.version}` : 'the standard line-up'}.
+            </span>
+            {!readOnly && (
+              <button
+                type="button"
+                className="h-8 rounded-[8px] bg-teton-ink px-3 text-[12px] font-semibold text-white"
+                onClick={() => {
+                  const before = getValues();
+                  setValue('lineup', structuredClone(current), { shouldDirty: true });
+                  setToast({ text: `Updated to the price book’s core products (version ${current.version}). Prices follow it.`, undo: before });
+                }}
+              >
+                Update this deal
+              </button>
+            )}
+          </div>
+        </Collapse>
+        <BuildPanel c={choices} onChange={choose} disabled={readOnly} lineup={dealLineup} />
         <Collapse open={!!toast}>
           {toast && (
             <div role="status" className="mx-4 mt-3 flex items-center gap-3 rounded-[10px] bg-teton-ink px-3 py-2 text-[12.5px] text-white">

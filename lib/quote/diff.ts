@@ -7,6 +7,7 @@ import { planChanges } from './implementationPlan';
 import { normalizeTerms, termsChanges } from './terms';
 import { resourcesChanges } from './resources';
 import { BED_KEYS, bedsOf, productsOf, type DraftCommunity, type QuoteDraft } from './draft';
+import { lineupOf, sameLineup } from '@/lib/pricing/lineup';
 
 export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult' | 'products';
 
@@ -221,8 +222,13 @@ const METRIC_LABEL: Record<string, string> = {
 /** Changes from `before` to `after`. Communities are matched by their id, so a rename is a change, not a remove + add. */
 export function diffDrafts(before: QuoteDraft, after: QuoteDraft): Change[] {
   const changes: Change[] = [];
-  const { communities: ca, implementationPlan: pa, terms: _ta, nextSteps: _na, resources: xa, ...ra } = before;
-  const { communities: cb, implementationPlan: pb, terms: _tb, nextSteps: _nb, resources: xb, ...rb } = after;
+  const { communities: ca, implementationPlan: pa, terms: _ta, nextSteps: _na, resources: xa, lineup: lla, ...ra } = before;
+  const { communities: cb, implementationPlan: pb, terms: _tb, nextSteps: _nb, resources: xb, lineup: llb, ...rb } = after;
+
+  // The core products line-up: one line (its version in the price book), not every item in it.
+  const la0 = lineupOf({ lineup: lla });
+  const lb0 = lineupOf({ lineup: llb });
+  if (!sameLineup(la0, lb0)) changes.push({ group: 'Pricing', label: 'Core products (price book)', from: la0.version ? `version ${la0.version}` : 'standard', to: lb0.version ? `version ${lb0.version}` : 'standard' });
 
   // Implementation stages are compared as a plan (stages can be added, removed and reordered).
 

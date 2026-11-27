@@ -6,6 +6,7 @@ import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityExtra, type CommunityRates, type ModelInputs } from '@/lib/model';
 import { extraDevicePrice, scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
 import { ecallBilled, pendantScope } from './roomTypes';
+import { pricedDraft } from '@/lib/pricing/lineup';
 
 /** Month index (1 = cash-flow start month) of a 'yyyy-mm' go-live. */
 export function monthIndex(startDate: string, yyyymm: string): number {
@@ -24,6 +25,7 @@ export function monthLabel(startDate: string, index: number): string {
  * share). E-Call is not in them: it is billed per device (communityExtras).
  */
 export function communityRates(d: QuoteDraft, c: DraftCommunity, products?: BedProducts): CommunityRates {
+  d = pricedDraft(d); // the line-up's removed items are free
   const k = d.commercial;
   const mult = c.coverage === 'full_facility' ? k.fullFacilityMultiplier : 1;
   const p = products ?? scopeOf(c, k.ecall !== 'none').uniform ?? { monitoring: true, ecall: false };
@@ -75,6 +77,7 @@ export function communityUnits(c: DraftCommunity, ecallOn = true): number {
  * E-Call fee (per area, per month).
  */
 export function communityExtras(d: QuoteDraft, c: DraftCommunity): CommunityExtra[] {
+  d = pricedDraft(d); // the line-up's removed items are free
   const k = d.commercial;
   const s = scopeOf(c, k.ecall !== 'none');
   const out: CommunityExtra[] = [];
@@ -109,6 +112,7 @@ export interface PricingAdjustment {
  *  - common-area sensors: a setup fee each (with the pilot install credit at pilot sites) and a monthly fee each after the pilot.
  */
 export function pricingAdjustments(d: QuoteDraft, c: DraftCommunity): PricingAdjustment[] {
+  d = pricedDraft(d); // the line-up's removed items are free
   const k = d.commercial;
   const ecallOn = k.ecall !== 'none';
   const s = scopeOf(c, ecallOn);
@@ -154,6 +158,7 @@ export function pricingAdjustments(d: QuoteDraft, c: DraftCommunity): PricingAdj
 const billsMonitoring = (d: QuoteDraft, c: DraftCommunity) => (scopeOf(c, d.commercial.ecall !== 'none').uniform?.monitoring ?? true);
 
 export function toModelInputs(d: QuoteDraft): ModelInputs {
+  d = pricedDraft(d); // the line-up's removed items are free
   const startDate = cashFlowStart(d);
   const { avgRevenuePerResidentOverride, ...client } = d.client;
   const fullClient = { ...client, avgRevenuePerResident: avgRevenuePerResidentOverride ?? client.avgRent + client.careRevenuePerResident };

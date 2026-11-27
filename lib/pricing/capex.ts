@@ -22,6 +22,7 @@ import { SEED_PRODUCTS, SKU, POLICY } from './catalog';
 import { derived, input, type Trace } from '@/lib/model/trace';
 import type { EcallOption, QuoteDraft } from '@/lib/quote/draft';
 import { scopeOf } from '@/lib/quote/draft';
+import { pricedDraft } from './lineup';
 
 /** A deal's equipment-purchase prices (copied from the price book when the deal is created). */
 export interface CapexPricing {
@@ -149,6 +150,7 @@ export const isEquipmentCapex = (c: unknown): c is Omit<CapexResult, 'trace'> =>
 export const renewalsWithin = (months: number, years: number) => Math.max(0, Math.ceil(months / (years * 12)) - 1);
 
 export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY.capexOwnershipMonths): CapexResult {
+  draft = pricedDraft(draft); // the line-up's removed items are free
   const pricing: CapexPricing = { ...DEFAULT_CAPEX_PRICING, ...(draft.commercial.capex ?? {}) };
   const option = draft.commercial.ecall;
   const conversion = Math.max(0, Number(pricing.conversionCredit) || 0);

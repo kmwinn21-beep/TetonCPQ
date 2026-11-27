@@ -8,6 +8,7 @@
  * agrees with itself: the price lines add up to the model's billing and the cash flow, the Year 1 card matches,
  * and the equipment rows add up to the equipment total.
  */
+import { pricedDraft } from '@/lib/pricing/lineup';
 import type { ModelInputs, ModelResult } from '@/lib/model';
 import { subscriptionTotals } from '@/lib/model';
 import { basePackageRows, renewalsWithin, sensorRows, type CapexResult } from '@/lib/pricing/capex';
@@ -121,7 +122,9 @@ export function lineBilledThrough(l: PriceLine, m: number): number {
 }
 
 export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
-  const { draft, inputs, out, capex, lines, book, money, count } = a;
+  const { inputs, out, capex, lines, book, money, count } = a;
+  // The prices as the deal is priced (items its line-up takes away are free).
+  const draft = pricedDraft(a.draft);
   const k = draft.commercial;
   const ecallOn = k.ecall !== 'none';
   const sys = k.ecall === 'inovonics' ? 'Inovonics' : 'Bluetooth';
