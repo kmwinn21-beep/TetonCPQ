@@ -885,7 +885,8 @@ export function ScopeViewer({
           setZoom={setZoom}
           onPages={setPages}
           scope={scope}
-          modeLabel={noteMode ? 'Note · click the spot it’s about' : undefined}
+          modeLabel={noteMode ? 'Note · click the spot it’s about' : tagWhat === 'areas' ? 'Common areas · click a space to tag it' : undefined}
+          modeTone={noteMode ? undefined : tagWhat === 'areas' ? AREA_COLOR : undefined}
           marquee={(selectTool && showSaved) || (autoTool && scope)}
           marqueeLabel={autoTool ? 'Auto-tag · drag a box over rooms' : undefined}
           sampler={sampler}
@@ -1304,6 +1305,7 @@ function PlanStage({
   onPages,
   scope,
   modeLabel,
+  modeTone,
   marquee,
   marqueeLabel,
   sampler,
@@ -1321,6 +1323,8 @@ function PlanStage({
   scope: boolean;
   /** Replaces the "Scope Mode · click to tag" label (e.g. while placing a note). */
   modeLabel?: string;
+  /** The label's color, when not the note amber. */
+  modeTone?: string;
   onTap: (x: number, y: number) => void;
   /** Dragging draws a selection box (the Select tool; Shift + drag does it any time). */
   marquee?: boolean;
@@ -1570,7 +1574,7 @@ function PlanStage({
         <p className="absolute inset-x-0 top-1/3 text-center text-sm text-teton-ui-gray pointer-events-none">{state === 'error' ? 'This file can’t be shown here. Download it to view it.' : 'Loading the floor plan…'}</p>
       )}
       {marquee && <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white bg-[#3F8CEA] drawer-in">{marqueeLabel ?? 'Select · drag a box over tags'}</span>}
-      {scope && !marquee && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
+      {scope && !marquee && <span className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white drawer-in transition-colors duration-200 ${modeLabel ? 'bg-[#E0A21B]' : 'bg-[#3F8CEA]'}`} style={modeTone ? { background: modeTone } : undefined}>{modeLabel ?? 'Scope Mode · click to tag'}</span>}
       <div data-plan-ui className="absolute right-3 top-3 flex flex-col rounded-lg border border-teton-off-white bg-white text-sm shadow-sm">
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white rounded-t-lg" aria-label="Zoom in" onClick={() => zoomAt(-2)}>+</button>
         <button type="button" className="w-8 h-8 hover:bg-teton-almost-white" aria-label="Zoom out" onClick={() => zoomAt(-1)}>−</button>

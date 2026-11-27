@@ -280,7 +280,7 @@ export function normalizeCommonAreas(v: unknown): CommonArea[] {
       id: typeof a.id === 'string' && a.id ? a.id.slice(0, 40) : `ca-${i}`,
       name: String(a.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
       kind: (a.kind && a.kind in AREA_KINDS ? a.kind : 'other') as AreaKind,
-      count: a.mark ? 1 : int(a.count ?? 1, 500),
+      count: markOf(a.mark) ? 1 : int(a.count ?? 1, 500),
       pendants: int(a.pendants ?? 1, 20),
       ...(int(a.sensors ?? 0, 50) > 0 ? { sensors: int(a.sensors ?? 0, 50) } : {}),
       ...(markOf(a.mark) ? { mark: markOf(a.mark)! } : {}),
