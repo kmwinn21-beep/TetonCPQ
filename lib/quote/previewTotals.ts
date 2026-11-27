@@ -9,7 +9,7 @@ import type { PriceBook } from '@/lib/pricing/catalog';
 import { buildPriceLines, lineTotal, type PriceLine } from '@/lib/pricing/lines';
 import { computeCapex, grossBaseRows, grossSensorRow } from '@/lib/pricing/capex';
 import { computeFinish } from '@/lib/pricing/finish';
-import { installMath, sensorMath } from '@/lib/proposal/costMath';
+import { installMath, commonAreaColumns, sensorMath } from '@/lib/proposal/costMath';
 import { scopeOf, type QuoteDraft } from './draft';
 import { pendantScope } from './roomTypes';
 import { itemsOn } from '@/lib/pricing/items';
@@ -66,7 +66,8 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
     const fees = sum(site.filter((l) => l.billing === 'monthly' && l.description.includes('— pilot')).map(lineTotal));
     const ins = installMath(site);
     const sen = sensorMath(site, (pos) => pos != null && pilotPos.has(pos));
-    const install = ins.gross - ins.credit;
+    // Installation and common-area setup, each less its own pilot credit.
+    const install = ins.gross - ins.credit + commonAreaColumns(site).total;
     const items = sum(site.filter((l) => genericSkus.has(l.sku) && l.billing === 'one_time').map(lineTotal));
     pilot = { install, sensors: sen.total, items, fees, total: fees + install + sen.total + items, months: inputs.schedule.pilotLengthMonths };
   }
@@ -75,7 +76,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
   if (showOpex) {
     const ins = installMath(lines);
     opex = {
-      install: ins.gross - ins.credit,
+      install: ins.gross - ins.credit + commonAreaColumns(lines).total,
       sensors: sensorMath(lines).total,
       items: sum(lines.filter((l) => genericSkus.has(l.sku) && l.billing === 'one_time').map(lineTotal)),
       monthly: sum(lines.filter((l) => l.billing === 'monthly' && !l.description.includes('pilot') && !l.description.includes('introductory')).map((l) => l.qty * l.unitNet)),

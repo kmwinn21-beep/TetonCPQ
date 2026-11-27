@@ -39,7 +39,7 @@ import { QuarterlyWaterfall } from './QuarterlyWaterfall';
 import { TermsList } from './TermControls';
 import { resolveTerms } from '@/lib/quote/terms';
 import { renderText } from '@/lib/proposal/text';
-import { installColumns, installMath, sensorColumns, sensorMath } from '@/lib/proposal/costMath';
+import { commonAreaColumns, installColumns, installMath, sensorColumns, sensorMath } from '@/lib/proposal/costMath';
 import { buildProposalData } from './proposalData';
 import { useWhatIf } from './WhatIf';
 import { MissingPlanPill } from './FloorPlanStatus';
@@ -1788,12 +1788,14 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const pIns = installMath(siteLines);
     const pSen = sensorMath(siteLines, (pos) => pos != null && !!d.perCommunity[pos]?.pilot);
     const install = pIns.gross - pIns.credit;
-    const pilotTotal = pilotFees + install + pSen.total;
+    // Common-area sensor setup at the pilot sites, less its own pilot credit (like installation).
+    const pCa = commonAreaColumns(siteLines);
+    const pilotTotal = pilotFees + install + pSen.total + pCa.total;
     const pilotEcall = draft.commercial.ecall !== 'none' && pilotSites.some((x) => hasEcall(x.dc));
     const months = inputs.schedule.pilotLengthMonths;
     const beds = bedsOf;
     const pilotName = pilotSites.length === 1 ? d.perCommunity[pilotSites[0].i].name || customer : `${pilotSites.length} pilot communities`;
-    execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months, install: install + pSen.total, monthly: pilotMonthlyTotal };
+    execPilot = { name: pilotName, beds: sum(pilotSites.map((x) => { const b = beds(x.dc); return b.il + b.al + b.mc + b.snf; })), total: pilotTotal, months, install: install + pSen.total + pCa.total, monthly: pilotMonthlyTotal };
     const pvars = { ...vars, pilot: pilotName, months: String(months), term: String(term) };
     pilotCommunityTable = (id: string, name: string, heading?: React.ReactNode) => (
           <div className={`bc-card bc-tbl bc-hrs bc-pilot-tbl ${heading ? 'bc-tbl-headed' : ''}`}>
@@ -1873,6 +1875,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               amount={<V k="bc.pilot.install.value" label="Pilot installation amount">{usd(install + pSen.total)}</V>}
               pct="–"
             />
+            {pCa.units > 0 && (
+              <CostRow
+                name={<T k="bc.pilot.caSetup" d="Common-area setup" />}
+                sub={<T k="bc.oneTime" d="(one-time)" />}
+                desc={<T k="bc.pilot.caSetup.desc" d={pCa.creditUnits > 0 ? '{units} common-area sensors × {price}, less the pilot credit' : '{units} common-area sensors × {price}'} v={{ units: count(pCa.units), price: usd(pCa.maxPer) }} />}
+                amount={<V k="bc.pilot.caSetup.value" label="Pilot common-area setup amount">{usd(pCa.total)}</V>}
+                pct="–"
+              />
+            )}
             <CostRow
               name={<T k="bc.pilot.fees" d="Monthly Fees" />}
               desc={<T k="bc.pilot.free.fees" d="No monthly fees during pilot period" />}
@@ -1934,6 +1945,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         <td>{count(sen.units)}</td>
                         {credit(sen, 'sensors')}
                         <td className="bc-hl bc-big"><V k="bc.pilot.sensors.value" label="Pilot additional sensors amount">{usd(sen.total)}</V></td>
+                      </tr>
+                    )}
+                    {pCa.units > 0 && (
+                      <tr>
+                        <td className="bc-m"><T k="bc.pilot.caSetup" d="Common-area setup" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                        <td>{range(pCa.minPer, pCa.maxPer)} per sensor, one-time</td>
+                        <td>{count(pCa.units)}</td>
+                        {credit(pCa, 'sensors')}
+                        <td className="bc-hl bc-big"><V k="bc.pilot.caSetup.value" label="Pilot common-area setup amount">{usd(pCa.total)}</V></td>
                       </tr>
                     )}
                     <tr>
@@ -2722,6 +2742,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             {(() => {
               const ins = installColumns(lines);
               const sen = sensorColumns(lines);
+              const ca = commonAreaColumns(lines);
               const range = (a: number, b: number) => (a === b ? money(a) : `${money(a)}–${money(b)}`);
               // Conversion credits: per unit, in red, with how many pilot units they cover; a dash when no pilot site gets one.
               const credit = (r: typeof ins, what: string) =>
@@ -2763,6 +2784,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           {credit(sen, 'sensors')}
                           <td className="bc-hl bc-big"><V k="scope.sensors.value" label="Additional sensors amount">{usd(sen.total)}</V></td>
                         </tr>
+                        {ca.units > 0 && (
+                          <tr>
+                            <td className="bc-m"><T k="bc.scope.caSetup" d="Common-area setup" /><small><T k="bc.inv.oneTime" d="One-time" /></small></td>
+                            <td>{range(ca.minPer, ca.maxPer)} per sensor, one-time</td>
+                            <td>{count(ca.units)}</td>
+                            {credit(ca, 'sensors')}
+                            <td className="bc-hl bc-big"><V k="scope.caSetup.value" label="Common-area setup amount">{usd(ca.total)}</V></td>
+                          </tr>
+                        )}
                         {itemsOn(draft, 'subscription').filter((it) => it.spec.billing !== 'monthly').map((it) => {
                           const ls = lines.filter((l) => l.sku === it.sku && l.billing === 'one_time');
                           const gross = ls.filter((l) => l.unitNet > 0);

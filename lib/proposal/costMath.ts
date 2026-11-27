@@ -8,11 +8,14 @@ import { SKU } from '@/lib/pricing/catalog';
 import { count, usd } from '@/lib/format';
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+/** The pilot install credit (installation and common-area setup lines carry it). */
+const isInstallCredit = (l: PriceLine) => !!l.concessionCode?.startsWith('INSTALL_CREDIT');
 
 /** "119 beds × $400" (+ more groups when rates differ by community), from one-time install lines. */
 export function installMath(ls: PriceLine[]): { gross: number; credit: number; text: string } {
-  const install = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !l.concessionCode?.startsWith('INSTALL_CREDIT'));
-  const credit = -sum(ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT')).map(lineTotal));
+  const install = ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !isInstallCredit(l));
+  // Only installation's own credit: the common-area setup credit shares the install credit's code (see commonAreaColumns).
+  const credit = -sum(ls.filter((l) => isInstallCredit(l) && l.sku === SKU.install).map(lineTotal));
   const groups = new Map<number, number>();
   install.forEach((l) => groups.set(l.unitNet, (groups.get(l.unitNet) ?? 0) + l.qty));
   const parts = Array.from(groups.entries()).map(([unit, qty]) => `${count(qty)} beds × ${usd(unit, { cents: !Number.isInteger(unit) })}`);
@@ -77,8 +80,15 @@ function columns(gross: PriceLine[], credits: PriceLine[]): ColumnRow {
 /** Installation: beds × price per bed, less the pilot install credit on pilot beds. */
 export const installColumns = (ls: PriceLine[]) =>
   columns(
-    ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !l.concessionCode?.startsWith('INSTALL_CREDIT') && l.qty > 0),
-    ls.filter((l) => l.concessionCode?.startsWith('INSTALL_CREDIT') && l.qty > 0),
+    ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.install && !isInstallCredit(l) && l.qty > 0),
+    ls.filter((l) => isInstallCredit(l) && l.sku === SKU.install && l.qty > 0),
+  );
+
+/** Common-area sensor setup: sensors × setup price, less the pilot install credit on pilot sites (like installation). */
+export const commonAreaColumns = (ls: PriceLine[]) =>
+  columns(
+    ls.filter((l) => l.billing === 'one_time' && l.sku === SKU.commonAreaSetup && !isInstallCredit(l) && l.qty > 0),
+    ls.filter((l) => isInstallCredit(l) && l.sku === SKU.commonAreaSetup && l.qty > 0),
   );
 
 /** Additional sensors: sensors × price, less the sensor credit at pilot sites. */
