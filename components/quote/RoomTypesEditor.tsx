@@ -8,10 +8,11 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { AREA_KINDS, badgeOf, bedKeyOf, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, badgeOf, bedKeyOf, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
+import { Counter } from '@/components/form/Counter';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
 import { canAutoFocus } from '@/lib/client/focus';
@@ -44,8 +45,9 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
   // Room type cards: a pendants column when the community has E-Call; no sensors column when it has no Resident Monitoring.
   const anyMon = (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].monitoring);
   const showSensors = anyMon || !anyEcall;
-  const cols = anyEcall && showSensors ? 'grid-cols-[minmax(0,1fr)_4.25rem_4.75rem_5.25rem_1.75rem]' : 'grid-cols-[minmax(0,1fr)_4.25rem_5.5rem_1.75rem]';
-  const span = anyEcall && showSensors ? 'col-span-5' : 'col-span-4';
+  // Name across the top; care setting, rooms and remove; then the sensors / devices counters.
+  const cols = 'grid-cols-[minmax(0,1fr)_5.5rem_1.75rem]';
+  const span = 'col-span-3';
 
   // Room types and the beds and additional sensors they imply, written together.
   const { write } = useRoomTypes(i);
@@ -138,32 +140,6 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   aria-label={`Community ${position} room type ${k + 1} rooms`}
                 />
               </div>
-              {showSensors && (
-              <div>
-                <span className={eyebrowWrap}>Sensors / rm</span>
-                {/* No resident monitoring in this care setting: no sensors (0, locked). */}
-                {products[bedKeyOf(t)].monitoring ? (
-                  <NumInput value={t.sensors} onChange={(v) => patch(t.id, { sensors: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
-                ) : (
-                  <span title="This care setting doesn’t have Resident Monitoring, so its rooms get no sensors">
-                    <NumInput value={0} onChange={() => {}} disabled aria-label={`Community ${position} room type ${k + 1} sensors per room (none: no Resident Monitoring)`} />
-                  </span>
-                )}
-              </div>
-              )}
-              {anyEcall && (
-                <div>
-                  <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.rm}</span>
-                  {/* No E-Call in this care setting: none (0, locked). */}
-                  {products[bedKeyOf(t)].ecall ? (
-                    <NumInput value={t.pendants ?? 1} onChange={(v) => patch(t.id, { pendants: Math.max(1, v ?? 1) })} min={1} aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room`} />
-                  ) : (
-                    <span title="This care setting doesn’t have E-Call">
-                      <NumInput value={0} onChange={() => {}} disabled aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call)`} />
-                    </span>
-                  )}
-                </div>
-              )}
               <button
                 type="button"
                 className={iconBtn}
@@ -177,6 +153,30 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               >
                 ✕
               </button>
+              {/* Sensors and E-Call devices per room: counters, locked at 0 (with why) where the care setting or the deal
+                  has none. */}
+              <div className={`${span} grid grid-cols-2 gap-2`}>
+                {showSensors && (
+                  <div>
+                    <span className={eyebrowWrap}>Sensors / room</span>
+                    {products[bedKeyOf(t)].monitoring ? (
+                      <Counter size="sm" value={t.sensors} onChange={(v) => patch(t.id, { sensors: v })} min={1} max={20} aria-label={`Community ${position} room type ${k + 1} sensors per room`} />
+                    ) : (
+                      <Counter size="sm" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label={`Community ${position} room type ${k + 1} sensors per room (none: no Resident Monitoring)`} />
+                    )}
+                  </div>
+                )}
+                <div>
+                  <span className={`${eyebrowWrap} ${ecallOn && products[bedKeyOf(t)].ecall ? '!text-[#C2492F]' : '!text-[#B4AFA6]'}`}>{devicesLabel(ecallOption)} / room</span>
+                  {!ecallOn ? (
+                    <Counter size="sm" value={0} onChange={() => {}} disabled reason="E-Call isn’t part of this deal" aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call on the deal)`} />
+                  ) : products[bedKeyOf(t)].ecall ? (
+                    <Counter size="sm" value={t.pendants ?? 1} onChange={(v) => patch(t.id, { pendants: v })} min={1} max={20} aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room`} />
+                  ) : (
+                    <Counter size="sm" value={0} onChange={() => {}} disabled reason="No E-Call in this care setting" aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call)`} />
+                  )}
+                </div>
+              </div>
               {/* The products this room type gets: its care setting's ticks in the Beds grid above. */}
               <div className={`${span} -mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teton-ui-gray`}>
                 Products
@@ -240,8 +240,8 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
           {areas.length > 0 && (
             <div className="mt-1 space-y-1.5">
               {areas.map((a, k) => (
-                <div key={a.id} className="grid grid-cols-[minmax(0,1fr)_4.25rem_5.25rem_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
-                  <div className="col-span-4">
+                <div key={a.id} className="grid grid-cols-[minmax(0,1fr)_1.75rem] gap-x-1.5 gap-y-2 items-end rounded-lg border border-teton-off-white p-2">
+                  <div className="col-span-2">
                     <span className={eyebrow}>Area name</span>
                     <input className="input-field px-2 py-1.5" value={a.name} placeholder="e.g. Communal bathroom" aria-label={`Community ${position} common area ${k + 1} name`} onChange={(e) => patchArea(a.id, { name: e.target.value })} />
                   </div>
@@ -258,17 +258,19 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                       </svg>
                     </span>
                   </div>
-                  <div>
-                    <span className={eyebrowWrap}>How many</span>
-                    <NumInput value={a.count} onChange={(v) => patchArea(a.id, { count: Math.max(0, v ?? 0) })} min={0} aria-label={`Community ${position} common area ${k + 1} how many`} />
-                  </div>
-                  <div>
-                    <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.each}</span>
-                    <NumInput value={a.pendants} onChange={(v) => patchArea(a.id, { pendants: Math.max(0, v ?? 0) })} min={0} aria-label={`Community ${position} common area ${k + 1} ${dev.many} each`} />
-                  </div>
                   <button type="button" className={iconBtn} onClick={() => writeAreas(areas.filter((x) => x.id !== a.id))} aria-label={`Remove common area ${k + 1}`} title="Remove">
                     ✕
                   </button>
+                  <div className="col-span-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <span className={eyebrowWrap}>How many</span>
+                      <Counter size="sm" value={a.count} onChange={(v) => patchArea(a.id, { count: v })} min={0} max={500} aria-label={`Community ${position} common area ${k + 1} how many`} />
+                    </div>
+                    <div>
+                      <span className={`${eyebrowWrap} !text-[#C2492F]`}>{dev.each}</span>
+                      <Counter size="sm" value={a.pendants} onChange={(v) => patchArea(a.id, { pendants: v })} min={0} max={20} aria-label={`Community ${position} common area ${k + 1} ${dev.many} each`} />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

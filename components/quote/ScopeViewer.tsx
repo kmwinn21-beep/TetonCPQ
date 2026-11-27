@@ -10,9 +10,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
-import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
+import { productsOf, type EcallOption, type QuoteDraft } from '@/lib/quote/draft';
+import { Counter } from '@/components/form/Counter';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -124,7 +125,8 @@ export function ScopeViewer({
   }, [index, getValues, onScopeChange, closeViewer]);
   // Products by care setting: rooms without resident monitoring get no sensors.
   // (E-Call counts only when the deal offers it.)
-  const ecallOn = useWatch({ control, name: 'commercial.ecall' }) !== 'none';
+  const ecallSys = (useWatch({ control, name: 'commercial.ecall' }) ?? 'none') as EcallOption;
+  const ecallOn = ecallSys !== 'none';
   const products = useMemo(() => {
     const p = productsOf(community ?? {});
     return ecallOn ? p : (Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { ...v, ecall: false }])) as CareProducts);
@@ -1015,6 +1017,7 @@ export function ScopeViewer({
             <Anchored x={popMark.x} y={popMark.y}>
               <TypeForm
                 products={products}
+                ecall={ecallSys}
                 title={`Edit “${types.find((t) => t.id === editType)?.name || 'Room type'}”`}
                 initial={types.find((t) => t.id === editType)}
                 index={types.findIndex((t) => t.id === editType)}
@@ -1096,6 +1099,7 @@ export function ScopeViewer({
             ) : saving ? (
               <TypeForm
                 products={products}
+                ecall={ecallSys}
                 title="New room type"
                 sub={`${pending.length} room${pending.length === 1 ? '' : 's'} selected`}
                 types={types}
@@ -1664,8 +1668,11 @@ function TypeForm({
   note,
   onNote,
   products,
+  ecall,
 }: {
   products: CareProducts;
+  /** The deal's E-Call system: names the device counter (pendants / pull-cords); none disables it. */
+  ecall: EcallOption;
   title: string;
   sub?: string;
   initial?: RoomType;
@@ -1685,6 +1692,7 @@ function TypeForm({
   // A care setting of the rep's own (counts as assisted living beds), as in the community drawer.
   const [customCare, setCustomCare] = useState(initial?.customCare ?? '');
   const [sensors, setSensors] = useState<number>(initial?.sensors ?? 1);
+  const [pendants, setPendants] = useState<number>(Math.max(1, initial?.pendants ?? 1));
   const [color, setColor] = useState(initial ? badgeOf(initial, index).color : nextBadgeColor(types));
   const [addTo, setAddTo] = useState('');
   const auto = initialsOf(name || 'Room type');
@@ -1705,6 +1713,7 @@ function TypeForm({
           name: name.trim(),
           care,
           sensors: Math.max(1, Math.min(20, Math.round(sensors) || 1)),
+          pendants: pendants !== 1 ? Math.max(1, Math.min(20, Math.round(pendants) || 1)) : undefined,
           color,
           ...(initials.trim() ? { initials: initials.trim().toUpperCase().slice(0, 3) } : { initials: undefined }),
           customCare: care === 'custom' ? customCare.replace(/\s+/g, ' ').trim().slice(0, 40) : undefined,
@@ -1757,15 +1766,26 @@ function TypeForm({
             </select>
           )}
         </div>
+      </div>
+      {/* Sensors and E-Call devices per room. No resident monitoring in this care setting: no sensors (0, locked);
+          no E-Call on the deal or in this care setting: no devices (0, locked). */}
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={eyebrow} htmlFor="tf-sen">Sensors / room</label>
-          {/* No resident monitoring in this care setting: no sensors (0, locked). */}
           {products[bedKeyOf({ care })].monitoring ? (
-            <NumInput id="tf-sen" value={sensors} onChange={(v) => setSensors(Math.max(1, v ?? 1))} min={1} max={20} aria-label="Sensors per room" />
+            <Counter id="tf-sen" size="sm" value={sensors} onChange={setSensors} min={1} max={20} aria-label="Sensors per room" />
           ) : (
-            <span title="This care setting doesn’t have Resident Monitoring, so its rooms get no sensors">
-              <NumInput id="tf-sen" value={0} onChange={() => {}} disabled aria-label="Sensors per room (none: no Resident Monitoring)" />
-            </span>
+            <Counter id="tf-sen" size="sm" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label="Sensors per room (none: no Resident Monitoring)" />
+          )}
+        </div>
+        <div>
+          <label className={`${eyebrow} ${ecall === 'none' || !products[bedKeyOf({ care })].ecall ? '!text-[#B4AFA6]' : ''}`} htmlFor="tf-pend">{devicesLabel(ecall)} / room</label>
+          {ecall === 'none' ? (
+            <Counter id="tf-pend" size="sm" value={0} onChange={() => {}} disabled reason="E-Call isn’t part of this deal" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call on the deal)`} />
+          ) : !products[bedKeyOf({ care })].ecall ? (
+            <Counter id="tf-pend" size="sm" value={0} onChange={() => {}} disabled reason="No E-Call in this care setting" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call in this care setting)`} />
+          ) : (
+            <Counter id="tf-pend" size="sm" value={pendants} onChange={setPendants} min={1} max={20} aria-label={`${devicesLabel(ecall)} per room`} />
           )}
         </div>
       </div>

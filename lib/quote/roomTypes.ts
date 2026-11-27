@@ -211,6 +211,9 @@ export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
 }
 
 /** E-Call pendants / pull-cords in each room of this type: none when its care setting has no E-Call (or the deal has none). */
+/** What an E-Call device is called on a deal: pendants (Bluetooth) or pull-cords (Inovonics). */
+export const devicesLabel = (ecall: 'none' | 'ble' | 'inovonics') => (ecall === 'inovonics' ? 'Pull-cords' : 'Pendants');
+
 export const pendantsPerRoom = (t: Pick<RoomType, 'care' | 'pendants'>, p?: CareProducts | null, ecallOn = true) =>
   ecallOn && (!p || p[bedKeyOf(t)].ecall) ? Math.max(1, Number(t.pendants) || 1) : 0;
 
