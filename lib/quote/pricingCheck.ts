@@ -432,7 +432,8 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     });
   }
   const itemsOwn = (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0);
-  cx.push({ key: 'cx.own', label: `${capex.ownershipMonths / 12}-year cost of ownership`, community: null, formula: itemsOwn ? ['equipment + software + renewals + items = ', { v: money(capex.equipment) }, ' + ', { v: money(capex.software) }, ' + ', { v: money(capex.renewals) }, ' + ', { v: money(itemsOwn) }] : ['equipment + software + renewals = ', { v: money(capex.equipment) }, ' + ', { v: money(capex.software) }, ' + ', { v: money(capex.renewals) }], result: capex.ownershipTotal, unit: 'usd', total: true, alsoOn: 'Investment page' });
+  const ownParts: Array<[string, number]> = [['equipment', capex.equipment], ['software', capex.software], ['renewals', capex.renewals], ...(itemsOwn ? [['items', itemsOwn] as [string, number]] : []), ...(capex.pilotFees ? [['pilot fees', capex.pilotFees] as [string, number]] : [])];
+  cx.push({ key: 'cx.own', label: `${capex.ownershipMonths / 12}-year cost of ownership`, community: null, formula: [ownParts.map((x) => x[0]).join(' + ') + ' = ', ...ownParts.flatMap((x, j) => (j ? [' + ', { v: money(x[1]) }] : [{ v: money(x[1]) }]))], result: capex.ownershipTotal, unit: 'usd', total: true, alsoOn: 'Investment page' });
   groups.push({ key: 'capex', title: '', note: `Title passes at install · ${capex.ownershipMonths}-month cost of ownership`, rows: cx });
 
   // ---- Results on this page (subscription view, from the cash flow being shown)
@@ -476,7 +477,7 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     detail: `Price lines ${money(linesW)} · ${a.capexSummary ? 'model' : 'card'} ${money(out.kpis.totalInvestment12)}`,
   });
   const eqRows = sum(basePackageRows(capex).map((r) => r.total)) + sum(sensorRows(capex).map((r) => r.total)) + sum((capex.items ?? []).filter((x) => x.billing !== 'monthly').map((x) => x.total));
-  const eqOk = near(eqRows, capex.equipment) && near(capex.equipment + capex.software + capex.renewals + (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0), capex.ownershipTotal);
+  const eqOk = near(eqRows, capex.equipment) && near(capex.equipment + capex.software + capex.renewals + (capex.itemsMonthly ?? 0) * capex.ownershipMonths + (capex.itemsRenewals ?? 0) + (capex.pilotFees ?? 0), capex.ownershipTotal);
   const live = a.capexLive;
   const liveOk = !live || (near(live.equipment, capex.equipment) && near(live.ownershipTotal, capex.ownershipTotal));
   checks.push({

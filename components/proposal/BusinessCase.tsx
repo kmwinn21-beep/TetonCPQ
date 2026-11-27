@@ -1156,7 +1156,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const basePrice = capex.pricing.basePrice;
   const ecallEquipment = sum(capex.communities.flatMap(partsOf).map((p) => (!p.monitoring ? p.total : p.ecall === 'none' ? 0 : (p.perBed - basePrice) * p.beds)));
   const platformEquipment = capex.equipment - ecallEquipment;
-  const platform = platformEquipment + capex.software;
+  // Pilot fees (equipment purchase with a pilot) count with the platform, so the two shares make up the whole cost.
+  const platform = platformEquipment + capex.software + (capex.pilotFees ?? 0);
   const ecall = ecallEquipment + capex.renewals;
 
   // The cash flow page covers the pilot plus the hardware's useful life (equipment purchase) or the service term
@@ -2596,6 +2597,14 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                       <td className="bc-hl bc-big"><V k="capex.itemRenewals.value" label="Item renewals amount">{usd(capex.itemsRenewals ?? 0)}</V></td>
                     </tr>
                   )}
+                  {(capex.pilotFees ?? 0) > 0 && (
+                    <tr>
+                      <td className="bc-m"><T k="capex.pilotFees" d="Pilot fees" /><small><T k="bc.capex.pilotFeesNote" d="Billed at pilot communities during the pilot, before the purchase." /></small></td>
+                      <td />
+                      <td />
+                      <td className="bc-hl bc-big"><V k="capex.pilotFees.value" label="Pilot fees amount">{usd(capex.pilotFees ?? 0)}</V></td>
+                    </tr>
+                  )}
                   <tr className="bc-tot">
                     <td className="bc-m">
                       <T k="bc.capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />
@@ -3074,7 +3083,11 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     capex.softwareBilling === 'upfront' ? (
                       <T k="bc.y1.investment.note.capexUpfront" d="The one-time equipment purchase and software & services ({software}, paid upfront), paid at install." v={{ software: usd(capex.softwareUpfront ?? 0) }} />
                     ) : (
-                      <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                      capex.pilotFees ? (
+                        <T k="bc.y1.investment.note.capexPilot" d="The one-time equipment purchase, paid at install. Pilot fees ({pilot}) and software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly), pilot: usd(capex.pilotFees) }} />
+                      ) : (
+                        <T k="bc.y1.investment.note.capex" d="The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit." v={{ software: usd(capex.softwareMonthly) }} />
+                      )
                     )
                   ) : (
                     <T k="card.investment.note" d="Everything paid to Teton in the first 12 months: installation plus monthly subscription." />
@@ -4239,6 +4252,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         {row('One-time equipment, paid at install', usd(capex.equipment), 'bc-exec-tot')}
                         {row(capex.softwareBilling === 'upfront' ? 'Software & services, paid upfront' : 'Software & services', capex.softwareBilling === 'upfront' ? usd(capex.softwareUpfront ?? 0) : `${usd(capex.softwareMonthly)} / mo`)}
                         {(capex.items ?? []).filter((x) => x.billing === 'monthly').map((x) => row(x.name, `${usd(x.total)} / mo`))}
+                        {(capex.pilotFees ?? 0) > 0 && row('Pilot fees, before the purchase', usd(capex.pilotFees ?? 0))}
                         {row(`${numberWord(capex.ownershipMonths / 12).replace(/^./, (c) => c.toUpperCase())}-year cost of ownership`, usd(capex.ownershipTotal))}
                       </>
                     ) : (

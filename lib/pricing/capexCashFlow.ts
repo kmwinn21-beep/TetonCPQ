@@ -5,6 +5,7 @@
  *   equipment   paid when each community installs (its go-live month)
  *   software    beds × software rate, every month from the first post-pilot month (or, billed upfront, once at install)
  *   renewals    E-Call renewals, each time a term ends inside the window
+ *   pilot       pilot communities' pilot fees, each pilot month (billed as the subscription bills its pilot)
  *
  * No subscription fees, no installation charge, and no reimbursement offset
  * (the annual cost of Teton on an equipment purchase is the cost of
@@ -19,6 +20,8 @@ export interface CapexCashFlow {
   equipment: number[];
   software: number[];
   renewals: number[];
+  /** Pilot fees in each pilot month, before the purchase. */
+  pilot: number[];
   totalCost: number[];
   grossBenefit: number[];
   netBenefit: number[];
@@ -33,6 +36,8 @@ export interface CapexCashFlow {
   investment12: number;
   /** Software and renewals paid in months 1–12. */
   running12: number;
+  /** Pilot fees paid in months 1–12. */
+  pilot12: number;
   gross12: number;
   /** Gross benefit − everything paid in months 1–12. */
   net12: number;
@@ -49,9 +54,12 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
   const software = new Array(n).fill(0);
   const upfront = new Array(n).fill(0);
   const renewals = new Array(n).fill(0);
+  const pilot = new Array(n).fill(0);
   cf.communities.forEach((s, i) => {
     const c = capex.communities[i];
     if (!c) return;
+    // Pilot fees: what the subscription bills in each pilot month (the same months and amounts as c.pilotFees).
+    if (c.pilotFees) for (let m = Math.max(1, s.goLiveMonth); m < s.firstPostPilotMonth && m <= n; m++) pilot[m - 1] += s.fees[m - 1];
     if (s.goLiveMonth >= 1 && s.goLiveMonth <= n) equipment[s.goLiveMonth - 1] += c.equipment;
     // Software (and generic items billed monthly), every month from the first post-pilot month.
     for (let m = Math.max(1, s.firstPostPilotMonth); m <= n; m++) software[m - 1] += c.softwareMonthly + (c.itemsMonthly ?? 0);
@@ -74,7 +82,7 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
       if (years && each) for (let m = s.goLiveMonth + years * 12; m <= n; m += years * 12) renewals[m - 1] += each;
     }
   });
-  const totalCost = cf.months.map((_, i) => equipment[i] + software[i] + renewals[i]);
+  const totalCost = cf.months.map((_, i) => equipment[i] + software[i] + renewals[i] + pilot[i]);
   const netBenefit = cf.months.map((_, i) => cf.grossBenefit[i] - totalCost[i]);
   const discountedNet = netBenefit.map((v, i) => v / (1 + cf.monthlyDiscountRate) ** (i + 1));
   const cumulativeDiscountedNet = running(discountedNet);
@@ -82,12 +90,14 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
   const equipment12 = sum(equipment.slice(0, w));
   const upfront12 = sum(upfront.slice(0, w));
   const running12 = sum(software.slice(0, w)) + sum(renewals.slice(0, w));
+  const pilot12 = sum(pilot.slice(0, w));
   const gross12 = sum(cf.grossBenefit.slice(0, w));
-  const paid12 = equipment12 + running12;
+  const paid12 = equipment12 + running12 + pilot12;
   return {
     equipment,
     software,
     renewals,
+    pilot,
     totalCost,
     grossBenefit: cf.grossBenefit,
     netBenefit,
@@ -98,6 +108,7 @@ export function capexCashFlow(cf: CashFlow, capex: Pick<CapexResult, 'communitie
     upfront12,
     investment12: equipment12 + upfront12,
     running12,
+    pilot12,
     gross12,
     net12: gross12 - paid12,
     grossReturn12: paid12 > 0 ? gross12 / paid12 : 0,
@@ -110,13 +121,16 @@ export function capexYear1Traces(c: CapexCashFlow, gross12Label: string): Record
   const equipment = input('capex.y1.equipment', 'One-time equipment paid in months 1–12 (at each go-live)', c.equipment12, 'usd');
   const running12 = input('capex.y1.running', 'Software & services and E-Call renewals in months 1–12', c.running12, 'usd');
   const gross = input('capex.y1.gross12', gross12Label, c.gross12, 'usd');
-  const paid = derived('capex.y1.paid', 'Everything paid to Teton in months 1–12', c.equipment12 + c.running12, 'usd', 'Equipment + software & services + renewals', [equipment, running12]);
+  const pilot12 = c.pilot12 ?? 0;
+  const paid = pilot12
+    ? derived('capex.y1.paid', 'Everything paid to Teton in months 1–12', c.equipment12 + c.running12 + pilot12, 'usd', 'Equipment + software & services + renewals + pilot fees', [equipment, running12, input('capex.y1.pilot', 'Pilot fees in months 1–12 (pilot communities, before the purchase)', pilot12, 'usd')])
+    : derived('capex.y1.paid', 'Everything paid to Teton in months 1–12', c.equipment12 + c.running12, 'usd', 'Equipment + software & services + renewals', [equipment, running12]);
   return {
     'capex.kpi.investment': c.upfront12
       ? derived('capex.kpi.investment', 'Total Investment — Year 1', c.investment12, 'usd', 'One-time equipment + software & services billed upfront, paid in each community’s go-live month', [equipment, input('capex.y1.upfront', 'Software & services billed upfront, paid in months 1–12', c.upfront12, 'usd')])
       : derived('capex.kpi.investment', 'Total Investment — Year 1', c.investment12, 'usd', 'One-time equipment cost, paid in each community’s go-live month', [equipment]),
     'capex.kpi.net': derived('capex.kpi.net', 'Net Benefit — Year 1', c.net12, 'usd', 'Gross benefit − everything paid to Teton in months 1–12', [gross, paid]),
     'capex.kpi.gross': derived('capex.kpi.gross', 'Gross Return per $1 Invested (Year 1)', c.grossReturn12, 'multiple', 'Gross benefit ÷ everything paid to Teton in months 1–12', [gross, paid]),
-    'capex.kpi.payback': derived('capex.kpi.payback', 'Discounted Payback', c.discountedPaybackMonth, 'months', 'First month the running total of discounted net benefit (gross − equipment − software & services − renewals) stays above zero', [paid]),
+    'capex.kpi.payback': derived('capex.kpi.payback', 'Discounted Payback', c.discountedPaybackMonth, 'months', 'First month the running total of discounted net benefit (gross − equipment − software & services − renewals' + (c.pilot?.some((x) => x) ? ' − pilot fees' : '') + ') stays above zero', [paid]),
   };
 }

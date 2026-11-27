@@ -154,7 +154,9 @@ export function buildProposalData(draft: QuoteDraft, outputs: StoredOutputs, lin
   const cx = !!capexCf;
   const cards: Array<{ key: string; label: string; value: string; note: string; v?: Record<string, string>; fig?: string; noteKey?: string }> = [
     cx
-      ? { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit.', v: { software: usd(capex.softwareMonthly) }, fig: 'bc.capex.investment.value', noteKey: 'card.investment.note.capex' }
+      ? capex.pilotFees
+        ? { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'The one-time equipment purchase, paid at install. Pilot fees ({pilot}) and software & services ({software} a month) are counted in the net benefit.', v: { software: usd(capex.softwareMonthly), pilot: usd(capex.pilotFees) }, fig: 'bc.capex.investment.value', noteKey: 'card.investment.note.capexPilot' }
+        : { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'The one-time equipment purchase, paid at install. Software & services ({software} a month) are counted in the net benefit.', v: { software: usd(capex.softwareMonthly) }, fig: 'bc.capex.investment.value', noteKey: 'card.investment.note.capex' }
       : { key: 'card.investment', label: 'Total Investment — Year 1', value: usd(year1.investment), note: 'Everything paid to Teton in the first 12 months: installation plus monthly subscription.' },
     { key: 'card.net', label: 'Net Benefit — Year 1', value: usd(year1.net), note: 'How much better off your communities are in year one after paying for everything.', fig: cx ? 'bc.capex.net.value' : undefined },
     {

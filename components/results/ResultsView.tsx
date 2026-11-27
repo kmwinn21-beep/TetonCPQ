@@ -99,7 +99,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
         ...capexYear1Traces(ccf, `Gross benefit, months 1–12 (${caseName} case)`),
         'capex.kpi.runRate': derived('capex.kpi.runRate', 'Run-Rate Annual Net Benefit', sel.totals.annualRoi - capexAnnualCost, 'usd', 'Annual gross benefit − annual cost of Teton', [
           input('capex.rr.gross', `Annual gross benefit (${caseName} case)`, sel.totals.annualRoi, 'usd'),
-          derived('capex.rr.cost', 'Annual cost of Teton', capexAnnualCost, 'usd', `${capex.ownershipMonths / 12}-year cost of ownership ÷ ${capex.ownershipMonths / 12}`, [input('capex.rr.own', 'Cost of ownership (equipment + software + renewals)', capex.ownershipTotal, 'usd')]),
+          derived('capex.rr.cost', 'Annual cost of Teton', capexAnnualCost, 'usd', `${capex.ownershipMonths / 12}-year cost of ownership ÷ ${capex.ownershipMonths / 12}`, [input('capex.rr.own', capex.pilotFees ? 'Cost of ownership (equipment + software + renewals + pilot fees)' : 'Cost of ownership (equipment + software + renewals)', capex.ownershipTotal, 'usd')]),
         ]),
       }
     : {};
@@ -140,10 +140,10 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
 
   const capexCards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = ccf
     ? [
-        { id: 'capex.kpi.investment', label: 'Total Investment — Year 1', value: usd(ccf.investment12), caption: `One-time equipment, paid at install · software & services ${usd(ccf.running12)} in year 1 counted in the net benefit` },
-        { id: 'capex.kpi.net', label: 'Net Benefit — Year 1', value: usd(ccf.net12), caption: `${caseName} case · net of equipment and software & services`, negative: ccf.net12 < 0 },
+        { id: 'capex.kpi.investment', label: 'Total Investment — Year 1', value: usd(ccf.investment12), caption: `One-time equipment, paid at install · software & services ${usd(ccf.running12)}${ccf.pilot12 ? ` and pilot fees ${usd(ccf.pilot12)}` : ''} in year 1 counted in the net benefit` },
+        { id: 'capex.kpi.net', label: 'Net Benefit — Year 1', value: usd(ccf.net12), caption: `${caseName} case · net of equipment${ccf.pilot12 ? ', software & services and pilot fees' : ' and software & services'}`, negative: ccf.net12 < 0 },
         { id: 'capex.kpi.gross', label: 'Gross Return per $1 Invested (Year 1)', value: multiple(ccf.grossReturn12), caption: `Stabilized return per $1 invested: ${multiple(capexAnnualCost > 0 ? sel.totals.annualRoi / capexAnnualCost : 0, 1)} (gross ÷ cost of ownership per year)` },
-        { id: 'capex.kpi.payback', label: 'Discounted Payback', value: ccf.discountedPaybackMonth ? `Month ${ccf.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: 'Equipment paid at install, then software & services monthly' },
+        { id: 'capex.kpi.payback', label: 'Discounted Payback', value: ccf.discountedPaybackMonth ? `Month ${ccf.discountedPaybackMonth}` : `Beyond month ${k.horizonMonths}`, caption: ccf.pilot12 ? 'Pilot fees during the pilot, equipment paid at install, then software & services monthly' : 'Equipment paid at install, then software & services monthly' },
         { id: 'capex.kpi.runRate', label: 'Run-Rate Annual Net Benefit', value: usd(sel.totals.annualRoi - capexAnnualCost), caption: `Gross − annual cost of Teton (${capex.ownershipMonths / 12}-year cost of ownership ÷ ${capex.ownershipMonths / 12})`, negative: sel.totals.annualRoi - capexAnnualCost < 0 },
       ]
     : [];
@@ -355,6 +355,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
                 <tr key={x.sku} className="border-t border-teton-off-white"><td className="py-2">{x.name} <span className="text-teton-ui-gray">· {usd(x.total)}/mo × {capex.ownershipMonths}</span></td><td className="py-2 text-right">{usd(x.total * capex.ownershipMonths)}</td></tr>
               ))}
               {(capex.itemsRenewals ?? 0) > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">Item renewals within {capex.ownershipMonths / 12} years</td><td className="py-2 text-right">{usd(capex.itemsRenewals ?? 0)}</td></tr>}
+              {(capex.pilotFees ?? 0) > 0 && <tr className="border-t border-teton-off-white"><td className="py-2">Pilot fees <span className="text-teton-ui-gray">· pilot communities, before the purchase</span></td><td className="py-2 text-right">{usd(capex.pilotFees ?? 0)}</td></tr>}
               <tr className="border-t border-teton-off-white font-semibold"><td className="py-2">{capex.ownershipMonths / 12}-year cost of ownership</td><td className="py-2 text-right">{usd(capex.ownershipTotal)}</td></tr>
             </tbody>
           </table>

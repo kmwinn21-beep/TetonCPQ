@@ -333,6 +333,12 @@ export function ProposalDocument({ draft, outputs, lines, versionNo, savedAt }: 
                   <td className="py-1 text-right"><V k="capex.renewals.value" label="E-Call renewals amount">{usd(capex.renewals)}</V></td>
                 </tr>
               )}
+              {(capex.pilotFees ?? 0) > 0 && (
+                <tr className="border-b border-teton-off-white">
+                  <td className="py-1"><T k="capex.pilotFees" d="Pilot fees (pilot communities, before the purchase)" /></td>
+                  <td className="py-1 text-right"><V k="capex.pilotFees.value" label="Pilot fees amount">{usd(capex.pilotFees ?? 0)}</V></td>
+                </tr>
+              )}
               <tr className="font-semibold">
                 <td className="py-1.5">
                   <T k="capex.ownership" d="{years}-year cost of ownership" v={{ years: capex.ownershipMonths === 48 ? 'Four' : String(capex.ownershipMonths / 12) }} />
