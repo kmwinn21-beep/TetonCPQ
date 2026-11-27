@@ -8,7 +8,7 @@ import { normalizeTerms, termsChanges } from './terms';
 import { resourcesChanges } from './resources';
 import { BED_KEYS, bedsOf, productsOf, type DraftCommunity, type QuoteDraft } from './draft';
 
-export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult';
+export type Fmt = 'usd' | 'pct' | 'num' | 'bool' | 'text' | 'mult' | 'products';
 
 export interface Change {
   group: string;
@@ -20,10 +20,13 @@ export interface Change {
 type Field = { label: string; fmt: Fmt };
 
 /** Labels for every draft field worth reporting. Anything not listed is reported by its path. */
+const PRODUCT_LABEL: Record<string, string> = { subscription: 'Subscription', ecall: 'E-Call', capex: 'Equipment purchase', snf: 'Skilled nursing', sensor: 'Additional sensors', commonArea: 'Common areas', finish: 'Concealed finish' };
+
 const FIELDS: Record<string, Field> = {
   customerName: { label: 'Customer name', fmt: 'text' },
   roiCase: { label: 'ROI case', fmt: 'text' },
   presentation: { label: 'Proposal shows', fmt: 'text' },
+  products: { label: 'Products', fmt: 'products' },
   customizeCaseMetrics: { label: 'Customize case metrics', fmt: 'bool' },
   'components.careRevenueRecapture': { label: 'Care Revenue Recapture', fmt: 'bool' },
   'components.fallsHospitalization': { label: 'Falls → Hospitalization', fmt: 'bool' },
@@ -176,6 +179,8 @@ export function fmtValue(v: unknown, fmt: Fmt): string {
       return v ? 'Yes' : 'No';
     case 'mult':
       return `${v}×`;
+    case 'products':
+      return Array.isArray(v) && v.length ? v.map((x) => PRODUCT_LABEL[String(x)] ?? String(x)).join(', ') : '—';
     case 'num':
       return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
     default:
@@ -196,7 +201,13 @@ function leaves(obj: unknown, prefix = ''): Record<string, unknown> {
 }
 
 // An unset switch is the same as one that's off.
-const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null) || (a === false && b == null) || (b === false && a == null) || (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 1e-9);
+const same = (a: unknown, b: unknown) =>
+  (a ?? null) === (b ?? null) ||
+  (a === false && b == null) ||
+  (b === false && a == null) ||
+  (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 1e-9) ||
+  // Lists (e.g. the deal's products) compare by what's in them, not by identity.
+  (Array.isArray(a) && Array.isArray(b) && JSON.stringify(a) === JSON.stringify(b));
 
 const CASE_LABEL: Record<string, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
 const METRIC_LABEL: Record<string, string> = {

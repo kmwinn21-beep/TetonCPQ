@@ -52,3 +52,15 @@ describe('legacy drafts', () => {
     expect(bedsOf(n)).toBe(149);
   });
 });
+
+describe('products', () => {
+  it('the same products saved and reloaded are not a change; a different list is, in words', async () => {
+    const { defaultDraft, normalizeDraft } = await import('./draft');
+    const { priceBook } = await import('@/lib/pricing/catalog');
+    const a = normalizeDraft({ ...defaultDraft('X', priceBook()), products: ['subscription', 'ecall'] });
+    const b = JSON.parse(JSON.stringify(a));
+    expect(diffDrafts(a, b)).toEqual([]);
+    const c = { ...b, products: ['subscription', 'ecall', 'sensor'] };
+    expect(diffDrafts(a, c)).toEqual([expect.objectContaining({ label: 'Products', from: 'Subscription, E-Call', to: 'Subscription, E-Call, Additional sensors' })]);
+  });
+});
