@@ -140,7 +140,7 @@ export function AreaForm({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className={eb} htmlFor="ca-sen">Common area sensors</label>
+          <label className={eb} htmlFor="ca-sen">Sensors</label>
           <Counter id="ca-sen" size="sm" value={sensors} onChange={setSensors} min={0} max={50} disabled={readOnly} aria-label="Common area sensors" />
         </div>
         <div>
