@@ -38,6 +38,8 @@ export interface DealSummary {
   myPerms: { inputs: boolean; scope: boolean; deliverables: boolean } | null;
   /** A prospect asked for the agreement and nobody has marked it sent yet. */
   agreementRequested: boolean;
+  /** Archived: when, by whom, why (null when active). */
+  archived: { at: string; by: string | null; reason: string; note: string | null } | null;
 }
 
 export interface VersionSummary {
@@ -103,7 +105,8 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
            (SELECT name FROM users u WHERE u.id = d.owner_id) AS owner_name,
            (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL) AS open_tasks,
            (SELECT COUNT(*) FROM deal_tasks t WHERE t.deal_id = d.id AND t.completed_at IS NULL AND t.due_date IS NOT NULL AND t.due_date < date('now')) AS overdue_tasks,
-           EXISTS (SELECT 1 FROM agreement_requests a WHERE a.deal_id = d.id AND a.sent_at IS NULL) AS agreement_open
+           EXISTS (SELECT 1 FROM agreement_requests a WHERE a.deal_id = d.id AND a.sent_at IS NULL) AS agreement_open,
+           d.archived_at, d.archive_reason, d.archive_note, (SELECT name FROM users u WHERE u.id = d.archived_by) AS archived_by_name
     FROM deals d JOIN quotes q ON q.deal_id = d.id
     LEFT JOIN deal_collaborators c ON c.deal_id = d.id AND c.user_id = ?
     WHERE q.id = (SELECT MIN(id) FROM quotes WHERE deal_id = d.id)
@@ -127,6 +130,7 @@ export async function listDeals(db: Client, userId: number | null = null): Promi
       overdueTasks: Number(r.overdue_tasks ?? 0),
       myPerms: r.collab == null ? null : { inputs: Number(r.can_inputs) === 1, scope: Number(r.can_scope) === 1, deliverables: Number(r.can_deliverables) === 1 },
       agreementRequested: Number(r.agreement_open ?? 0) === 1,
+      archived: r.archived_at ? { at: String(r.archived_at), by: r.archived_by_name == null ? null : String(r.archived_by_name), reason: String(r.archive_reason ?? 'other'), note: r.archive_note == null ? null : String(r.archive_note) } : null,
     };
   });
 }

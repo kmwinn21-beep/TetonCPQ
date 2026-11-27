@@ -211,7 +211,7 @@ export async function openTasksFor(db: Client, v: Viewer, scope: TaskScope): Pro
       : scope === 'byme'
         ? 't.created_by = ?'
         : '(d.owner_id = ? OR EXISTS (SELECT 1 FROM deal_collaborators c WHERE c.deal_id = t.deal_id AND c.user_id = ?))';
-  const r = await db.execute({ sql: `${SELECT} WHERE t.completed_at IS NULL AND ${where}`, args: scope === 'all' ? [v.id, v.id] : [v.id] });
+  const r = await db.execute({ sql: `${SELECT} WHERE t.completed_at IS NULL AND d.archived_at IS NULL AND ${where}`, args: scope === 'all' ? [v.id, v.id] : [v.id] });
   return sortTasks(await toTasks(db, r.rows, v));
 }
 
@@ -219,7 +219,7 @@ export async function openTasksFor(db: Client, v: Viewer, scope: TaskScope): Pro
 export async function myTaskCounts(db: Client, v: Viewer, today = todayIso()): Promise<{ open: number; overdue: number }> {
   const r = await db.execute({
     sql: `SELECT COUNT(*) AS n, SUM(CASE WHEN due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END) AS late FROM deal_tasks t
-          WHERE completed_at IS NULL AND EXISTS (SELECT 1 FROM json_each(t.assignees) j WHERE j.value = ?)`,
+          WHERE completed_at IS NULL AND NOT EXISTS (SELECT 1 FROM deals ad WHERE ad.id = t.deal_id AND ad.archived_at IS NOT NULL) AND EXISTS (SELECT 1 FROM json_each(t.assignees) j WHERE j.value = ?)`,
     args: [today, v.id],
   });
   return { open: Number(r.rows[0].n ?? 0), overdue: Number(r.rows[0].late ?? 0) };
@@ -246,7 +246,7 @@ export interface TaskNotification {
  */
 export async function remindOverdue(db: Client, v: Viewer, today = todayIso()): Promise<void> {
   const r = await db.execute({
-    sql: `SELECT id, deal_id, due_date FROM deal_tasks t WHERE completed_at IS NULL AND due_date IS NOT NULL AND due_date < ?
+    sql: `SELECT id, deal_id, due_date FROM deal_tasks t WHERE completed_at IS NULL AND NOT EXISTS (SELECT 1 FROM deals ad WHERE ad.id = t.deal_id AND ad.archived_at IS NOT NULL) AND due_date IS NOT NULL AND due_date < ?
           AND (EXISTS (SELECT 1 FROM json_each(t.assignees) j WHERE j.value = ?) OR (json_array_length(t.assignees) = 0 AND created_by = ?))`,
     args: [today, v.id, v.id],
   });
@@ -268,7 +268,7 @@ export async function taskNotifications(db: Client, v: Viewer, quoteId?: number,
   const r = await db.execute({
     sql: `SELECT n.*, t.title, t.due_date, d.customer_name, a.name AS actor_name, (SELECT q.id FROM quotes q WHERE q.deal_id = n.deal_id ORDER BY q.id LIMIT 1) AS quote_id
           FROM user_notifications n JOIN deal_tasks t ON t.id = n.task_id JOIN deals d ON d.id = n.deal_id LEFT JOIN users a ON a.id = n.actor_id
-          WHERE n.user_id = ? AND n.read_at IS NULL AND t.completed_at IS NULL ${quoteId ? 'AND n.deal_id = (SELECT deal_id FROM quotes WHERE id = ?)' : ''}
+          WHERE n.user_id = ? AND n.read_at IS NULL AND t.completed_at IS NULL AND d.archived_at IS NULL ${quoteId ? 'AND n.deal_id = (SELECT deal_id FROM quotes WHERE id = ?)' : ''}
           ORDER BY n.created_at DESC, n.id DESC`,
     args: quoteId ? [v.id, quoteId] : [v.id],
   });

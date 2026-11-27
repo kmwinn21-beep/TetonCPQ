@@ -6,6 +6,7 @@
  * else can view, and add floor plan notes and comments.
  */
 import { SCOPE_FIELDS } from '@/lib/quote/scopeWork';
+import { archiveInfo, type ArchiveInfo } from './archive';
 import type { Client } from '@libsql/client';
 import { normalizeDraft, type QuoteDraft } from '@/lib/quote/draft';
 import { initialsOf } from './planNotes';
@@ -24,6 +25,8 @@ export interface DealAccess {
   canManage: boolean;
   /** A collaborator (not the owner). */
   isCollaborator: boolean;
+  /** Archived: read-only for everyone (null when active). */
+  archived: ArchiveInfo | null;
 }
 export interface Actor {
   id: number;
@@ -49,18 +52,22 @@ async function accessForDeal(db: Client, dealId: number, quoteId: number, u: Act
   const isAdmin = u.role === 'admin';
   const c = await db.execute({ sql: 'SELECT can_inputs, can_scope, can_deliverables FROM deal_collaborators WHERE deal_id = ? AND user_id = ?', args: [dealId, u.id] });
   const r = c.rows[0];
-  const all = isOwner || isAdmin;
+  const archived = await archiveInfo(db, dealId);
+  // Archived deals are read-only for everyone (the owner or an admin can unarchive or delete).
+  const all = (isOwner || isAdmin) && !archived;
+  const can = (v: unknown) => !archived && (all || Number(v) === 1);
   return {
     dealId,
     quoteId,
     owner,
     isOwner,
     isAdmin,
-    inputs: all || Number(r?.can_inputs) === 1,
-    scope: all || Number(r?.can_scope) === 1,
-    deliverables: all || Number(r?.can_deliverables) === 1,
+    inputs: can(r?.can_inputs),
+    scope: can(r?.can_scope),
+    deliverables: can(r?.can_deliverables),
     canManage: all,
     isCollaborator: !isOwner && !!r,
+    archived,
   };
 }
 

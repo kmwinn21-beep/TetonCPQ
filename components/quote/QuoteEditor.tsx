@@ -43,6 +43,7 @@ import { canAutoFocus } from '@/lib/client/focus';
 import { DealLinkButtons } from './DealLinkButtons';
 import { DealNavigator, PageDots } from './DealNavigator';
 import { DealMenu } from './DealMenu';
+import { ArchivedBanner } from './ArchivedBanner';
 import { OPEN_PANEL } from './panelNav';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AgreementAlert, useDealAgreement } from './AgreementAlert';
@@ -390,6 +391,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
               {...register('customerName', { required: 'Customer name is required' })}
             />
             <p className="text-sm text-teton-ui-gray mt-1">
+              {access.archived && <span className="mr-2 inline-flex h-5 items-center rounded-[5px] bg-[#ECEAE6] px-1.5 text-[10.5px] font-bold tracking-wide text-[#5A6270] align-[1px]">ARCHIVED</span>}
               Draft v{draftNo} · <span className={saveState === 'error' || saveState === 'conflict' ? 'bg-teton-red/30 rounded px-1 text-teton-ink' : ''}>{statusText[saveState]}</span>
             </p>
             {saveState === 'conflict' && (
@@ -434,7 +436,8 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </div>
           )}
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
-          {!access.inputs && (
+          {access.archived && <ArchivedBanner quoteId={initial.quoteId} info={access.archived} canUnarchive={access.isOwner || access.isAdmin} />}
+          {!access.inputs && !access.archived && (
             <div className="w-full flex items-center gap-2 rounded-lg bg-teton-pale-yellow border border-[#F0D58A] px-3 py-2 text-sm" role="status">
               <span aria-hidden="true">🔒</span>
               <span>

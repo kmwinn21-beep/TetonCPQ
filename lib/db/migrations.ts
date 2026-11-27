@@ -755,4 +755,17 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `CREATE INDEX idx_product_history ON product_history(sku, id)`,
     ],
   },
+  {
+    id: 31,
+    name: 'archived deals',
+    sql: [
+      // Archived: out of the Active list, read-only, links off. Kept in full; unarchiving brings it back.
+      `ALTER TABLE deals ADD COLUMN archived_at TEXT`,
+      `ALTER TABLE deals ADD COLUMN archived_by INTEGER REFERENCES users(id)`,
+      `ALTER TABLE deals ADD COLUMN archive_reason TEXT`,
+      `ALTER TABLE deals ADD COLUMN archive_note TEXT`,
+      // Links turned off by archiving (turned back on by unarchiving).
+      `ALTER TABLE share_links ADD COLUMN archived_off INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];

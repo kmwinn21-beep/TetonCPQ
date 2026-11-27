@@ -5,6 +5,8 @@ import { count, dateLabel } from '@/lib/format';
 import { NewDealButton } from '@/components/quote/NewDealButton';
 import { DealTasksBadge } from '@/components/quote/DealTasksBadge';
 import { requirePageUser } from '@/lib/auth/server';
+import { ArchivedToast } from '@/components/quote/ArchivedToast';
+import { REASON_LABELS, REASON_TONE, reasonLabel } from '@/components/quote/archiveReasons';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,9 +109,13 @@ function DealGroup({ title, note, deals, empty }: { title: string; note?: string
   );
 }
 
-export default async function DealsPage() {
+export default async function DealsPage({ searchParams }: { searchParams: { view?: string; reason?: string; archived?: string } }) {
   const user = await requirePageUser();
-  const deals = await listDeals(await getDb(), user.id);
+  const all = await listDeals(await getDb(), user.id);
+  const archivedDeals = all.filter((d) => d.archived);
+  const viewArchived = searchParams.view === 'archived';
+  const deals = all.filter((d) => !d.archived);
+  const justArchived = searchParams.archived ? archivedDeals.find((d) => String(d.quoteId) === searchParams.archived) : undefined;
   // Deals you own, then ones you collaborate on, then everything else (most recently changed first throughout).
   const mine = deals.filter((d) => d.ownerId === user.id);
   const shared = deals.filter((d) => d.ownerId !== user.id && d.myPerms);
@@ -121,9 +127,15 @@ export default async function DealsPage() {
           <h1 className="text-2xl font-semibold">Deals</h1>
           <p className="text-sm text-teton-ui-gray">Every proposal, with every version that was saved.</p>
         </div>
-        <NewDealButton />
+        <div className="flex flex-wrap items-center gap-3">
+          <ViewTabs archived={viewArchived} active={deals.length} archivedCount={archivedDeals.length} />
+          <NewDealButton />
+        </div>
       </div>
-      {deals.length === 0 ? (
+      {justArchived && <ArchivedToast quoteId={justArchived.quoteId} name={justArchived.customerName} reason={reasonLabel(justArchived.archived!.reason)} />}
+      {viewArchived ? (
+        <ArchivedList deals={archivedDeals} reason={searchParams.reason} />
+      ) : deals.length === 0 ? (
         <div className="card text-center py-12">
           <p className="font-medium">No deals yet</p>
           <p className="text-sm text-teton-ui-gray mt-1">Start one to build the ROI case and proposal.</p>
@@ -147,5 +159,95 @@ function AgreementTag({ d }: { d: DealSummary }) {
       <span className="w-[7px] h-[7px] rounded-full bg-[#E5484D] animate-[agPulse_1.6s_ease-out_infinite] motion-reduce:animate-none" aria-hidden="true" />
       Agreement requested
     </span>
+  );
+}
+
+/** Active | Archived, with counts (links, so the view survives a reload and the back button). */
+function ViewTabs({ archived, active, archivedCount }: { archived: boolean; active: number; archivedCount: number }) {
+  const tab = (on: boolean) => `h-8 px-3.5 inline-flex items-center gap-1.5 rounded-[8px] text-[13px] transition-colors duration-200 ${on ? 'bg-white text-teton-ink font-semibold shadow-sm' : 'text-teton-dark-gray hover:text-teton-ink'}`;
+  const cnt = (on: boolean) => `min-w-[20px] h-[18px] px-1.5 rounded-full text-[11px] font-bold grid place-items-center ${on ? 'bg-teton-ink text-white' : 'bg-[#DAD6CE] text-[#4E5562]'}`;
+  return (
+    <nav aria-label="Deal views" className="inline-flex rounded-[11px] bg-[#E7E5E0] p-[3px]">
+      <Link href="/deals" aria-current={!archived ? 'page' : undefined} className={tab(!archived)}>
+        Active <span className={cnt(!archived)}>{active}</span>
+      </Link>
+      <Link href="/deals?view=archived" aria-current={archived ? 'page' : undefined} className={tab(archived)}>
+        Archived <span className={cnt(archived)}>{archivedCount}</span>
+      </Link>
+    </nav>
+  );
+}
+
+const archivedOn = (at: string) => dateLabel(at.slice(0, 10));
+
+/** Archived deals: why and when, filterable by reason. */
+function ArchivedList({ deals, reason }: { deals: DealSummary[]; reason?: string }) {
+  const counts = new Map<string, number>();
+  deals.forEach((d) => counts.set(d.archived!.reason, (counts.get(d.archived!.reason) ?? 0) + 1));
+  const shown = reason ? deals.filter((d) => d.archived!.reason === reason) : deals;
+  const chip = (on: boolean) => `h-8 px-3 inline-flex items-center rounded-full border text-[12.5px] transition-colors ${on ? 'bg-teton-ink text-white border-teton-ink' : 'bg-white border-[#D3D6DA] hover:bg-teton-almost-white'}`;
+  const Pill = ({ r }: { r: string }) => <span className={`inline-flex h-[22px] items-center rounded-[7px] px-2 text-[11.5px] font-semibold whitespace-nowrap ${REASON_TONE[r] ?? REASON_TONE.other}`}>{reasonLabel(r)}</span>;
+  if (!deals.length)
+    return (
+      <div className="card text-center py-12">
+        <p className="font-medium">No archived deals</p>
+        <p className="text-sm text-teton-ui-gray mt-1">Archive a deal from its ⋮ menu when it’s won, lost or done with. It moves here, read-only.</p>
+      </div>
+    );
+  return (
+    <section>
+      <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter by reason">
+        <Link href="/deals?view=archived" className={chip(!reason)}>All reasons</Link>
+        {Object.keys(REASON_LABELS)
+          .filter((r) => counts.get(r))
+          .map((r) => (
+            <Link key={r} href={`/deals?view=archived&reason=${r}`} className={chip(reason === r)}>
+              {REASON_LABELS[r]} · {counts.get(r)}
+            </Link>
+          ))}
+      </div>
+      <ul className="sm:hidden space-y-2">
+        {shown.map((d) => (
+          <li key={d.dealId}>
+            <Link href={`/quotes/${d.quoteId}`} className="block rounded-xl border border-teton-off-white bg-white px-4 py-3 shadow-sm active:bg-teton-almost-white">
+              <span className="flex items-start justify-between gap-3">
+                <span className="font-semibold leading-snug">{d.customerName}</span>
+                <Pill r={d.archived!.reason} />
+              </span>
+              {d.archived!.note && <span className="block mt-1 text-[13px] text-teton-dark-gray">{d.archived!.note}</span>}
+              <span className="block mt-1.5 text-xs text-teton-ui-gray">Archived {archivedOn(d.archived!.at)}{d.archived!.by ? ` · ${d.archived!.by}` : ''}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden sm:block card p-0 overflow-x-auto">
+        <table className="w-full text-sm table-fixed">
+          <thead className="bg-teton-almost-white text-left text-xs text-teton-dark-gray">
+            <tr>
+              <th className="px-4 py-2.5 font-medium w-[26%]">Customer</th>
+              <th className="px-4 py-2.5 font-medium w-[13%]">Owner</th>
+              <th className="px-4 py-2.5 font-medium w-[15%]">Reason</th>
+              <th className="px-4 py-2.5 font-medium">Note</th>
+              <th className="px-4 py-2.5 font-medium w-[12%] text-right">Saved versions</th>
+              <th className="px-4 py-2.5 font-medium w-[17%]">Archived</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((d) => (
+              <tr key={d.dealId} className="border-t border-teton-off-white hover:bg-teton-almost-white text-teton-dark-gray">
+                <td className="px-4 py-3">
+                  <Link href={`/quotes/${d.quoteId}`} className="font-medium text-teton-ink hover:underline">{d.customerName}</Link>
+                </td>
+                <td className="px-4 py-3">{d.ownerName ?? '—'}</td>
+                <td className="px-4 py-3"><Pill r={d.archived!.reason} /></td>
+                <td className="px-4 py-3 truncate" title={d.archived!.note ?? undefined}>{d.archived!.note ?? '—'}</td>
+                <td className="px-4 py-3 text-right tabular-nums">{d.savedVersions}</td>
+                <td className="px-4 py-3 text-teton-ui-gray">{archivedOn(d.archived!.at)}{d.archived!.by ? ` · ${d.archived!.by}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

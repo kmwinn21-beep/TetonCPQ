@@ -21,9 +21,9 @@ export interface DealNotifications {
 async function myDeals(db: Client, v: Viewer): Promise<Array<{ quoteId: number; dealName: string }>> {
   const r = await db.execute({
     sql: `SELECT d.customer_name, (SELECT q.id FROM quotes q WHERE q.deal_id = d.id ORDER BY q.id LIMIT 1) AS quote_id FROM deals d
-          WHERE d.owner_id = ? OR EXISTS (SELECT 1 FROM deal_collaborators c WHERE c.deal_id = d.id AND c.user_id = ?)
+          WHERE d.archived_at IS NULL AND (d.owner_id = ? OR EXISTS (SELECT 1 FROM deal_collaborators c WHERE c.deal_id = d.id AND c.user_id = ?)
              OR EXISTS (SELECT 1 FROM proposal_comments c WHERE c.deal_id = d.id AND EXISTS (SELECT 1 FROM json_each(c.mentions) j WHERE j.value = ?))
-             OR EXISTS (SELECT 1 FROM user_notifications n WHERE n.deal_id = d.id AND n.user_id = ?)
+             OR EXISTS (SELECT 1 FROM user_notifications n WHERE n.deal_id = d.id AND n.user_id = ?))
           ORDER BY d.customer_name`,
     args: [v.id, v.id, v.id, v.id],
   });
