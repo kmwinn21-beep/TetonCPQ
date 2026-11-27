@@ -6,7 +6,7 @@
  * summary page at the end. Images become one page each.
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
-import { badgeOf, CARE_LABEL, isPriced, roomScope, sensorsPerRoom, type CareProducts, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, roomScope, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
 
@@ -24,6 +24,20 @@ interface Args {
   tagNotes?: TagNote[];
   /** The community's products by care type: rooms without resident monitoring get no sensors, rooms without products aren't priced. */
   products?: CareProducts;
+  /** The community's common areas: tagged ones print as square markers on their page and are listed on the summary. */
+  areas?: CommonArea[];
+  /** What E-Call devices are called on the deal ("pendants" / "pull-cords"); none: no E-Call. */
+  devices?: string | null;
+}
+
+const AREA = '#0F7C80';
+/** A common area's marker: a rounded square with its kind's letters. */
+function areaMark(page: PDFPage, font: PDFFont, cx: number, cy: number, r: number, text: string) {
+  const s = r * 2.1;
+  page.drawRectangle({ x: cx - s / 2, y: cy - s / 2, width: s, height: s, color: hex(AREA), borderColor: rgb(1, 1, 1), borderWidth: Math.max(0.6, r * 0.14) });
+  const t = safe(font, text);
+  const size = r * 0.72;
+  page.drawText(t, { x: cx - font.widthOfTextAtSize(t, size) / 2, y: cy - size * 0.36, size, font, color: rgb(1, 1, 1) });
 }
 
 const DOT = '#F0B429';
@@ -180,10 +194,16 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const used = here.filter((x) => x.marks.length);
     // Lay out the legend items in rows to find the band's height.
     const pad = fs * 1.4;
-    const items = used.map(({ t, b, marks }) => {
+    const items: Array<{ b: { color: string; initials: string } | null; text: string }> = used.map(({ t, b, marks }) => {
       const sensors = marks.length * sensorsPerRoom(t, a.products);
       return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
     });
+    const areasHere = (a.areas ?? []).filter((x) => x.mark && x.mark.plan === a.planId && x.mark.page === n);
+    if (areasHere.length) {
+      const sen = areaSensors(areasHere);
+      const dev = areasHere.reduce((t, x) => t + x.pendants, 0);
+      items.push({ b: null, text: safe(reg, `Common areas · ${areasHere.length} · ${sen} sensor${sen === 1 ? '' : 's'}${dev && a.devices ? ` · ${dev} ${a.devices}` : ''}`) });
+    }
     const rowsOf: (typeof items)[] = [[]];
     let x = pad;
     const head = safe(bold, `Scope · ${a.communityName} · ${a.planName}${srcs.length > 1 ? ` · page ${n}` : ''}`);
@@ -203,6 +223,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     p.drawRectangle({ x: 0, y: s.h, width: s.w, height: band, color: rgb(1, 1, 1) });
     p.drawLine({ start: { x: 0, y: s.h }, end: { x: s.w, y: s.h }, thickness: 0.6, color: LINE });
     const noted = new Set((a.tagNotes ?? []).flatMap((t) => t.markIds));
+    for (const x of areasHere) areaMark(p, bold, x.mark!.x * s.w, (1 - x.mark!.y) * s.h, r, AREA_ABBR[x.kind]);
     for (const { b, marks } of here)
       for (const m of marks) {
         badge(p, bold, m.x * s.w, (1 - m.y) * s.h, r, b.color, b.initials);
@@ -222,11 +243,12 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
     y -= line;
-    if (!items.length) p.drawText(safe(reg, 'No rooms tagged on this page.'), { x: pad, y, size: fs, font: reg, color: MUTED });
+    if (!items.length) p.drawText(safe(reg, 'Nothing tagged on this page.'), { x: pad, y, size: fs, font: reg, color: MUTED });
     for (const row of rowsOf) {
       let lx = pad;
       for (const it of row) {
-        badge(p, bold, lx + fs * 0.6, y + fs * 0.32, fs * 0.62, it.b.color, it.b.initials);
+        if (it.b) badge(p, bold, lx + fs * 0.6, y + fs * 0.32, fs * 0.62, it.b.color, it.b.initials);
+        else areaMark(p, bold, lx + fs * 0.6, y + fs * 0.32, fs * 0.5, '');
         p.drawText(it.text, { x: lx + fs * 1.5, y, size: fs, font: reg, color: INK });
         lx += itemW(it);
       }
@@ -343,6 +365,58 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   if (noSensors) {
     y -= 13;
     text('Care settings without Resident Monitoring get no sensors; those with no products are not priced.', M, 8.5, reg, MUTED);
+  }
+
+  // Common areas tagged on this plan: one row per space, with its page, sensors and E-Call devices.
+  const tagged = (a.areas ?? []).filter((x) => x.mark);
+  const onThis = tagged.filter((x) => x.mark!.plan === a.planId);
+  if (onThis.length) {
+    y -= 34;
+    const AC = { mark: M, name: M + 24, type: 300, page: 400, sen: 470, dev: W - M };
+    const areaHead = () => {
+      text('COMMON AREAS', M, 9, bold, MUTED);
+      y -= 18;
+      text('COMMON AREA', AC.name, 7.5, bold, MUTED);
+      text('TYPE', AC.type, 7.5, bold, MUTED);
+      text('PAGE', AC.page, 7.5, bold, MUTED, 'r');
+      text('SENSORS', AC.sen, 7.5, bold, MUTED, 'r');
+      text(a.devices ? safe(bold, `E-CALL ${a.devices.toUpperCase()}`) : 'E-CALL', AC.dev, 7.5, bold, MUTED, 'r');
+      y -= 8;
+      p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.8, color: INK });
+      y -= 16;
+    };
+    if (y < M + 120) {
+      p = out.addPage([W, H]);
+      y = H - M;
+    }
+    areaHead();
+    for (const x of onThis) {
+      if (y < M + 40) {
+        p = out.addPage([W, H]);
+        y = H - M;
+        areaHead();
+      }
+      areaMark(p, bold, AC.mark + 8, y + 3.5, 6.5, AREA_ABBR[x.kind]);
+      let nm = safe(bold, x.name || AREA_KINDS[x.kind]);
+      while (nm.length > 4 && bold.widthOfTextAtSize(nm, 10) > AC.type - AC.name - 12) nm = nm.slice(0, -2) + '…';
+      text(nm, AC.name, 10, bold);
+      text(AREA_KINDS[x.kind], AC.type, 9);
+      text(String(x.mark!.page), AC.page, 10, reg, INK, 'r');
+      text(String(x.sensors ?? 0), AC.sen, 10, reg, x.sensors ? INK : MUTED, 'r');
+      text(a.devices ? String(x.pendants) : '-', AC.dev, 10, reg, x.pendants && a.devices ? INK : MUTED, 'r');
+      y -= 10;
+      p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
+      y -= 16;
+    }
+    y -= 2;
+    text(`${onThis.length} area${onThis.length === 1 ? '' : 's'}`, M, 10.5, bold);
+    text(String(areaSensors(onThis)), AC.sen, 10.5, bold, INK, 'r');
+    if (a.devices) text(String(onThis.reduce((t, x) => t + x.pendants, 0)), AC.dev, 10.5, bold, INK, 'r');
+    const elsewhere = tagged.length - onThis.length;
+    if (elsewhere > 0) {
+      y -= 16;
+      text(`${elsewhere} more common area${elsewhere === 1 ? '' : 's'} tagged on the community's other floor plans.`, M, 8.5, reg, MUTED);
+    }
   }
 
   // Notes: every note (on the plan or not) with its room type, author and page.

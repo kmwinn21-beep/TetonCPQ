@@ -224,12 +224,39 @@ export interface CommonArea {
   id: string;
   name: string;
   kind: AreaKind;
-  /** How many areas like this. */
+  /** How many areas like this (a space tagged on a floor plan is one). */
   count: number;
   /** Pendants / pull-cords in each. */
   pendants: number;
+  /** Common area sensors in each (the Common area sensors product). */
+  sensors?: number;
+  /** Where it's tagged on a floor plan (Scope Mode's common areas layer); none: typed in. */
+  mark?: AreaMark;
+  note?: string;
 }
+/** A common area's place on a floor plan page (0–1 across and down, like room badges). */
+export interface AreaMark {
+  plan: number;
+  page: number;
+  x: number;
+  y: number;
+}
+/** Short marker text for a kind of common area. */
+export const AREA_ABBR: Record<AreaKind, string> = { bathroom: 'BTH', activity: 'ACT', dining: 'DIN', hallway: 'HAL', lobby: 'LOB', other: 'OTH' };
 export const newCommonArea = (): CommonArea => ({ id: `ca-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, name: '', kind: 'bathroom', count: 1, pendants: 1 });
+const markOf = (m: unknown): AreaMark | null => {
+  if (!m || typeof m !== 'object') return null;
+  const x = m as Partial<AreaMark>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
+  const out = { plan: n(x.plan), page: n(x.page), x: n(x.x), y: n(x.y) };
+  if (!Number.isInteger(out.plan) || !Number.isInteger(out.page) || out.page < 1 || !(out.x >= 0 && out.x <= 1) || !(out.y >= 0 && out.y <= 1)) return null;
+  return out;
+};
+/** Common area sensors over a community's areas (Σ sensors × how many). */
+export const areaSensors = (areas: CommonArea[]) => areas.reduce((s, a) => s + (a.sensors ?? 0) * a.count, 0);
+/** Whether a community has common areas tagged on a floor plan (its common area sensors then come from them). */
+export const areasTagged = (areas: CommonArea[]) => areas.some((a) => a.mark);
+
 export function normalizeCommonAreas(v: unknown): CommonArea[] {
   if (!Array.isArray(v)) return [];
   return v.slice(0, 40).flatMap((x, i) => {
@@ -239,8 +266,11 @@ export function normalizeCommonAreas(v: unknown): CommonArea[] {
       id: typeof a.id === 'string' && a.id ? a.id.slice(0, 40) : `ca-${i}`,
       name: String(a.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
       kind: (a.kind && a.kind in AREA_KINDS ? a.kind : 'other') as AreaKind,
-      count: int(a.count ?? 1, 500),
+      count: a.mark ? 1 : int(a.count ?? 1, 500),
       pendants: int(a.pendants ?? 1, 20),
+      ...(int(a.sensors ?? 0, 50) > 0 ? { sensors: int(a.sensors ?? 0, 50) } : {}),
+      ...(markOf(a.mark) ? { mark: markOf(a.mark)! } : {}),
+      ...(typeof a.note === 'string' && a.note.trim() ? { note: a.note.trim().slice(0, 400) } : {}),
     }];
   });
 }

@@ -12,8 +12,10 @@ import { createPortal } from 'react-dom';
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type EcallOption, type QuoteDraft } from '@/lib/quote/draft';
 import { Counter } from '@/components/form/Counter';
+import { SegGroup } from '@/components/form/SegGroup';
+import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -132,6 +134,18 @@ export function ScopeViewer({
     return ecallOn ? p : (Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { ...v, ecall: false }])) as CareProducts);
   }, [community, ecallOn]);
   const planIds = useMemo(() => plans.map((p) => p.id), [plans]);
+  // ---- common areas (tagged ones are on a plan; others were typed in, in the community drawer) ----
+  const areas = useMemo(() => normalizeCommonAreas(community?.commonAreas), [community?.commonAreas]);
+  const ecallHere = ecallOn && (['il', 'al', 'mc', 'snf'] as const).some((k) => products[k].ecall);
+  const writeAreas = (next: CommonArea[]) => index >= 0 && setValue(`communities.${index}.commonAreas`, next, { shouldDirty: true });
+  const saveArea = (v: AreaFormValue) => {
+    const d = areaDraft;
+    if (!d) return;
+    const base = { name: v.name, kind: v.kind, count: 1, pendants: v.pendants, ...(v.sensors ? { sensors: v.sensors } : {}), ...(v.note ? { note: v.note } : {}) };
+    if (d.id) writeAreas(areas.map((a) => (a.id === d.id ? { id: a.id, ...base, ...(a.mark ? { mark: a.mark } : {}) } : a)));
+    else writeAreas([...areas, { id: uid('ca'), ...base, mark: { plan: d.plan, page: d.page, x: d.x, y: d.y } }]);
+    setAreaDraft(null);
+  };
 
   const [planId, setPlanId] = useState(initialPlanId ?? plans[0]?.id);
   const plan = plans.find((p) => p.id === planId) ?? plans[0];
@@ -142,6 +156,10 @@ export function ScopeViewer({
   const [scope, setScope] = useState(initialScope);
   const [focusType, setFocusType] = useState<string | null>(highlightType ?? null);
   const [pending, setPending] = useState<Pending[]>([]);
+  // What a click tags in Scope Mode: rooms (badges for room types) or common areas (one square marker per space).
+  const [tagWhat, setTagWhat] = useState<'rooms' | 'areas'>('rooms');
+  // A common area being added (where it was clicked) or edited (its id).
+  const [areaDraft, setAreaDraft] = useState<{ id?: string; plan: number; page: number; x: number; y: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [pop, setPop] = useState<{ typeId: string; markId: string } | null>(null);
   const [editType, setEditType] = useState<string | null>(null);
@@ -299,6 +317,8 @@ export function ScopeViewer({
     [types, plan?.id, page],
   );
   const pendingHere = pending.filter((p) => p.plan === plan?.id && p.page === page);
+  const areasTaggedAll = areas.filter((a) => a.mark && planIds.includes(a.mark.plan));
+  const areasHere = areas.filter((a) => a.mark && a.mark.plan === plan?.id && a.mark.page === page);
   const showSaved = layer || scope;
 
   // ---- changes to the room types ----
@@ -388,6 +408,8 @@ export function ScopeViewer({
         tagNotes: withNotes ? liveTagNotes : [],
         allowancePct: normalizeAllowance(getValues(`communities.${index}.sensorAllowancePct`)),
         products,
+        areas,
+        devices: ecallHere ? devicesLabel(ecallSys).toLowerCase() : null,
       });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -665,7 +687,7 @@ export function ScopeViewer({
             {community?.name || 'Community'} <span className="font-normal text-teton-ui-gray">· {plan.name} · {kb(plan.size)}</span>
           </p>
           <Toggle on={layer} onChange={setLayer} label="Room types" />
-          {showSaved && (
+          {showSaved && tagWhat === 'rooms' && (
             <button
               type="button"
               aria-pressed={selectTool}
@@ -677,7 +699,7 @@ export function ScopeViewer({
               Select
             </button>
           )}
-          {scope && acc.scope && (
+          {scope && acc.scope && tagWhat === 'rooms' && (
             <button
               type="button"
               aria-pressed={autoTool}
@@ -689,7 +711,31 @@ export function ScopeViewer({
               Auto-tag
             </button>
           )}
-          {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); setAutoTool(false); setAuto(null); } }} label="Scope Mode" accent />}
+          {acc.scope && <Toggle on={scope} onChange={(v) => { setScope(v); setPop(null); setAreaDraft(null); if (!v) { setSaving(false); setNoteMode(false); setNoteDraft(null); setAutoTool(false); setAuto(null); setTagWhat('rooms'); } }} label="Scope Mode" accent />}
+          {scope && acc.scope && (
+            <span className="drawer-in">
+              <SegGroup className="relative inline-flex rounded-lg bg-teton-almost-white p-0.5" thumbClass="bg-white rounded-md shadow-[0_1px_2px_rgba(0,0,0,.12)]" label="What a click tags">
+                {(
+                  [
+                    ['rooms', 'Rooms'],
+                    ['areas', 'Common areas'],
+                  ] as const
+                ).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={tagWhat === v}
+                    onClick={() => { setTagWhat(v); setPending([]); setSaving(false); setPop(null); setAreaDraft(null); setAutoTool(false); setAuto(null); setSelectTool(false); setNoteMode(false); }}
+                    className={`relative z-[1] rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-200 ${tagWhat === v ? 'text-teton-ink' : 'text-teton-ui-gray hover:text-teton-ink'}`}
+                  >
+                    {v === 'areas' && <span className="mr-1" style={{ color: AREA_COLOR }} aria-hidden="true">◆</span>}
+                    {l}
+                  </button>
+                ))}
+              </SegGroup>
+            </span>
+          )}
           {/* Notes: with Scope Mode on, or always for people who can't use Scope Mode (anyone can add notes). */}
           {(scope || !acc.scope) && (
             <button
@@ -820,6 +866,8 @@ export function ScopeViewer({
             tagNotes={liveTagNotes}
             allowancePct={normalizeAllowance(community?.sensorAllowancePct)}
             products={products}
+            areas={areas}
+            devices={ecallHere ? devicesLabel(ecallSys).toLowerCase() : null}
           />
         )}
         <PlanStage
@@ -861,6 +909,13 @@ export function ScopeViewer({
               return;
             }
             if (noteMode) return startNote(x, y);
+            if (areaDraft) return setAreaDraft(null);
+            if (scope && tagWhat === 'areas') {
+              setPop(null);
+              setEditType(null);
+              setMenu(false);
+              return setAreaDraft({ plan: plan.id, page, x, y });
+            }
             if (pop || editType || menu) {
               setPop(null);
               setEditType(null);
@@ -910,7 +965,7 @@ export function ScopeViewer({
                 color={m.color}
                 text={m.initials}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
-                faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
+                faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && tagWhat === 'areas') || (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
                 size={size}
                 dot={notedMarks.has(m.id)}
@@ -960,6 +1015,44 @@ export function ScopeViewer({
                 onToggle={() => setAuto((a) => (a ? { ...a, items: a.items.map((x) => (x.id === i.id ? { ...x, off: !x.off } : x)) } : a))}
               />
             ))}
+          {(showSaved || tagWhat === 'areas') &&
+            areasHere.map((a) => (
+              <AreaMarker
+                key={a.id}
+                area={a}
+                x={a.mark!.x}
+                y={a.mark!.y}
+                size={size}
+                faded={scope && tagWhat === 'rooms'}
+                selected={areaDraft?.id === a.id}
+                onClick={() => {
+                  setPop(null);
+                  setEditType(null);
+                  setHover(null);
+                  setAreaDraft({ id: a.id, plan: a.mark!.plan, page: a.mark!.page, x: a.mark!.x, y: a.mark!.y });
+                }}
+                onMove={acc.scope ? (x, y) => writeAreas(areas.map((z) => (z.id === a.id && z.mark ? { ...z, mark: { ...z.mark, x, y } } : z))) : undefined}
+              />
+            ))}
+          {areaDraft && areaDraft.plan === plan.id && areaDraft.page === page && (
+            <>
+              {!areaDraft.id && (
+                <span data-plan-ui className="absolute -translate-x-1/2 -translate-y-1/2 z-10 rounded-[5px] border-2 border-dashed bg-white [animation:fadeScale_.15s_ease-out] motion-reduce:[animation:none]" style={{ left: `${areaDraft.x * 100}%`, top: `${areaDraft.y * 100}%`, width: size, height: size, borderColor: AREA_COLOR }} />
+              )}
+              <Anchored x={areaDraft.x} y={areaDraft.y}>
+                <AreaForm
+                  key={areaDraft.id ?? `${areaDraft.x},${areaDraft.y}`}
+                  initial={areaDraft.id ? areas.find((a) => a.id === areaDraft.id) : undefined}
+                  ecall={ecallSys}
+                  ecallHere={ecallHere}
+                  readOnly={!acc.scope}
+                  onSave={saveArea}
+                  onRemove={areaDraft.id ? () => { writeAreas(areas.filter((a) => a.id !== areaDraft.id)); setAreaDraft(null); } : undefined}
+                  onCancel={() => setAreaDraft(null)}
+                />
+              </Anchored>
+            </>
+          )}
           {pendingHere.map((p) => (
             <PlacedBadge
               key={p.id}
@@ -1096,6 +1189,12 @@ export function ScopeViewer({
               <div className="flex items-center gap-2 rounded-xl bg-teton-near-black text-white pl-3.5 pr-3 py-2 text-xs shadow-xl whitespace-nowrap drawer-in">
                 <span className="truncate">{reading ?? 'Drag a box over rooms: every room number inside gets a tag to review'}</span>
               </div>
+            ) : tagWhat === 'areas' ? (
+              areaDraft ? null : (
+                <div className="flex items-center gap-2 rounded-xl text-white pl-3.5 pr-3 py-2 text-xs shadow-xl whitespace-nowrap drawer-in" style={{ background: AREA_COLOR }}>
+                  <span className="truncate">Click a space to tag it as a common area · drag a marker to move it</span>
+                </div>
+              )
             ) : saving ? (
               <TypeForm
                 products={products}
@@ -1138,7 +1237,7 @@ export function ScopeViewer({
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 sm:px-4 py-2.5 border-t border-teton-off-white text-xs min-h-[3rem]">
-          {rows.length === 0 && <span className="text-teton-ui-gray">No room types yet. Turn on Scope Mode and click rooms to tag them.</span>}
+          {rows.length === 0 && areasTaggedAll.length === 0 && <span className="text-teton-ui-gray">No room types yet. Turn on Scope Mode and click rooms to tag them.</span>}
           {rows.map(({ t, b, tagged, here }) => (
             <button
               key={t.id}
@@ -1164,7 +1263,19 @@ export function ScopeViewer({
               {count(liveTagNotes.length)} room note{liveTagNotes.length === 1 ? '' : 's'} · {count(notedMarks.size)} room{notedMarks.size === 1 ? '' : 's'}
             </button>
           )}
-          {taggedTotal > 0 && <span className="ml-auto font-semibold">{count(taggedTotal)} rooms tagged · {count(sensorsTagged)} sensors</span>}
+          {areasTaggedAll.length > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-[4px] grid place-items-center text-white text-[7px] font-extrabold" style={{ background: AREA_COLOR }} aria-hidden="true">◆</span>
+              <b>Common areas · {count(areasHere.length)}{areasHere.length !== areasTaggedAll.length ? <span className="font-normal text-teton-ui-gray"> ({count(areasTaggedAll.length)} in all)</span> : null} · {count(areaSensors(areasTaggedAll))} sensor{areaSensors(areasTaggedAll) === 1 ? '' : 's'}</b>
+            </span>
+          )}
+          {(taggedTotal > 0 || areasTaggedAll.length > 0) && (
+            <span className="ml-auto font-semibold">
+              {taggedTotal > 0 ? `${count(taggedTotal)} rooms tagged · ${count(sensorsTagged)} sensors` : ''}
+              {taggedTotal > 0 && areasTaggedAll.length > 0 ? ' · ' : ''}
+              {areasTaggedAll.length > 0 ? `${count(areaSensors(areasTaggedAll))} common area sensor${areaSensors(areasTaggedAll) === 1 ? '' : 's'}` : ''}
+            </span>
+          )}
           {exporting && <span className={`w-full text-[11px] ${exporting.startsWith('Couldn') ? 'text-[#9A2E1C]' : 'text-teton-ui-gray'}`}>{exporting}</span>}
         </div>
       </div>
