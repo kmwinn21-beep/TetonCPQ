@@ -42,6 +42,7 @@ import { usePersistedOpen } from '@/components/Sidebar';
 import { canAutoFocus } from '@/lib/client/focus';
 import { DealLinkButtons } from './DealLinkButtons';
 import { DealNavigator, PageDots } from './DealNavigator';
+import { DealMenu } from './DealMenu';
 import { OPEN_PANEL } from './panelNav';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AgreementAlert, useDealAgreement } from './AgreementAlert';
@@ -423,6 +424,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
                 {canEdit && <button type="button" className="btn-primary" onClick={() => setNoteOpen(true)} disabled={!values.communities?.length} aria-label="Save version"><span className="sm:hidden">Save</span><span className="hidden sm:inline">Save version</span></button>}
               </>
             )}
+            <DealMenu quoteId={initial.quoteId} dealName={values.customerName ?? ''} />
           </ScrollRow>
           {noteOpen && (
             <div className="flex w-full sm:w-auto flex-wrap items-start gap-2 drawer-in">
