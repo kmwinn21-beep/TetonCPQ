@@ -5,7 +5,7 @@
  * from their details, what the quantity is and how pilots treat it. Built-in items keep their pricing rules (a few can
  * switch to being priced from their details). Saving refreshes the core products' copy of the item.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
 import { SwitchButton } from '@/components/quote/sections';
@@ -110,13 +110,19 @@ export function DetailFields({ f, set, disabled, pricing }: { f: DetailsForm; se
   );
 }
 
-export function ItemDetailsTab({ r, canEdit, onSaved, onLineup }: { r: PriceBookRow; canEdit: boolean; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void }) {
-  const [f, setF] = useState<DetailsForm>(() => formOf(r));
+export function ItemDetailsTab({ r, canEdit, onSaved, onLineup, draft, onDraft }: { r: PriceBookRow; canEdit: boolean; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void }) {
+  // Unsaved edits kept by the price book (see onDraft) come back when the item is opened again.
+  const [f, setF] = useState<DetailsForm>(() => draft ?? formOf(r));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [openDeals, setOpenDeals] = useState<number | null>(null);
-  useEffect(() => setF(formOf(r)), [r]);
+  const seen = useRef(r);
+  useEffect(() => {
+    if (seen.current === r) return; // first render: keep the draft
+    seen.current = r;
+    setF(formOf(r));
+  }, [r]);
   useEffect(() => {
     if (!canEdit) return;
     let live = true;
@@ -133,6 +139,10 @@ export function ItemDetailsTab({ r, canEdit, onSaved, onLineup }: { r: PriceBook
   const generic = !!r.generic;
   const base = formOf(r);
   const changed = (Object.keys(f) as Array<keyof DetailsForm>).filter((k) => f[k] !== base[k] && (generic || k === 'per' || k === 'description'));
+  const draftKey = changed.length ? JSON.stringify(f) : '';
+  const report = useRef(onDraft);
+  report.current = onDraft;
+  useEffect(() => report.current?.(draftKey ? f : null), [draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const pricingChanged = changed.some((k) => k === 'billing' || k === 'everyYears' || k === 'counted' || k === 'pilotRule');
   const send = async (body: Record<string, unknown>) => {
     setBusy(true);

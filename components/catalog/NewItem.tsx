@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
+import { FoldStrip, useFold } from '@/components/form/useFold';
 import { CATEGORIES, placeFor } from '@/lib/pricing/markets';
 import { OFFER_LOCKED, SIDE_LABEL, SIDES, type Side } from '@/lib/pricing/lineup';
 import type { LineupInfo } from '@/lib/data/lineup';
@@ -20,7 +21,12 @@ const input = 'h-9 w-full rounded-[10px] border bg-white px-3 text-[13px] outlin
 const label = 'block mb-1 text-[11.5px] font-semibold text-[#4E5562]';
 const btn = 'h-9 px-3 rounded-[10px] text-[12.5px] font-semibold whitespace-nowrap';
 
-export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated }: { open: boolean; onClose: () => void; rows: PriceBookRow[]; lineup: LineupInfo | null; coresDirty: boolean; onCreated: (row: PriceBookRow, lineup: LineupInfo | null) => void }) {
+export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated, onFolded, wake = 0 }: { open: boolean; onClose: () => void; rows: PriceBookRow[]; lineup: LineupInfo | null; coresDirty: boolean; onCreated: (row: PriceBookRow, lineup: LineupInfo | null) => void; onFolded?: (folded: boolean) => void; wake?: number }) {
+  // Clicking outside folds the drawer to a strip on the right, keeping what's typed; Cancel / ✕ / Esc discard it.
+  const fold = useFold();
+  useEffect(() => onFolded?.(open && fold.folded), [open, fold.folded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // "New item" pressed again while folded: open the same draft.
+  useEffect(() => fold.unfold(), [wake]); // eslint-disable-line react-hooks/exhaustive-deps
   const phone = usePhone('(max-width: 1023px)');
   const blank = (): DetailsForm & { name: string; code: string; list: string; addTo: string } => ({ name: '', code: '', list: '', addTo: '', billing: 'once', everyYears: 1, per: 'sensor', counted: 'commonAreaSensors', pilotRule: 'credited', category: 'Add-ons', sub: '', description: '' });
   const [f, setF] = useState(blank);
@@ -35,6 +41,7 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated }: 
       setLeaving(false);
       setF(blank());
       setErr(null);
+      fold.unfold();
       return;
     }
     if (!shown) return;
@@ -43,11 +50,11 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated }: 
     return () => clearTimeout(t);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!open) return;
+    if (!open || fold.folded) return;
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [open, onClose]);
+  }, [open, onClose, fold.folded]);
   // The next free SKU in the category's series.
   useEffect(() => {
     if (!open) return;
@@ -197,10 +204,17 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated }: 
       </SwipeSheet>
     );
   if (!shown) return null;
+  if (fold.folded && !leaving)
+    return (
+      <div className="fixed right-0 top-0 h-full z-[60] flex shadow-[-4px_0_12px_rgba(0,0,0,.06)]" data-fold-ignore>
+        <FoldStrip label={f.name.trim() ? `New item · ${f.name.trim()}` : 'New item'} dot={!!(f.name.trim() || f.code.trim() || f.list.trim() || f.sub.trim() || f.description.trim())} onExpand={fold.unfold} />
+      </div>
+    );
+  const out = leaving || fold.leaving;
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="New item">
-      <div className={`absolute inset-0 bg-[#1C1F24]/20 transition-opacity duration-200 ${leaving ? 'opacity-0' : 'opacity-100'}`} onClick={onClose} />
-      <div className={`absolute right-0 top-0 h-full w-[470px] max-w-full bg-white border-l border-[#ECE8DF] shadow-xl flex flex-col ${leaving ? 'drawer-out' : 'drawer-in'}`}>
+      <div className={`absolute inset-0 bg-[#1C1F24]/20 transition-opacity duration-200 ${out ? 'opacity-0' : 'opacity-100'}`} onClick={fold.fold} title="Fold the drawer away (what you typed is kept)" />
+      <div className={`absolute right-0 top-0 h-full w-[470px] max-w-full bg-white border-l border-[#ECE8DF] shadow-xl flex flex-col ${out ? 'drawer-out' : 'drawer-in'}`}>
         <div className="px-5 pt-4 pb-3 border-b border-[#F1EEE7] flex items-start">
           <span>
             <span className="font-mono text-[11px] text-[#5A6270]">PRICE BOOK · UNITED STATES</span>

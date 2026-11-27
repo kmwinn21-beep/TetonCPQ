@@ -13,7 +13,6 @@ import type { DealGlance } from '@/lib/data/dealGlance';
 import { count, dateLabel } from '@/lib/format';
 import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { usePhone } from '@/components/form/SwipeSheet';
-import { usePersistedOpen } from '@/components/Sidebar';
 import { Collapse } from '@/components/form/fields';
 import { NewDealButton } from '@/components/quote/NewDealButton';
 import { ArchivedToast } from '@/components/quote/ArchivedToast';
@@ -41,7 +40,8 @@ export function DealsModule({ deals, userId, archivedView, reason, justArchived 
   const [q, setQ] = useState('');
   const [group, setGroup] = useState<Group | 'all'>('all');
   const [sel, setSel] = useState<number | null>(null);
-  const [panelOpen, setPanelOpen] = usePersistedOpen('teton.dealsPanel.open', true);
+  // Starts collapsed on every visit; picking a deal opens it.
+  const [panelOpen, setPanelOpen] = useState(false);
   const [shut, setShut] = useState<Set<Group>>(new Set());
   const active = deals.filter((d) => !d.archived);
   const archived = deals.filter((d) => d.archived);

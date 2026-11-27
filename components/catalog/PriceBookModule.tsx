@@ -5,7 +5,9 @@
  * items in the chosen market (or every market side by side), and a drawer with one item's prices, guardrails, usage and
  * history. US prices price deals; the other markets are reference prices from the official sheet. Admins can edit both.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FoldStrip, useFold, useOutsidePress } from '@/components/form/useFold';
+import type { DetailsForm } from './ItemDetails';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
 import { NumInput } from '@/components/form/NumInput';
@@ -98,6 +100,9 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const [lineupInfo, setLineupInfo] = useState<LineupInfo | null>(lineup ?? null);
   const [coresDirty, setCoresDirty] = useState(false);
   const [adding, setAdding] = useState(false);
+  // New item folded to its strip: the page makes room for it on the right.
+  const [newFolded, setNewFolded] = useState(false);
+  const [wake, setWake] = useState(0);
   const [newerLineup, setNewerLineup] = useState<LineupInfo | null>(null);
   const onLineup = (l: LineupInfo) => (coresDirty ? setNewerLineup(l) : (setLineupInfo(l), setNewerLineup(null)));
   const [swBilling, setSwBilling] = useState(softwareBilling);
@@ -114,6 +119,29 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const [sel, setSel] = useState<string | null>(null);
   // Subcategory groups that are open (all start collapsed; a search or a picked subcategory opens them).
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  // Clicking outside the item drawer folds it to a strip (work kept); unsaved detail edits are kept per item, so
+  // another item can be opened for reference and this one picked up again.
+  const fold = useFold();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drafts = useRef(new Map<string, DetailsForm>());
+  const [, setDraftTick] = useState(0);
+  const setDraft = (sku: string, f: DetailsForm | null) => {
+    const had = drafts.current.has(sku);
+    if (f) drafts.current.set(sku, f);
+    else drafts.current.delete(sku);
+    if (had !== !!f) setDraftTick((n) => n + 1);
+  };
+  const openRow = (sku: string) => {
+    if (sel === sku) return fold.folded ? fold.unfold() : fold.fold();
+    setSel(sku);
+    fold.unfold();
+  };
+  useOutsidePress(drawerRef, !phone && !!sel && !fold.folded && !fold.leaving && !(adding && !newFolded), fold.fold);
+  const closeItem = () => {
+    if (sel) setDraft(sel, null);
+    setSel(null);
+    fold.unfold();
+  };
   // The drawer keeps showing its item while it slides away.
   const [shown, setShown] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -337,7 +365,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
               {g.items.map((r) => {
                 const here = priceIn(r, market);
                 return (
-                  <button key={r.sku} type="button" onClick={() => setSel(sel === r.sku ? null : r.sku)} aria-current={sel === r.sku ? 'true' : undefined} className={`${cols} w-full min-h-[56px] py-2 border-b border-[#F1EEE7] text-left transition-colors duration-150 ${sel === r.sku ? 'bg-[#F3F7FD] shadow-[inset_3px_0_#3F8CEA]' : 'hover:bg-[#FCFBF8]'}`}>
+                  <button key={r.sku} type="button" data-fold-ignore onClick={() => openRow(r.sku)} aria-current={sel === r.sku ? 'true' : undefined} className={`${cols} w-full min-h-[56px] py-2 border-b border-[#F1EEE7] text-left transition-colors duration-150 ${sel === r.sku ? 'bg-[#F3F7FD] shadow-[inset_3px_0_#3F8CEA]' : 'hover:bg-[#FCFBF8]'}`}>
                     <span className="flex items-center gap-2.5 min-w-0">
                       <Icon sku={r.sku} />
                       <span className="min-w-0">
@@ -387,7 +415,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
               </tr>
             ) : null,
             ...g.items.map((r) => (
-              <tr key={r.sku} className={`border-b border-[#F1EEE7] cursor-pointer ${sel === r.sku ? 'bg-[#F3F7FD]' : 'hover:bg-[#FCFBF8]'}`} onClick={() => setSel(r.sku)}>
+              <tr key={r.sku} className={`border-b border-[#F1EEE7] cursor-pointer ${sel === r.sku ? 'bg-[#F3F7FD]' : 'hover:bg-[#FCFBF8]'}`} data-fold-ignore onClick={() => openRow(r.sku)}>
                 <td className="px-4 py-2.5 sticky left-0 bg-inherit">
                   <span className="flex items-center gap-2.5 min-w-[220px]">
                     <Icon sku={r.sku} size="w-7 h-7" />
@@ -568,7 +596,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
         </button>
         )}
         {area === 'items' && canEdit && (
-          <button type="button" onClick={() => setAdding(true)} className="h-9 px-3 rounded-[10px] bg-teton-ink text-white text-[12.5px] font-semibold whitespace-nowrap">
+          <button type="button" onClick={() => (setAdding(true), setWake((n) => n + 1))} className="h-9 px-3 rounded-[10px] bg-teton-ink text-white text-[12.5px] font-semibold whitespace-nowrap">
             ＋ New item
           </button>
         )}
@@ -577,6 +605,8 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
         <NewItem
           open={adding}
           onClose={() => setAdding(false)}
+          onFolded={setNewFolded}
+          wake={wake}
           rows={rows}
           lineup={lineupInfo}
           coresDirty={coresDirty}
@@ -617,17 +647,18 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   );
 
   return (
-    <div className="-m-4 lg:-m-6 flex lg:h-[calc(100%+3rem)] bg-[#FBF8F3] text-teton-ink" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className={`-m-4 lg:-m-6 flex lg:h-[calc(100%+3rem)] bg-[#FBF8F3] text-teton-ink ${newFolded && !phone ? 'pr-11' : ''}`} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {!phone && area === 'items' && panel}
       {body}
-      {!phone && area === 'items' && shownRow && (
-        <div className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving ? 'drawer-out' : 'drawer-in'}`}>
-          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} />
+      {!phone && area === 'items' && shownRow && fold.folded && !leaving && <FoldStrip label={shownRow.name} dot={drafts.current.has(shownRow.sku)} onExpand={fold.unfold} />}
+      {!phone && area === 'items' && shownRow && !fold.folded && (
+        <div ref={drawerRef} className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving || fold.leaving ? 'drawer-out' : 'drawer-in'}`}>
+          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={closeItem} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} />
         </div>
       )}
       {phone && (
         <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
-          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} bare />}
+          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} bare />}
         </SwipeSheet>
       )}
     </div>
@@ -663,8 +694,9 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   ];
 }
 
-function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; bare?: boolean }) {
-  const [tab, setTab] = useState<Tab>('pricing');
+function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, draft, onDraft, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void; bare?: boolean }) {
+  // Coming back to an item with unsaved detail edits opens on them.
+  const [tab, setTab] = useState<Tab>(draft ? 'details' : 'pricing');
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [typed, setTyped] = useState<Record<string, number | null>>({});
@@ -799,7 +831,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, o
             <p className="mt-2 text-[11px] leading-snug text-[#8A919C]">US is the list price new deals start from. Other markets are reference prices from the official pricing sheet{canEdit ? '; ⊘ marks one as not sold there' : ''}.</p>
           </div>
         )}
-        {tab === 'details' && <ItemDetailsTab r={r} canEdit={canEdit} onSaved={onSaved} onLineup={onLineup} />}
+        {tab === 'details' && <ItemDetailsTab r={r} canEdit={canEdit} onSaved={onSaved} onLineup={onLineup} draft={draft} onDraft={onDraft} />}
         {tab === 'guardrails' && (
           <div className={box}>
             <p className={h4}>Guardrails · US</p>
