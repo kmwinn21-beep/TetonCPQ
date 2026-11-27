@@ -27,9 +27,18 @@ export const GROUPS: Array<{ id: GroupId; title: string; soon?: string }> = [
   { id: 'users', title: 'Users & settings' },
 ];
 
-/** Roles whose permissions can be edited (Admin is all on, locked). */
-export const EDITABLE_ROLES = ['rep', 'deal_desk', 'vp_sales', 'ceo'] as const satisfies readonly Role[];
-type EditableRole = (typeof EDITABLE_ROLES)[number];
+/** The built-in roles whose permissions can be edited (Admin is all on, locked). Custom roles take their defaults from one of these, or from "nothing". */
+export const EDITABLE_ROLES = ['rep', 'deal_desk', 'vp_sales', 'ceo'] as const;
+export type EditableRole = (typeof EDITABLE_ROLES)[number];
+/** Where a role's defaults come from: itself (built-in), the built-in it started from, or null (nothing: all off). */
+export type DefaultsFrom = EditableRole | null;
+export const isEditableRole = (r: unknown): r is EditableRole => (EDITABLE_ROLES as readonly unknown[]).includes(r);
+/** A role's defaults source: built-ins their own, custom roles their `basedOn` (unknown roles read as Sales rep). */
+export function defaultsFrom(role: string, basedOn?: string | null): DefaultsFrom {
+  if (isEditableRole(role)) return role;
+  if (basedOn === undefined) return 'rep';
+  return isEditableRole(basedOn) ? basedOn : null;
+}
 
 export interface Capability {
   key: string;
@@ -102,20 +111,29 @@ export const isEditable = (c: Capability) => c.shipped && !c.fixed;
 /** One role's grants: permission key → value (only what differs from the defaults is stored). */
 export type Grants = Record<string, Value>;
 
-/** The value a role has: Admin all, otherwise its saved value if valid and editable, else the default. */
-export function grantOf(role: Role | string, key: string, saved?: Grants | null): Value {
+/** A permission's default for a role whose defaults come from `from` (null: off, except fixed rows, the same for everyone). */
+export function defaultOf(c: Capability, from: DefaultsFrom): Value {
+  if (from) return c.defaults[from];
+  if (c.fixed) return c.defaults.rep;
+  return 'off';
+}
+
+/**
+ * The value a role has: Admin all, otherwise its saved value if valid and editable, else the default. `basedOn` is
+ * for custom roles (omitted: built-ins use their own defaults, anything else Sales rep's).
+ */
+export function grantOf(role: Role | string, key: string, saved?: Grants | null, basedOn?: string | null): Value {
   const c = BY_KEY.get(key);
   if (!c) return 'off';
   if (role === 'admin') return c.kind === 'flag' ? 'on' : 'all';
-  const r = (EDITABLE_ROLES as readonly string[]).includes(role) ? (role as EditableRole) : 'rep';
   const v = saved?.[key];
   if (v && isEditable(c) && valuesOf(c).includes(v)) return v;
-  return c.defaults[r];
+  return defaultOf(c, defaultsFrom(role, basedOn));
 }
 
 /** The full set of values for a role (what the server checks against). */
-export function grantsFor(role: Role | string, saved?: Grants | null): Grants {
-  return Object.fromEntries(CAPABILITIES.map((c) => [c.key, grantOf(role, c.key, saved)]));
+export function grantsFor(role: Role | string, saved?: Grants | null, basedOn?: string | null): Grants {
+  return Object.fromEntries(CAPABILITIES.map((c) => [c.key, grantOf(role, c.key, saved, basedOn)]));
 }
 
 /** Someone a permission is checked for: their role and, when loaded, their role's grants. */
@@ -141,13 +159,13 @@ export function reaches(u: Grantee, key: string, deal: { isOwner: boolean; colla
 }
 
 /** Only the values that differ from the defaults, and only editable ones (what's stored for a role). */
-export function changedFromDefaults(role: Role | string, grants: Grants): Grants {
+export function changedFromDefaults(role: Role | string, grants: Grants, basedOn?: string | null): Grants {
   const out: Grants = {};
   if (role === 'admin') return out;
   for (const c of CAPABILITIES) {
     const v = grants[c.key];
     if (!v || !isEditable(c) || !valuesOf(c).includes(v)) continue;
-    if (v !== grantOf(role, c.key)) out[c.key] = v;
+    if (v !== grantOf(role, c.key, null, basedOn)) out[c.key] = v;
   }
   return out;
 }

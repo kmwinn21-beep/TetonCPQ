@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ROLE_LABEL, ROLES, type Role, type User } from '@/lib/auth/roles';
+import type { Role, RoleDef, User } from '@/lib/auth/roles';
 import { dateLabel } from '@/lib/format';
 
 async function call(url: string, method: string, body: unknown) {
@@ -11,11 +11,16 @@ async function call(url: string, method: string, body: unknown) {
   return data;
 }
 
-export function UsersAdmin({ initial, meId }: { initial: User[]; meId: number }) {
+export function UsersAdmin({ initial, meId, roles }: { initial: User[]; meId: number; /** Every role, in order (from Roles & permissions). */ roles: RoleDef[] }) {
   const [users, setUsers] = useState(initial);
   const [form, setForm] = useState({ name: '', email: '', role: 'rep' as Role, password: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const roleOptions = roles.map((r) => (
+    <option key={r.key} value={r.key} title={r.description || undefined}>
+      {r.name}{r.builtin ? '' : ' (custom)'}
+    </option>
+  ));
   const replace = (u: User) => setUsers((us) => us.map((x) => (x.id === u.id ? u : x)));
   const run = async (fn: () => Promise<void>) => {
     setMsg(null);
@@ -57,7 +62,7 @@ export function UsersAdmin({ initial, meId }: { initial: User[]; meId: number })
         <div>
           <label className="label" htmlFor="nu-role">Role</label>
           <select id="nu-role" className="input-field" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+            {roleOptions}
           </select>
         </div>
         <div>
@@ -92,7 +97,7 @@ export function UsersAdmin({ initial, meId }: { initial: User[]; meId: number })
                     value={u.role}
                     onChange={(e) => run(async () => replace(await call(`/api/users/${u.id}`, 'PATCH', { role: e.target.value })))}
                   >
-                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                    {roleOptions}
                   </select>
                 </td>
                 <td className="px-4 py-3">{u.active ? <span className="badge-green">Active</span> : <span className="badge-gray">Deactivated</span>}</td>

@@ -713,7 +713,7 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
       ['List', money(r.list), 'bg-[#F6F3EE]'],
       ['Post-pilot floor (warning)', money(POLICY.postPilotFloor), 'bg-[#EEF8F1] text-[#1E7A4C]'],
       [`Service term below ${POLICY.serviceTermFloorPct * 100}% of list`, 'Warning', 'bg-[#FFF6E5] text-[#8A5A00]'],
-      [`Below ${POLICY.hardFloorPct * 100}% of list`, 'RevOps', 'bg-[#FDF0EE] text-[#C2412D]'],
+      [`Below ${POLICY.hardFloorPct * 100}% of list`, 'Tier 1 approval', 'bg-[#FDF0EE] text-[#C2412D]'],
       ['Standard pilot', `${money(POLICY.standardPilotRate)} × ${POLICY.standardPilotMonths} months`, 'bg-[#F3F7FD] text-[#1F5FB5]'],
     ];
   if (r.sku === 'TETON-INSTALL')

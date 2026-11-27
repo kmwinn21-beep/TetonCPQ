@@ -2,7 +2,8 @@
 import type { Client, Row } from '@libsql/client';
 import { checkPasswordRules, hashPassword, verifyPassword } from '@/lib/auth/password';
 
-import { ROLES, type Role, type User } from '@/lib/auth/roles';
+import { type Role, type User } from '@/lib/auth/roles';
+import { legacyRole } from './roles';
 
 export { ROLES, ROLE_LABEL, type Role, type User } from '@/lib/auth/roles';
 
@@ -10,7 +11,8 @@ const toUser = (r: Row): User => ({
   id: Number(r.id),
   email: String(r.email),
   name: String(r.name),
-  role: String(r.role) as Role,
+  // role_key holds any role (custom ones too); users.role is a built-in stand-in kept for its fixed list.
+  role: String(r.role_key ?? r.role),
   active: Number(r.active) === 1,
   createdAt: String(r.created_at),
 });
@@ -29,13 +31,20 @@ export async function getUser(db: Client, id: number): Promise<User | null> {
   return rs.rows.length ? toUser(rs.rows[0]) : null;
 }
 
+/** A role that exists (from the roles table). */
+async function roleRow(db: Client, key: string): Promise<{ key: string; basedOn: string | null }> {
+  const r = await db.execute({ sql: 'SELECT key, based_on FROM roles WHERE key = ?', args: [String(key ?? '')] });
+  if (!r.rows.length) throw new Error('Unknown role');
+  return { key: String(r.rows[0].key), basedOn: r.rows[0].based_on == null ? null : String(r.rows[0].based_on) };
+}
+
 export async function listUsers(db: Client): Promise<User[]> {
   return (await db.execute('SELECT * FROM users ORDER BY active DESC, name')).rows.map(toUser);
 }
 
 /** Active users per role (for the roles & permissions page). */
 export async function countByRole(db: Client): Promise<Record<string, number>> {
-  const r = await db.execute('SELECT role, COUNT(*) AS n FROM users WHERE active = 1 GROUP BY role');
+  const r = await db.execute('SELECT COALESCE(role_key, role) AS role, COUNT(*) AS n FROM users WHERE active = 1 GROUP BY 1');
   return Object.fromEntries(r.rows.map((x) => [String(x.role), Number(x.n)]));
 }
 
@@ -43,14 +52,14 @@ export async function createUser(db: Client, u: { email: string; name: string; r
   const email = normalizeEmail(u.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email');
   if (!u.name.trim()) throw new Error('Name is required');
-  if (!ROLES.includes(u.role)) throw new Error('Unknown role');
+  const role = await roleRow(db, u.role);
   const bad = checkPasswordRules(u.password);
   if (bad) throw new Error(bad);
   const exists = await db.execute({ sql: 'SELECT 1 FROM users WHERE email = ?', args: [email] });
   if (exists.rows.length) throw new Error('A user with that email already exists');
   const rs = await db.execute({
-    sql: 'INSERT INTO users (email, name, role, password_hash) VALUES (?, ?, ?, ?) RETURNING *',
-    args: [email, u.name.trim(), u.role, await hashPassword(u.password)],
+    sql: 'INSERT INTO users (email, name, role, role_key, password_hash) VALUES (?, ?, ?, ?, ?) RETURNING *',
+    args: [email, u.name.trim(), legacyRole(role.key, role.basedOn), role.key, await hashPassword(u.password)],
   });
   return toUser(rs.rows[0]);
 }
@@ -87,16 +96,16 @@ export async function changeOwnPassword(db: Client, id: number, current: string,
 export async function updateUser(db: Client, actorId: number, id: number, patch: { role?: Role; active?: boolean; name?: string }): Promise<User> {
   const u = await getUser(db, id);
   if (!u) throw new Error('User not found');
-  if (patch.role && !ROLES.includes(patch.role)) throw new Error('Unknown role');
+  const role = patch.role ? await roleRow(db, patch.role) : null;
   const losingAdmin = (patch.role && patch.role !== 'admin') || patch.active === false;
   if (u.role === 'admin' && losingAdmin) {
     if (id === actorId) throw new Error('You can’t remove your own admin access');
-    const admins = Number((await db.execute("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1")).rows[0].n);
+    const admins = Number((await db.execute("SELECT COUNT(*) AS n FROM users WHERE COALESCE(role_key, role) = 'admin' AND active = 1")).rows[0].n);
     if (admins <= 1) throw new Error('There must be at least one active admin');
   }
   const rs = await db.execute({
-    sql: 'UPDATE users SET role = COALESCE(?, role), active = COALESCE(?, active), name = COALESCE(?, name) WHERE id = ? RETURNING *',
-    args: [patch.role ?? null, patch.active == null ? null : patch.active ? 1 : 0, patch.name?.trim() || null, id],
+    sql: 'UPDATE users SET role = COALESCE(?, role), role_key = COALESCE(?, role_key), active = COALESCE(?, active), name = COALESCE(?, name) WHERE id = ? RETURNING *',
+    args: [role ? legacyRole(role.key, role.basedOn) : null, role?.key ?? null, patch.active == null ? null : patch.active ? 1 : 0, patch.name?.trim() || null, id],
   });
   return toUser(rs.rows[0]);
 }

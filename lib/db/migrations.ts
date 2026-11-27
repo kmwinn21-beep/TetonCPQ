@@ -838,4 +838,44 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 37,
+    name: 'custom roles',
+    sql: [
+      // Roles become rows admins can add, rename, reorder and delete. `key` never changes (users and permissions point
+      // at it); `name` is what everyone sees. A custom role takes its defaults for permissions added later from
+      // `based_on` (a built-in role, or NULL for "nothing").
+      `CREATE TABLE roles (
+        key TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        sort INTEGER NOT NULL,
+        based_on TEXT,
+        builtin INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `INSERT INTO roles (key, name, description, sort, builtin) VALUES
+        ('rep', 'Sales rep', 'Owns deals, builds proposals, works with prospects', 10, 1),
+        ('deal_desk', 'RevOps', 'Scoping, agreements, first-tier approvals', 20, 1),
+        ('vp_sales', 'VP Sales', 'Sales leadership, higher-tier approvals', 30, 1),
+        ('ceo', 'CEO', 'Top-tier approvals', 40, 1),
+        ('admin', 'Admin', 'Everything, always. Runs users, the price book and permissions.', 1000, 1)`,
+      // users.role keeps its fixed list (rebuilding the users table isn't worth the risk); role_key holds any role and
+      // is what the app reads. For a custom role, users.role holds a built-in stand-in.
+      `ALTER TABLE users ADD COLUMN role_key TEXT`,
+      `UPDATE users SET role_key = role`,
+      // role_permissions: any role (rebuilt without the fixed list; nothing references it).
+      `CREATE TABLE role_permissions_new (
+        role TEXT NOT NULL,
+        capability TEXT NOT NULL,
+        value TEXT NOT NULL CHECK (value IN ('all','collab','own','off','on')),
+        updated_by INTEGER REFERENCES users(id),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (role, capability)
+      )`,
+      `INSERT INTO role_permissions_new SELECT role, capability, value, updated_by, updated_at FROM role_permissions`,
+      `DROP TABLE role_permissions`,
+      `ALTER TABLE role_permissions_new RENAME TO role_permissions`,
+    ],
+  },
 ];

@@ -10,7 +10,7 @@ Decided: everyone sees every deal; planned rows (approvals, agreements) are a re
 
 When a backlog feature ships, flip its permissions to `shipped: true`, check them on the server, and review the defaults.
 
-## 1b. Custom roles: add, rename, delete (decided, not started)
+## 1b. Custom roles: add, rename, delete — built
 
 Mock: `docs/mocks/roles/custom-roles.html`. From the permissions page: "+ Add role" (name, description, start from an existing role's permissions or nothing), rename any role but Admin, edit description, duplicate, reorder, delete (its people moved to another role first, type the name to confirm). Users page lists every role in order, custom ones tagged.
 
