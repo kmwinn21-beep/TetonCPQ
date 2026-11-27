@@ -209,6 +209,21 @@ export function commonAreaFromPlan(c: Pick<DraftCommunity, 'commonAreas' | 'comm
   return areaSensors(areas) + Math.max(0, Math.round(Number(c.commonAreaSensorsExtra) || 0));
 }
 
+/**
+ * A community's common area sensors, split for display: from the spaces tagged on the plan, the extra on top of them,
+ * and a count typed in (no spaces tagged). Full-facility coverage and common area sensors off the deal count none.
+ */
+export function caSensorScope(c: Pick<DraftCommunity, 'commonAreas' | 'commonAreaSensors' | 'commonAreaSensorsExtra' | 'commonAreaOff' | 'coverage'>) {
+  const none = { total: 0, tagged: 0, extra: 0, typed: 0, areas: [] as CommonArea[] };
+  if (c.coverage === 'full_facility' || c.commonAreaOff) return none;
+  const total = Math.max(0, Math.round(Number(c.commonAreaSensors) || 0));
+  const all = normalizeCommonAreas(c.commonAreas);
+  if (!areasTagged(all)) return { ...none, total, typed: total };
+  const areas = all.filter((a) => a.count > 0 && (a.sensors ?? 0) > 0);
+  const tagged = Math.min(total, areaSensors(areas));
+  return { total, tagged, extra: total - tagged, typed: 0, areas };
+}
+
 /** A community with its beds and additional sensors set from its room types (unchanged when it has none). */
 export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
   if (c.commonAreas !== undefined) {

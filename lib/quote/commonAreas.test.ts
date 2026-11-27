@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRoomTypes, commonAreaFromPlan, normalizeCommonAreas, devicesLabel, type CommonArea } from './roomTypes';
+import { applyRoomTypes, caSensorScope, commonAreaFromPlan, normalizeCommonAreas, devicesLabel, type CommonArea } from './roomTypes';
 import { allProducts, defaultDraft, newCommunity, normalizeDraft, type QuoteDraft } from './draft';
 import { applyChoices, choicesOf } from './products';
 import { priceBook, SKU } from '@/lib/pricing/catalog';
@@ -118,5 +118,21 @@ describe('extra E-Call devices with equipment purchase', () => {
     const n = normalizeLineup(JSON.parse(JSON.stringify(old)));
     expect(n.schema).toBe(LINEUP_SCHEMA);
     expect(sameLineup(n, DEFAULT_LINEUP)).toBe(true);
+  });
+});
+
+describe('caSensorScope', () => {
+  it('splits plan, extra and typed-in sensors', () => {
+    const c = { commonAreas: tagged, commonAreaSensorsExtra: 2, coverage: 'rooms_only' as const };
+    const fromPlan = commonAreaFromPlan(c)!;
+    const s = caSensorScope({ ...c, commonAreaSensors: fromPlan });
+    expect(s.total).toBe(fromPlan);
+    expect(s.extra).toBe(2);
+    expect(s.tagged).toBe(fromPlan - 2);
+    expect(s.typed).toBe(0);
+    expect(s.areas.every((a) => (a.sensors ?? 0) > 0)).toBe(true);
+    expect(caSensorScope({ commonAreaSensors: 6, coverage: 'rooms_only' as const })).toMatchObject({ total: 6, typed: 6, tagged: 0, extra: 0 });
+    expect(caSensorScope({ commonAreaSensors: 6, coverage: 'full_facility' as const }).total).toBe(0);
+    expect(caSensorScope({ ...c, commonAreaSensors: 9, commonAreaOff: true }).total).toBe(0);
   });
 });

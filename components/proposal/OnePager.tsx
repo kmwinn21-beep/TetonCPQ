@@ -98,7 +98,7 @@ export function OnePagerBody({
   // ---------- Project scope: the condensed total cards ----------
   const strip: Array<{ k: 'res' | 's' | 'e' | 'dv'; v: number; label: string }> = [
     ...(scope !== 'both' ? [{ k: 'res' as const, v: n.beds, label: 'Residents' }] : []),
-    ...(scope !== 'ec' ? [{ k: 's' as const, v: n.sensors, label: 'Sensors' }, { k: 'e' as const, v: n.edges, label: 'Edge units' }] : []),
+    ...(scope !== 'ec' ? [{ k: 's' as const, v: n.sensors, label: n.caSensors > 0 ? `Sensors (${n.caSensors.toLocaleString('en-US')} common area)` : 'Sensors' }, { k: 'e' as const, v: n.edges, label: 'Edge units' }] : []),
     ...(scope !== 'rm' ? [{ k: 'dv' as const, v: n.devices, label: 'E-Call devices' }] : []),
   ];
 

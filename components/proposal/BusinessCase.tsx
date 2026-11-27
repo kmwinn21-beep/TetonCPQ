@@ -26,7 +26,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { AREA_KINDS, bedKeyOf, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
 import { DealVarsContext, T, useProposalText } from './EditableText';
 import { CustomTitle, RichBody, RTable, RTbody, V } from './ProposalSections';
 import { CASE_LABEL, FourCases, type CaseBasis } from './FourCases';
@@ -1356,14 +1356,22 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       const p = productsOf(c);
       const types = all.filter((t) => p[bedKeyOf(t)].monitoring || (ecallDeal && p[bedKeyOf(t)].ecall));
       const pend = pendBy[i];
-      return { c, i, p, types, mon: roomScope(monitoredTypes(all, c), normalizeAllowance(c.sensorAllowancePct)), pend, areas: pend.areas ? normalizeCommonAreas(c.commonAreas).filter((a) => a.count > 0 && a.pendants > 0) : [] };
+      // Common area sensors count where sensors are shown (a deal with Resident Monitoring).
+      const ca = hasMon ? caSensorScope(c) : caSensorScope({ coverage: 'full_facility' });
+      const caIds = new Set(ca.areas.map((a) => a.id));
+      const areas = normalizeCommonAreas(c.commonAreas).filter((a) => a.count > 0 && ((pend.areas > 0 && a.pendants > 0) || caIds.has(a.id)));
+      return { c, i, p, types, mon: roomScope(monitoredTypes(all, c), normalizeAllowance(c.sensorAllowancePct)), pend, ca, caIds, areas };
     })
     .filter((x) => x.types.length || (x.pend.total > 0 && !normalizeRoomTypes(x.c.roomTypes).length));
   if (scopeSites.some((x) => x.types.length)) {
     const all = draft.communities.filter((c) => monitors(c));
     const roomsTotal = sum(all.map((c) => scopeOf(c).monitored));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
-    const sensorsTotal = roomsTotal + extraTotal;
+    // Common area sensors: counted with the rooms' sensors, never folded into "additional sensors".
+    const caAll = hasMon ? sum(draft.communities.map((c) => caSensorScope(c).total)) : 0;
+    const caSpaces = sum(scopeSites.flatMap((x) => x.ca.areas.map((a) => a.count)));
+    const roomSensors = roomsTotal + extraTotal;
+    const sensorsTotal = roomSensors + caAll;
     const monSites = scopeSites.filter((x) => x.mon.rooms > 0);
     const planTotal = sum(monSites.map((x) => x.mon.planSensors));
     const allowanceTotal = sum(monSites.map((x) => x.mon.allowance));
@@ -1395,6 +1403,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const careText = (t: Parameters<typeof careLabel>[0]) =>
       careShort ? (t.care === 'custom' ? (t.customCare?.trim() || 'Custom').split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase() : t.care.toUpperCase()) : careLabel(t);
     const foldAreas = layout.bcSiteAreas === 'fold';
+    const areasShown = (x: (typeof scopeSites)[number]) => x.areas.length > 0 || x.ca.extra > 0 || x.ca.typed > 0;
     const anyAreas = scopeSites.some((x) => x.areas.length);
     const cardsMode = scopeMode === 'both' ? layout.bcSiteCards ?? 'both' : scopeMode;
     // With Resident Monitoring: one "Per room" column (sensor dots, then E-Call device dots) and a legend; the totals
@@ -1452,7 +1461,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         }
       }
       if (!x.types.length) tot.rooms += x.pend.rooms;
-      st.s += x.mon.allowance;
+      st.s += x.mon.allowance + x.ca.total;
       st.dv += x.pend.total;
       tot.s += st.s;
       tot.e += st.e;
@@ -1491,13 +1500,19 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </div>
       );
     };
-    const titleVars = { rooms: count(scopeMode === 'ecall' ? ecRooms : roomsTotal), sensors: count(sensorsTotal), devices: count(devTotal), dev: DEV.many };
+    const titleVars = { rooms: count(scopeMode === 'ecall' ? ecRooms : roomsTotal), sensors: count(sensorsTotal), devices: count(devTotal), dev: DEV.many, areas: count(caSpaces) };
+    // With common area spaces tagged, the headline names them too.
+    const caTitle = caSpaces > 0;
     defs.sitescope = (no) => (
       <Page key="sitescope" no={no} crumb={<T k="bc.site.crumb" d="Scope" />}>
         <p className="bc-eyebrow"><T k="bc.site.eyebrow" d="Scope" /></p>
         <h1 className="bc-h1">
-          {scopeMode === 'mon' ? (
+          {scopeMode === 'mon' && caTitle ? (
+            <T k="bc.site.title.ca" d="Scoped from your floor plans: {rooms} rooms, {areas} common areas, {sensors} sensors." v={titleVars} />
+          ) : scopeMode === 'mon' ? (
             <T k="bc.site.title" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors." v={titleVars} />
+          ) : scopeMode === 'both' && caTitle ? (
+            <T k="bc.site.title.both.ca" d="Scoped from your floor plans: {rooms} rooms, {areas} common areas, {sensors} sensors, {devices} {dev}." v={titleVars} />
           ) : scopeMode === 'both' ? (
             <T k="bc.site.title.both" d="Scoped from your floor plans: {rooms} rooms, {sensors} sensors, {devices} {dev}." v={titleVars} />
           ) : ecCompare ? (
@@ -1541,11 +1556,27 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   </Stat>
                   <div className="bc-dark bc-dark-hot">
                     <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
-                    <span><T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} /></span>
+                    <span>
+                      {caAll > 0 ? (
+                        <T k="bc.site.sensors.ca" d="sensors: {rooms} in resident rooms (with a {pct} allowance) and {ca} in common areas" v={{ rooms: count(roomSensors), ca: count(caAll), pct: pctText }} />
+                      ) : (
+                        <T k="bc.site.sensors" d="sensors: {plan} from the plan, plus a {pct} allowance for site conditions" v={{ plan: count(planTotal), pct: pctText }} />
+                      )}
+                    </span>
                   </div>
-                  <Stat ck="site.extra" value={count(extraTotal)}>
-                    <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
-                  </Stat>
+                  {caAll > 0 ? (
+                    <Stat ck="site.ca" value={count(caAll)}>
+                      {caSpaces > 0 ? (
+                        <T k="bc.site.ca" d="common area sensors, in {n} shared spaces" v={{ n: count(caSpaces) }} />
+                      ) : (
+                        <T k="bc.site.ca.typed" d="common area sensors in the shared spaces residents use" />
+                      )}
+                    </Stat>
+                  ) : (
+                    <Stat ck="site.extra" value={count(extraTotal)}>
+                      <T k="bc.site.extra" d="additional sensors beyond the first in each room, including the allowance of {allowance}" v={{ allowance: count(allowanceTotal) }} />
+                    </Stat>
+                  )}
                 </>
               ) : cardsMode === 'both' ? (
                 <>
@@ -1554,7 +1585,13 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   </Stat>
                   <div className="bc-dark">
                     <b><CallOut k="site.sensors">{count(sensorsTotal)}</CallOut></b>
-                    <span><T k="bc.site.sensors.both" d="sensors: {plan} from the plan, plus a {pct} allowance" v={{ plan: count(planTotal), pct: pctText }} /></span>
+                    <span>
+                      {caAll > 0 ? (
+                        <T k="bc.site.sensors.both.ca" d="sensors: {rooms} in resident rooms, {ca} in common areas" v={{ rooms: count(roomSensors), ca: count(caAll) }} />
+                      ) : (
+                        <T k="bc.site.sensors.both" d="sensors: {plan} from the plan, plus a {pct} allowance" v={{ plan: count(planTotal), pct: pctText }} />
+                      )}
+                    </span>
                   </div>
                   <div className="bc-dark bc-dark-hot">
                     <b><CallOut k="site.devices">{count(devTotal)}</CallOut></b>
@@ -1688,28 +1725,58 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           {cells({ dp: 1, dv: x.pend.roomPendants })}
                         </tr>
                       )}
-                      {x.areas.length > 0 &&
+                      {areasShown(x) &&
                         (foldAreas
                           ? [
                               <tr key="areas-fold">
                                 <td className="bc-m"><T k="bc.site.areas" d="Common areas" /></td>
-                                <td><small>{count(x.pend.areas)} area{x.pend.areas === 1 ? '' : 's'}</small></td>
+                                <td>{x.areas.length > 0 && <small>{count(x.areas.length)} area{x.areas.length === 1 ? '' : 's'}</small>}</td>
                                 <td className="bc-r">–</td>
-                                {cells({ dv: x.pend.areaPendants })}
+                                {cells({ s: x.ca.total > 0 ? x.ca.total : null, dv: x.pend.areaPendants > 0 ? x.pend.areaPendants : null })}
                               </tr>,
                             ]
                           : [
                               <tr key="areas-sub" className="bc-site-sub" data-fixed>
                                 <td colSpan={nCols}><T k="bc.site.areas" d="Common areas" /></td>
                               </tr>,
-                              ...x.areas.map((a) => (
-                                <tr key={`area-${a.id}`}>
-                                  <td className="bc-m">{a.name || AREA_KINDS[a.kind]}</td>
-                                  <td><span className="bc-care bc-care-common">{careShort ? 'CA' : 'Common'}</span></td>
-                                  <td className="bc-r">{count(a.count)}</td>
-                                  {cells({ dp: a.pendants, dv: a.count * a.pendants })}
-                                </tr>
-                              )),
+                              ...x.areas.map((a) => {
+                                const sp = x.caIds.has(a.id) ? a.sensors ?? 0 : 0;
+                                const dp = x.pend.areas > 0 ? a.pendants : 0;
+                                return (
+                                  <tr key={`area-${a.id}`}>
+                                    <td className="bc-m">{a.name || AREA_KINDS[a.kind]}</td>
+                                    <td><span className="bc-care bc-care-common">{careShort ? 'CA' : 'Common'}</span></td>
+                                    <td className="bc-r">{count(a.count)}</td>
+                                    {cells({ sp, dp, s: sp ? a.count * sp : null, dv: dp ? a.count * dp : null })}
+                                  </tr>
+                                );
+                              }),
+                              ...(x.ca.extra > 0
+                                ? [
+                                    <tr key="ca-extra">
+                                      <td className="bc-m">
+                                        <T k="bc.site.caExtra" d="Extra common area sensors" />
+                                        <small className="bc-site-note"><T k="bc.site.caExtra.note" d="Beyond the spaces tagged on the plans" /></small>
+                                      </td>
+                                      <td><span className="bc-care bc-care-common">{careShort ? 'CA' : 'Common'}</span></td>
+                                      <td className="bc-r">–</td>
+                                      {cells({ s: x.ca.extra })}
+                                    </tr>,
+                                  ]
+                                : []),
+                              ...(x.ca.typed > 0
+                                ? [
+                                    <tr key="ca-typed">
+                                      <td className="bc-m">
+                                        <T k="bc.site.caTyped" d="Common area sensors" />
+                                        <small className="bc-site-note"><T k="bc.site.caTyped.note" d="Not on the plans" /></small>
+                                      </td>
+                                      <td><span className="bc-care bc-care-common">{careShort ? 'CA' : 'Common'}</span></td>
+                                      <td className="bc-r">–</td>
+                                      {cells({ s: x.ca.typed })}
+                                    </tr>,
+                                  ]
+                                : []),
                             ])}
                       {!totalsOut && (x.mon.allowance > 0 || x.pend.allowance > 0) && (
                         <tr key="allow">
@@ -2076,7 +2143,11 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
 
   /** Every community: beds by care type, and its total cost (a main figure with a smaller one under it). */
   // Columns: sensors where any community has Resident Monitoring, pendants / pull-cords where any has E-Call ("–" where a community has none).
-  const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }, opts?: { id?: string; name?: string; heading?: React.ReactNode }) => (
+  const communityTable = (cell: (i: number) => { main: string; sub: string }, total: { main: string; sub: string }, opts?: { id?: string; name?: string; heading?: React.ReactNode }) => {
+    // Common area sensors get their own column, only when some community has them.
+    const caBy = draft.communities.map((c) => (hasMon ? caSensorScope(c).total : 0));
+    const hasCa = caBy.some((n) => n > 0);
+    return (
     <>
       {!opts?.heading && <p className="bc-eyebrow bc-gray"><T k="bc.scope.where" d={draft.communities.length === 1 ? 'The community' : 'By community'} /></p>}
       <div className={`bc-card bc-tbl bc-hrs bc-pilot-tbl ${hasMon && hasEc ? 'bc-site-8' : ''} ${opts?.heading ? 'bc-tbl-headed' : ''}`}>
@@ -2088,7 +2159,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               <th>AL beds</th>
               <th>MC beds</th>
               <th>SNF beds</th>
-              {hasMon && <th>Sensors</th>}
+              {hasMon && <th>{hasCa ? 'Room sensors' : 'Sensors'}</th>}
+              {hasCa && <th>Common area</th>}
               {hasEc && <th>{DEV.Many}</th>}
               <th className="bc-hl">Total cost</th>
             </tr>
@@ -2107,6 +2179,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <td>{count(b.mc)}</td>
                   <td>{count(b.snf)}</td>
                   {hasMon && <td>{monitors(dc) ? count(sensorsOf(dc)) : '–'}</td>}
+                  {hasCa && <td>{caBy[i] ? count(caBy[i]) : '–'}</td>}
                   {hasEc && <td>{pendBy[i].total ? count(pendBy[i].total) : '–'}</td>}
                   <td className="bc-hl bc-big">
                     {c.main}
@@ -2122,6 +2195,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).mc)))}</td>
                 <td>{count(sum(draft.communities.map((c) => bedsOf(c).snf)))}</td>
                 {hasMon && <td>{count(sum(draft.communities.filter((c) => monitors(c)).map(sensorsOf)))}</td>}
+                {hasCa && <td>{count(sum(caBy))}</td>}
                 {hasEc && <td>{count(devTotal)}</td>}
                 <td className="bc-hl bc-big">
                   {total.main}
@@ -2133,7 +2207,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </RTable>
       </div>
     </>
-  );
+    );
+  };
   {
     // ---------- E-Call only, comparing Bluetooth and Inovonics (subscription) ----------
     // The deal is priced with its chosen system; the other uses its comparison rate (or list). Each system's figures
@@ -4050,7 +4125,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       .filter(([n]) => n > 0)
       .map(([n, label]) => `${count(n)} ${label}`);
     const careText = careSplit.length > 1 ? `${careSplit.slice(0, -1).join(', ')} and ${careSplit[careSplit.length - 1]}` : careSplit[0] ?? '';
-    const sensorsTotal = sum(draft.communities.map(sensorsOf));
+    // Rooms' sensors plus common area sensors (shown split under the figure).
+    const caExec = hasMon ? sum(draft.communities.map((c) => caSensorScope(c).total)) : 0;
+    const sensorsTotal = sum(draft.communities.map(sensorsOf)) + caExec;
     const nComm = draft.communities.length;
     const head = (k: string, d0: string, page: string) => (
       <p className="bc-exec-lbl">
@@ -4187,7 +4264,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 </p>
                 <div className="bc-exec-mini">
                   <div><b>{count(units)}</b><span>Edge units</span></div>
-                  <div><b>{count(sensorsTotal)}</b><span>sensors</span></div>
+                  <div><b>{count(sensorsTotal)}</b><span>{caExec > 0 ? `sensors, ${count(caExec)} in common areas` : 'sensors'}</span></div>
                   {scopeMode === 'both' && <div className="bc-exec-co"><b>{count(devTotal)}</b><span>{DEV.many}</span></div>}
                   <div><b>{nComm}</b><span>{nComm === 1 ? 'community' : 'communities'}</span></div>
                 </div>
