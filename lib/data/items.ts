@@ -6,6 +6,7 @@
  * Whenever a generic item changes, the line-up's copy of it is refreshed as a new line-up version (new deals use
  * it; open deals show "Update this deal"), so a deal always prices with the version it was built with.
  */
+import { PACK_IDS, TINT_IDS, TINTS, packIcon } from '@/lib/resources/iconPack';
 import type { Client } from '@libsql/client';
 import { BUILTIN_DETAILS, COUNT_BASES, pricingModelFor, type Billing, type CountBasis, type PerUnit, type PilotRule } from '@/lib/pricing/catalog';
 import { CATEGORIES } from '@/lib/pricing/markets';
@@ -28,6 +29,9 @@ export interface ItemInput {
   pilotRule?: unknown;
   list: unknown;
   description?: unknown;
+  /** Icon from the icon pack and its tint (optional: unset uses the category's icon). */
+  icon?: unknown;
+  iconTint?: unknown;
   /** Also add it to a core product, for a way to buy (turned on there if it was off). */
   addTo?: { core: unknown; side: unknown } | null;
 }
@@ -145,6 +149,8 @@ export async function createItem(db: Client, b: ItemInput, userId: number | null
     args: [sku, name, pricingModelFor(d.billing!, d.per), Math.round(list * 100) / 100, d.description ?? '', code, d.billing!, d.everyYears ?? null, d.per!, d.counted!, d.pilotRule!, d.category!, d.sub!, userId],
   });
   await log(db, sku, 'created', null, `${code} · ${name}`, userId);
+  const ic = iconOf(b.icon, b.iconTint);
+  if (ic.icon) await db.execute({ sql: 'UPDATE products SET icon = ?, icon_tint = ? WHERE sku = ?', args: [ic.icon, ic.tint, sku] });
   let lineup: LineupInfo | null = null;
   if (b.addTo) {
     const side = b.addTo.side === 'capex' ? 'capex' : b.addTo.side === 'subscription' ? 'subscription' : null;
@@ -228,6 +234,24 @@ export async function updateItemDetails(db: Client, sku: string, p: DetailsPatch
     for (const c of changes) await log(db, sku, c[1], c[1] === 'priced by' ? (c[2] ? 'its details' : 'built-in rules') : show(c[2]), c[1] === 'priced by' ? (c[3] ? 'its details' : 'built-in rules') : show(c[3]), userId);
   }
   return { item: await row(db, sku), lineup: await refreshLineupItems(db, userId) };
+}
+
+/** An icon choice, checked: a pack icon and a tint (a missing or unknown tint: the icon's own default), or none. */
+function iconOf(icon: unknown, tint: unknown): { icon: string | null; tint: string | null } {
+  if (icon == null || icon === '') return { icon: null, tint: null };
+  if (!PACK_IDS.has(String(icon))) throw bad('Choose an icon from the library');
+  return { icon: String(icon), tint: TINT_IDS.has(String(tint)) ? String(tint) : null };
+}
+
+/** Set (or, with no icon, reset to its category's) an item's icon. Any item, built-in ones too: it's only how it looks. */
+export async function setItemIcon(db: Client, sku: string, icon: unknown, tint: unknown, userId: number | null): Promise<PriceBookRow> {
+  const cur = await row(db, sku);
+  const next = iconOf(icon, tint);
+  if ((cur.icon ?? null) === next.icon && (cur.iconTint ?? null) === next.tint) return cur;
+  await db.execute({ sql: "UPDATE products SET icon = ?, icon_tint = ?, updated_by = ?, updated_at = datetime('now') WHERE sku = ? AND active = 1", args: [next.icon, next.tint, userId, sku] });
+  const name = (i: string | null, t: string | null) => (i ? [packIcon(i)?.name ?? i, t ? TINTS[t]?.name : null].filter(Boolean).join(' · ') : 'Automatic');
+  await log(db, sku, 'icon', name(cur.icon ?? null, cur.iconTint ?? null), name(next.icon, next.tint), userId);
+  return row(db, sku);
 }
 
 /** Open deals whose copy of the line-up has this item (built-in items: every open deal without a copy, too). */

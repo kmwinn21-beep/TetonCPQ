@@ -813,4 +813,13 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE products ADD COLUMN generic INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: 35,
+    name: 'item icons',
+    sql: [
+      // An icon from the icon pack and its tile tint, picked in the price book (unset: the icon its category gives).
+      `ALTER TABLE products ADD COLUMN icon TEXT`,
+      `ALTER TABLE products ADD COLUMN icon_tint TEXT`,
+    ],
+  },
 ];

@@ -5,6 +5,7 @@
  * from their details, what the quantity is and how pilots treat it. Built-in items keep their pricing rules (a few can
  * switch to being priced from their details). Saving refreshes the core products' copy of the item.
  */
+import { ItemIconPicker } from './ItemIcon';
 import { useEffect, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
@@ -143,6 +144,22 @@ export function ItemDetailsTab({ r, canEdit, onSaved, onLineup, draft, onDraft }
   const report = useRef(onDraft);
   report.current = onDraft;
   useEffect(() => report.current?.(draftKey ? f : null), [draftKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [iconBusy, setIconBusy] = useState(false);
+  const [iconErr, setIconErr] = useState<string | null>(null);
+  const saveIcon = async (v: { icon: string | null; tint: string | null }) => {
+    setIconBusy(true);
+    setIconErr(null);
+    try {
+      const res = await fetch(`/api/catalog/${encodeURIComponent(r.sku)}/icon`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(v) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? 'Could not save the icon');
+      onSaved(j.item as PriceBookRow);
+    } catch (e) {
+      setIconErr(e instanceof Error ? e.message : 'Could not save the icon');
+    } finally {
+      setIconBusy(false);
+    }
+  };
   const pricingChanged = changed.some((k) => k === 'billing' || k === 'everyYears' || k === 'counted' || k === 'pilotRule');
   const send = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -199,6 +216,11 @@ export function ItemDetailsTab({ r, canEdit, onSaved, onLineup, draft, onDraft }
 
   return (
     <>
+      <div className={box}>
+        <p className={h4}>Icon</p>
+        <ItemIconPicker item={r} value={{ icon: r.icon ?? null, tint: r.iconTint ?? null }} onChange={(v) => void saveIcon(v)} disabled={iconBusy} />
+        <small className="mt-1.5 block text-[11px] text-[#8A919C]">{iconErr ?? 'Saved as you pick.'}</small>
+      </div>
       <div className={box}>
         <p className={h4}>How it’s priced</p>
         {builtin && !conv && !generic && (

@@ -79,3 +79,21 @@ describe('editing item details', () => {
     expect(await openDealsWith(db, SKU.commonAreaMonthly)).toBe(0);
   });
 });
+
+describe('item icons', () => {
+  it('a new item can have an icon from the library; unknown icons are refused', async () => {
+    const { item } = await createItem(db, { ...base, name: 'Icon test kit', itemCode: 'TT-ICO-001', icon: 'call-bell', iconTint: 'coral' }, null);
+    expect([item.icon, item.iconTint]).toEqual(['call-bell', 'coral']);
+    await expect(createItem(db, { ...base, name: 'Icon test kit 2', itemCode: 'TT-ICO-002', icon: 'not-an-icon' }, null)).rejects.toThrow(/icon from the library/);
+    const { item: plain } = await createItem(db, { ...base, name: 'Icon test kit 3', itemCode: 'TT-ICO-003' }, null);
+    expect([plain.icon, plain.iconTint]).toEqual([null, null]);
+  });
+  it('any item, built-in too, can change its icon or go back to automatic; each change is in its history', async () => {
+    const { setItemIcon } = await import('./items');
+    const a = await setItemIcon(db, SKU.platform, 'folder', 'nope', null);
+    expect([a.icon, a.iconTint]).toEqual(['folder', null]);
+    const b = await setItemIcon(db, SKU.platform, null, null, null);
+    expect([b.icon, b.iconTint]).toEqual([null, null]);
+    expect(b.history.filter((h) => h.field === 'icon').map((h) => h.newValue)).toEqual(expect.arrayContaining(['Folder', 'Automatic']));
+  });
+});

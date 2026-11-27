@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Collapse } from '@/components/form/fields';
 import { SwipeSheet, usePhone } from '@/components/form/SwipeSheet';
 import { FoldStrip, useFold } from '@/components/form/useFold';
+import { ItemIconPicker } from './ItemIcon';
 import { CATEGORIES, placeFor } from '@/lib/pricing/markets';
 import { OFFER_LOCKED, SIDE_LABEL, SIDES, type Side } from '@/lib/pricing/lineup';
 import type { LineupInfo } from '@/lib/data/lineup';
@@ -28,7 +29,7 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated, on
   // "New item" pressed again while folded: open the same draft.
   useEffect(() => fold.unfold(), [wake]); // eslint-disable-line react-hooks/exhaustive-deps
   const phone = usePhone('(max-width: 1023px)');
-  const blank = (): DetailsForm & { name: string; code: string; list: string; addTo: string } => ({ name: '', code: '', list: '', addTo: '', billing: 'once', everyYears: 1, per: 'sensor', counted: 'commonAreaSensors', pilotRule: 'credited', category: 'Add-ons', sub: '', description: '' });
+  const blank = (): DetailsForm & { name: string; code: string; list: string; addTo: string; icon: string | null; iconTint: string | null } => ({ name: '', code: '', list: '', addTo: '', billing: 'once', everyYears: 1, per: 'sensor', counted: 'commonAreaSensors', pilotRule: 'credited', category: 'Add-ons', sub: '', description: '', icon: null, iconTint: null });
   const [f, setF] = useState(blank);
   const [suggest, setSuggest] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -98,6 +99,8 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated, on
           pilotRule: f.pilotRule,
           list,
           description: f.description,
+          icon: f.icon,
+          iconTint: f.iconTint,
           addTo: addCore && addSide ? { core: addCore, side: addSide } : null,
         }),
       });
@@ -114,6 +117,7 @@ export function NewItem({ open, onClose, rows, lineup, coresDirty, onCreated, on
 
   const body = (
     <div className="space-y-3">
+      <ItemIconPicker item={{ sku: '', category: f.category, sub: f.sub }} value={{ icon: f.icon, tint: f.iconTint }} onChange={(v) => set({ icon: v.icon, iconTint: v.tint })} disabled={busy} />
       <label className="block">
         <span className={label}>Name</span>
         <input value={f.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} className={`${input} ${nameTaken || pilotWord ? 'border-[#E0806B] bg-[#FFF7F5]' : 'border-[#E4E0D6]'}`} placeholder="e.g. Common area sensor (purchase)" />

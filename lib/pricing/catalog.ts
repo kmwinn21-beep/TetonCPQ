@@ -27,6 +27,9 @@ export interface Product {
   category?: string | null;
   sub?: string | null;
   /** Priced generically (quantity × deal price × billing) instead of by a built-in role. */
+  /** Icon from the icon pack (lib/resources/iconPack) and its tint; unset: the icon its category gives. */
+  icon?: string | null;
+  iconTint?: string | null;
   generic?: boolean;
 }
 

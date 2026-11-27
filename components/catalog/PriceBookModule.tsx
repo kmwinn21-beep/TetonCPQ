@@ -367,7 +367,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
                 return (
                   <button key={r.sku} type="button" data-fold-ignore onClick={() => openRow(r.sku)} aria-current={sel === r.sku ? 'true' : undefined} className={`${cols} w-full min-h-[56px] py-2 border-b border-[#F1EEE7] text-left transition-colors duration-150 ${sel === r.sku ? 'bg-[#F3F7FD] shadow-[inset_3px_0_#3F8CEA]' : 'hover:bg-[#FCFBF8]'}`}>
                     <span className="flex items-center gap-2.5 min-w-0">
-                      <Icon sku={r.sku} />
+                      <Icon sku={r.sku} item={r} />
                       <span className="min-w-0">
                         <b className="block truncate text-[13px] font-semibold">{r.name}</b>
                         <small className="block truncate text-[11.5px] text-[#6B7380]">{UNIT[r.pricingModel]}</small>
@@ -418,7 +418,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
               <tr key={r.sku} className={`border-b border-[#F1EEE7] cursor-pointer ${sel === r.sku ? 'bg-[#F3F7FD]' : 'hover:bg-[#FCFBF8]'}`} data-fold-ignore onClick={() => openRow(r.sku)}>
                 <td className="px-4 py-2.5 sticky left-0 bg-inherit">
                   <span className="flex items-center gap-2.5 min-w-[220px]">
-                    <Icon sku={r.sku} size="w-7 h-7" />
+                    <Icon sku={r.sku} item={r} size="w-7 h-7" />
                     <span>
                       <b className="block text-[12.5px] font-semibold">{r.name}</b>
                       <small className="text-[11px] text-[#6B7380]">{UNIT[r.pricingModel]}</small>
@@ -468,7 +468,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
             const p = priceIn(r, market);
             return (
               <button key={r.sku} type="button" onClick={() => setSel(r.sku)} className="w-full mb-2 flex gap-3 rounded-[14px] border border-[#E8E4DC] bg-white p-3 text-left">
-                <Icon sku={r.sku} />
+                <Icon sku={r.sku} item={r} />
                 <span className="min-w-0 flex-1">
                   <b className="block text-[13.5px] font-semibold">{r.name}</b>
                   <small className="block text-[11.5px] text-[#6B7380]">
@@ -740,7 +740,7 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, o
             </button>
           </div>
           <div className="flex items-center gap-3 mt-1">
-            <Icon sku={r.sku} size="w-11 h-11" />
+            <Icon sku={r.sku} item={r} size="w-11 h-11" />
             <span className="min-w-0">
               <NameField r={r} canEdit={canEdit} onSaved={onSaved} />
               <small className="text-[12px] text-[#6B7380]">{r.generic && r.counted ? `${COUNT_LABEL[r.counted]}${billingOf(r) === 'monthly' ? ' / month' : billingOf(r) === 'years' ? `, every ${r.everyYears ?? 1} years` : ', one-time'}` : UNIT[r.pricingModel]}</small>
@@ -931,7 +931,7 @@ function BillingPill({ r }: { r: PriceBookRow }) {
 }
 
 /** Item-detail changes (see lib/data/items): their labels. */
-const DETAIL_FIELDS: Record<string, string> = { created: 'Added', billing: 'Billing', 'every years': 'Every N years', 'priced per': 'Priced per', 'counted by': 'Counted by', pilot: 'Pilot', category: 'Category', group: 'Group', description: 'Description', 'priced by': 'Priced by' };
+const DETAIL_FIELDS: Record<string, string> = { created: 'Added', billing: 'Billing', 'every years': 'Every N years', 'priced per': 'Priced per', 'counted by': 'Counted by', pilot: 'Pilot', category: 'Category', group: 'Group', description: 'Description', 'priced by': 'Priced by', icon: 'Icon' };
 const changeLabel = (field: string) => {
   if (field === 'sku') return 'SKU';
   if (field === 'name') return 'Name';

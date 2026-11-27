@@ -525,7 +525,7 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
             {lines.map((l) => (
               <div key={l.key}>
                 <div className={`grid grid-cols-[30px_minmax(0,1fr)_30px] md:grid-cols-[28px_minmax(0,2fr)_78px_62px_124px_minmax(76px,.8fr)_26px] gap-x-3 gap-y-2 items-center px-4 py-2.5 border-b border-[#F1EEE7] ${l.locked ? 'bg-[#FCFBF8]' : ''}`}>
-                  <ItemIcon sku={l.sku} size="w-[28px] h-[28px]" />
+                  <ItemIcon sku={l.sku} item={book[l.sku]} size="w-[28px] h-[28px]" />
                   <div className="min-w-0">
                     {l.locked && l.field ? (
                       <button type="button" onClick={() => setImplOpen(!implOpen)} aria-expanded={implOpen} aria-controls="impl-credit" className="text-left group">

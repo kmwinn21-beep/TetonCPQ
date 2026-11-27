@@ -382,7 +382,7 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange, onRemove }: 
                 <button type="button" aria-label={`Move ${l.name} up`} disabled={i === 0} onClick={() => move(i, -1)} className="w-7 h-5 text-[10px] text-[#8A919C] disabled:opacity-30 hover:text-teton-ink">▲</button>
                 <button type="button" aria-label={`Move ${l.name} down`} disabled={i === items.length - 1} onClick={() => move(i, 1)} className="w-7 h-5 text-[10px] text-[#8A919C] disabled:opacity-30 hover:text-teton-ink">▼</button>
               </span>
-              <ItemIcon sku={e.sku} size="w-[28px] h-[28px]" />
+              <ItemIcon sku={e.sku} item={rows.find((x) => x.sku === e.sku)} size="w-[28px] h-[28px]" />
               <span className="min-w-0">
                 <b className="block text-[12.5px] font-semibold">{l.name}</b>
                 <small className="block text-[11px] text-[#8A919C]">
@@ -408,7 +408,7 @@ function CoreDrawer({ core, rows, lineup, label, onClose, onChange, onRemove }: 
                 const l = label(e);
                 return (
                   <button key={key(e)} type="button" onClick={() => (setItems((xs) => [...xs, e]), setQ(''))} className="w-full flex items-center gap-2.5 px-3 py-2 border-b border-[#F7F4EE] text-left text-[12.5px] hover:bg-[#F3F8FE]">
-                    <ItemIcon sku={e.sku} size="w-[24px] h-[24px]" />
+                    <ItemIcon sku={e.sku} item={rows.find((x) => x.sku === e.sku)} size="w-[24px] h-[24px]" />
                     <span className="min-w-0 flex-1 truncate">{l.name}</span>
                     <span className="font-mono text-[11px] text-[#8A919C]">{l.code}</span>
                   </button>

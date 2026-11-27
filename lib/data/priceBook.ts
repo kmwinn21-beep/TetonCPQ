@@ -5,6 +5,7 @@
  * versions keep the figures they were saved with, and existing drafts keep
  * their own rates.
  */
+import { PACK_IDS, TINT_IDS } from '@/lib/resources/iconPack';
 import type { Client } from '@libsql/client';
 import { COUNT_BASES, SEED_PRODUCTS, type Billing, type CountBasis, type PerUnit, type PilotRule, type PricingModel, type Product } from '@/lib/pricing/catalog';
 import { LIVE_MARKET, MARKET_CODES, MARKET_SEED } from '@/lib/pricing/markets';
@@ -68,14 +69,14 @@ export function defaultListPrice(sku: string): number | null {
 }
 
 /** The item-detail columns, for SELECTs (see productDetails). */
-export const DETAIL_COLS = 'billing, every_years, per_unit, counted, pilot_rule, category, sub, generic';
+export const DETAIL_COLS = 'billing, every_years, per_unit, counted, pilot_rule, category, sub, generic, icon, icon_tint';
 
 const BILLINGS = ['monthly', 'once', 'years'];
 const PERS = ['bed', 'room', 'sensor', 'device', 'community', 'flat'];
 const PILOTS = ['free', 'charged', 'credited', 'none'];
 
 /** A product row's item details (missing columns before the migration read as unset). */
-export function productDetails(r: Record<string, unknown>): Pick<Product, 'billing' | 'everyYears' | 'per' | 'counted' | 'pilotRule' | 'category' | 'sub' | 'generic'> {
+export function productDetails(r: Record<string, unknown>): Pick<Product, 'billing' | 'everyYears' | 'per' | 'counted' | 'pilotRule' | 'category' | 'sub' | 'generic' | 'icon' | 'iconTint'> {
   const s = (v: unknown) => (v == null ? null : String(v));
   const billing = s(r.billing);
   return {
@@ -87,6 +88,8 @@ export function productDetails(r: Record<string, unknown>): Pick<Product, 'billi
     category: s(r.category),
     sub: s(r.sub),
     generic: Number(r.generic) === 1,
+    icon: PACK_IDS.has(s(r.icon) ?? '') ? s(r.icon) : null,
+    iconTint: TINT_IDS.has(s(r.icon_tint) ?? '') ? s(r.icon_tint) : null,
   };
 }
 
