@@ -10,6 +10,14 @@ Decided: everyone sees every deal; planned rows (approvals, agreements) are a re
 
 When a backlog feature ships, flip its permissions to `shipped: true`, check them on the server, and review the defaults.
 
+## 1b. Custom roles: add, rename, delete (decided, not started)
+
+Mock: `docs/mocks/roles/custom-roles.html`. From the permissions page: "+ Add role" (name, description, start from an existing role's permissions or nothing), rename any role but Admin, edit description, duplicate, reorder, delete (its people moved to another role first, type the name to confirm). Users page lists every role in order, custom ones tagged.
+
+Decided: built-in roles (Sales rep, RevOps, VP Sales, CEO) can be renamed and deleted once nobody has them; Admin can't be renamed or deleted; custom roles get the defaults of the role they started from for permissions added later (Off if started from nothing); admins only.
+
+Build notes: roles move from the fixed list (code + CHECK constraints on `users.role` and `role_permissions.role`) to a roles table with a permanent hidden key, name, description, order, starting role, built-in flag; renames change only the name. Code stops testing role names except `admin` (the guardrail's "Route to RevOps" becomes "someone who can approve tier 1"). Unique names, max 20 roles.
+
 ## 2. Deal approval workflow (after #1)
 
 Built on the approval capabilities from #1. Mock first. Covers: approval requests from guardrail findings, notifying the people who can approve, approve / reject with a note, saving blocked until approved, approval history on the deal, and what a later price change does to an approval.

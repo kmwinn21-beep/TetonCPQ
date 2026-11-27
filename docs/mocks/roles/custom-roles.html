@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Custom Roles Mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--g:#1F6B3A;--gBg:#E3F4E8;--b:#1F5FB5;--bBg:#E8F1FD;--a:#8A5A00;--aBg:#FFF3D6;--c:#A63A22;--cBg:#FDEDE8;--coral:#E8664A;--vio:#5B3FA8;--vioBg:#F0EBFB}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:48px 0 4px;letter-spacing:-.2px}
+h3{font-size:15px;margin:0 0 4px}
+.lede{color:var(--ink2);max-width:820px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:860px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:900px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.r{color:#B4442C}
+.btn.sm{height:26px;padding:0 9px;font-size:11.5px;border-radius:7px}
+.sp{flex:1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.app{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;margin-top:14px;box-shadow:0 10px 30px rgba(15,23,32,.06)}
+.ah{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ah h3{margin:0;font-size:17px}
+.tw{overflow-x:auto}
+.grid{display:grid;grid-template-columns:minmax(220px,1fr) repeat(6,124px) 110px;min-width:1100px}
+.hd{padding:10px 8px;border-bottom:1px solid var(--line);text-align:center;position:relative}
+.hd:first-child{text-align:left;padding-left:18px;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);display:flex;align-items:flex-end}
+.rn{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;font-weight:600}
+.rn .dots{color:var(--mut);font-weight:700;padding:0 3px;border-radius:5px}
+.hd small{display:block;font-size:10.5px;color:var(--mut)}
+.hd.new{background:#F4FBF6}
+.hd.new .rn{color:var(--g)}
+.tag{display:inline-flex;align-items:center;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:3px}
+.t-new{background:var(--gBg);color:var(--g)}.t-cus{background:var(--vioBg);color:var(--vio)}
+.addcol{display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--line);border-left:1px dashed #D5CFC5}
+.addcol span{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--b);border:1.5px dashed #9CC0EE;border-radius:9px;padding:6px 10px;background:#F7FAFE}
+.gr{grid-column:1/-1;background:#F7F4EE;padding:9px 18px;font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--ink2)}
+.c{padding:8px;border-bottom:1px solid var(--line);display:flex;justify-content:center;align-items:center}
+.c.l{justify-content:flex-start;padding-left:18px;flex-direction:column;align-items:flex-start}
+.c.l small{color:var(--mut);font-size:11px}
+.c.new{background:#F4FBF6}
+.c.e{border-left:1px dashed #E7E2D9}
+.cell{display:inline-flex;align-items:center;justify-content:center;min-width:96px;height:26px;padding:0 8px;border-radius:7px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+.all,.on{background:var(--ink);color:#fff}.collab{background:var(--bBg);color:var(--b);border-color:#CADDF7}.own{background:var(--gBg);color:var(--g);border-color:#CFE8D7}.off{background:#F4F1EB;color:#B6B0A6}.lock{background:#2B3440;color:#fff}
+
+/* header menu + rename */
+.menu{position:absolute;z-index:6;top:44px;left:50%;transform:translateX(-50%);width:210px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(15,23,32,.18);padding:6px;text-align:left}
+.menu div{display:flex;gap:9px;align-items:center;padding:7px 9px;border-radius:8px;font-size:12.5px}
+.menu div.on2{background:#EEF5FE}
+.menu div.dng{color:#B4442C}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.menu i{font-style:normal;width:16px;text-align:center;color:var(--mut)}
+.ren{display:flex;align-items:center;gap:4px;justify-content:center}
+.ren input{width:104px;height:28px;border:2px solid #3F8CEA;border-radius:7px;padding:0 7px;font:600 12.5px Inter;color:var(--ink);outline:none;box-shadow:0 0 0 3px rgba(63,140,234,.15)}
+
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:14px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.dlg{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px rgba(15,23,32,.14);overflow:hidden}
+.dh{padding:14px 16px 4px}
+.dh b{font-size:15px}
+.dh p{margin:3px 0 0;color:var(--ink2);font-size:12.5px}
+.db{padding:10px 16px 14px;display:flex;flex-direction:column;gap:10px}
+.df{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;background:#FBFAF7}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+.inp{min-height:34px;border:1px solid #DCD6CC;border-radius:9px;padding:7px 10px;font-size:13px;color:var(--ink);display:flex;align-items:center}
+.inp.ph{color:var(--mut)}
+.inp.ta{min-height:54px;align-items:flex-start}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:grid;grid-template-columns:18px 1fr auto;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;align-items:start}
+.opt.on3{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.opt .rd{width:16px;height:16px;border-radius:50%;border:2px solid #C9C2B6;margin-top:1px}
+.opt.on3 .rd{border:5px solid var(--ink)}
+.opt b{display:block}
+.opt small{color:var(--ink2)}
+.opt .n{font-size:11px;color:var(--mut);white-space:nowrap}
+.note{background:#F7F4EE;border-radius:10px;padding:9px 11px;font-size:12px;color:var(--ink2)}
+.warn{background:var(--aBg);border-radius:10px;padding:9px 11px;font-size:12px;color:#5E3E00}
+.sel{height:34px;border:1px solid #DCD6CC;border-radius:9px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600}
+.ppl{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pp{display:flex;align-items:center;gap:9px;padding:7px 10px;border-top:1px solid var(--line);font-size:12.5px}
+.pp:first-child{border-top:0}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;background:#7C5CC4}
+
+.users{width:100%;border-collapse:collapse;font-size:12.5px}
+.users th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);font-weight:700;padding:9px 12px;border-bottom:1px solid var(--line)}
+.users td{padding:9px 12px;border-bottom:1px solid var(--line)}
+.users tr:last-child td{border-bottom:0}
+.rchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 9px;font-weight:600;font-size:12px}
+.rchip::after{content:'▾';color:var(--mut);font-size:10px}
+.drop{border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 26px rgba(15,23,32,.14);background:#fff;padding:5px;width:220px;margin-top:6px}
+.drop div{padding:6px 9px;border-radius:7px;font-size:12.5px;display:flex;justify-content:space-between}
+.drop div small{color:var(--mut)}
+.drop div.on2{background:#EEF5FE;font-weight:600}
+.drop .h{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);padding:6px 9px 2px}
+
+.box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.step{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.step:first-of-type{border-top:0;padding-top:2px}
+.step .i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;background:var(--bBg);color:var(--b)}
+.step b{display:block;font-size:13.5px}
+.step span{color:var(--ink2);font-size:12.5px}
+.k{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:#F4F1EB;border-radius:5px;padding:1px 5px}
+
+.dec{counter-reset:d;list-style:none;padding:0;margin:14px 0 0;display:grid;gap:10px}
+.dec li{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 48px;position:relative;font-size:13px}
+.dec li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:12px;width:22px;height:22px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.dec li b{display:block}
+.dec li span{color:var(--ink2);font-size:12.5px}
+.rec{color:var(--g);font-weight:700}
+
+.phonewrap{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;margin-top:14px}
+.phone{width:300px;max-width:100%;border:10px solid #14191F;border-radius:34px;background:#fff;overflow:hidden}
+.phone .ph{padding:12px;border-bottom:1px solid var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px}
+.chips span{flex:0 0 auto;font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:5px 10px}
+.chips span.on4{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chips span.add{border-style:dashed;color:var(--b);border-color:#9CC0EE}
+.rolebar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#FBFAF7;border-bottom:1px solid var(--line);font-size:12px}
+.rolebar b{font-size:13px}
+.notes{display:flex;flex-direction:column;gap:10px}
+.notes .box{padding:12px 14px;font-size:12.5px;color:var(--ink2)}
+.notes .box b{display:block;color:var(--ink);margin-bottom:2px}
+
+@media (max-width:960px){
+  .three,.two{grid-template-columns:1fr}
+  .phonewrap{grid-template-columns:1fr;justify-items:center}
+  h1{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Mock · nothing changed · follows the permissions build</p>
+  <h1>Adding roles and renaming them</h1>
+  <p class="lede">Admins add a role from the permissions page, start it from an existing role's permissions, and rename any role except Admin. People keep their role through a rename. Deleting a role first moves its people to another role.</p>
+
+  <h2>1 · The matrix, with a role being added and one being renamed</h2>
+  <p class="sub">A dashed <b>+ Add role</b> column sits at the end. Each role's name has a ⋯ menu. Here "Sales rep" is being renamed to "Account Executive", and a new role, <b>Sales Engineer</b>, was just added from Sales rep's permissions (green column, not saved yet).</p>
+  <div class="app">
+    <div class="ah"><h3>Roles &amp; permissions</h3><span class="sp"></span><span class="btn sm">Reset to defaults</span><span class="btn sm k">Save 2 changes</span></div>
+    <div class="tw">
+      <div class="grid">
+        <div class="hd">Permission</div>
+        <div class="hd"><div class="ren"><input value="Account Executive" aria-label="Role name"></div><small>12 users · Enter to keep</small></div>
+        <div class="hd" style="position:relative"><div class="rn">RevOps <span class="dots">⋯</span></div><small>3 users</small>
+          <div class="menu">
+            <div><i>✎</i>Rename</div>
+            <div class="on2"><i>¶</i>Edit description</div>
+            <div><i>⧉</i>Duplicate as a new role</div>
+            <div><i>←</i>Move left</div>
+            <div><i>→</i>Move right</div>
+            <hr>
+            <div class="dng"><i>✕</i>Delete role…</div>
+          </div>
+        </div>
+        <div class="hd"><div class="rn">VP Sales <span class="dots">⋯</span></div><small>2 users</small></div>
+        <div class="hd"><div class="rn">CEO <span class="dots">⋯</span></div><small>1 user</small></div>
+        <div class="hd new"><div class="rn">Sales Engineer <span class="tag t-new">New</span> <span class="dots">⋯</span></div><small>from Sales rep · 0 users</small></div>
+        <div class="hd"><div class="rn">Admin 🔒</div><small>locked</small></div>
+        <div class="addcol"><span>＋ Add role</span></div>
+
+        <div class="gr">Deals</div>
+        <div class="c l"><b style="font-weight:600">Edit deal inputs</b><small>Terms, products, pricing</small></div>
+        <div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c new"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell lock">All deals</span></div><div class="c e"></div>
+        <div class="c l"><b style="font-weight:600">Scope floor plans</b><small>Scope Mode, room types</small></div>
+        <div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell all">All deals</span></div><div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c"><span class="cell collab">+ Collaborating</span></div><div class="c new"><span class="cell all">All deals</span></div><div class="c"><span class="cell lock">All deals</span></div><div class="c e"></div>
+        <div class="c l"><b style="font-weight:600">Archive or delete a deal</b></div>
+        <div class="c"><span class="cell own">Own deals</span></div><div class="c"><span class="cell own">Own deals</span></div><div class="c"><span class="cell own">Own deals</span></div><div class="c"><span class="cell own">Own deals</span></div><div class="c new"><span class="cell own">Own deals</span></div><div class="c"><span class="cell lock">All deals</span></div><div class="c e"></div>
+        <div class="gr">Price book</div>
+        <div class="c l"><b style="font-weight:600">Edit prices and items</b></div>
+        <div class="c"><span class="cell off">Off</span></div><div class="c"><span class="cell on">On</span></div><div class="c"><span class="cell off">Off</span></div><div class="c"><span class="cell off">Off</span></div><div class="c new"><span class="cell off">Off</span></div><div class="c"><span class="cell lock">On</span></div><div class="c e"></div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">In the new column, Sales Engineer starts with Sales rep's values, except Scope floor plans, which the admin already changed to All deals. Nothing exists until Save. Columns can be reordered with Move left / right. The ⋯ menu on every role but Admin offers the same options.</p>
+
+  <h2>2 · The dialogs</h2>
+  <div class="three">
+    <div class="dlg">
+      <div class="dh"><b>Add a role</b><p>A new column in the matrix. Assign people to it on the Users page.</p></div>
+      <div class="db">
+        <div class="field"><label>Name</label><div class="inp">Sales Engineer</div></div>
+        <div class="field"><label>Description (optional)</label><div class="inp ta">Technical lead on deals: scoping, site surveys, IT questions.</div></div>
+        <div class="field"><label>Start with the permissions of</label>
+          <div class="opts">
+            <div class="opt on3"><span class="rd"></span><div><b>Sales rep</b><small>Then change any cell</small></div><span class="n">12 users</span></div>
+            <div class="opt"><span class="rd"></span><div><b>RevOps</b></div><span class="n">3 users</span></div>
+            <div class="opt"><span class="rd"></span><div><b>Nothing</b><small>Everything off except what everyone gets</small></div><span class="n"></span></div>
+          </div>
+        </div>
+        <div class="note">Features added later give this role the same defaults as <b>Sales rep</b>, so it never silently gets more or less than the role it came from.</div>
+      </div>
+      <div class="df"><span class="btn sm">Cancel</span><span class="btn sm k">Add role</span></div>
+    </div>
+
+    <div class="dlg">
+      <div class="dh"><b>Rename a role</b><p>Click the name in the matrix (or ⋯ → Rename) and type.</p></div>
+      <div class="db">
+        <div class="field"><label>Name</label><div class="inp">Account Executive</div></div>
+        <div class="field"><label>Was</label><div class="inp ph">Sales rep</div></div>
+        <div class="note"><b>What changes:</b> the label everywhere: the matrix, the Users page, people's profiles, approval requests ("needs an Account Executive"), and error messages. <b>What doesn't:</b> who has the role, their permissions, and any history. People keep their role through a rename.</div>
+        <div class="warn">⚠ Names must be unique. "Admin" can't be used for another role.</div>
+      </div>
+      <div class="df"><span class="btn sm">Cancel</span><span class="btn sm k">Rename</span></div>
+    </div>
+
+    <div class="dlg">
+      <div class="dh"><b>Delete “RevOps”?</b><p>Its permissions are deleted. Its people need another role first.</p></div>
+      <div class="db">
+        <div class="field"><label>3 people have this role. Move them to</label><div class="sel">VP Sales <span style="color:var(--mut)">▾</span></div></div>
+        <div class="ppl">
+          <div class="pp"><span class="av">DM</span>Dana Moss</div>
+          <div class="pp"><span class="av" style="background:#0F6B6E">CL</span>Chris Lee</div>
+          <div class="pp"><span class="av" style="background:#B5762A">PS</span>Pat Shah</div>
+        </div>
+        <div class="warn">⚠ They'll get VP Sales's permissions right away. Approvals waiting on RevOps go to whoever can approve them under the new setup.</div>
+        <div class="field"><label>Type the role's name to confirm</label><div class="inp ph">RevOps</div></div>
+      </div>
+      <div class="df"><span class="btn sm">Cancel</span><span class="btn sm r" style="border-color:#F2C5B8">Delete role</span></div>
+    </div>
+  </div>
+
+  <h2>3 · On the Users page</h2>
+  <p class="sub">Role dropdowns list every role, custom ones included, in the matrix's order, with each role's description to help pick.</p>
+  <div class="two">
+    <div class="app" style="margin-top:0">
+      <div class="ah"><h3>Users</h3><span class="sp"></span><span class="btn sm k">+ Add user</span></div>
+      <table class="users">
+        <thead><tr><th>Name</th><th>Role</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><b>Kevin Winn</b></td><td><span class="rchip">Admin</span></td><td>Active</td></tr>
+          <tr><td><b>Riley Rep</b></td><td><span class="rchip">Account Executive</span></td><td>Active</td></tr>
+          <tr><td><b>Jordan Ellis</b></td><td><span class="rchip" style="border-color:#3F8CEA">Account Executive</span>
+            <div class="drop">
+              <div class="h">Roles</div>
+              <div class="on2">Account Executive <small>12</small></div>
+              <div>RevOps <small>3</small></div>
+              <div>VP Sales <small>2</small></div>
+              <div>CEO <small>1</small></div>
+              <div>Sales Engineer <span class="tag t-cus">Custom</span><small>0</small></div>
+              <div>Admin <small>1</small></div>
+            </div>
+          </td><td>Active</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="notes">
+      <div class="box"><b>Changing someone's role</b>Takes effect on their next page load, like matrix changes.</div>
+      <div class="box"><b>Custom tag</b>Roles an admin added show "Custom", so it's clear which came with the app.</div>
+      <div class="box"><b>Admin stays special</b>Only Super Admin can make or remove Admins (still on the backlog).</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:26px">On a phone</h3>
+  <div class="phonewrap">
+    <div class="phone">
+      <div class="ph"><b style="font-size:14px">Roles &amp; permissions</b>
+        <div class="chips"><span>Account Exec…</span><span>RevOps</span><span class="on4">Sales Engineer</span><span>VP Sales</span><span>CEO</span><span>Admin</span><span class="add">＋ Add</span></div>
+      </div>
+      <div class="rolebar"><div style="flex:1"><b>Sales Engineer</b> <span class="tag t-new">New</span><br><span style="color:var(--mut)">from Sales rep · 0 users</span></div><span class="btn sm">⋯</span></div>
+      <div style="padding:6px 12px 12px;font-size:12.5px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--mut);margin:8px 0 4px">Deals</div>
+        <div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span style="flex:1">Edit deal inputs</span><span class="cell collab" style="min-width:0">+ Collab.</span></div>
+        <div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><span style="flex:1">Scope floor plans</span><span class="cell all" style="min-width:0">All</span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="box"><b>＋ Add at the end of the role chips</b>Opens the same Add a role dialog as a sheet.</div>
+      <div class="box"><b>⋯ next to the selected role</b>Rename, description, duplicate, delete.</div>
+    </div>
+  </div>
+
+  <h2>4 · What it takes under the hood</h2>
+  <div class="box" style="margin-top:14px">
+    <div class="step"><span class="i">1</span><div><b>Roles move from a fixed list to a table</b><span>Today the five roles are written into the code and the database only accepts those. They'd become rows: a permanent key (never shown, never changes), a name, a description, an order, which role it started from, and whether it's built in. Existing users keep their roles; a migration creates the five built-in rows.</span></div></div>
+    <div class="step"><span class="i">2</span><div><b>Renames change the name, never the key</b><span>Users and permissions point at the key, so a rename touches one row. That's why "Sales rep" → "Account Executive" can't break anything.</span></div></div>
+    <div class="step"><span class="i">3</span><div><b>Code stops checking role names</b><span>The few places that test for a specific role go through permissions instead. Admin keeps its fixed key (<span class="k">admin</span>). The price check's "Route to RevOps" becomes "route to someone who can approve tier 1", which the approval workflow needed anyway.</span></div></div>
+    <div class="step"><span class="i">4</span><div><b>Defaults for future permissions</b><span>When a new feature adds a permission, each built-in role gets its listed default and each custom role gets the default of the role it started from (or Off if it started from nothing).</span></div></div>
+    <div class="step"><span class="i">5</span><div><b>Guardrails</b><span>Admin can't be renamed or deleted. A role with people can't be deleted until they're moved. Names are unique. A cap of 20 roles keeps the matrix readable.</span></div></div>
+  </div>
+
+  <h2>5 · Decisions</h2>
+  <ol class="dec">
+    <li><b>Can built-in roles (Sales rep, RevOps, VP Sales, CEO) be deleted, or only renamed?</b><span><span class="rec">Recommended:</span> renamed and deleted like any role once nobody has them. Only Admin is protected.</span></li>
+    <li><b>Can Admin be renamed?</b><span><span class="rec">Recommended:</span> no. It's the one role the app depends on by name.</span></li>
+    <li><b>New permissions on custom roles</b><span><span class="rec">Recommended:</span> inherit the default of the role it started from, as shown.</span></li>
+    <li><b>Who manages roles?</b><span><span class="rec">Recommended:</span> admins only, the same as the matrix.</span></li>
+  </ol>
+</div>
+</body>
+</html>
