@@ -8,9 +8,9 @@
  */
 import { PACK_IDS, TINT_IDS, TINTS, packIcon } from '@/lib/resources/iconPack';
 import type { Client } from '@libsql/client';
-import { BUILTIN_DETAILS, COUNT_BASES, pricingModelFor, type Billing, type CountBasis, type PerUnit, type PilotRule } from '@/lib/pricing/catalog';
+import { BUILTIN_DETAILS, COUNT_BASES, deletableItem, pricingModelFor, type Billing, type CountBasis, type PerUnit, type PilotRule } from '@/lib/pricing/catalog';
 import { CATEGORIES } from '@/lib/pricing/markets';
-import { CONVERTIBLE, OFFER_LOCKED, SIDES, sameLineup, type Side } from '@/lib/pricing/lineup';
+import { CONVERTIBLE, OFFER_LOCKED, SIDES, SIDE_LABEL, sameLineup, type Lineup, type Side } from '@/lib/pricing/lineup';
 import { listPriceBookRows, norm, type PriceBookRow } from './priceBook';
 import { getLineup, saveLineup, withItemDetails, type LineupInfo } from './lineup';
 
@@ -267,4 +267,73 @@ export async function openDealsWith(db: Client, sku: string): Promise<number> {
     if ((d.lineup.cores ?? []).some((c) => SIDES.some((s) => (c.sides?.[s]?.items ?? []).some((e) => e.sku === sku)))) n++;
   }
   return n;
+}
+
+// ---------------------------------------------------------------- deleting (archiving) items
+
+const deletable = deletableItem;
+
+export interface ArchiveInfo {
+  deletable: boolean;
+  /** Where the current core products use it (each is removed in the same step when deleting). */
+  usedIn: Array<{ kind: 'core' | 'combo'; id: string; name: string; side?: Side }>;
+  /** Open deals whose copy of the core products prices it: they keep pricing it until "Update this deal". */
+  openDeals: number;
+  /** Saved versions with it on their price lines (they don't change). */
+  savedVersions: number;
+}
+
+/** Where an item is used, before deleting it. */
+export async function archiveInfo(db: Client, sku: string): Promise<ArchiveInfo> {
+  await row(db, sku);
+  const { lineup } = await getLineup(db);
+  const usedIn: ArchiveInfo['usedIn'] = [];
+  for (const c of lineup.cores) for (const side of SIDES) if (c.sides[side].items.some((e) => e.sku === sku)) usedIn.push({ kind: 'core', id: c.id, name: c.name, side });
+  const coreName = (id: string) => lineup.cores.find((c) => c.id === id)?.name ?? id;
+  for (const x of lineup.combos) if (x.with.some((e) => e.sku === sku) || x.replace.includes(sku)) usedIn.push({ kind: 'combo', id: x.id, name: x.when.map(coreName).join(' + '), side: x.side });
+  const v = await db.execute({ sql: "SELECT COUNT(DISTINCT l.quote_version_id) AS n FROM quote_version_lines l JOIN quote_versions v ON v.id = l.quote_version_id WHERE l.sku = ? AND v.status <> 'draft'", args: [sku] });
+  return { deletable: deletable(sku), usedIn, openDeals: await openDealsWith(db, sku), savedVersions: Number(v.rows[0]?.n ?? 0) };
+}
+
+/** The line-up without an item: out of every core product, and out of combinations (one left with nothing goes). */
+export function lineupWithout(l: Lineup, sku: string): Lineup {
+  return {
+    ...l,
+    cores: l.cores.map((c) => ({ ...c, sides: { subscription: { ...c.sides.subscription, items: c.sides.subscription.items.filter((e) => e.sku !== sku) }, capex: { ...c.sides.capex, items: c.sides.capex.items.filter((e) => e.sku !== sku) } } })),
+    combos: l.combos
+      .map((x) => ({ ...x, with: x.with.filter((e) => e.sku !== sku), replace: x.replace.filter((r) => r !== sku) }))
+      .filter((x) => x.builtin || x.with.length || x.replace.length),
+  };
+}
+
+/**
+ * Delete an item: archived (hidden from the price book and from core products; saved versions keep it, and it can
+ * be restored). The name must be typed to confirm. If the core products use it, it's taken out of them in the same
+ * step (a new core products version), only when `removeFromCores` says so. Open deals keep their copy until updated.
+ */
+export async function archiveItem(db: Client, sku: string, b: { confirm?: unknown; removeFromCores?: unknown }, userId: number | null): Promise<{ lineup: LineupInfo | null }> {
+  const cur = await row(db, sku);
+  if (!deletable(sku)) throw bad(`${cur.name} is built in: the pricing rules depend on it, so it can’t be deleted. To stop pricing it on new deals, take it out of the core products.`);
+  if (norm(String(b.confirm ?? '')) !== norm(cur.name)) throw bad(`Type the item’s name (${cur.name}) to delete it.`);
+  const info = await archiveInfo(db, sku);
+  let lineup: LineupInfo | null = null;
+  if (info.usedIn.length) {
+    const where = info.usedIn.map((u) => (u.kind === 'core' ? `${u.name} → ${SIDE_LABEL[u.side!]}` : `the ${u.name} combination (${SIDE_LABEL[u.side!].toLowerCase()})`)).join(', ');
+    if (b.removeFromCores !== true) throw bad(`${cur.name} is used in ${where}. Remove it there first, or remove it and delete in one step.`, 409);
+    const l = await getLineup(db);
+    lineup = await saveLineup(db, lineupWithout(l.lineup, sku), userId, l.lineup.version);
+    await log(db, sku, 'core products', where, 'removed', userId);
+  }
+  await db.execute({ sql: "UPDATE products SET active = 0, updated_by = ?, updated_at = datetime('now') WHERE sku = ?", args: [userId, sku] });
+  await log(db, sku, 'deleted', `${cur.itemCode ?? sku} · ${cur.name}`, null, userId);
+  return { lineup };
+}
+
+/** Bring a deleted item back to the price book (not into any core product). */
+export async function restoreItem(db: Client, sku: string, userId: number | null): Promise<PriceBookRow> {
+  const r = (await listPriceBookRows(db, { archived: true })).find((x) => x.sku === sku);
+  if (!r) throw bad('That item isn’t deleted', 404);
+  await db.execute({ sql: "UPDATE products SET active = 1, updated_by = ?, updated_at = datetime('now') WHERE sku = ?", args: [userId, sku] });
+  await log(db, sku, 'restored', null, `${r.itemCode ?? sku} · ${r.name}`, userId);
+  return row(db, sku);
 }

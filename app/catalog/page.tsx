@@ -10,8 +10,10 @@ export default async function CatalogPage() {
   const user = await requirePageUser();
   const db = await getDb();
   const rows = await listPriceBookRows(db);
+  // Deleted items (admins: to look at and restore).
+  const archived = user.role === "admin" ? await listPriceBookRows(db, { archived: true }) : [];
   const settings = await getPriceBookSettings(db);
   // Core products: admins only.
   const lineup = user.role === "admin" ? await getLineup(db) : null;
-  return <PriceBookModule rows={rows} canEdit={user.role === "admin"} softwareBilling={settings.softwareBilling} lineup={lineup} />;
+  return <PriceBookModule rows={rows} canEdit={user.role === "admin"} softwareBilling={settings.softwareBilling} lineup={lineup} archived={archived} />;
 }

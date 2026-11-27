@@ -97,3 +97,42 @@ describe('item icons', () => {
     expect(b.history.filter((h) => h.field === 'icon').map((h) => h.newValue)).toEqual(expect.arrayContaining(['Folder', 'Automatic']));
   });
 });
+
+describe('deleting items', () => {
+  it('built-in items can’t be deleted', async () => {
+    const { archiveItem, archiveInfo } = await import('./items');
+    expect((await archiveInfo(db, SKU.install)).deletable).toBe(false);
+    await expect(archiveItem(db, SKU.install, { confirm: 'Installation & implementation' }, null)).rejects.toThrow(/built in/);
+  });
+  it('needs the name typed; in a core product it’s refused unless removed in the same step', async () => {
+    const { archiveItem, archiveInfo, restoreItem } = await import('./items');
+    const { listPriceBookRows } = await import('./priceBook');
+    const { item, lineup } = await createItem(db, { ...base, name: 'Delete me kit', itemCode: 'TT-DEL-001', addTo: { core: 'commonArea', side: 'capex' } }, null);
+    expect(JSON.stringify(lineup!.lineup)).toContain(item.sku);
+    const info = await archiveInfo(db, item.sku);
+    expect(info).toMatchObject({ deletable: true, usedIn: [{ kind: 'core', id: 'commonArea', side: 'capex' }], savedVersions: 0 });
+    await expect(archiveItem(db, item.sku, { confirm: 'wrong' }, null)).rejects.toThrow(/Type the item’s name/);
+    await expect(archiveItem(db, item.sku, { confirm: 'delete ME kit' }, null)).rejects.toThrow(/used in Common area sensors → Equipment purchase/);
+    const before = (await getLineup(db)).lineup.version;
+    const r = await archiveItem(db, item.sku, { confirm: ' delete me KIT ', removeFromCores: true }, null);
+    expect(r.lineup!.lineup.version).toBe(before + 1);
+    expect(JSON.stringify((await getLineup(db)).lineup)).not.toContain(item.sku);
+    expect((await listPriceBookRows(db)).some((x) => x.sku === item.sku)).toBe(false);
+    expect((await listPriceBookRows(db, { archived: true })).some((x) => x.sku === item.sku)).toBe(true);
+    // Its name and SKU stay reserved while deleted.
+    await expect(createItem(db, { ...base, name: 'Delete me kit', itemCode: 'TT-DEL-002' }, null)).rejects.toThrow(/already exists/);
+    // Restored: back in the price book (not in any core product), with the history.
+    const back = await restoreItem(db, item.sku, null);
+    expect(back.history.map((h) => h.field)).toEqual(expect.arrayContaining(['created', 'core products', 'deleted', 'restored']));
+    expect(JSON.stringify((await getLineup(db)).lineup)).not.toContain(item.sku);
+    await expect(restoreItem(db, item.sku, null)).rejects.toThrow(/isn’t deleted/);
+  });
+  it('a combination left with nothing is dropped with the item', async () => {
+    const { lineupWithout } = await import('./items');
+    const l = (await getLineup(db)).lineup;
+    const withCombo = { ...l, combos: [...l.combos, { id: 'combo-x', when: ['monitoring', 'commonArea'], side: 'capex' as const, replace: [], with: [{ sku: 'ITEM-ZZZ' }], enabled: true }] };
+    const out = lineupWithout(withCombo, 'ITEM-ZZZ');
+    expect(out.combos.some((c) => c.id === 'combo-x')).toBe(false);
+    expect(out.combos.filter((c) => c.builtin).length).toBe(l.combos.filter((c) => c.builtin).length);
+  });
+});

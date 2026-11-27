@@ -191,3 +191,6 @@ export const GENERIC_SEED: Array<Required<Pick<Product, 'sku' | 'name' | 'pricin
     sub: 'Components',
   },
 ];
+
+/** Built-in items (the pricing rules are written around them) can't be deleted; items added in the price book can. */
+export const deletableItem = (sku: string) => !BUILTIN_DETAILS[sku] && !SEED_PRODUCTS.some((p) => p.sku === sku);

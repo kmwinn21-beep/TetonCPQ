@@ -17,6 +17,7 @@ import { ItemIcon } from './ItemIcon';
 import { CoreProducts } from './CoreProducts';
 import { ItemDetailsTab } from './ItemDetails';
 import { NewItem } from './NewItem';
+import { DeleteItemBox, RestoreBanner } from './DeleteItem';
 import type { LineupInfo } from '@/lib/data/lineup';
 import { SoftwareBillingDefault } from './SoftwareBillingDefault';
 import { TINTS, packIcon } from '@/lib/resources/iconPack';
@@ -92,7 +93,7 @@ function Dots({ r }: { r: PriceBookRow }) {
   );
 }
 
-export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineup }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null }) {
+export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineup, archived: archivedInitial = [] }: { rows: PriceBookRow[]; canEdit: boolean; softwareBilling: 'monthly' | 'upfront'; lineup?: LineupInfo | null; archived?: PriceBookRow[] }) {
   // Admins also see the Core products tab (what each card on the deal page adds).
   const [area, setArea] = useState<'items' | 'cores'>('items');
   // The current core products line-up (refreshed when an item change makes a new version) and whether the Core
@@ -107,7 +108,11 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const onLineup = (l: LineupInfo) => (coresDirty ? setNewerLineup(l) : (setLineupInfo(l), setNewerLineup(null)));
   const [swBilling, setSwBilling] = useState(softwareBilling);
   const phone = usePhone('(max-width: 1023px)');
-  const [rows, setRows] = useState(initial);
+  const [live, setRows] = useState(initial);
+  // Deleted items: shown instead of the price book while "Deleted items" is on (admins), to look at and restore.
+  const [archivedRows, setArchived] = useState(archivedInitial);
+  const [showArchived, setShowArchived] = useState(false);
+  const rows = showArchived ? archivedRows : live;
   const [cat, setCat] = useState<string | null>(null);
   const [sub, setSub] = useState<string | null>(null);
   const [market, setMarket] = useState(LIVE_MARKET);
@@ -214,6 +219,24 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   };
 
   const replace = (row: PriceBookRow) => setRows((rs) => rs.map((x) => (x.sku === row.sku ? row : x)));
+  // Deleted: out of the price book, into Deleted items. Restored: back, and opened there.
+  const onDeleted = (r: PriceBookRow, l: LineupInfo | null) => {
+    setRows((rs) => rs.filter((x) => x.sku !== r.sku));
+    setArchived((xs) => [...xs.filter((x) => x.sku !== r.sku), r]);
+    setDraft(r.sku, null);
+    setSel(null);
+    if (l) onLineup(l);
+  };
+  const onRestored = (r: PriceBookRow) => {
+    setArchived((xs) => xs.filter((x) => x.sku !== r.sku));
+    setRows((rs) => [...rs.filter((x) => x.sku !== r.sku), r]);
+    setShowArchived(false);
+    setSel(r.sku);
+  };
+  const toggleArchived = (on: boolean) => {
+    setSel(null);
+    setShowArchived(on);
+  };
   const shownRow = rows.find((r) => r.sku === shown) ?? null;
   const pill = (on: boolean) => `relative z-[1] h-8 px-3.5 rounded-[8px] text-[12.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${on ? 'text-teton-ink' : 'text-teton-ui-gray'}`;
   const chip = (on: boolean) => `relative z-[1] h-[26px] px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-colors duration-200 ${on ? 'text-white' : 'text-[#5A6270]'}`;
@@ -314,6 +337,12 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
           <span className="text-[#B7791F]" aria-hidden="true">★</span> {l}
         </button>
       ))}
+      {canEdit && (
+        <button type="button" aria-pressed={showArchived} className={`${node(showArchived)} mt-1`} onClick={() => toggleArchived(!showArchived)}>
+          <span className="text-[#C2412D]" aria-hidden="true">⌫</span> Deleted items
+          <span className="ml-auto text-[11px] tabular-nums text-[#8A919C]">{archivedRows.length}</span>
+        </button>
+      )}
      </div>
      </ScrollPanel>
     </aside>
@@ -515,6 +544,14 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
   const sectionNames = ['Overview', ...groups.filter((g) => g.title).map((g) => g.title)];
   const content = (
     <>
+        <Collapse open={showArchived}>
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[12px] border border-[#F3D9D3] bg-[#FDF0EE] px-3.5 py-2.5 text-[12.5px] text-[#8E3524]">
+            <span className="min-w-0 flex-1"><b>Deleted items</b> · not in the price book or any core product. Open one to restore it.</span>
+            <button type="button" onClick={() => toggleArchived(false)} className="h-8 px-3 rounded-[9px] bg-white text-[12px] font-semibold text-teton-ink shadow-[inset_0_0_0_1px_#E3DFD8]">
+              Back to the price book
+            </button>
+          </div>
+        </Collapse>
         {phone && view === 'list' ? (
           <>
             {header}
@@ -607,7 +644,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
           onClose={() => setAdding(false)}
           onFolded={setNewFolded}
           wake={wake}
-          rows={rows}
+          rows={live}
           lineup={lineupInfo}
           coresDirty={coresDirty}
           onCreated={(row, l) => {
@@ -624,7 +661,7 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
             <CoreProducts
               key={lineupInfo.lineup.version}
               initial={lineupInfo}
-              rows={rows}
+              rows={live}
               onDirty={setCoresDirty}
               newer={newerLineup ? newerLineup.lineup.version : null}
               onReload={() => newerLineup && (setLineupInfo(newerLineup), setNewerLineup(null), setCoresDirty(false))}
@@ -653,12 +690,12 @@ export function PriceBookModule({ rows: initial, canEdit, softwareBilling, lineu
       {!phone && area === 'items' && shownRow && fold.folded && !leaving && <FoldStrip label={shownRow.name} dot={drafts.current.has(shownRow.sku)} onExpand={fold.unfold} />}
       {!phone && area === 'items' && shownRow && !fold.folded && (
         <div ref={drawerRef} className={`w-[384px] flex-shrink-0 border-l border-[#ECE8DF] bg-white overflow-hidden ${leaving || fold.leaving ? 'drawer-out' : 'drawer-in'}`}>
-          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={closeItem} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} />
+          <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={closeItem} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} />
         </div>
       )}
       {phone && (
         <SwipeSheet open={!!sel} onClose={() => setSel(null)} eyebrow={shownRow?.itemCode ?? shownRow?.sku} title={canEdit ? '' : shownRow?.name ?? ''}>
-          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} bare />}
+          {shownRow && <ItemDetail key={shownRow.sku} r={shownRow} canEdit={canEdit && !showArchived} archived={showArchived ? onRestored : undefined} onDeleted={(l) => onDeleted(shownRow, l)} market={market} onClose={() => setSel(null)} onSaved={replace} onLineup={onLineup} billing={swBilling} onBilling={setSwBilling} draft={drafts.current.get(shownRow.sku) ?? null} onDraft={(f) => setDraft(shownRow.sku, f)} bare />}
         </SwipeSheet>
       )}
     </div>
@@ -694,7 +731,7 @@ function guardrailsFor(r: PriceBookRow): Array<[string, string, string]> {
   ];
 }
 
-function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, draft, onDraft, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void; bare?: boolean }) {
+function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, onBilling, draft, onDraft, archived, onDeleted, bare = false }: { r: PriceBookRow; canEdit: boolean; market: string; onClose: () => void; onSaved: (r: PriceBookRow) => void; onLineup?: (l: LineupInfo) => void; billing: 'monthly' | 'upfront'; onBilling: (v: 'monthly' | 'upfront') => void; draft?: DetailsForm | null; onDraft?: (f: DetailsForm | null) => void; /** A deleted item: shown read-only, with Restore. */ archived?: (r: PriceBookRow) => void; onDeleted?: (l: LineupInfo | null) => void; bare?: boolean }) {
   // Coming back to an item with unsaved detail edits opens on them.
   const [tab, setTab] = useState<Tab>(draft ? 'details' : 'pricing');
   const [busy, setBusy] = useState<string | null>(null);
@@ -831,7 +868,9 @@ function ItemDetail({ r, canEdit, market, onClose, onSaved, onLineup, billing, o
             <p className="mt-2 text-[11px] leading-snug text-[#8A919C]">US is the list price new deals start from. Other markets are reference prices from the official pricing sheet{canEdit ? '; ⊘ marks one as not sold there' : ''}.</p>
           </div>
         )}
+        {archived && <RestoreBanner r={r} onRestored={archived} />}
         {tab === 'details' && <ItemDetailsTab r={r} canEdit={canEdit} onSaved={onSaved} onLineup={onLineup} draft={draft} onDraft={onDraft} />}
+        {tab === 'details' && canEdit && onDeleted && <DeleteItemBox r={r} onDeleted={onDeleted} />}
         {tab === 'guardrails' && (
           <div className={box}>
             <p className={h4}>Guardrails · US</p>
@@ -931,7 +970,7 @@ function BillingPill({ r }: { r: PriceBookRow }) {
 }
 
 /** Item-detail changes (see lib/data/items): their labels. */
-const DETAIL_FIELDS: Record<string, string> = { created: 'Added', billing: 'Billing', 'every years': 'Every N years', 'priced per': 'Priced per', 'counted by': 'Counted by', pilot: 'Pilot', category: 'Category', group: 'Group', description: 'Description', 'priced by': 'Priced by', icon: 'Icon' };
+const DETAIL_FIELDS: Record<string, string> = { created: 'Added', billing: 'Billing', 'every years': 'Every N years', 'priced per': 'Priced per', 'counted by': 'Counted by', pilot: 'Pilot', category: 'Category', group: 'Group', description: 'Description', 'priced by': 'Priced by', icon: 'Icon', deleted: 'Deleted', restored: 'Restored', 'core products': 'Core products' };
 const changeLabel = (field: string) => {
   if (field === 'sku') return 'SKU';
   if (field === 'name') return 'Name';

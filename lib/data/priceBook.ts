@@ -93,11 +93,12 @@ export function productDetails(r: Record<string, unknown>): Pick<Product, 'billi
   };
 }
 
-export async function listPriceBookRows(db: Client): Promise<PriceBookRow[]> {
+/** The price book's items (`archived`: the deleted ones instead, which can be restored). */
+export async function listPriceBookRows(db: Client, { archived = false }: { archived?: boolean } = {}): Promise<PriceBookRow[]> {
   const rs = await db.execute(`
     SELECT p.sku, p.name, p.pricing_model, p.list_price, p.description, p.updated_at, p.item_code, ${DETAIL_COLS},
            (SELECT name FROM users u WHERE u.id = p.updated_by) AS updated_by_name
-    FROM products p WHERE p.active = 1 ORDER BY p.rowid`);
+    FROM products p WHERE p.active = ${archived ? 0 : 1} ORDER BY p.rowid`);
   // In price book order (products added later are stored after the rest).
   const at = (sku: string) => {
     const i = SEED_PRODUCTS.findIndex((p) => p.sku === sku);
