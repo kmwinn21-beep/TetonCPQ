@@ -878,4 +878,14 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       `ALTER TABLE role_permissions_new RENAME TO role_permissions`,
     ],
   },
+  {
+    id: 38,
+    name: 'duplicated deals',
+    sql: [
+      // A deal made by duplicating another: which deal and version it came from (for the banner and Version History).
+      `ALTER TABLE deals ADD COLUMN duplicated_from_deal INTEGER`,
+      `ALTER TABLE deals ADD COLUMN duplicated_from_name TEXT`,
+      `ALTER TABLE deals ADD COLUMN duplicated_from_version INTEGER`,
+    ],
+  },
 ];

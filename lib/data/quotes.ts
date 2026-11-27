@@ -78,6 +78,8 @@ export interface QuoteEditorData {
   products: Product[];
   /** The price book's current core products line-up (the deal keeps its own copy; see the update banner). */
   lineup: Lineup;
+  /** A deal made by duplicating another: where it came from (the original may since have been deleted). */
+  duplicatedFrom?: { name: string; versionNo: number | null; quoteId: number | null } | null;
 }
 
 /** What a frozen version stores as outputs: everything except traces, which are rebuilt from inputs on demand. */
@@ -242,7 +244,18 @@ export async function getQuoteEditor(db: Client, quoteId: number): Promise<Quote
     versions: vs.rows.filter((r) => r.status !== 'draft').map(versionSummary),
     products,
     lineup: (await getLineup(db)).lineup,
+    duplicatedFrom: await duplicatedFrom(db, Number(q.rows[0].deal_id)),
   };
+}
+
+async function duplicatedFrom(db: Client, dealId: number): Promise<QuoteEditorData['duplicatedFrom']> {
+  const r = await db.execute({
+    sql: 'SELECT d.duplicated_from_name, d.duplicated_from_version, (SELECT q.id FROM quotes q WHERE q.deal_id = d.duplicated_from_deal LIMIT 1) AS src_quote FROM deals d WHERE d.id = ?',
+    args: [dealId],
+  });
+  const x = r.rows[0];
+  if (!x || x.duplicated_from_name == null) return null;
+  return { name: String(x.duplicated_from_name), versionNo: x.duplicated_from_version == null ? null : Number(x.duplicated_from_version), quoteId: x.src_quote == null ? null : Number(x.src_quote) };
 }
 
 /** Minimal shape check on a draft coming from the browser. */

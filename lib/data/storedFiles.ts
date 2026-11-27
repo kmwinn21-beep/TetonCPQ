@@ -94,7 +94,11 @@ export async function readFile(db: Client, dealId: number, id: number, opts: { d
 
 export async function deleteFile(db: Client, dealId: number, id: number): Promise<void> {
   const f = await row(db, dealId, id);
-  if (f.r2Key) await r2Delete(f.r2Key);
+  // A duplicated deal shares the stored copy: remove it only when no other file row uses it.
+  if (f.r2Key) {
+    const others = Number((await db.execute({ sql: 'SELECT COUNT(*) AS n FROM stored_files WHERE r2_key = ? AND id <> ?', args: [f.r2Key, id] })).rows[0].n);
+    if (!others) await r2Delete(f.r2Key);
+  }
   await db.execute({ sql: 'DELETE FROM stored_file_chunks WHERE file_id = ?', args: [id] });
   await db.execute({ sql: 'DELETE FROM stored_files WHERE id = ?', args: [id] });
 }

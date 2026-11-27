@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * The ⋮ menu beside Save version: Archive deal (coming soon) and Delete deal. Deleting asks first, in a pop-up where
+ * The ⋮ menu beside Save version: Duplicate deal (anyone allowed to, even on a deal they can only view), Archive deal and Delete deal. Deleting asks first, in a pop-up where
  * the deal's name is typed to confirm; only the deal's owner and admins can delete.
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAccess } from './AccessContext';
+import { DuplicateDealDialog } from './DuplicateDeal';
 
 export function DealMenu({ quoteId, dealName }: { quoteId: number; dealName: string }) {
   const access = useAccess();
@@ -25,6 +26,7 @@ export function DealMenu({ quoteId, dealName }: { quoteId: number; dealName: str
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -62,6 +64,14 @@ export function DealMenu({ quoteId, dealName }: { quoteId: number; dealName: str
       {open && pos &&
         createPortal(
           <div ref={menu} role="menu" style={{ top: pos.top, right: pos.right }} className="fixed z-[80] w-[250px] rounded-[12px] border border-[#ECE8DF] bg-white p-1.5 shadow-xl [animation:fadeScale_.15s_ease-out] motion-reduce:[animation:none] origin-top-right">
+            <button type="button" role="menuitem" onClick={() => (setOpen(false), setDuplicating(true))} className={`${item} text-teton-ink hover:bg-[#F6F3EE]`}>
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></svg>
+              <span>
+                <b className="block font-semibold">Duplicate deal…</b>
+                <small className="text-[11.5px] text-[#8A919C]">A copy you own, proposal included</small>
+              </span>
+            </button>
+            <div className="my-1 border-t border-[#F1EEE7]" />
             <button
               type="button"
               role="menuitem"
@@ -94,6 +104,7 @@ export function DealMenu({ quoteId, dealName }: { quoteId: number; dealName: str
           </div>,
           document.body,
         )}
+      {duplicating && <DuplicateDealDialog quoteId={quoteId} onClose={() => setDuplicating(false)} />}
       {confirm && <ConfirmDelete quoteId={quoteId} dealName={dealName} onClose={() => setConfirm(false)} />}
       {archiving && <ConfirmArchive quoteId={quoteId} dealName={dealName} onClose={() => setArchiving(false)} />}
     </>

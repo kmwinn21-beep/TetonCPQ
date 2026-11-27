@@ -412,6 +412,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
           )}
           {versionError && <p className="w-full text-sm bg-teton-red/30 rounded px-2 py-1">{versionError}</p>}
           {access.archived && <ArchivedBanner quoteId={initial.quoteId} info={access.archived} canUnarchive={access.canDelete} />}
+          {initial.duplicatedFrom && <DuplicatedBanner quoteId={initial.quoteId} from={initial.duplicatedFrom} />}
           {!access.inputs && !access.archived && (
             <div className="w-full flex items-center gap-2 rounded-lg bg-teton-pale-yellow border border-[#F0D58A] px-3 py-2 text-sm" role="status">
               <span aria-hidden="true">🔒</span>
@@ -623,5 +624,45 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
       </ReadOnlyContext.Provider>
       </FloorPlansProvider>
     </FormProvider>
+  );
+}
+
+/** On a deal made by duplicating another: where it came from and what to add again (dismissed per deal, per browser). */
+function DuplicatedBanner({ quoteId, from }: { quoteId: number; from: NonNullable<QuoteEditorData['duplicatedFrom']> }) {
+  const key = `dup-banner-${quoteId}`;
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    try {
+      setShown(localStorage.getItem(key) !== '1');
+    } catch {
+      setShown(true);
+    }
+  }, [key]);
+  const hide = () => {
+    setShown(false);
+    try {
+      localStorage.setItem(key, '1');
+    } catch {
+      /* private mode */
+    }
+  };
+  return (
+    <Collapse open={shown} className="w-full">
+      <div className="w-full flex items-start gap-3 rounded-lg border border-[#CADDF7] bg-[#E8F1FD] px-3 py-2.5 text-sm text-[#163F78]" role="status">
+        <span className="text-base leading-5" aria-hidden="true">⧉</span>
+        <div className="flex-1 min-w-0">
+          <b className="block text-[#0F2F5C]">Duplicated from {from.name}{from.versionNo ? ` v${from.versionNo}` : ' (unsaved changes)'}</b>
+          <ul className="mt-1 list-disc pl-4 text-[13px] space-y-0.5">
+            <li>The deal and its formatted proposal came along.</li>
+            <li>Add the floor plans again to tag rooms on them. Room counts are kept.</li>
+            <li>Add the prospect’s legal entity and signatories in Deal details.</li>
+          </ul>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {from.quoteId && <Link href={`/quotes/${from.quoteId}`} className="btn-secondary py-1 text-xs">Open the original</Link>}
+            <button type="button" className="btn-ghost py-1 text-xs" onClick={hide}>Got it</button>
+          </div>
+        </div>
+      </div>
+    </Collapse>
   );
 }

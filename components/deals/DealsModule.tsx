@@ -15,6 +15,7 @@ import { ScrollPanel } from '@/components/share/ProspectNovelty';
 import { usePhone } from '@/components/form/SwipeSheet';
 import { Collapse } from '@/components/form/fields';
 import { NewDealButton } from '@/components/quote/NewDealButton';
+import { DuplicateDealDialog } from '@/components/quote/DuplicateDeal';
 import { ArchivedToast } from '@/components/quote/ArchivedToast';
 import { REASON_LABELS, REASON_TONE, reasonLabel } from '@/components/quote/archiveReasons';
 
@@ -332,6 +333,7 @@ function DealCard({ d }: { d: DealSummary }) {
 function Glance({ d, onCollapse }: { d: DealSummary | null; onCollapse: () => void }) {
   const [data, setData] = useState<DealGlance | null>(null);
   const [tab, setTab] = useState<'overview' | 'comments'>('overview');
+  const [dup, setDup] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     setData(null);
@@ -444,8 +446,12 @@ function Glance({ d, onCollapse }: { d: DealSummary | null; onCollapse: () => vo
             ) : (
               <button type="button" className="btn-secondary flex-1" disabled title="Save a version first">View proposal</button>
             )}
+            <button type="button" onClick={() => setDup(true)} className="btn-secondary px-2.5" aria-label={`Duplicate ${d.customerName}`} title="Duplicate deal: a copy you own, proposal included">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></svg>
+            </button>
             <Link href={`/quotes/${d.quoteId}`} className="btn-primary flex-1 text-center">Open deal →</Link>
           </div>
+          {dup && <DuplicateDealDialog quoteId={d.quoteId} onClose={() => setDup(false)} />}
         </>
       ) : (
         <div className="flex-1 grid place-items-center px-8 text-center text-[13px] text-[#8A919C]">

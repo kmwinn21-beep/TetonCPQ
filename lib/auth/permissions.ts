@@ -66,6 +66,7 @@ export const CAPABILITIES: Capability[] = [
   { key: 'deal.scope', group: 'deals', label: 'Scope floor plans', sub: 'Scope Mode, room types, common areas', kind: 'reach', defaults: { ...every('collab'), deal_desk: 'all' }, shipped: true },
   { key: 'deal.proposal', group: 'deals', label: 'Format the proposal', sub: 'Wording, layout, business case, templates applied', kind: 'reach', defaults: every('collab'), shipped: true },
   { key: 'deal.versions', group: 'deals', label: 'Save versions, make one active', sub: 'Deleting a version also needs Edit deal inputs', kind: 'reach', defaults: every('collab'), shipped: true },
+  { key: 'deal.duplicate', group: 'deals', label: 'Duplicate deals', sub: 'Make a copy they own (also needs Create deals)', kind: 'reach', defaults: every('all'), shipped: true },
   { key: 'deal.manage', group: 'deals', label: 'Manage collaborators, hand a deal over', kind: 'reach', defaults: every('own'), shipped: true, noCollab: true },
   { key: 'deal.delete', group: 'deals', label: 'Archive or delete a deal', kind: 'reach', defaults: every('own'), shipped: true, noCollab: true },
   // Prospects & deal room

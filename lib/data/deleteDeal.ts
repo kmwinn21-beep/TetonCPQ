@@ -97,6 +97,11 @@ export async function deleteDeal(db: Client, a: DealAccess): Promise<{ rows: num
     if (set.length) stmts.push({ sql: `DELETE FROM "${t}" WHERE id IN (${list(set)})`, args: set });
   }
   const res = await db.batch(stmts, 'write');
-  if (r2Keys.length && r2Configured()) await Promise.allSettled(r2Keys.map((k) => r2Delete(k)));
+  // A duplicated deal shares its files' stored copies with the original: keep any still used by another deal.
+  const stillUsed = r2Keys.length
+    ? new Set((await db.execute({ sql: `SELECT r2_key FROM stored_files WHERE r2_key IN (${r2Keys.map(() => '?').join(',')})`, args: r2Keys })).rows.map((r) => String(r.r2_key)))
+    : new Set<string>();
+  const gone = r2Keys.filter((k) => !stillUsed.has(k));
+  if (gone.length && r2Configured()) await Promise.allSettled(gone.map((k) => r2Delete(k)));
   return { rows: res.reduce((n, r) => n + r.rowsAffected, 0) };
 }
