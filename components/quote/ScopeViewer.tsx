@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, edgesOf, markEdges, MAX_EDGES, SENSORS_PER_EDGE, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, edgesOf, markEdges, markResidents, markSensors, markOverridden, MAX_EDGES, SENSORS_PER_EDGE, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -354,9 +354,28 @@ export function ScopeViewer({
     });
     setPop({ typeId: to, markId });
   };
-  // One room's own Edge units (dropped when it matches its room type's).
-  const edgeMark = (typeId: string, markId: string, v: number) =>
-    update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: (t.marks ?? []).map((m) => (m.id === markId ? (v === edgesOf(t) ? (({ edges: _e, ...rest }) => rest)(m) : { ...m, edges: v }) : m)) } : t)));
+  // One room's own counts (residents, sensors, Edge units); each is dropped when it matches its room type's.
+  const overrideMark = (typeId: string, markId: string, o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges'>>) =>
+    update((list) =>
+      list.map((t) => {
+        if (t.id !== typeId) return t;
+        const base = { residents: residentsOf(t), sensors: Math.max(1, Number(t.sensors) || 1), edges: edgesOf(t) };
+        return {
+          ...t,
+          marks: (t.marks ?? []).map((m) => {
+            if (m.id !== markId) return m;
+            const out: RoomMark = { ...m };
+            for (const k of ['residents', 'sensors', 'edges'] as const) {
+              if (!(k in o)) continue;
+              const v = o[k];
+              if (v == null || v === base[k]) delete out[k];
+              else out[k] = v;
+            }
+            return out;
+          }),
+        };
+      }),
+    );
   const labelMark = (typeId: string, markId: string, label: string) =>
     update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: (t.marks ?? []).map((m) => (m.id === markId ? { ...m, label: label.slice(0, 16) || undefined } : m)) } : t)));
   const toMarks = (ps: Pending[]): RoomMark[] => {
@@ -450,7 +469,11 @@ export function ScopeViewer({
   });
   const taggedTotal = rows.reduce((s, r) => s + r.tagged, 0);
   const taggedHere = rows.reduce((s, r) => s + r.here, 0);
-  const sensorsTagged = rows.reduce((s, r) => s + r.tagged * sensorsPerRoom(r.t, products), 0);
+  // Sensors in the tagged rooms (each room's own count, else its type's); each room's first one comes with its Edge
+  // unit, the rest are additional.
+  const tagMarks = (r: (typeof rows)[number]) => (r.t.marks ?? []).filter((m) => planIds.includes(m.plan));
+  const sensorsTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? tagMarks(r).reduce((n, m) => n + markSensors(r.t, m), 0) : 0), 0);
+  const additionalTagged = sensorsTagged - rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? tagMarks(r).length : 0), 0);
   // Edge units in the tagged rooms (monitored room types): each room's own count, else its type's.
   const edgesTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? (r.t.marks ?? []).filter((m) => planIds.includes(m.plan)).reduce((n, m) => n + markEdges(r.t, m), 0) : 0), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
@@ -986,7 +1009,7 @@ export function ScopeViewer({
                 y={m.y}
                 color={m.color}
                 text={m.initials}
-                occ={residentsOf(types.find((t) => t.id === m.typeId) ?? {})}
+                occ={((t) => (t ? markResidents(t, m) : 1))(types.find((t) => t.id === m.typeId))}
                 edges={((t) => (t && sensorsPerRoom(t, products) ? markEdges(t, m) : undefined))(types.find((t) => t.id === m.typeId))}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
                 faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && tagWhat === 'areas') || (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
@@ -1100,7 +1123,7 @@ export function ScopeViewer({
                 readOnly={!acc.scope}
                 onRetype={(to) => retypeMark(popType.id, to, popMark.id)}
                 onLabel={(l) => labelMark(popType.id, popMark.id, l)}
-                onEdges={(v) => edgeMark(popType.id, popMark.id, v)}
+                onOverride={(o) => overrideMark(popType.id, popMark.id, o)}
                 onRemove={() => removeMark(popType.id, popMark.id)}
                 onEdit={() => setEditType(popType.id)}
                 onClose={() => setPop(null)}
@@ -1298,6 +1321,7 @@ export function ScopeViewer({
           {(taggedTotal > 0 || areasTaggedAll.length > 0) && (
             <span className="ml-auto font-semibold">
               {taggedTotal > 0 ? `${count(taggedTotal)} rooms tagged · ${count(sensorsTagged)} sensors` : ''}
+              {taggedTotal > 0 && additionalTagged > 0 && <span className="font-normal text-teton-ui-gray"> ({count(additionalTagged)} additional)</span>}
               {taggedTotal > 0 && edgesTagged > 0 && <span className="text-[#5B3FA8]"> · {count(edgesTagged)} Edge unit{edgesTagged === 1 ? '' : 's'}</span>}
               {taggedTotal > 0 && areasTaggedAll.length > 0 ? ' · ' : ''}
               {areasTaggedAll.length > 0 ? `${count(areaSensors(areasTaggedAll))} common area sensor${areaSensors(areasTaggedAll) === 1 ? '' : 's'}` : ''}
@@ -1777,24 +1801,33 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onEdges, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onEdges?: (v: number) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
+function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onOverride, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onOverride?: (o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges'>>) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
   return (
     <div className={card} role="dialog" aria-label="Tagged room">
       <div className="flex items-start gap-2">
-        <Badge color={b.color} text={b.initials} size={24} occ={residentsOf(type)} />
+        <Badge color={b.color} text={b.initials} size={24} occ={markResidents(type, mark)} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[13px] truncate">{mark.label ? `Room ${mark.label}` : 'Tagged room'}</p>
-          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {sensorsPerRoom(type, products) || 'no'} sensor{sensorsPerRoom(type, products) === 1 ? '' : 's'}</p>
-          {residentsOf(type) > 1 && <p className="text-[11px] text-teton-ui-gray">Shared: {residentsOf(type)} residents{pendantsPerRoom(type, products) ? ` · ${pendantsPerRoom(type, products)} ${pendantsPerRoom(type, products) === 1 ? 'device' : 'devices'}` : ''}</p>}
-          {sensorsPerRoom(type, products) > 0 && (
-            <p className="text-[11px] font-semibold text-[#5B3FA8]">
-              {markEdges(type, mark)} Edge unit{markEdges(type, mark) === 1 ? '' : 's'}
-              {mark.edges != null && <span className="font-normal text-teton-ui-gray"> · this room only</span>}
-            </p>
-          )}
+          <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)}</p>
+          {/* What this room counts: residents (billed beds), Edge units, and its sensors split into the one that comes
+              with the Edge unit and the additional ones on it. */}
+          <div className="mt-1 flex flex-wrap gap-1">
+            <span className="rounded-full bg-[#E8F1FD] px-1.5 py-px text-[10.5px] font-semibold text-[#1F5FB5]">{markResidents(type, mark)} resident{markResidents(type, mark) === 1 ? '' : 's'}</span>
+            {sensorsPerRoom(type, products) > 0 ? (
+              <>
+                <span className="rounded-full bg-[#F0EBFB] px-1.5 py-px text-[10.5px] font-semibold text-[#5B3FA8]">{markEdges(type, mark)} Edge unit{markEdges(type, mark) === 1 ? '' : 's'}</span>
+                <span className="rounded-full bg-[#F1EEE8] px-1.5 py-px text-[10.5px] font-semibold text-teton-dark-gray">
+                  {markSensors(type, mark)} sensor{markSensors(type, mark) === 1 ? '' : 's'}: 1 included{markSensors(type, mark) > 1 ? `, ${markSensors(type, mark) - 1} additional` : ''}
+                </span>
+              </>
+            ) : (
+              <span className="rounded-full bg-[#F1EEE8] px-1.5 py-px text-[10.5px] font-semibold text-teton-ui-gray">No sensors (no Resident Monitoring)</span>
+            )}
+            {pendantsPerRoom(type, products) > 0 && <span className="rounded-full bg-[#FBE6E1] px-1.5 py-px text-[10.5px] font-semibold text-[#B4442C]">{type.pendants ?? markResidents(type, mark)} {(type.pendants ?? markResidents(type, mark)) === 1 ? 'device' : 'devices'}</span>}
+          </div>
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>
@@ -1819,14 +1852,42 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
           From the plan: use {suggest}?
         </button>
       )}
-      {/* This room's own Edge units, when it differs from its room type (e.g. an extra wing). */}
-      {onEdges && sensorsPerRoom(type, products) > 0 && (
-        <div className="mt-2.5 pt-2 border-t border-dashed border-[#D9D1F0]">
-          <div className="flex items-center gap-2">
-            <label className="flex-1 text-[11px] font-semibold text-[#5B3FA8]" htmlFor={`me-${mark.id}`}>Edge units, this room only</label>
-            <Counter id={`me-${mark.id}`} size="xs" className="w-[84px]" value={markEdges(type, mark)} onChange={onEdges} min={1} max={MAX_EDGES} aria-label="Edge units in this room" />
-          </div>
-          <p className="mt-1 text-[10.5px] text-teton-ui-gray">{mark.edges != null ? <>Differs from {type.name || 'its room type'} ({edgesOf(type)}). <button type="button" className="underline" onClick={() => onEdges(edgesOf(type))}>Match the room type</button></> : `Matches ${type.name || 'its room type'}. Change it only if this room is different.`}</p>
+      {/* This room's own counts, when it differs from its room type (one companion room, an extra wing). Sensors follow
+          residents (a sensor per bed, on the room's Edge unit) until changed by hand. */}
+      {onOverride && (
+        <div className="mt-2.5 pt-2 border-t border-dashed border-[#C9D9F2]">
+          <span className="block text-[9.5px] font-semibold uppercase tracking-wider text-[#1F5FB5] mb-1.5">This room only</span>
+          {(() => {
+            const mon = sensorsPerRoom(type, products) > 0;
+            const res = markResidents(type, mark);
+            const sen = markSensors(type, mark);
+            const edg = markEdges(type, mark);
+            const row = (id: string, label: string, el: React.ReactNode, cls = '') => (
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className={`flex-1 text-[11.5px] ${cls}`} htmlFor={id}>{label}</label>
+                {el}
+              </div>
+            );
+            const differs = markOverridden(mark);
+            return (
+              <>
+                {row(`mr-${mark.id}`, 'Residents', <Counter id={`mr-${mark.id}`} size="xs" className="w-[84px]" value={res} onChange={(v) => onOverride({ residents: v, ...(mon && sen === res ? { sensors: v } : {}) })} min={1} max={MAX_RESIDENTS} aria-label="Residents in this room" />)}
+                {mon && row(`ms-${mark.id}`, 'Sensors', <Counter id={`ms-${mark.id}`} size="xs" className="w-[84px]" value={sen} onChange={(v) => onOverride({ sensors: v })} min={1} max={20} aria-label="Sensors in this room" />)}
+                {mon && row(`me-${mark.id}`, 'Edge units', <Counter id={`me-${mark.id}`} size="xs" className="w-[84px]" value={edg} onChange={(v) => onOverride({ edges: v })} min={1} max={MAX_EDGES} aria-label="Edge units in this room" />, 'text-[#5B3FA8] font-semibold')}
+                {mon && sen > edg * SENSORS_PER_EDGE && <p className="mb-1.5 rounded bg-[#FFF3D6] px-2 py-1 text-[10.5px] text-[#8A5A00] drawer-in">One Edge unit handles up to {SENSORS_PER_EDGE} sensors: {sen} sensors need {Math.ceil(sen / SENSORS_PER_EDGE)} Edge units.</p>}
+                <p className="text-[10.5px] text-teton-ui-gray">
+                  {differs ? (
+                    <>
+                      Differs from {type.name || 'its room type'} ({residentsOf(type)} resident{residentsOf(type) === 1 ? '' : 's'}{mon ? `, ${Math.max(1, Number(type.sensors) || 1)} sensor${Math.max(1, Number(type.sensors) || 1) === 1 ? '' : 's'}, ${edgesOf(type)} Edge unit${edgesOf(type) === 1 ? '' : 's'}` : ''}).{' '}
+                      <button type="button" className="underline" onClick={() => onOverride({ residents: undefined, sensors: undefined, edges: undefined })}>Match the room type</button>
+                    </>
+                  ) : (
+                    `Matches ${type.name || 'its room type'}. Change these only if this room is different.`
+                  )}
+                </p>
+              </>
+            );
+          })()}
         </div>
       )}
       {children}

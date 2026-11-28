@@ -26,7 +26,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, residentsOf, roomScope, sharedResidents, communityEdges, typeEdges, edgesOf } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, residentsOf, roomScope, sharedResidents, communityEdges, typeEdges, edgesOf, typeSensors, typeResidents } from '@/lib/quote/roomTypes';
 import { DealVarsContext, KeyScopeContext, T, useProposalText } from './EditableText';
 import { BcRegistryContext, useBcRegistry, type BcRegistry, type BcSection } from './bcRegistry';
 import { copyBlockId, copyScope, dropCopies, removeCopy } from '@/lib/proposal/bcCopies';
@@ -1542,7 +1542,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
       for (const t of x.types) {
         tot.rooms += t.rooms;
         if (x.p[bedKeyOf(t)].monitoring) {
-          st.s += t.rooms * t.sensors;
+          st.s += typeSensors(t);
           st.e += typeEdges(t);
         }
       }
@@ -1804,7 +1804,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                             </td>
                             <td><span className={`bc-care bc-care-${t.care}`}>{careText(t)}</span></td>
                             <td className="bc-r">{count(t.rooms)}</td>
-                            {cells({ sp, dp, s: sp ? t.rooms * sp : null, e: sp ? typeEdges(t) : null, dv: dp ? t.rooms * dp : null })}
+                            {cells({ sp, dp, s: sp ? typeSensors(t) : null, e: sp ? typeEdges(t) : null, dv: dp ? (t.pendants != null ? t.rooms * dp : typeResidents(t)) : null })}
                           </tr>
                         );
                       })}

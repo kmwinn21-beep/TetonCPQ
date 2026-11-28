@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensors Per Room</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--g:#1F6B3A;--gBg:#E3F4E8;--blue:#1F5FB5;--blueBg:#E8F1FD;--edge:#5B3FA8;--edgeBg:#F0EBFB;--coral:#E8664A;--amber:#8A5A00;--amberBg:#FFF3D6;--red:#B4442C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:52px 0 4px;letter-spacing:-.2px}
+h3{font-size:15px;margin:0 0 6px}
+.lede{color:var(--ink2);max-width:860px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:880px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:900px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:900px){.two,.three{grid-template-columns:minmax(0,1fr)}}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-e{background:var(--edgeBg);color:var(--edge)}.p-b{background:var(--blueBg);color:var(--blue)}.p-g{background:var(--gBg);color:var(--g)}.p-n{background:#F1EEE8;color:var(--ink2)}.p-a{background:var(--amberBg);color:var(--amber)}
+.ok{color:var(--g);font-weight:700}.gap{color:var(--red);font-weight:700}
+
+/* room drawing */
+.room{position:relative;height:190px;border:3px solid #3A434F;border-radius:6px;background:#FDFCF9}
+.bed{position:absolute;width:54px;height:88px;border:2px solid #8A919C;border-radius:6px;background:#fff;font-size:10px;color:var(--mut);display:grid;place-items:end center;padding-bottom:4px}
+.bed::before{content:'';position:absolute;top:6px;left:6px;right:6px;height:16px;border-radius:4px;background:#EFEAE2}
+.bath{position:absolute;right:0;top:0;width:66px;height:60px;border-left:2px solid #8A919C;border-bottom:2px solid #8A919C;font-size:10px;color:var(--mut);display:grid;place-items:center}
+.sens{position:absolute;width:22px;height:22px;border-radius:50%;color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
+.s-inc{background:var(--blue);box-shadow:0 0 0 5px rgba(31,95,181,.15)}
+.s-add{background:#fff;color:var(--blue);border:2px dashed var(--blue)}
+.edge{position:absolute;width:34px;height:22px;border-radius:5px;background:var(--edge);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
+svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.lk{display:inline-block;width:14px;height:14px;border-radius:50%}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid #F1EEE8;vertical-align:top}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);font-weight:800}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.hl,th.hl{background:#F2F7FE}
+td.he,th.he{background:#F7F4FD}
+.tw{overflow-x:auto}
+
+/* popover */
+.pop{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.18);padding:12px;font-size:12px;max-width:340px}
+.ebm{display:block;font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);margin:10px 0 4px}
+.inp{width:100%;height:32px;border:1px solid #D5D9DE;border-radius:8px;padding:0 9px;font:inherit;font-size:12.5px}
+.row{display:flex;align-items:center;gap:8px}
+.dot{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;color:#fff;font-size:8.5px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35);position:relative;flex:none}
+.occ{position:absolute;top:-7px;right:-10px;background:#fff;border:1.5px solid currentColor;border-radius:999px;font-size:8px;font-weight:800;padding:0 3px;line-height:12px}
+.ov{margin-top:10px;padding-top:10px;border-top:1px dashed #C9D9F2}
+.ovrow{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:8px;margin-bottom:6px}
+.ovrow label{font-size:12px}
+.ctr{display:flex;align-items:stretch;border:1px solid #E4E0D6;border-radius:8px;overflow:hidden;height:28px;background:#fff}
+.ctr button{width:24px;flex:none;border:0;background:#FAF8F4;font-size:13px;font-weight:600;color:#3F4753;cursor:pointer}
+.ctr button:first-child{border-right:1px solid #ECE8DF}.ctr button:last-child{border-left:1px solid #ECE8DF}
+.ctr span{flex:1;display:grid;place-items:center;font-weight:700;font-size:12.5px;transition:transform .15s}
+.ctr.chg{border-color:#7FA8E8;box-shadow:0 0 0 3px rgba(31,95,181,.12)}
+.ctr span.bump{transform:scale(1.2)}
+@media(prefers-reduced-motion:reduce){.ctr span{transition:none}}
+.note{font-size:11px;color:var(--ink2);margin-top:4px}
+.warn{background:var(--amberBg);color:var(--amber);border-radius:6px;padding:4px 8px;font-size:11px;margin-top:6px}
+.btn{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit}
+.breakdown{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:12.5px}
+.bar .tot{margin-left:auto;font-weight:700;display:flex;gap:8px;flex-wrap:wrap}
+.todo{counter-reset:t;list-style:none;padding:0;margin:0}
+.todo li{counter-increment:t;position:relative;padding:10px 12px 10px 42px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:8px;font-size:13px;color:var(--ink2)}
+.todo li::before{content:counter(t);position:absolute;left:12px;top:10px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+.todo b{color:var(--ink)}
+.q{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.q b{display:block;margin-bottom:3px}
+.q .rec{font-size:12.5px;color:var(--g);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Scope Mode · mock · nothing built</p>
+  <h1>More than one sensor in a room</h1>
+  <p class="lede">A room with two residents (or a bedroom plus a living area) gets a sensor per bed, all on the room's one Edge unit. The system already counts this for <b>room types</b>. What's missing is setting it for <b>one individual room</b>, and seeing the sensor breakdown per room.</p>
+
+  <!-- ======================================== 1 -->
+  <h2>1 · How it's counted today</h2>
+  <p class="sub">Every room has one Edge unit, and its <b>first sensor comes with the Edge unit</b>. Every sensor after that is an <b>additional sensor</b> on the same Edge unit (up to 3 per Edge unit).</p>
+  <div class="two">
+    <div class="card">
+      <p class="eb">A companion suite: 2 residents, 1 Edge unit, 2 sensors</p>
+      <div class="room">
+        <div class="bed" style="left:22px;top:70px">Bed 1</div>
+        <div class="bed" style="left:110px;top:70px">Bed 2</div>
+        <div class="bath">Bath</div>
+        <svg class="wires" viewBox="0 0 300 190" preserveAspectRatio="none"><path d="M49 32 C 120 20, 200 120, 236 150" stroke="#9B85D9" stroke-width="2" stroke-dasharray="4 4" fill="none"/><path d="M137 32 C 180 40, 210 120, 236 150" stroke="#9B85D9" stroke-width="2" stroke-dasharray="4 4" fill="none"/></svg>
+        <div class="sens s-inc" style="left:38px;top:20px">S1</div>
+        <div class="sens s-add" style="left:126px;top:20px">S2</div>
+        <div class="edge" style="right:30px;bottom:18px">EDGE</div>
+      </div>
+      <div class="legend">
+        <span><i class="lk" style="background:var(--blue)"></i>Sensor included with the Edge unit</span>
+        <span><i class="lk" style="border:2px dashed var(--blue)"></i>Additional sensor, same Edge unit</span>
+        <span><i class="lk" style="background:var(--edge);border-radius:3px"></i>Edge unit (1 per room)</span>
+      </div>
+    </div>
+    <div class="card">
+      <p class="eb">What the system does with that room</p>
+      <table>
+        <tr><th></th><th class="n">Count</th><th>How it's priced</th></tr>
+        <tr><td>Residents (billed beds)</td><td class="n">2</td><td>Monthly fee × 2</td></tr>
+        <tr><td>Edge units</td><td class="n">1</td><td>Installation / base package × 1 (per room)</td></tr>
+        <tr><td>Sensors</td><td class="n">2</td><td></td></tr>
+        <tr><td>&nbsp;&nbsp;included with the Edge unit</td><td class="n">1</td><td>in the installation / base package</td></tr>
+        <tr><td>&nbsp;&nbsp;additional</td><td class="n"><b>1</b></td><td>Additional sensor price × 1 (one-time)</td></tr>
+      </table>
+      <p class="eb" style="margin-top:14px">Where you can set it today</p>
+      <table>
+        <tr><td>Room type: residents per room</td><td class="ok">✓</td></tr>
+        <tr><td>Room type: sensors per room (follows residents)</td><td class="ok">✓</td></tr>
+        <tr><td>One room: Edge units</td><td class="ok">✓</td></tr>
+        <tr><td>One room: <b>sensors</b></td><td class="gap">✗ missing</td></tr>
+        <tr><td>One room: <b>residents</b></td><td class="gap">✗ missing</td></tr>
+        <tr><td>Seeing "1 included + 1 additional" per room</td><td class="gap">✗ missing</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="cap">So if every room of a type is shared, setting <b>Residents = 2</b> on the room type already counts it right (sensors follow to 2, 1 additional each). The gap is the one-off room: a single companion room inside a type of singles currently needs its own room type.</p>
+
+  <!-- ======================================== 2 -->
+  <h2>2 · The fix: "This room only" grows to residents and sensors</h2>
+  <p class="sub">The room popover already has <b>Edge units, this room only</b>. It becomes a small group of three overrides. Try it: raise residents and the sensors follow (each bed gets a sensor on the same Edge unit); the breakdown updates.</p>
+  <div class="two" style="align-items:start">
+    <div class="pop">
+      <div class="row"><span class="dot" id="bdg" style="background:#1F5FB5">1B<span class="occ" id="occ" style="color:#1F5FB5;display:none">×2</span></span><div style="flex:1;min-width:0"><b style="font-size:13px">Room 214</b><div style="color:var(--mut);font-size:11px">One Bedroom · Assisted living</div></div><span>✕</span></div>
+      <div class="breakdown" id="chips"></div>
+      <span class="ebm">Room type</span><select class="inp"><option>One Bedroom</option></select>
+      <span class="ebm">Room number (optional)</span><input class="inp" value="214">
+      <div class="ov">
+        <span class="ebm" style="margin-top:0;color:var(--blue)">This room only</span>
+        <div class="ovrow"><label>Residents</label><div class="ctr" data-k="res"><button data-d="-1" aria-label="Fewer residents">−</button><span id="v-res">1</span><button data-d="1" aria-label="More residents">+</button></div></div>
+        <div class="ovrow"><label>Sensors</label><div class="ctr" data-k="sen"><button data-d="-1" aria-label="Fewer sensors">−</button><span id="v-sen">1</span><button data-d="1" aria-label="More sensors">+</button></div></div>
+        <div class="ovrow"><label style="color:var(--edge)">Edge units</label><div class="ctr" data-k="edge"><button data-d="-1" aria-label="Fewer Edge units">−</button><span id="v-edge">1</span><button data-d="1" aria-label="More Edge units">+</button></div></div>
+        <p class="note" id="ovnote">Matches One Bedroom. Change these only if this room is different.</p>
+        <div class="warn" id="warn" style="display:none"></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="eb">What this room adds</p>
+      <table>
+        <tr><td>Residents (billed beds)</td><td class="n" id="t-res">1</td></tr>
+        <tr><td>Edge units</td><td class="n" id="t-edge">1</td></tr>
+        <tr><td>Sensors included with the Edge unit</td><td class="n" id="t-inc">1</td></tr>
+        <tr><td><b>Additional sensors</b></td><td class="n"><b id="t-add">0</b></td></tr>
+      </table>
+      <p class="eb" style="margin-top:14px">Bottom bar for the whole plan</p>
+      <p style="margin:0;font-weight:700" id="barLine"></p>
+      <p class="cap">The badge picks up the ×2 residents marker when this room has 2 residents, the same marker shared room types use.</p>
+    </div>
+  </div>
+
+  <!-- ======================================== 3 -->
+  <h2>3 · Seeing it everywhere it's added up</h2>
+  <div class="bar">
+    <span class="row"><span class="dot" style="background:#1F5FB5;width:18px;height:18px;font-size:7px">1B</span>One Bedroom · 17</span>
+    <span class="row"><span class="dot" style="background:#C2410C;width:18px;height:18px;font-size:7px">SD</span>Studio Deluxe · 8</span>
+    <span class="tot"><span>71 rooms tagged</span><span>· 102 sensors <span style="font-weight:500;color:var(--mut)">(31 additional)</span></span><span style="color:var(--edge)">· 71 Edge units</span></span>
+  </div>
+  <p class="cap">The bottom bar shows how many of the sensors are additional, since that's the number that's priced.</p>
+  <div class="card tw" style="margin-top:14px">
+    <p class="eb">Floor plan Summary table</p>
+    <table>
+      <tr><th>Room type</th><th class="n">Rooms</th><th class="n">Residents</th><th class="n he">Edge units</th><th class="n">Sensors</th><th class="n hl">Included</th><th class="n hl">Additional</th></tr>
+      <tr><td>One Bedroom</td><td class="n">17</td><td class="n">18*</td><td class="n he">17</td><td class="n">18*</td><td class="n hl">17</td><td class="n hl">1</td></tr>
+      <tr><td>Studio Deluxe</td><td class="n">8</td><td class="n">8</td><td class="n he">8</td><td class="n">16</td><td class="n hl">8</td><td class="n hl">8</td></tr>
+      <tr><td>Memory Care</td><td class="n">35</td><td class="n">35</td><td class="n he">35</td><td class="n">35</td><td class="n hl">35</td><td class="n hl">0</td></tr>
+      <tr><td>One Bedroom Deluxe</td><td class="n">11</td><td class="n">11</td><td class="n he">11</td><td class="n">33</td><td class="n hl">11</td><td class="n hl">22</td></tr>
+      <tr><td><b>Total</b></td><td class="n"><b>71</b></td><td class="n"><b>72</b></td><td class="n he"><b>71</b></td><td class="n"><b>102</b></td><td class="n hl"><b>71</b></td><td class="n hl"><b>31</b></td></tr>
+    </table>
+    <p class="cap">* includes rooms set individually (Room 214: 2 residents, 2 sensors). A footnote lists those rooms so nothing is hidden.</p>
+  </div>
+
+  <!-- ======================================== 4 -->
+  <h2>4 · What needs to be done</h2>
+  <ol class="todo">
+    <li><b>Per-room sensors and residents.</b> Two more optional numbers on each tagged room (like the Edge units override), saved with the room types. Kept only when they differ from the room type.</li>
+    <li><b>Popover.</b> "This room only" shows Residents, Sensors and Edge units. Sensors follow residents until changed by hand; a breakdown line reads "1 Edge unit · 2 sensors (1 included, 1 additional)". The amber hint shows past 3 sensors per Edge unit.</li>
+    <li><b>Math.</b> Rooms tagged on the plan use their own numbers. Beds = Σ residents; additional sensors = Σ sensors − rooms (each room's first sensor is included), plus the contingency. Same rules as today, now per room. Price follows automatically: monthly fee per resident, one installation per room, additional sensors at the sensor price.</li>
+    <li><b>Totals.</b> The bottom bar shows the additional sensor count; the Summary table and scope PDF get Residents, Included and Additional columns and a footnote listing rooms set individually.</li>
+    <li><b>Markers.</b> A room set to 2 residents gets the ×2 marker on its badge.</li>
+    <li><b>Tests.</b> A single companion room inside a type of singles: beds +1, additional sensors +1, installation unchanged; overrides that match the type are dropped.</li>
+  </ol>
+
+  <h2>Decisions</h2>
+  <div class="q"><b>1. Can one room change residents (billed beds), not just sensors?</b>Residents change the monthly fee; sensors only change the one-time additional-sensor charge. A one-off companion room needs both.<div class="rec">Recommendation: yes, both, with sensors following residents.</div></div>
+  <div class="q"><b>2. Only rooms tagged on a floor plan?</b>Overrides live on a tagged room. Room types typed in by hand (no plan) keep using their per-room numbers.<div class="rec">Recommendation: yes. For typed-in counts, a separate room type ("One Bedroom, shared") still works.</div></div>
+  <div class="q"><b>3. Show "included / additional" to the prospect?</b>The proposal Scope page lists sensors in total today.<div class="rec">Recommendation: keep the proposal showing total sensors; show the included/additional split in Scope Mode and the scope PDF (internal).</div></div>
+</div>
+<script>
+const T = { res: 1, sen: 1, edge: 1 };
+const st = { ...T, senTouched: false };
+const lim = { res: [1, 6], sen: [1, 9], edge: [1, 3] };
+const OTHER = { rooms: 70, sens: 100, add: 30, edge: 70 };
+function draw() {
+  for (const k of ['res', 'sen', 'edge']) {
+    document.getElementById('v-' + k).textContent = st[k];
+    document.querySelector(`.ctr[data-k="${k}"]`).classList.toggle('chg', st[k] !== T[k]);
+  }
+  const add = st.sen - 1;
+  document.getElementById('t-res').textContent = st.res;
+  document.getElementById('t-edge').textContent = st.edge;
+  document.getElementById('t-inc').textContent = 1;
+  document.getElementById('t-add').textContent = add;
+  document.getElementById('occ').style.display = st.res > 1 ? '' : 'none';
+  document.getElementById('occ').textContent = '×' + st.res;
+  document.getElementById('chips').innerHTML = `<span class="pill p-b">${st.res} resident${st.res > 1 ? 's' : ''}</span><span class="pill p-e">${st.edge} Edge unit${st.edge > 1 ? 's' : ''}</span><span class="pill p-n">${st.sen} sensor${st.sen > 1 ? 's' : ''}: 1 included${add ? `, ${add} additional` : ''}</span>`;
+  const changed = st.res !== T.res || st.sen !== T.sen || st.edge !== T.edge;
+  document.getElementById('ovnote').innerHTML = changed ? 'Differs from One Bedroom (1 resident, 1 sensor, 1 Edge unit). <a href="#" id="match" style="color:inherit">Match the room type</a>' : 'Matches One Bedroom. Change these only if this room is different.';
+  const m = document.getElementById('match'); if (m) m.onclick = (e) => { e.preventDefault(); Object.assign(st, T, { senTouched: false }); draw(); };
+  const w = document.getElementById('warn');
+  w.style.display = st.sen > st.edge * 3 ? '' : 'none';
+  w.textContent = `One Edge unit handles up to 3 sensors: ${st.sen} sensors need ${Math.ceil(st.sen / 3)} Edge units.`;
+  document.getElementById('barLine').innerHTML = `${OTHER.rooms + 1} rooms tagged · ${OTHER.sens + st.sen} sensors <span style="font-weight:500;color:var(--mut)">(${OTHER.add + add} additional)</span> · <span style="color:var(--edge)">${OTHER.edge + st.edge} Edge units</span>`;
+}
+document.querySelectorAll('.ctr[data-k]').forEach((c) => c.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  const k = c.dataset.k, [lo, hi] = lim[k];
+  const v = Math.min(hi, Math.max(lo, st[k] + Number(b.dataset.d))); if (v === st[k]) return;
+  if (k === 'sen') st.senTouched = true;
+  if (k === 'res' && !st.senTouched) st.sen = Math.max(v, 1);
+  st[k] = v;
+  const sp = c.querySelector('span'); sp.classList.remove('bump'); void sp.offsetWidth; sp.classList.add('bump');
+  draw();
+}));
+draw();
+</script>
+</body>
+</html>

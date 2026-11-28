@@ -108,3 +108,11 @@ Mock: `docs/mocks/scoping/edge-units.html`. Edge units are dedicated to a reside
 - A hint shows when a room has more than 3 sensors per Edge unit.
 - On phones, Scope Mode popovers (tagged room, room type form) open as a sheet along the bottom of the screen.
 
+## 7. One room set on its own (residents and sensors) — built
+
+Mock: `docs/mocks/scoping/room-sensors.html`. Each room's first sensor comes with its Edge unit; every other sensor is an additional sensor on the same Edge unit (up to 3 per Edge unit), charged once at the additional-sensor price. Each resident is a billed bed.
+- A tagged room's popover has "This room only": Residents, Sensors and Edge units. Sensors follow residents (a sensor per bed) until changed by hand; "Match the room type" clears them. Only tagged rooms can be set this way; typed-in room counts use a room type.
+- The popover shows what the room counts: residents, Edge units, "2 sensors: 1 included, 1 additional", E-Call devices. A room with 2 residents gets the ×2 marker.
+- Totals use each room's own counts: billed beds, additional sensors (and price), E-Call devices (one per resident unless the room type sets its own). Installation stays per room.
+- Bottom bar: "4 sensors (1 additional)". Floor plan Summary table and scope PDF: Residents, Edge units, Sensors and Additional columns, and a list of rooms set individually. The proposal keeps showing total sensors.
+

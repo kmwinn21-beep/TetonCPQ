@@ -6,7 +6,7 @@
  * summary page at the end. Images become one page each.
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
-import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, markEdges, residentsOf, roomScope, typeEdges, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, markEdges, markOverridden, markResidents, markSensors, roomScope, typeEdges, typeResidents, typeSensors, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
 
@@ -195,9 +195,9 @@ export async function scopePdf(a: Args): Promise<Blob> {
     // Lay out the legend items in rows to find the band's height.
     const pad = fs * 1.4;
     const items: Array<{ b: { color: string; initials: string } | null; text: string }> = used.map(({ t, b, marks }) => {
-      const sensors = marks.length * sensorsPerRoom(t, a.products);
+      const sensors = sensorsPerRoom(t, a.products) ? marks.reduce((n, m) => n + markSensors(t, m), 0) : 0;
       const edges = sensorsPerRoom(t, a.products) ? marks.reduce((n, m) => n + markEdges(t, m), 0) : 0;
-      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}${residentsOf(t) > 1 ? ` (${residentsOf(t)} residents each)` : ''} · ${sensors} sensor${sensors === 1 ? '' : 's'}${edges !== marks.length && edges ? ` · ${edges} Edge units` : ''}`) };
+      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}${((r) => (r !== marks.length ? ` (${r} residents)` : ''))(marks.reduce((n, m) => n + markResidents(t, m), 0))} · ${sensors} sensor${sensors === 1 ? '' : 's'}${edges !== marks.length && edges ? ` · ${edges} Edge units` : ''}`) };
     });
     const areasHere = (a.areas ?? []).filter((x) => x.mark && x.mark.plan === a.planId && x.mark.page === n);
     if (areasHere.length) {
@@ -239,7 +239,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     let y = s.h + band - pad - fs * 0.4;
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
-    const totS = used.reduce((t, u) => t + u.marks.length * sensorsPerRoom(u.t, a.products), 0);
+    const totS = used.reduce((t, u) => t + (sensorsPerRoom(u.t, a.products) ? u.marks.reduce((n, m) => n + markSensors(u.t, m), 0) : 0), 0);
     const totE = used.reduce((t, u) => t + (sensorsPerRoom(u.t, a.products) ? u.marks.reduce((n, m) => n + markEdges(u.t, m), 0) : 0), 0);
     const nn = (a.notes ?? []).filter((x) => x.page === n).length;
     const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} · ${totE} Edge unit${totE === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
@@ -292,8 +292,9 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   y -= 30;
 
   // Room type and care setting on the left; the numbers right-aligned at these x positions.
-  const cols = [M, 196, 298, 350, 398, 458, 514, W - M];
-  const head = ['Room type', 'Care setting', 'This plan', 'All plans', 'Priced', 'Sensors/rm', 'Edge units', 'Sensors'];
+  // Residents are billed beds; each room's first sensor comes with its Edge unit, the rest are additional.
+  const cols = [M, 172, 268, 316, 356, 410, 462, 510, W - M];
+  const head = ['Room type', 'Care', 'This plan', 'All plans', 'Priced', 'Residents', 'Edge units', 'Sensors', 'Additional'];
   const header = () => {
     head.forEach((h, k) => text(h.toUpperCase(), cols[k], 7.5, bold, MUTED, k < 2 ? 'l' : 'r'));
     y -= 8;
@@ -305,6 +306,10 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   let all = 0;
   let priced = 0;
   let edgeTotal = 0;
+  let resTotal = 0;
+  let addTotal = 0;
+  let monRooms = 0;
+  const ownCounts: string[] = [];
   let mismatch = false;
   let noSensors = false;
   for (const { t, b } of types) {
@@ -327,7 +332,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     badge(p, bold, M + 9, y + 3.5, 8.5, b.color, b.initials);
     // Long names are cut to fit before the care setting column.
     // Shared rooms: residents per room after the name (each room still gets one Edge unit).
-    let nm = safe(bold, `${t.name || 'Room type'}${residentsOf(t) > 1 ? ` (×${residentsOf(t)})` : ''}`);
+    let nm = safe(bold, t.name || 'Room type');
     while (nm.length > 4 && bold.widthOfTextAtSize(nm, 10) > cols[1] - M - 34) nm = nm.slice(0, -2) + '…';
     text(nm.replace(/…+$/, '…'), M + 26, 10, bold);
     text(t.care === 'custom' ? t.customCare || 'Custom' : CARE_LABEL[t.care], cols[1], 9);
@@ -337,9 +342,20 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     // Edge units: one per room (more where a room type or a room says so); none without Resident Monitoring.
     const edges = per && rooms ? typeEdges(t) : 0;
     edgeTotal += edges;
-    text(String(per), cols[5], 10, reg, per ? INK : MUTED, 'r');
+    // Residents and sensors with each tagged room's own counts; the first sensor in each room is included.
+    const residents = rooms ? typeResidents(t) : 0;
+    const sensors = per && rooms ? typeSensors(t) : 0;
+    const additional = per && rooms ? Math.max(0, sensors - rooms) : 0;
+    resTotal += residents;
+    addTotal += additional;
+    if (per && rooms) monRooms += rooms;
+    for (const m of t.marks ?? [])
+      if (markOverridden(m) && ownCounts.length < 12)
+        ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? `${markResidents(t, m)} residents` : '', m.sensors != null ? `${markSensors(t, m)} sensors` : '', m.edges != null ? `${markEdges(t, m)} Edge units` : ''].filter(Boolean).join(', ')}`);
+    text(String(residents), cols[5], 10, reg, residents ? INK : MUTED, 'r');
     text(String(edges), cols[6], 10, reg, edges ? INK : MUTED, 'r');
-    text(String(rooms * per), cols[7], 10, bold, rooms * per ? INK : MUTED, 'r');
+    text(String(sensors), cols[7], 10, bold, sensors ? INK : MUTED, 'r');
+    text(String(additional), cols[8], 10, reg, additional ? INK : MUTED, 'r');
     noSensors ||= per === 0;
     y -= 10;
     p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
@@ -354,19 +370,33 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   text(String(here), cols[2], 10.5, bold, INK, 'r');
   text(String(all), cols[3], 10.5, bold, INK, 'r');
   text(String(priced), cols[4], 10.5, bold, INK, 'r');
+  text(String(resTotal), cols[5], 10.5, bold, INK, 'r');
   text(String(edgeTotal), cols[6], 10.5, bold, INK, 'r');
   text(String(s.planSensors), cols[7], 10.5, bold, INK, 'r');
+  text(String(addTotal), cols[8], 10.5, bold, INK, 'r');
   y -= 22;
   if (s.allowance > 0) {
     text(`Site-conditions allowance (${Math.round(a.allowancePct * 1000) / 10}%, rounded up)`, M, 9.5, reg, MUTED);
     text(`+${s.allowance}`, cols[7], 10, reg, INK, 'r');
+    text(`+${s.allowance}`, cols[8], 10, reg, INK, 'r');
     y -= 16;
     text('Total sensors', M, 10.5, bold);
     text(String(s.totalSensors), cols[7], 10.5, bold, INK, 'r');
+    text(String(Math.max(0, s.totalSensors - monRooms)), cols[8], 10.5, bold, INK, 'r');
     y -= 22;
   }
   y -= 8;
   text('"This plan" and "All plans" count the rooms tagged on the floor plans; "Priced" is the room count used for pricing.', M, 8.5, reg, MUTED);
+  y -= 13;
+  text('Each room\'s first sensor comes with its Edge unit; the rest are additional sensors on the same Edge unit.', M, 8.5, reg, MUTED);
+  if (ownCounts.length) {
+    y -= 13;
+    text('Rooms set individually:', M, 8.5, bold, MUTED);
+    for (const line of ownCounts) {
+      y -= 12;
+      text(`· ${line}`, M + 6, 8.5, reg, MUTED);
+    }
+  }
   if (mismatch) {
     y -= 13;
     text('* Entered by hand: differs from the number of rooms tagged.', M, 8.5, reg, MUTED);
