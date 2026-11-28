@@ -71,3 +71,19 @@ describe('matching tags to numbers', () => {
     expect(m.has('taken')).toBe(false);
   });
 });
+
+describe('order after a fill from the plan', () => {
+  it('puts numbers to confirm first, then blank rooms, then numbered ones, keeping order within each', async () => {
+    const { fillOrder } = await import('./roomNumbers');
+    const rows = [
+      { id: 'a', label: '101' },
+      { id: 'b', label: '', suggest: '102' },
+      { id: 'c', label: '' },
+      { id: 'd', label: '104' },
+      { id: 'e', label: '', suggest: '105' },
+      { id: 'f', label: '' },
+    ];
+    expect(fillOrder(rows).map((r) => r.id)).toEqual(['b', 'e', 'c', 'f', 'a', 'd']);
+  });
+});
+

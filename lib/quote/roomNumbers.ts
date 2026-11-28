@@ -109,3 +109,14 @@ export function matchNumbers(spots: Spot[], page: PlanPageLabels, taken: Set<str
   }
   return out;
 }
+
+/** After "Fill numbers from plan": 0 = a number read but not certain (to confirm), 1 = still blank, 2 = numbered. */
+export const fillRank = (r: { label: string; suggest?: string }) => (r.label.trim() ? 2 : r.suggest ? 0 : 1);
+/** Rows in the order to work through them after a fill: to confirm, then blank, then numbered (otherwise as they were). */
+export function fillOrder<T extends { label: string; suggest?: string }>(rows: T[]): T[] {
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => fillRank(a.r) - fillRank(b.r) || a.i - b.i)
+    .map(({ r }) => r);
+}
+

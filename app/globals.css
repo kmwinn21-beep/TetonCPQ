@@ -757,10 +757,16 @@ h1, h2, h3 { font-family: var(--font-heading), sans-serif; }
 @keyframes drawerIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes drawerOut { from { transform: none; opacity: 1; } to { transform: translateX(24px); opacity: 0; } }
 @keyframes fadeUp { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drawerLeftIn { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drawerLeftOut { from { transform: none; opacity: 1; } to { transform: translateX(-24px); opacity: 0; } }
+@keyframes sheetOut { from { transform: none; opacity: 1; } to { transform: translateY(24px); opacity: 0; } }
+.drawer-left-in { animation: drawerLeftIn .25s ease-out; }
+.drawer-left-out { animation: drawerLeftOut .2s ease-in forwards; }
+.sheet-out { animation: sheetOut .2s ease-in forwards; }
 .drawer-in { animation: drawerIn .25s ease-out; }
 .drawer-out { animation: drawerOut .2s ease-in forwards; }
 .rail-back { animation: fadeUp .25s ease-out; }
-@media (prefers-reduced-motion: reduce) { .drawer-in, .drawer-out, .rail-back { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .drawer-in, .drawer-out, .drawer-left-in, .drawer-left-out, .sheet-out, .rail-back { animation: none; } }
 
 /* Community tables: the city, and a red pill when the community has no floor plan yet. */
 .bc-csub { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; margin-top: 2px; }

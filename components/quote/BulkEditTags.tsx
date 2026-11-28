@@ -7,11 +7,11 @@
  * It minimizes to its header (the – button, or a click on the plan) so nothing typed is lost; closing with
  * unsaved changes asks to save, discard or go back.
  */
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { SegGroup } from '@/components/form/SegGroup';
 import { Collapse } from '@/components/form/fields';
 import { badgeOf, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
-import type { NumberMatch } from '@/lib/quote/roomNumbers';
+import { fillRank as rankOf, fillOrder, type NumberMatch } from '@/lib/quote/roomNumbers';
 import { AuthorPill } from './PlanNotes';
 import { Badge } from './ScopeViewer';
 import type { TagNotesApi } from './TagNotes';
@@ -38,6 +38,12 @@ interface Row {
   /** A number from the plan to check (not filled in). */
   suggest?: string;
 }
+
+const GROUPS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'Check these: numbers read from the plan, not certain', cls: 'bg-[#FFF8E6] text-[#8A5A00]' },
+  1: { label: 'No number found: type it in', cls: 'bg-teton-almost-white text-teton-dark-gray' },
+  2: { label: 'Numbered', cls: 'bg-[#EEF7F1] text-[#1F6B3A]' },
+};
 
 export function BulkEditTags({
   rows: input,
@@ -72,6 +78,23 @@ export function BulkEditTags({
   onMinimize: (v: boolean) => void;
 }) {
   const [asking, setAsking] = useState(false);
+  // Desktop: a panel down the left side of the plan; phones: a sheet along the bottom.
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const on = () => setPhone(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  // Slides out before it goes.
+  const [leaving, setLeaving] = useState(false);
+  const close = () => {
+    setLeaving(true);
+    window.setTimeout(onClose, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 190);
+  };
+  // After "Fill numbers from plan": rows to confirm first, then those still blank, then those filled.
+  const [grouped, setGrouped] = useState(false);
   // The rows' height, set by dragging the panel's top edge (remembered in this browser).
   const list = useRef<HTMLDivElement>(null);
   const [listH, setListH] = useState<number | null>(() => {
@@ -135,21 +158,24 @@ export function BulkEditTags({
     let filled = 0;
     let check = 0;
     setRows((rs) =>
-      rs.map((r) => {
-        const x = m.get(r.id);
-        if (!x || r.label.trim() || !r.checked) return r;
-        if (x.sure) {
-          filled++;
-          return { ...r, label: x.t, suggest: undefined };
-        }
-        check++;
-        return { ...r, suggest: x.t };
-      }),
+      fillOrder(
+        rs.map((r) => {
+          const x = m.get(r.id);
+          if (!x || r.label.trim() || !r.checked) return r;
+          if (x.sure) {
+            filled++;
+            return { ...r, label: x.t, suggest: undefined };
+          }
+          check++;
+          return { ...r, suggest: x.t };
+        })
+      ),
     );
+    setGrouped(true);
     const none = want.length - m.size;
     setMsg(`${filled} filled from the plan${check ? ` · ${check} to check` : ''}${none ? ` · ${none} not found` : ''}`);
   };
-  const tryClose = () => (changes ? (onMinimize(false), setAsking(true)) : onClose());
+  const tryClose = () => (changes ? (onMinimize(false), setAsking(true)) : close());
   const save = async () => {
     setAsking(false);
     setSaving(true);
@@ -174,7 +200,7 @@ export function BulkEditTags({
         marks: rows.filter((r) => r.typeId !== r.from || r.label.trim() !== (r.mark.label ?? '')).map((r) => ({ id: r.id, from: r.from, typeId: r.typeId, label: r.label.trim() })),
         remove: [],
       });
-      onClose();
+      close();
     } catch {
       setMsg(notes.error ?? 'Couldn’t save every change');
     } finally {
@@ -184,14 +210,24 @@ export function BulkEditTags({
   const remove = async () => {
     if (!window.confirm(`Remove ${ticked.length} tagged room${ticked.length === 1 ? '' : 's'} from the plan?`)) return;
     await onSave({ marks: [], remove: ticked.map((r) => ({ id: r.id, typeId: r.from })) });
-    onClose();
+    close();
   };
 
   const cell = 'input-field py-1 text-xs disabled:opacity-60';
   return (
-    <div className="fixed sm:absolute inset-x-0 bottom-0 z-[70] sm:z-30 flex flex-col rounded-t-xl border-t border-teton-off-white bg-white shadow-[0_-12px_36px_rgba(0,0,0,.18)] drawer-in" role="dialog" aria-label="Edit tags" data-plan-ui onPointerDown={(e) => e.stopPropagation()}>
-      {/* Drag the top edge to make the panel taller or shorter (arrow keys too). */}
-      {!minimized && (
+    <div
+      className={
+        phone
+          ? `fixed inset-x-0 bottom-0 z-[70] flex flex-col rounded-t-xl border-t border-teton-off-white bg-white shadow-[0_-12px_36px_rgba(0,0,0,.18)] ${leaving ? 'sheet-out' : 'drawer-in'}`
+          : `absolute left-0 top-0 z-30 flex w-[min(42rem,calc(100%-3rem))] flex-col rounded-r-xl border-r border-teton-off-white bg-white shadow-[12px_0_36px_rgba(0,0,0,.18)] ${minimized ? '' : 'bottom-0'} ${leaving ? 'drawer-left-out' : 'drawer-left-in'}`
+      }
+      role="dialog"
+      aria-label="Edit tags"
+      data-plan-ui
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {/* Phones: drag the top edge to make the sheet taller or shorter (arrow keys too). */}
+      {!minimized && phone && (
         <div
           role="separator"
           aria-orientation="horizontal"
@@ -246,15 +282,16 @@ export function BulkEditTags({
         <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2.5 bg-[#FFF8E6] border-b border-[#F3DC9A] text-xs drawer-in" role="alertdialog" aria-label="Unsaved changes">
           <span className="mr-auto"><b>{changes} unsaved change{changes === 1 ? '' : 's'}.</b> Save them before closing?</span>
           <button type="button" className="btn-ghost py-1 text-xs" onClick={() => setAsking(false)}>Cancel</button>
-          <button type="button" className="btn-secondary py-1 text-xs text-[#B23A26]" onClick={onClose}>Discard changes</button>
+          <button type="button" className="btn-secondary py-1 text-xs text-[#B23A26]" onClick={close}>Discard changes</button>
           <button type="button" className="btn-primary py-1 text-xs" disabled={saving} onClick={() => void save()}>Save changes</button>
         </div>
       )}
-      <Collapse open={!minimized}>
-      <div ref={list} className={`overflow-y-auto ${listH ? '' : 'max-h-[52dvh] sm:max-h-[min(46vh,520px)]'}`} style={listH ? { height: listH } : undefined}>
+      <Collapse open={!minimized} className={phone ? '' : 'flex-1 min-h-0'}>
+      <div className={phone ? '' : 'flex h-full flex-col'}>
+      <div ref={list} className={phone ? `overflow-y-auto ${listH ? '' : 'max-h-[52dvh]'}` : 'min-h-0 flex-1 overflow-y-auto'} style={phone && listH ? { height: listH } : undefined}>
         {/* Apply to the ticked rows */}
-        <div className="grid gap-2 px-3 sm:px-4 py-2.5 bg-[#F3F7FD] border-b border-[#D6E4F7] text-xs sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.4fr)] items-center">
-          <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#1F5FB5]">Apply to {ticked.length}</span>
+        <div className="grid gap-2 px-3 sm:px-4 py-2.5 bg-[#F3F7FD] border-b border-[#D6E4F7] text-xs sm:grid-cols-2 items-center">
+          <span className="sm:col-span-2 text-[10.5px] font-bold uppercase tracking-wider text-[#1F5FB5]">Apply to {ticked.length}</span>
           <div className="flex gap-1.5">
             <select className={cell} value={allType} disabled={!canScope} onChange={(e) => setAllType(e.target.value)} aria-label="Room type for all ticked rooms">
               <option value="">Room type…</option>
@@ -268,7 +305,7 @@ export function BulkEditTags({
             <input className={`${cell} w-12`} inputMode="numeric" value={step} disabled={!canScope} onChange={(e) => setStep(e.target.value.replace(/\D/g, '').slice(0, 3))} aria-label="Step" />
             <button type="button" className="btn-secondary py-1 text-xs disabled:opacity-40" disabled={!from || !canScope} onClick={fillNumbers}>Number</button>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 sm:col-span-2">
             <input className={cell} placeholder="Note for every ticked room…" value={allNote} maxLength={2000} onChange={(e) => setAllNote(e.target.value)} aria-label="Note for all ticked rooms" />
             <button
               type="button"
@@ -283,7 +320,7 @@ export function BulkEditTags({
               Add
             </button>
           </div>
-          <div className="sm:col-span-4 flex flex-wrap items-center gap-2">
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
             <button type="button" className="rounded-md bg-[#3F8CEA] px-2.5 py-1 font-medium text-white hover:brightness-110 disabled:opacity-50" disabled={!canScope || !!busy} onClick={() => void fromPlan()}>
               {busy ?? 'Fill numbers from plan'}
             </button>
@@ -295,7 +332,9 @@ export function BulkEditTags({
           <span /> <span>Tag</span> <span>Room type</span> <span>Room number</span> <span>Notes</span>
         </div>
         <ul>
-          {rows.map((r) => {
+          {rows.map((r, i) => {
+            const rank = rankOf(r);
+            const head = grouped && (i === 0 || rankOf(rows[i - 1]) !== rank) ? GROUPS[rank] : null;
             const k = typeIndex(r.typeId);
             const b = badgeOf(types[k] ?? { name: '' }, Math.max(0, k));
             const ob = badgeOf(types[typeIndex(r.from)] ?? { name: '' }, Math.max(0, typeIndex(r.from)));
@@ -304,8 +343,13 @@ export function BulkEditTags({
             const theirs = notes.of(r.id).filter((n) => !n.mine);
             const noteChanged = r.note.trim() !== o.note.trim();
             return (
+              <Fragment key={r.id}>
+              {head && (
+                <li className={`px-3 sm:px-4 py-1.5 text-[10.5px] font-bold uppercase tracking-wider border-b border-teton-off-white drawer-in ${head.cls}`}>
+                  {head.label} · {rows.filter((x) => rankOf(x) === rank).length}
+                </li>
+              )}
               <li
-                key={r.id}
                 aria-current={active === r.id ? true : undefined}
                 // Click a row (or into its fields) to pick out its tag on the plan; click it again to let go.
                 onClick={(e) => {
@@ -351,6 +395,7 @@ export function BulkEditTags({
                   )}
                 </div>
               </li>
+              </Fragment>
             );
           })}
         </ul>
@@ -364,6 +409,7 @@ export function BulkEditTags({
         )}
         <button type="button" className="btn-ghost py-1 text-xs" onClick={tryClose}>Cancel</button>
         <button type="button" className="btn-primary py-1 text-xs disabled:opacity-40" disabled={!changes || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save changes'}</button>
+      </div>
       </div>
       </Collapse>
     </div>
