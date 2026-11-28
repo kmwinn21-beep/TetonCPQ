@@ -32,6 +32,8 @@ export interface RoomType {
    * and one handles up to 3 sensors. Counted for the scope and Teton's hardware; the customer's price stays per room.
    */
   edges?: number;
+  /** Size of each room of this type, in square feet (optional; recorded only, not used in any calculation yet). */
+  sqft?: number;
   /** Sensors in each room of this type (one per room or living area a resident uses). */
   sensors: number;
   /** E-Call pendants / pull-cords in each room of this type (the residents when missing). Billing is per resident. */
@@ -67,6 +69,8 @@ export interface RoomMark {
   residents?: number;
   /** Sensors in this room when it differs from its room type. */
   sensors?: number;
+  /** This room's size in square feet when it differs from its room type (recorded only). */
+  sqft?: number;
 }
 
 const normName = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -132,7 +136,8 @@ function normalizeMarks(v: unknown): RoomMark[] | undefined {
     const edges = m.edges != null && Number.isFinite(Number(m.edges)) ? Math.min(MAX_EDGES, Math.max(1, Math.round(Number(m.edges)))) : null;
     const res = m.residents != null && Number.isFinite(Number(m.residents)) ? Math.min(MAX_RESIDENTS, Math.max(1, Math.round(Number(m.residents)))) : null;
     const sen = m.sensors != null && Number.isFinite(Number(m.sensors)) ? Math.min(20, Math.max(1, Math.round(Number(m.sensors)))) : null;
-    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}), ...(by ? { by } : {}), ...(at ? { at } : {}), ...(edges != null ? { edges } : {}), ...(res != null ? { residents: res } : {}), ...(sen != null ? { sensors: sen } : {}) }];
+    const sqft = sqftOf(m.sqft);
+    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}), ...(by ? { by } : {}), ...(at ? { at } : {}), ...(edges != null ? { edges } : {}), ...(res != null ? { residents: res } : {}), ...(sen != null ? { sensors: sen } : {}), ...(sqft != null ? { sqft } : {}) }];
   });
   return out.length ? out : undefined;
 }
@@ -140,6 +145,11 @@ function normalizeMarks(v: unknown): RoomMark[] | undefined {
 export const DEFAULT_ALLOWANCE = 0.03;
 const CARES: CareType[] = ['il', 'al', 'mc', 'snf', 'custom'];
 const int = (v: unknown, max: number) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
+
+/** A size in square feet (1 to 100,000, whole feet), or null when missing. */
+export const sqftOf = (v: unknown): number | null => (v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 1 ? Math.min(100000, Math.round(Number(v))) : null);
+/** One room's size: its own, else its room type's (null: not recorded). */
+export const markSqft = (t: Pick<RoomType, 'sqft'>, m: Pick<RoomMark, 'sqft'>) => sqftOf(m.sqft) ?? sqftOf(t.sqft);
 
 /** Residents in each room of a type (1 to 6; 1 when missing). */
 export const residentsOf = (t: Pick<RoomType, 'residents'>) => Math.min(6, Math.max(1, Math.round(Number(t.residents) || 1)));
@@ -156,7 +166,7 @@ export const markResidents = (t: Pick<RoomType, 'residents'>, m: Pick<RoomMark, 
 /** One room's sensors: its own override, else its room type's. */
 export const markSensors = (t: Pick<RoomType, 'sensors'>, m: Pick<RoomMark, 'sensors'>) => (m.sensors != null ? Math.max(1, m.sensors) : Math.max(1, Number(t.sensors) || 1));
 /** Whether a tagged room has any count of its own (residents, sensors or Edge units). */
-export const markOverridden = (m: Pick<RoomMark, 'residents' | 'sensors' | 'edges'>) => m.residents != null || m.sensors != null || m.edges != null;
+export const markOverridden = (m: Pick<RoomMark, 'residents' | 'sensors' | 'edges'> & { sqft?: number }) => m.residents != null || m.sensors != null || m.edges != null || m.sqft != null;
 /** A room type's residents: rooms × residents per room, adjusted by its tagged rooms' own counts. */
 export const typeResidents = (t: Pick<RoomType, 'rooms' | 'residents' | 'marks'>) =>
   Math.max(0, (Number(t.rooms) || 0) * residentsOf(t) + (t.marks ?? []).reduce((s, m) => s + (m.residents != null ? markResidents(t, m) - residentsOf(t) : 0), 0));
@@ -180,6 +190,7 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       if (out.edges != null && out.edges === edgesOf(r)) delete out.edges;
       if (out.residents != null && out.residents === residentsOf(r)) delete out.residents;
       if (out.sensors != null && out.sensors === typeSen) delete out.sensors;
+      if (out.sqft != null && out.sqft === sqftOf(r.sqft)) delete out.sqft;
       return out;
     });
     const fromPlan = r.roomsFromPlan === true;
@@ -192,6 +203,7 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       rooms: fromPlan ? (marks?.length ?? 0) : int(r.rooms, 5000),
       ...(residentsOf(r) > 1 ? { residents: residentsOf(r) } : {}),
       ...(edgesOf(r) > 1 ? { edges: edgesOf(r) } : {}),
+      ...(sqftOf(r.sqft) != null ? { sqft: sqftOf(r.sqft)! } : {}),
       sensors: Math.max(1, int(r.sensors ?? 1, 20)),
       ...(r.pendants != null && Math.max(1, int(r.pendants, 20)) !== residentsOf(r) ? { pendants: Math.max(1, int(r.pendants, 20)) } : {}),
       ...(r.care === 'custom' ? { customCare: String(r.customCare ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) } : {}),

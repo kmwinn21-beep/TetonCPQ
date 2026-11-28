@@ -4,7 +4,7 @@ import { priceBook } from '@/lib/pricing/catalog';
 import { computeCapex } from '@/lib/pricing/capex';
 import { buildPriceLines } from '@/lib/pricing/lines';
 import { allProducts, defaultDraft, newCommunity, normalizeDraft, type QuoteDraft } from './draft';
-import { markResidents, markSensors, normalizeRoomTypes, pendantScope, roomScope, sharedResidents, typeResidents, typeSensors, type RoomMark, type RoomType } from './roomTypes';
+import { markResidents, markSensors, markSqft, normalizeRoomTypes, pendantScope, roomScope, sharedResidents, typeResidents, typeSensors, type RoomMark, type RoomType } from './roomTypes';
 import { toModelInputs } from './toModelInputs';
 
 const mk = (id: string, o: Partial<RoomMark> = {}): RoomMark => ({ id, plan: 1, page: 1, x: 0.1, y: 0.1, ...o });
@@ -59,5 +59,16 @@ describe('one room set on its own (residents and sensors)', () => {
   it('gives the room\'s extra resident a pendant of their own (E-Call billed per resident)', () => {
     const ps = pendantScope(deal([ONE_BED], 'ble').communities[0], true);
     expect(ps).toMatchObject({ rooms: 17, residents: 18, roomPendants: 18 });
+  });
+
+  it('records room size (SF) on the room type and per room, without changing any number', () => {
+    const [t] = normalizeRoomTypes([{ ...plain, sqft: 450.4, marks: [mk('a', { sqft: 620 }), mk('b', { sqft: 450 }), mk('c', { sqft: -3 })] }]);
+    expect(t.sqft).toBe(450);
+    expect(t.marks?.map((m) => m.sqft)).toEqual([620, undefined, undefined]);
+    expect(markSqft(t, t.marks![0])).toBe(620);
+    expect(markSqft(t, t.marks![1])).toBe(450);
+    expect(normalizeRoomTypes([{ ...plain, sqft: 0 }])[0].sqft).toBeUndefined();
+    const sized = deal([{ ...plain, sqft: 450, marks: plain.marks.map((m, i) => (i ? m : { ...m, sqft: 900 })) }]);
+    expect(runModel(toModelInputs(sized)).kpis).toEqual(runModel(toModelInputs(deal([plain]))).kpis);
   });
 });

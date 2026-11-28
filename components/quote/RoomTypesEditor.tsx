@@ -211,6 +211,13 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   )}
                 </div>
               </div>
+              {/* Room size (recorded only; no calculation uses it yet). */}
+              <div className={`${span} flex items-center gap-2`}>
+                <span className={`${eyebrowWrap} !mb-0`}>Size (SF)</span>
+                <span className="w-28">
+                  <NumInput value={t.sqft ?? null} nullable placeholder="Optional" suffix="SF" min={1} max={100000} onChange={(v) => patch(t.id, { sqft: v != null && v >= 1 ? Math.round(v) : undefined })} aria-label={`Community ${position} room type ${k + 1} size in square feet`} />
+                </span>
+              </div>
               {/* The products this room type gets: its care setting's ticks in the Beds grid above. */}
               <div className={`${span} -mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teton-ui-gray`}>
                 Products

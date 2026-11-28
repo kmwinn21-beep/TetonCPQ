@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, edgesOf, markEdges, markResidents, markSensors, markOverridden, MAX_EDGES, SENSORS_PER_EDGE, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, edgesOf, markEdges, markResidents, markSensors, markOverridden, markSqft, MAX_EDGES, SENSORS_PER_EDGE, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -355,17 +355,17 @@ export function ScopeViewer({
     setPop({ typeId: to, markId });
   };
   // One room's own counts (residents, sensors, Edge units); each is dropped when it matches its room type's.
-  const overrideMark = (typeId: string, markId: string, o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges'>>) =>
+  const overrideMark = (typeId: string, markId: string, o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges' | 'sqft'>>) =>
     update((list) =>
       list.map((t) => {
         if (t.id !== typeId) return t;
-        const base = { residents: residentsOf(t), sensors: Math.max(1, Number(t.sensors) || 1), edges: edgesOf(t) };
+        const base = { residents: residentsOf(t), sensors: Math.max(1, Number(t.sensors) || 1), edges: edgesOf(t), sqft: t.sqft };
         return {
           ...t,
           marks: (t.marks ?? []).map((m) => {
             if (m.id !== markId) return m;
             const out: RoomMark = { ...m };
-            for (const k of ['residents', 'sensors', 'edges'] as const) {
+            for (const k of ['residents', 'sensors', 'edges', 'sqft'] as const) {
               if (!(k in o)) continue;
               const v = o[k];
               if (v == null || v === base[k]) delete out[k];
@@ -1802,7 +1802,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onOverride, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onOverride?: (o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges'>>) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
+function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onOverride, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onOverride?: (o: Partial<Pick<RoomMark, 'residents' | 'sensors' | 'edges' | 'sqft'>>) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -1827,6 +1827,7 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
             ) : (
               <span className="rounded-full bg-[#F1EEE8] px-1.5 py-px text-[10.5px] font-semibold text-teton-ui-gray">No sensors (no Resident Monitoring)</span>
             )}
+            {markSqft(type, mark) != null && <span className="rounded-full bg-[#F1EEE8] px-1.5 py-px text-[10.5px] font-semibold text-teton-dark-gray">{markSqft(type, mark)!.toLocaleString('en-US')} SF</span>}
             {pendantsPerRoom(type, products) > 0 && <span className="rounded-full bg-[#FBE6E1] px-1.5 py-px text-[10.5px] font-semibold text-[#B4442C]">{type.pendants ?? markResidents(type, mark)} {(type.pendants ?? markResidents(type, mark)) === 1 ? 'device' : 'devices'}</span>}
           </div>
         </div>
@@ -1875,12 +1876,13 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
                 {row(`mr-${mark.id}`, 'Residents', <Counter id={`mr-${mark.id}`} size="xs" className="w-[84px]" value={res} onChange={(v) => onOverride({ residents: v, ...(mon && sen === res ? { sensors: v } : {}) })} min={1} max={MAX_RESIDENTS} aria-label="Residents in this room" />)}
                 {mon && row(`ms-${mark.id}`, 'Sensors', <Counter id={`ms-${mark.id}`} size="xs" className="w-[84px]" value={sen} onChange={(v) => onOverride({ sensors: v })} min={1} max={20} aria-label="Sensors in this room" />)}
                 {mon && row(`me-${mark.id}`, 'Edge units', <Counter id={`me-${mark.id}`} size="xs" className="w-[84px]" value={edg} onChange={(v) => onOverride({ edges: v })} min={1} max={MAX_EDGES} aria-label="Edge units in this room" />, 'text-[#5B3FA8] font-semibold')}
+                {row(`mq-${mark.id}`, 'Size (SF)', <span className="w-[84px]"><NumInput id={`mq-${mark.id}`} value={markSqft(type, mark)} nullable placeholder="–" min={1} max={100000} onChange={(v) => onOverride({ sqft: v != null && v >= 1 ? Math.round(v) : undefined })} aria-label="Size of this room in square feet" /></span>)}
                 {mon && sen > edg * SENSORS_PER_EDGE && <p className="mb-1.5 rounded bg-[#FFF3D6] px-2 py-1 text-[10.5px] text-[#8A5A00] drawer-in">One Edge unit handles up to {SENSORS_PER_EDGE} sensors: {sen} sensors need {Math.ceil(sen / SENSORS_PER_EDGE)} Edge units.</p>}
                 <p className="text-[10.5px] text-teton-ui-gray">
                   {differs ? (
                     <>
                       Differs from {type.name || 'its room type'} ({residentsOf(type)} resident{residentsOf(type) === 1 ? '' : 's'}{mon ? `, ${Math.max(1, Number(type.sensors) || 1)} sensor${Math.max(1, Number(type.sensors) || 1) === 1 ? '' : 's'}, ${edgesOf(type)} Edge unit${edgesOf(type) === 1 ? '' : 's'}` : ''}).{' '}
-                      <button type="button" className="underline" onClick={() => onOverride({ residents: undefined, sensors: undefined, edges: undefined })}>Match the room type</button>
+                      <button type="button" className="underline" onClick={() => onOverride({ residents: undefined, sensors: undefined, edges: undefined, sqft: undefined })}>Match the room type</button>
                     </>
                   ) : (
                     `Matches ${type.name || 'its room type'}. Change these only if this room is different.`
@@ -1952,6 +1954,8 @@ function TypeForm({
   // Sensors and devices follow the residents until changed by hand.
   // Edge units per room: dedicated to the room, one handles up to 3 sensors.
   const [edges, setEdges] = useState<number>(initial ? edgesOf(initial) : 1);
+  // Room size (recorded only).
+  const [sqft, setSqft] = useState<number | null>(initial?.sqft ?? null);
   const changeResidents = (v: number) => {
     if (sensors === residents) setSensors(v);
     if (pendants === residents) setPendants(v);
@@ -1978,6 +1982,7 @@ function TypeForm({
           care,
           residents: residents > 1 ? residents : undefined,
           edges: edges > 1 && products[bedKeyOf({ care })].monitoring ? edges : undefined,
+          sqft: sqft != null && sqft >= 1 ? Math.round(sqft) : undefined,
           sensors: Math.max(1, Math.min(20, Math.round(sensors) || 1)),
           pendants: pendants !== residents ? Math.max(1, Math.min(20, Math.round(pendants) || 1)) : undefined,
           color,
@@ -2031,6 +2036,11 @@ function TypeForm({
               <option value="custom">{CARE_LABEL.custom}</option>
             </select>
           )}
+        </div>
+        {/* Room size (recorded only; no calculation uses it yet). */}
+        <div>
+          <label className={eyebrow} htmlFor="tf-sqft">Size (SF)</label>
+          <NumInput id="tf-sqft" value={sqft} nullable placeholder="Optional" min={1} max={100000} onChange={(v) => setSqft(v != null && v >= 1 ? Math.round(v) : null)} aria-label="Room size in square feet" className="py-1.5 text-xs" />
         </div>
       </div>
       {/* Sensors and E-Call devices per room. No resident monitoring in this care setting: no sensors (0, locked);

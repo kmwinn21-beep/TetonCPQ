@@ -389,7 +389,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     monRooms += included;
     for (const m of t.marks ?? [])
       if (markOverridden(m) && ownCounts.length < 12)
-        ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? plural(markResidents(t, m), 'resident') : '', m.sensors != null ? plural(markSensors(t, m), 'sensor') : '', m.edges != null ? plural(markEdges(t, m), 'Edge unit') : ''].filter(Boolean).join(', ')}`);
+        ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? plural(markResidents(t, m), 'resident') : '', m.sensors != null ? plural(markSensors(t, m), 'sensor') : '', m.edges != null ? plural(markEdges(t, m), 'Edge unit') : '', m.sqft != null ? `${m.sqft.toLocaleString('en-US')} SF` : ''].filter(Boolean).join(', ')}`);
     text(String(residents), cols[5], 10, reg, residents ? INK : MUTED, 'r');
     text(String(edges), cols[6], 10, reg, edges ? INK : MUTED, 'r');
     text(String(included), cols[7], 10, reg, included ? INK : MUTED, 'r');
