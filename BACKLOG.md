@@ -116,3 +116,7 @@ Mock: `docs/mocks/scoping/room-sensors.html`. Each room's first sensor comes wit
 - Totals use each room's own counts: billed beds, additional sensors (and price), E-Call devices (one per resident unless the room type sets its own). Installation stays per room.
 - Bottom bar: "4 sensors (1 additional)". Floor plan Summary table and scope PDF: Residents, Edge units, Sensors and Additional columns, and a list of rooms set individually. The proposal keeps showing total sensors.
 
+## 8. Scope summary cards — built
+
+Mock: `docs/mocks/scoping/summary-cards.html`. Two cards at the top of the scope summary page (Summary tab and the downloaded PDF): **Sensors** (total incl. the site-conditions allowance; subtext "N additional · N included with the Edge units", noting the allowance) and **Edge units** ("One in each of N resident rooms", or how many rooms have more than one). Community totals, matching the table; "This plan: N rooms" when the community has more than one floor plan.
+

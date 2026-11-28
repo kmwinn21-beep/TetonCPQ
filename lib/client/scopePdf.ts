@@ -274,6 +274,8 @@ export async function scopeSummaryPdf(a: Omit<Args, 'url' | 'mime'>): Promise<Bl
   return new Blob([pdf.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
 }
 
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
 function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: Array<{ t: RoomType; b: { color: string; initials: string } }>) {
   const W = 612;
   const H = 792;
@@ -289,7 +291,36 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   text(a.communityName, M, 20, bold);
   y -= 18;
   text(`${a.planName} · ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, M, 10, reg, MUTED);
-  y -= 30;
+  y -= 22;
+
+  // Two cards: sensors (with how many are additional) and Edge units, for the whole community (what gets priced).
+  {
+    const mon = types.filter(({ t }) => sensorsPerRoom(t, a.products) > 0 && isPriced(t, a.products) && (Number(t.rooms) || 0) > 0).map(({ t }) => t);
+    const rooms = mon.reduce((n, t) => n + (Number(t.rooms) || 0), 0);
+    const edges = mon.reduce((n, t) => n + typeEdges(t), 0);
+    const sc = roomScope(mon, a.allowancePct);
+    const additional = Math.max(0, sc.totalSensors - rooms);
+    const plans = new Set(types.flatMap(({ t }) => (t.marks ?? []).map((m) => m.plan)));
+    const here = mon.reduce((n, t) => n + (t.marks ?? []).filter((m) => m.plan === a.planId).length, 0);
+    const multi = edges - rooms;
+    const gap = 12;
+    const cw = (W - 2 * M - gap) / 2;
+    const twoLines = (Number(a.allowancePct) > 0) || plans.size > 1 || multi > 0;
+    const ch = twoLines ? 82 : 70;
+    const top = y;
+    const card = (x: number, fill: string, border: string, accent: string, label: string, value: number, sub: string, sub2?: string) => {
+      const r = 9;
+      p.drawSvgPath(`M ${r} 0 H ${cw - r} Q ${cw} 0 ${cw} ${r} V ${ch - r} Q ${cw} ${ch} ${cw - r} ${ch} H ${r} Q 0 ${ch} 0 ${ch - r} V ${r} Q 0 0 ${r} 0 Z`, { x, y: top, color: hex(fill), borderColor: hex(border), borderWidth: 0.8 });
+      const at = (s2: string, dy: number, size: number, font: PDFFont, color = INK) => p.drawText(safe(font, s2), { x: x + 14, y: top - dy, size, font, color });
+      at(label.toUpperCase(), 18, 7.5, bold, hex(accent));
+      at(String(value), 45, 24, bold);
+      at(sub, 60, 8.5, reg, MUTED);
+      if (sub2) at(sub2, 72, 7.5, reg, MUTED);
+    };
+    card(M, '#EEF4FD', '#CFE0F7', '#1F5FB5', 'Sensors', sc.totalSensors, `${additional} additional · ${Math.min(rooms, sc.totalSensors)} included with the Edge units`, sc.allowance > 0 ? `Additional includes ${sc.allowance} for site conditions` : undefined);
+    card(M + cw + gap, '#F4F0FC', '#DDD3F3', '#5B3FA8', 'Edge units', edges, multi > 0 ? `${rooms} resident rooms · ${multi} more where a room has several` : `One in each of ${rooms} resident room${rooms === 1 ? '' : 's'}`, plans.size > 1 ? `This plan: ${here} room${here === 1 ? '' : 's'} (the community has ${plans.size} plans)` : undefined);
+    y = top - ch - 26;
+  }
 
   // Room type and care setting on the left; the numbers right-aligned at these x positions.
   // Residents are billed beds; each room's first sensor comes with its Edge unit, the rest are additional.
@@ -351,7 +382,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     if (per && rooms) monRooms += rooms;
     for (const m of t.marks ?? [])
       if (markOverridden(m) && ownCounts.length < 12)
-        ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? `${markResidents(t, m)} residents` : '', m.sensors != null ? `${markSensors(t, m)} sensors` : '', m.edges != null ? `${markEdges(t, m)} Edge units` : ''].filter(Boolean).join(', ')}`);
+        ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? plural(markResidents(t, m), 'resident') : '', m.sensors != null ? plural(markSensors(t, m), 'sensor') : '', m.edges != null ? plural(markEdges(t, m), 'Edge unit') : ''].filter(Boolean).join(', ')}`);
     text(String(residents), cols[5], 10, reg, residents ? INK : MUTED, 'r');
     text(String(edges), cols[6], 10, reg, edges ? INK : MUTED, 'r');
     text(String(sensors), cols[7], 10, bold, sensors ? INK : MUTED, 'r');

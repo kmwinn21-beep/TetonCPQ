@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Summary Cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16181D;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--edge:#5B3FA8;--edgeBg:#F4F0FC;--blue:#1F5FB5;--blueBg:#EEF4FD;--g:#1F6B3A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:19px;margin:44px 0 4px}
+.lede,.sub{color:var(--ink2);max-width:820px;margin:0 0 14px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:880px}
+
+/* viewer frame */
+.viewer{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#F1F3F2;box-shadow:0 10px 40px rgba(15,23,32,.08)}
+.vtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-bottom:1px solid var(--line);font-size:13px}
+.tabs{display:flex;gap:4px;padding:6px 14px 0;background:#fff;font-size:12.5px}
+.tabs span{padding:6px 10px;border-radius:8px 8px 0 0;color:var(--ink2)}
+.tabs span.on{background:#F1F3F2;font-weight:700;color:var(--ink)}
+.subbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid #E3E6E4}
+.seg{margin-left:auto;display:inline-flex;background:#E7E9E8;border-radius:8px;padding:2px;font-size:11.5px}
+.seg b,.seg i{padding:3px 10px;border-radius:6px;font-style:normal}
+.seg b{background:#fff}
+.page{background:#fff;max-width:820px;margin:18px auto;padding:44px 52px 40px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+@media(max-width:620px){.page{padding:26px 18px;margin:12px}}
+.kick{font-size:10.5px;font-weight:800;color:#D4552F;letter-spacing:.4px}
+.page h3{font-size:24px;margin:4px 0 2px}
+.date{font-size:12px;color:var(--mut);margin-bottom:22px}
+
+/* the new cards */
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 24px}
+@media(max-width:520px){.cards{grid-template-columns:minmax(0,1fr)}}
+.kc{border-radius:12px;padding:14px 16px;border:1px solid}
+.kc.s{background:var(--blueBg);border-color:#CFE0F7}
+.kc.e{background:var(--edgeBg);border-color:#DDD3F3}
+.kc .lbl{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase}
+.kc.s .lbl{color:var(--blue)}.kc.e .lbl{color:var(--edge)}
+.kc .lbl svg{width:15px;height:15px}
+.kc .num{font-size:34px;font-weight:800;letter-spacing:-.6px;line-height:1.1;margin-top:6px}
+.kc .txt{font-size:12.5px;color:var(--ink2);margin-top:2px}
+.kc .txt b{color:var(--ink)}
+.split{display:flex;height:6px;border-radius:999px;overflow:hidden;margin-top:10px;background:#DCE6F5}
+.split i{display:block;height:100%}
+.new{outline:2px dashed #9CB9E6;outline-offset:6px;border-radius:14px}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-size:9px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--mut);text-align:right;padding:0 0 6px;border-bottom:1.5px solid var(--ink)}
+th:nth-child(-n+2){text-align:left}
+td{padding:9px 0;border-bottom:1px solid #EEE;text-align:right;font-variant-numeric:tabular-nums}
+td:nth-child(-n+2){text-align:left}
+td.nm{font-weight:700;display:flex;align-items:center;gap:8px}
+.bd{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;color:#fff;font-size:7.5px;font-weight:800}
+tr.tot td{font-weight:800;border-bottom:0;padding-top:12px}
+.tw{overflow-x:auto}
+.foot{font-size:10.5px;color:var(--ink2);margin-top:14px;line-height:1.6}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#fff;border-top:1px solid var(--line);font-size:12.5px}
+.bar .t{margin-left:auto;font-weight:700}
+.q{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.q b{display:block;margin-bottom:3px}
+.q .rec{font-size:12.5px;color:var(--g);margin-top:4px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media(max-width:860px){.two{grid-template-columns:minmax(0,1fr)}}
+.phone{width:390px;max-width:100%;margin:0 auto;border:10px solid #0F1720;border-radius:34px;overflow:hidden;background:#F1F3F2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Scope Mode · Summary tab · mock · nothing built</p>
+  <h1>Totals cards on the scope summary</h1>
+  <p class="lede">Two cards above the table: <b>Sensors</b> (with how many are additional underneath) and <b>Compute units</b>. Numbers are from your Benton House of Blue Springs plan. The Summary tab draws the same page the scope download prints, so the cards would be in the downloaded PDF too.</p>
+
+  <h2>1 · The Summary tab</h2>
+  <div class="viewer">
+    <div class="vtop"><b style="font-size:15px">Benton House of Blue Springs</b><span style="color:var(--mut)">· BLU-Site Plan.pdf · 1.2 MB</span></div>
+    <div class="tabs"><span>Page 1</span><span>Page 2 · 73</span><span class="on">▤ Summary</span></div>
+    <div class="subbar">As printed on the summary page of the scope download <span class="seg"><b>With notes</b><i>No notes</i></span></div>
+    <div class="page">
+      <div class="kick">SCOPE SUMMARY</div>
+      <h3>Benton House of Blue Springs</h3>
+      <div class="date">BLU-Site Plan.pdf · November 27, 2026</div>
+
+      <div class="cards new">
+        <div class="kc s">
+          <div class="lbl"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="currentColor"/></svg>Sensors</div>
+          <div class="num">97</div>
+          <div class="txt"><b>24 additional</b> · 73 included with the compute units</div>
+          <div class="split" aria-hidden="true"><i style="width:75.3%;background:#1F5FB5"></i><i style="width:24.7%;background:#8FB3E8"></i></div>
+        </div>
+        <div class="kc e">
+          <div class="lbl"><svg viewBox="0 0 16 16"><rect x="3" y="2" width="10" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>Compute units</div>
+          <div class="num">73</div>
+          <div class="txt">One in each of 73 resident rooms</div>
+        </div>
+      </div>
+
+      <div class="tw"><table>
+        <tr><th>Room type</th><th>Care</th><th>This plan</th><th>All plans</th><th>Priced</th><th>Residents</th><th>Edge units</th><th>Sensors</th><th>Additional</th></tr>
+        <tr><td class="nm"><span class="bd" style="background:#3F6FD8">MC</span>Memory Care</td><td>Memory care</td><td>28</td><td>28</td><td>28</td><td>28</td><td>28</td><td><b>28</b></td><td>0</td></tr>
+        <tr><td class="nm"><span class="bd" style="background:#2E9E6B">1BD</span>One Bedroom D…</td><td>Assisted living</td><td>16</td><td>16</td><td>16</td><td>16</td><td>16</td><td><b>31</b></td><td>15</td></tr>
+        <tr><td class="nm"><span class="bd" style="background:#E07A2E">1B</span>One Bedroom</td><td>Assisted living</td><td>17</td><td>17</td><td>17</td><td>19</td><td>17</td><td><b>19</b></td><td>2</td></tr>
+        <tr><td class="nm"><span class="bd" style="background:#8E5BD6">SD</span>Studio Deluxe</td><td>Assisted living</td><td>8</td><td>8</td><td>8</td><td>8</td><td>8</td><td><b>15</b></td><td>7</td></tr>
+        <tr><td class="nm"><span class="bd" style="background:#D9467A">ST</span>Studio</td><td>Assisted living</td><td>4</td><td>4</td><td>4</td><td>4</td><td>4</td><td><b>4</b></td><td>0</td></tr>
+        <tr class="tot"><td>Total</td><td></td><td>73</td><td>73</td><td>73</td><td>75</td><td>73</td><td>97</td><td>24</td></tr>
+      </table></div>
+      <div class="foot">"This plan" and "All plans" count the rooms tagged on the floor plans; "Priced" is the room count used for pricing.<br>Each room's first sensor comes with its Edge unit; the rest are additional sensors on the same Edge unit.<br><b>Rooms set individually:</b><br>· Room 114 (One Bedroom Deluxe): 1 sensor<br>· Room 106 (One Bedroom): 2 residents, 2 sensors<br>· Room 105 (One Bedroom): 2 residents, 2 sensors<br>· Room 103 (Studio Deluxe): 1 sensor</div>
+    </div>
+    <div class="bar"><span>Memory Care · 28 · One Bedroom Deluxe · 16 · …</span><span class="t">73 rooms tagged · 97 sensors <span style="font-weight:500;color:var(--mut)">(24 additional)</span> · <span style="color:var(--edge)">73 Edge units</span></span></div>
+  </div>
+  <p class="cap">The dashed outline marks what's new. The thin bar under the sensor count shows the split: dark for sensors that come with the compute units, light for additional.</p>
+
+  <h2>2 · With a site-conditions allowance, and on a phone</h2>
+  <div class="two" style="align-items:start">
+    <div class="page" style="margin:0;padding:22px">
+      <p class="eb" style="margin-bottom:10px">When the plan has a 3% allowance</p>
+      <div class="cards" style="margin:0">
+        <div class="kc s"><div class="lbl">Sensors</div><div class="num">100</div><div class="txt"><b>27 additional</b> · incl. 3 for site conditions</div></div>
+        <div class="kc e"><div class="lbl">Compute units</div><div class="num">73</div><div class="txt">One in each of 73 resident rooms</div></div>
+      </div>
+      <p class="cap">The cards show the total with the allowance (matching "Total sensors" under the table), and say how many of the additional sensors are the allowance.</p>
+      <p class="eb" style="margin:16px 0 10px">When a room has more than one compute unit</p>
+      <div class="kc e"><div class="lbl">Compute units</div><div class="num">75</div><div class="txt">73 resident rooms · 2 rooms have 2</div></div>
+    </div>
+    <div class="phone">
+      <div class="page" style="margin:10px;padding:20px 16px">
+        <div class="kick">SCOPE SUMMARY</div>
+        <h3 style="font-size:19px">Benton House of Blue Springs</h3>
+        <div class="date">BLU-Site Plan.pdf · Nov 27, 2026</div>
+        <div class="cards" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+          <div class="kc s" style="padding:10px"><div class="lbl" style="font-size:9.5px">Sensors</div><div class="num" style="font-size:26px">97</div><div class="txt" style="font-size:11px"><b>24 additional</b></div></div>
+          <div class="kc e" style="padding:10px"><div class="lbl" style="font-size:9.5px">Compute units</div><div class="num" style="font-size:26px">73</div><div class="txt" style="font-size:11px">73 rooms</div></div>
+        </div>
+        <p class="cap" style="margin-top:0">The page scales down as it does today; the cards stay side by side.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>Questions</h2>
+  <div class="q"><b>1. "Compute units" or "Edge units"?</b>Everywhere else (bottom bar, table column, proposal) says Edge units. Using one name avoids "are these different things?"<div class="rec">Recommendation: pick one and use it everywhere. If customers know them as compute units, I'd rename Edge units to compute units across the app and proposal; otherwise keep "Edge units" on the card.</div></div>
+  <div class="q"><b>2. Count the whole community, or just this plan?</b>The table's totals are for room types across the community's plans ("All plans"). A community with two floor plans would show the community totals on both summaries.<div class="rec">Recommendation: the community totals (what gets priced), matching the table's Total row, with "This plan: 40 rooms" under the compute unit number when the community has more than one plan.</div></div>
+  <div class="q"><b>3. In the downloaded PDF too?</b>The Summary tab is drawn from the download, so the cards come along.<div class="rec">Recommendation: yes, the same cards on the download's summary page.</div></div>
+  <p class="cap">Small fix I'd make at the same time: "1 sensors" in the "Rooms set individually" list should read "1 sensor" (visible in your screenshot).</p>
+</div>
+</body>
+</html>
