@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -1827,8 +1827,16 @@ function TypeForm({
   const [care, setCare] = useState<CareType>(initial?.care ?? 'al');
   // A care setting of the rep's own (counts as assisted living beds), as in the community drawer.
   const [customCare, setCustomCare] = useState(initial?.customCare ?? '');
+  // Residents sharing each room (companion suites, semi-private): each is a billed bed; the room keeps one Edge unit.
+  const [residents, setResidents] = useState<number>(initial ? residentsOf(initial) : 1);
   const [sensors, setSensors] = useState<number>(initial?.sensors ?? 1);
-  const [pendants, setPendants] = useState<number>(Math.max(1, initial?.pendants ?? 1));
+  const [pendants, setPendants] = useState<number>(Math.max(1, initial?.pendants ?? (initial ? residentsOf(initial) : 1)));
+  // Sensors and devices follow the residents until changed by hand.
+  const changeResidents = (v: number) => {
+    if (sensors === residents) setSensors(v);
+    if (pendants === residents) setPendants(v);
+    setResidents(v);
+  };
   const [color, setColor] = useState(initial ? badgeOf(initial, index).color : nextBadgeColor(types));
   const [addTo, setAddTo] = useState('');
   const auto = initialsOf(name || 'Room type');
@@ -1839,7 +1847,7 @@ function TypeForm({
   const ok = name.trim().length > 0 && !clash && (care !== 'custom' || customCare.trim().length > 0);
   return (
     <form
-      className={`${card} w-[19rem] max-w-full`}
+      className={`${card} w-[22rem] max-w-full`}
       role="dialog"
       aria-label={title}
       onSubmit={(e) => {
@@ -1848,8 +1856,9 @@ function TypeForm({
         onSave({
           name: name.trim(),
           care,
+          residents: residents > 1 ? residents : undefined,
           sensors: Math.max(1, Math.min(20, Math.round(sensors) || 1)),
-          pendants: pendants !== 1 ? Math.max(1, Math.min(20, Math.round(pendants) || 1)) : undefined,
+          pendants: pendants !== residents ? Math.max(1, Math.min(20, Math.round(pendants) || 1)) : undefined,
           color,
           ...(initials.trim() ? { initials: initials.trim().toUpperCase().slice(0, 3) } : { initials: undefined }),
           customCare: care === 'custom' ? customCare.replace(/\s+/g, ' ').trim().slice(0, 40) : undefined,
@@ -1905,7 +1914,11 @@ function TypeForm({
       </div>
       {/* Sensors and E-Call devices per room. No resident monitoring in this care setting: no sensors (0, locked);
           no E-Call on the deal or in this care setting: no devices (0, locked). */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className={eyebrow} htmlFor="tf-res">Residents / room</label>
+          <Counter id="tf-res" size="sm" value={residents} onChange={changeResidents} min={1} max={MAX_RESIDENTS} aria-label="Residents per room" />
+        </div>
         <div>
           <label className={eyebrow} htmlFor="tf-sen">Sensors / room</label>
           {products[bedKeyOf({ care })].monitoring ? (
@@ -1925,6 +1938,7 @@ function TypeForm({
           )}
         </div>
       </div>
+      {residents > 1 && <p className="mt-1.5 text-[11px] text-teton-ui-gray drawer-in">Shared room: {residents} residents (billed beds), one Edge unit per room.</p>}
       {clash && (
         <p id="tf-clash" role="alert" className="mt-2 rounded bg-teton-red/25 px-2 py-1 text-[11px] text-[#9A2E1C] drawer-in">
           “{clash.name}” already exists in {care === 'custom' ? customCare.trim() || 'this care setting' : CARE_LABEL[care]}. Use a different name or care setting{onAddTo ? ', or add these rooms to it with Add To above' : ''}.
