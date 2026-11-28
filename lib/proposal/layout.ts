@@ -90,6 +90,10 @@ export interface ProposalLayout {
   bcSiteCare?: 'full' | 'short';
   /** Business case scope table: common areas folded into one line instead of a row each. */
   bcSiteAreas?: 'fold';
+  /** Business case scope table: by room type (unset) or one row per community. */
+  bcSiteTable?: 'community';
+  /** Business case scope table by community: the totals cards above it expanded or off (unset = condensed). */
+  bcSiteCommCards?: 'expanded' | 'off';
   /** One pagers (Resident Monitoring) showing the pilot community table: their page ids (off by default). */
   bcOpPilotTable?: string[];
   /** One pagers: "What gets installed" pictures condensed or large, by page id (unset = what fits the page). */
@@ -261,6 +265,8 @@ export function sanitizeLayout(input: unknown, cleanHtml: (html: string) => stri
     bcExecHardware: raw.bcExecHardware === true ? true : undefined,
     bcSiteCare: raw.bcSiteCare === 'full' || raw.bcSiteCare === 'short' ? raw.bcSiteCare : undefined,
     bcSiteAreas: raw.bcSiteAreas === 'fold' ? 'fold' : undefined,
+    bcSiteTable: raw.bcSiteTable === 'community' ? 'community' : undefined,
+    bcSiteCommCards: raw.bcSiteCommCards === 'expanded' || raw.bcSiteCommCards === 'off' ? raw.bcSiteCommCards : undefined,
     bcOpHw: (() => {
       const v = raw.bcOpHw;
       if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined;

@@ -49,6 +49,8 @@ import { useWhatIf } from './WhatIf';
 import { MissingPlanPill } from './FloorPlanStatus';
 import { CallOut } from './CallOut';
 import { ViewSwitch } from './ViewSwitch';
+import { Collapse } from '@/components/form/fields';
+import { scopeByCommunity } from '@/lib/proposal/scopeByCommunity';
 import { ImpactLegend, ImpactsCell } from './Impacts';
 import { impactsFor } from '@/lib/proposal/impacts';
 import { CompareChart } from './CompareChart';
@@ -1587,6 +1589,102 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         </div>
       );
     };
+    // The table by community (one row each): units by care setting, beds, sensors with their make-up, Edge units, E-Call.
+    const byComm = layout.bcSiteTable === 'community';
+    const commCards = layout.bcSiteCommCards ?? 'condensed';
+    const comm = byComm ? scopeByCommunity(draft, { roomsOnly: foldAreas }) : null;
+    type CommRow = ReturnType<typeof scopeByCommunity>['rows'][number];
+    const commTable = () => {
+      if (!comm) return null;
+      const devHead = ecCompare ? 'Devices' : inov ? 'Pull-Cords' : 'Pendants';
+      const icons = {
+        s: <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>,
+        e: <svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" /></svg>,
+        dv: <svg viewBox="0 0 24 24"><path d="M12 3v9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><circle cx="12" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="2" /></svg>,
+      };
+      const items: Array<{ k: 's' | 'e' | 'dv'; label: React.ReactNode; v: number; by: (r: CommRow) => number | null }> = [
+        ...(comm.anySensors
+          ? [
+              { k: 's' as const, label: <T k="bc.site.tot.sensors" d="Sensors" />, v: comm.total.sensors?.total ?? 0, by: (r: CommRow) => r.sensors?.total ?? null },
+              { k: 'e' as const, label: <T k="bc.site.tot.edge" d="Edge units" />, v: comm.total.edge ?? 0, by: (r: CommRow) => r.edge },
+            ]
+          : []),
+        ...(comm.anyDevices ? [{ k: 'dv' as const, label: <T k={`bc.site.comm.tot.dev.${inov ? 'cords' : 'pend'}`} d={`E-Call ${DEV.many}`} />, v: comm.total.devices ?? 0, by: (r: CommRow) => r.devices }] : []),
+      ];
+      const sensorCell = (sx: NonNullable<CommRow['sensors']>) => (
+        <span className="bc-sx">
+          <span className="bc-sx-b">{count(sx.total)}</span>
+          <span className="bc-sx-s">
+            <span>{count(sx.included)}</span><i>Incl.</i>
+            <span>{count(sx.additional)}</span><i>Addl.</i>
+            {sx.commonArea > 0 && (<><span>{count(sx.commonArea)}</span><i>CA</i></>)}
+          </span>
+        </span>
+      );
+      const row = (r: Omit<CommRow, 'id' | 'name'>) => (
+        <>
+          {comm.careCols.map((col) => <td key={col.key} className="bc-r">{r.units[col.key] ? count(r.units[col.key]) : '–'}</td>)}
+          <td className="bc-r">{count(r.totalUnits)}</td>
+          <td className="bc-r">{count(r.beds)}</td>
+          {comm.anySensors && <td className="bc-hl bc-c">{r.sensors ? sensorCell(r.sensors) : '–'}</td>}
+          {comm.anySensors && <td className={`bc-hl2 bc-r ${r.edge != null ? 'bc-big' : ''}`}>{r.edge != null ? count(r.edge) : '–'}</td>}
+          {comm.anyDevices && <td className={`bc-hl3 bc-r ${r.devices != null ? 'bc-big' : ''}`}>{r.devices != null ? count(r.devices) : '–'}</td>}
+        </>
+      );
+      return (
+        <>
+          {items.length > 0 && (
+            <Collapse open={commCards !== 'off'}>
+              <div className={`bc-sitetot bc-sitetot-comm ${commCards === 'expanded' ? 'bc-sitetot-x' : ''}`} style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+                {items.map((it) => (
+                  <div key={it.k} className={`bc-sitetot-c bc-sitetot-${it.k}`}>
+                    <div className="bc-sitetot-top">
+                      <span className="bc-sitetot-ic" aria-hidden="true">{icons[it.k]}</span>
+                      <b className="bc-sitetot-v">{count(it.v)}</b>
+                      <span className="bc-sitetot-k">{it.label}</span>
+                    </div>
+                    <Collapse open={commCards === 'expanded'}>
+                      <ul className="bc-sitetot-by">
+                        {comm.rows.map((r) => (
+                          <li key={r.id}><span>{r.name}</span><b>{it.by(r) ? count(it.by(r) as number) : '–'}</b></li>
+                        ))}
+                      </ul>
+                    </Collapse>
+                  </div>
+                ))}
+              </div>
+            </Collapse>
+          )}
+          <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl bc-comm-tbl ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
+            <RTable>
+              <thead>
+                <tr>
+                  <th>Community</th>
+                  {comm.careCols.map((col) => <th key={col.key} className="bc-r">{col.label}<br />Units</th>)}
+                  <th className="bc-r">Total<br />Units</th>
+                  <th className="bc-r">Beds</th>
+                  {comm.anySensors && <th className="bc-hl bc-c">Sensors</th>}
+                  {comm.anySensors && <th className="bc-hl2 bc-r">Edge<br />Units</th>}
+                  {comm.anyDevices && <th className="bc-hl3 bc-r">E-Call<br />{devHead}</th>}
+                </tr>
+              </thead>
+              <RTbody id="sitecomm" name="Scope by community">
+                {comm.rows.map((r) => (
+                  <tr key={r.id}>
+                    <td className="bc-m">{d.perCommunity[draft.communities.findIndex((c) => c.id === r.id)]?.name || r.name}</td>
+                    {row(r)}
+                  </tr>
+                ))}
+                <tr className="bc-tot">
+                  <td className="bc-m">Total</td>
+                  {row(comm.total)}
+                </tr>
+              </RTbody>
+            </RTable>
+          </div>
+        </>
+      );
+    };
     const titleVars = { rooms: count(scopeMode === 'ecall' ? ecRooms : roomsTotal), sensors: count(sensorsTotal), devices: count(devTotal), dev: DEV.many, areas: count(caSpaces) };
     // With common area spaces tagged, the headline names them too.
     const caTitle = caSpaces > 0;
@@ -1714,6 +1812,24 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
             {editable && (
               <div className="absolute right-0 -top-1 z-[5] flex flex-wrap justify-end gap-1.5">
                 {/* With the scope cards removed there's room for full-height rows. */}
+                <ViewSwitch
+                  field="bcSiteTable"
+                  position="relative"
+                  label="Table"
+                  options={[['type', 'Table: By room type'], ['community', 'By community']] as const}
+                  value={byComm ? 'community' : 'type'}
+                  onChange={(v) => setLayout((l) => ({ ...l, bcSiteTable: v === 'community' ? 'community' : undefined }))}
+                />
+                {byComm && (
+                  <ViewSwitch
+                    field="bcSiteCommCards"
+                    position="relative"
+                    label="Total cards"
+                    options={[['condensed', 'Cards: Condensed'], ['expanded', 'Expanded'], ['off', 'Off']] as const}
+                    value={commCards}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcSiteCommCards: v === 'condensed' ? undefined : v }))}
+                  />
+                )}
                 {siteCardsHidden && (
                   <ViewSwitch
                     field="bcSiteRows"
@@ -1724,15 +1840,17 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     onChange={(v) => setLayout((l) => ({ ...l, bcSiteRows: v === 'full' ? 'full' : undefined }))}
                   />
                 )}
-                <ViewSwitch
-                  field="bcSiteCare"
-                  position="relative"
-                  label="Care names"
-                  options={[['full', 'Care: Full'], ['short', 'Short']] as const}
-                  value={careShort ? 'short' : 'full'}
-                  onChange={(v) => setLayout((l) => ({ ...l, bcSiteCare: v }))}
-                />
-                {hasMon && (
+                {!byComm && (
+                  <ViewSwitch
+                    field="bcSiteCare"
+                    position="relative"
+                    label="Care names"
+                    options={[['full', 'Care: Full'], ['short', 'Short']] as const}
+                    value={careShort ? 'short' : 'full'}
+                    onChange={(v) => setLayout((l) => ({ ...l, bcSiteCare: v }))}
+                  />
+                )}
+                {hasMon && !byComm && (
                   <ViewSwitch
                     field="bcSiteTotals"
                     position="relative"
@@ -1742,7 +1860,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     onChange={(v) => setLayout((l) => ({ ...l, bcSiteTotals: v === 'table' ? undefined : v }))}
                   />
                 )}
-                {anyAreas && (
+                {(byComm ? !!comm?.anyCommonArea || (foldAreas && anyAreas) : anyAreas) && (
                   <ViewSwitch
                     field="bcSiteAreas"
                     position="relative"
@@ -1755,14 +1873,15 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               </div>
             )}
             <div className="bc-site-eb">
-              <p className="bc-eyebrow bc-gray"><T k="bc.site.byType" d="Rooms by type" /></p>
-              {perRoomOne && (
+              <p className="bc-eyebrow bc-gray">{byComm ? <T k="bc.site.byComm" d="By community" /> : <T k="bc.site.byType" d="Rooms by type" />}</p>
+              {perRoomOne && !byComm && (
                 <span className="bc-site-leg">
                   <span><span className="bc-dots" aria-hidden="true">●</span> <T k="bc.site.leg.sensors" d="Sensors" /></span>
                   {hasEc && <span><span className="bc-dots bc-dots-co" aria-hidden="true">●</span> <T k={`bc.site.leg.dev.${inov ? 'cords' : 'pend'}`} d={DEV.Many} /></span>}
                 </span>
               )}
             </div>
+            {byComm ? commTable() : (<>
             {totalsOut && totalsStrip()}
             <div className={`bc-card bc-tbl bc-pilot-tbl bc-site-tbl ${hasMon && hasEc && !totalsOut ? 'bc-site-8' : ''} ${siteCardsHidden && layout.bcSiteRows === 'full' ? 'bc-site-full' : ''}`}>
               <RTable>
@@ -1908,6 +2027,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                 </RTbody>
               </RTable>
             </div>
+            </>)}
             </div>
           </B>
           <B id="hardware" label="What gets installed">
