@@ -26,7 +26,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, residentsOf, roomScope, sharedResidents } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, residentsOf, roomScope, sharedResidents, communityEdges, typeEdges, edgesOf } from '@/lib/quote/roomTypes';
 import { DealVarsContext, KeyScopeContext, T, useProposalText } from './EditableText';
 import { BcRegistryContext, useBcRegistry, type BcRegistry, type BcSection } from './bcRegistry';
 import { copyBlockId, copyScope, dropCopies, removeCopy } from '@/lib/proposal/bcCopies';
@@ -1225,7 +1225,9 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const d = buildProposalData(draft, outputs, lines);
   const { finish, kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
   // Edge units: one per room; residents sharing a room (companion suites, semi-private) share it.
-  const edgeUnits = units - sum(draft.communities.filter((c) => monitors(c)).map((c) => sharedResidents(c, draft.commercial.ecall !== 'none').monitored));
+  const edgeUnits = sum(draft.communities.filter((c) => monitors(c)).map((c) => communityEdges(c)));
+  // Rooms (the first sensor in each comes with its Edge unit): residents less those sharing a room.
+  const roomUnits = units - sum(draft.communities.filter((c) => monitors(c)).map((c) => sharedResidents(c, draft.commercial.ecall !== 'none').monitored));
   // Until the rep arranges the pages, a removed standard section also drops its part of a page.
   const shown = (id: string) => !!layout.bcPages || !layout.hiddenSections.includes(id);
   const customer = draft.customerName || 'Customer';
@@ -1447,6 +1449,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     const all = draft.communities.filter((c) => monitors(c));
     // Rooms (one Edge unit each): residents less those sharing a room.
     const roomsTotal = sum(all.map((c) => scopeOf(c).monitored - sharedResidents(c).monitored));
+    // Edge units installed: one per room unless a room needs more.
+    const edgeTotal = sum(all.map((c) => communityEdges(c)));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
     // Common area sensors: counted with the rooms' sensors, never folded into "additional sensors".
     const caAll = hasMon ? sum(draft.communities.map((c) => caSensorScope(c).total)) : 0;
@@ -1539,7 +1543,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         tot.rooms += t.rooms;
         if (x.p[bedKeyOf(t)].monitoring) {
           st.s += t.rooms * t.sensors;
-          st.e += t.rooms;
+          st.e += typeEdges(t);
         }
       }
       if (!x.types.length) tot.rooms += x.pend.rooms;
@@ -1633,7 +1637,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                   <Stat ck="site.rooms" value={count(roomsTotal)}>
                     <T k="bc.site.rooms" d="resident rooms: {mix}" v={{ mix: careMix.join(' and ') }} />
                   </Stat>
-                  <Stat ck="site.edge" value={count(roomsTotal)}>
+                  <Stat ck="site.edge" value={count(edgeTotal)}>
                     <T k="bc.site.edge" d="Edge units, one in every resident room" />
                   </Stat>
                   <div className="bc-dark bc-dark-hot">
@@ -1679,7 +1683,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     <b><CallOut k="site.devices">{count(devTotal)}</CallOut></b>
                     <span><T k="bc.site.devices.both" d="{dev}: {plan} from the plan{areas}, plus a {pct} allowance" v={{ dev: DEV.many, plan: count(devPlan), areas: devAreas ? ` (${count(devAreas)} in common areas)` : '', pct: devPctText }} /></span>
                   </div>
-                  <Stat ck="site.edge" value={count(roomsTotal)}>
+                  <Stat ck="site.edge" value={count(edgeTotal)}>
                     <T k="bc.site.edge" d="Edge units, one in every resident room" />
                   </Stat>
                 </>
@@ -1794,11 +1798,13 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                           <tr key={t.id}>
                             <td className="bc-m">
                               {t.name || 'Room type'}
-                              {residentsOf(t) > 1 && <small className="block text-[0.85em] opacity-70">{residentsOf(t)} residents per room</small>}
+                              {(residentsOf(t) > 1 || (x.p[bedKeyOf(t)].monitoring && edgesOf(t) > 1)) && (
+                                <small className="block text-[0.85em] opacity-70">{[residentsOf(t) > 1 ? `${residentsOf(t)} residents per room` : '', x.p[bedKeyOf(t)].monitoring && edgesOf(t) > 1 ? `${edgesOf(t)} Edge units per room` : ''].filter(Boolean).join(' · ')}</small>
+                              )}
                             </td>
                             <td><span className={`bc-care bc-care-${t.care}`}>{careText(t)}</span></td>
                             <td className="bc-r">{count(t.rooms)}</td>
-                            {cells({ sp, dp, s: sp ? t.rooms * sp : null, e: sp ? t.rooms : null, dv: dp ? t.rooms * dp : null })}
+                            {cells({ sp, dp, s: sp ? t.rooms * sp : null, e: sp ? typeEdges(t) : null, dv: dp ? t.rooms * dp : null })}
                           </tr>
                         );
                       })}
@@ -4342,7 +4348,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               ) : (
               <div className="bc-card bc-exec-card">
                 {head('bc.exec.scope', 'Scope', 'sitescope')}
-                <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(edgeUnits), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
+                <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(roomUnits), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
                 <p>
                   {careText ? <T k="bc.exec.scope.p" d="{split}, from your floor plans." v={{ split: careText.charAt(0).toUpperCase() + careText.slice(1) }} /> : null}
                   {scopeMode === 'both' && <> <T k="bc.exec.scope.both" d="Resident Monitoring and {kind} E-Call." v={{ kind: devCard.kind }} /></>}

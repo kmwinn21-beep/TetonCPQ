@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, MAX_RESIDENTS, edgesOf, markEdges, MAX_EDGES, SENSORS_PER_EDGE, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -354,6 +354,9 @@ export function ScopeViewer({
     });
     setPop({ typeId: to, markId });
   };
+  // One room's own Edge units (dropped when it matches its room type's).
+  const edgeMark = (typeId: string, markId: string, v: number) =>
+    update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: (t.marks ?? []).map((m) => (m.id === markId ? (v === edgesOf(t) ? (({ edges: _e, ...rest }) => rest)(m) : { ...m, edges: v }) : m)) } : t)));
   const labelMark = (typeId: string, markId: string, label: string) =>
     update((list) => list.map((t) => (t.id === typeId ? { ...t, marks: (t.marks ?? []).map((m) => (m.id === markId ? { ...m, label: label.slice(0, 16) || undefined } : m)) } : t)));
   const toMarks = (ps: Pending[]): RoomMark[] => {
@@ -448,6 +451,8 @@ export function ScopeViewer({
   const taggedTotal = rows.reduce((s, r) => s + r.tagged, 0);
   const taggedHere = rows.reduce((s, r) => s + r.here, 0);
   const sensorsTagged = rows.reduce((s, r) => s + r.tagged * sensorsPerRoom(r.t, products), 0);
+  // Edge units in the tagged rooms (monitored room types): each room's own count, else its type's.
+  const edgesTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? (r.t.marks ?? []).filter((m) => planIds.includes(m.plan)).reduce((n, m) => n + markEdges(r.t, m), 0) : 0), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
   const mismatches = rows.filter((r) => r.tagged > 0 && !r.t.roomsFromPlan && (Number(r.t.rooms) || 0) !== r.tagged);
   // Tagged rooms' numbers (for "also 126, 128"), and the notes on rooms that still exist.
@@ -982,6 +987,7 @@ export function ScopeViewer({
                 color={m.color}
                 text={m.initials}
                 occ={residentsOf(types.find((t) => t.id === m.typeId) ?? {})}
+                edges={((t) => (t && sensorsPerRoom(t, products) ? markEdges(t, m) : undefined))(types.find((t) => t.id === m.typeId))}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
                 faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && tagWhat === 'areas') || (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
@@ -1094,6 +1100,7 @@ export function ScopeViewer({
                 readOnly={!acc.scope}
                 onRetype={(to) => retypeMark(popType.id, to, popMark.id)}
                 onLabel={(l) => labelMark(popType.id, popMark.id, l)}
+                onEdges={(v) => edgeMark(popType.id, popMark.id, v)}
                 onRemove={() => removeMark(popType.id, popMark.id)}
                 onEdit={() => setEditType(popType.id)}
                 onClose={() => setPop(null)}
@@ -1267,6 +1274,7 @@ export function ScopeViewer({
             >
               <Badge color={b.color} text={b.initials} size={20} occ={residentsOf(t)} />
               <span>{t.name || 'Room type'} · {count(here)}{tagged !== here ? <span className="text-teton-ui-gray"> ({count(tagged)} in all)</span> : null}</span>
+              {edgesOf(t) > 1 && sensorsPerRoom(t, products) > 0 && <span className="rounded-full bg-[#F0EBFB] px-1.5 py-px text-[10.5px] font-bold text-[#5B3FA8] whitespace-nowrap">{edgesOf(t)} Edge each</span>}
             </button>
           ))}
           {liveTagNotes.length > 0 && (
@@ -1290,6 +1298,7 @@ export function ScopeViewer({
           {(taggedTotal > 0 || areasTaggedAll.length > 0) && (
             <span className="ml-auto font-semibold">
               {taggedTotal > 0 ? `${count(taggedTotal)} rooms tagged · ${count(sensorsTagged)} sensors` : ''}
+              {taggedTotal > 0 && edgesTagged > 0 && <span className="text-[#5B3FA8]"> · {count(edgesTagged)} Edge unit{edgesTagged === 1 ? '' : 's'}</span>}
               {taggedTotal > 0 && areasTaggedAll.length > 0 ? ' · ' : ''}
               {areasTaggedAll.length > 0 ? `${count(areaSensors(areasTaggedAll))} common area sensor${areaSensors(areasTaggedAll) === 1 ? '' : 's'}` : ''}
             </span>
@@ -1609,6 +1618,7 @@ function PlacedBadge({
   dot,
   picked,
   occ,
+  edges,
   onHover,
   onClick,
   onMove,
@@ -1628,6 +1638,8 @@ function PlacedBadge({
   picked?: boolean;
   /** Residents per room (a ×2 pip when shared). */
   occ?: number;
+  /** Edge units in the room: a purple marker when more than one. */
+  edges?: number;
   onHover?: (on: boolean) => void;
   /** touch: the tap came from a finger (no hover on phones); shift: Shift was held. */
   onClick: (touch: boolean, shift: boolean) => void;
@@ -1691,6 +1703,12 @@ function PlacedBadge({
       ) : (
         <Badge color={color} text={text} size={size} occ={occ} />
       )}
+      {!pending && edges != null && edges > 1 && (
+        <span aria-label={`${edges} Edge units`} className="absolute top-1/2 -translate-y-1/2 inline-flex items-center gap-px rounded-[4px] bg-[#5B3FA8] px-[3px] font-extrabold leading-[1.3] text-white shadow-[0_1px_2px_rgba(0,0,0,.3)]" style={{ left: size + 2, fontSize: Math.max(8, Math.round(size * 0.38)) }}>
+          <svg viewBox="0 0 10 10" className="w-[9px] h-[9px]" aria-hidden="true"><rect x="1.5" y="1" width="7" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><circle cx="5" cy="5" r="1.5" fill="currentColor" /></svg>
+          {edges}
+        </span>
+      )}
       {dot && (
         <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 rounded-full border-[1.5px] border-white" style={{ background: NOTE_DOT, width: Math.max(8, Math.round(size * 0.42)), height: Math.max(8, Math.round(size * 0.42)) }} />
       )}
@@ -1702,7 +1720,17 @@ function PlacedBadge({
 function Anchored({ x, y, passive, children }: { x: number; y: number; passive?: boolean; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState({ x: 0, y: 0 });
+  // Phones: a sheet along the bottom of the screen (beside the badge it slid off the edge).
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const on = () => setPhone(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   useLayoutEffect(() => {
+    if (phone) return;
     const el = ref.current;
     const box = el?.parentElement?.getBoundingClientRect();
     if (!el || !box) return;
@@ -1717,8 +1745,20 @@ function Anchored({ x, y, passive, children }: { x: number; y: number; passive?:
     const ny = over > 0 ? -over : 0;
     if (nx !== sx || ny !== sy) setShift({ x: nx, y: ny });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [x, y]);
+  }, [x, y, phone]);
   const right = x > 0.55;
+  if (phone && !passive)
+    return (
+      <div
+        ref={ref}
+        data-plan-ui
+        className="fixed inset-x-2 bottom-2 z-50 max-h-[72vh] overflow-y-auto overscroll-contain cursor-auto drawer-in [&>*]:!w-full [&>*]:!max-w-none"
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    );
   return (
     <div
       ref={ref}
@@ -1737,7 +1777,7 @@ const card = 'rounded-xl border border-teton-off-white bg-white p-3 text-xs shad
 const eyebrow = 'block text-[9.5px] font-semibold uppercase tracking-wider text-teton-ui-gray mt-2 mb-1';
 
 /** A tagged room: its room type (move it to another), room number, remove; or edit its type. */
-function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
+function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype, onLabel, onEdges, onRemove, onEdit, onClose, children }: { type: RoomType; types: RoomType[]; mark: RoomMark; readOnly?: boolean; suggest?: string; products: CareProducts; onRetype: (to: string) => void; onLabel: (l: string) => void; onEdges?: (v: number) => void; onRemove: () => void; onEdit: () => void; onClose: () => void; children?: React.ReactNode }) {
   const [label, setLabel] = useState(mark.label ?? '');
   const k = types.findIndex((t) => t.id === type.id);
   const b = badgeOf(type, k);
@@ -1748,7 +1788,13 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[13px] truncate">{mark.label ? `Room ${mark.label}` : 'Tagged room'}</p>
           <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {sensorsPerRoom(type, products) || 'no'} sensor{sensorsPerRoom(type, products) === 1 ? '' : 's'}</p>
-          {residentsOf(type) > 1 && <p className="text-[11px] text-teton-ui-gray">Shared: {residentsOf(type)} residents · 1 Edge unit{pendantsPerRoom(type, products) ? ` · ${pendantsPerRoom(type, products)} ${pendantsPerRoom(type, products) === 1 ? 'device' : 'devices'}` : ''}</p>}
+          {residentsOf(type) > 1 && <p className="text-[11px] text-teton-ui-gray">Shared: {residentsOf(type)} residents{pendantsPerRoom(type, products) ? ` · ${pendantsPerRoom(type, products)} ${pendantsPerRoom(type, products) === 1 ? 'device' : 'devices'}` : ''}</p>}
+          {sensorsPerRoom(type, products) > 0 && (
+            <p className="text-[11px] font-semibold text-[#5B3FA8]">
+              {markEdges(type, mark)} Edge unit{markEdges(type, mark) === 1 ? '' : 's'}
+              {mark.edges != null && <span className="font-normal text-teton-ui-gray"> · this room only</span>}
+            </p>
+          )}
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>
@@ -1772,6 +1818,16 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
         >
           From the plan: use {suggest}?
         </button>
+      )}
+      {/* This room's own Edge units, when it differs from its room type (e.g. an extra wing). */}
+      {onEdges && sensorsPerRoom(type, products) > 0 && (
+        <div className="mt-2.5 pt-2 border-t border-dashed border-[#D9D1F0]">
+          <div className="flex items-center gap-2">
+            <label className="flex-1 text-[11px] font-semibold text-[#5B3FA8]" htmlFor={`me-${mark.id}`}>Edge units, this room only</label>
+            <Counter id={`me-${mark.id}`} size="xs" className="w-[84px]" value={markEdges(type, mark)} onChange={onEdges} min={1} max={MAX_EDGES} aria-label="Edge units in this room" />
+          </div>
+          <p className="mt-1 text-[10.5px] text-teton-ui-gray">{mark.edges != null ? <>Differs from {type.name || 'its room type'} ({edgesOf(type)}). <button type="button" className="underline" onClick={() => onEdges(edgesOf(type))}>Match the room type</button></> : `Matches ${type.name || 'its room type'}. Change it only if this room is different.`}</p>
+        </div>
       )}
       {children}
       <div className="flex items-center justify-between gap-2 mt-3">
@@ -1832,6 +1888,8 @@ function TypeForm({
   const [sensors, setSensors] = useState<number>(initial?.sensors ?? 1);
   const [pendants, setPendants] = useState<number>(Math.max(1, initial?.pendants ?? (initial ? residentsOf(initial) : 1)));
   // Sensors and devices follow the residents until changed by hand.
+  // Edge units per room: dedicated to the room, one handles up to 3 sensors.
+  const [edges, setEdges] = useState<number>(initial ? edgesOf(initial) : 1);
   const changeResidents = (v: number) => {
     if (sensors === residents) setSensors(v);
     if (pendants === residents) setPendants(v);
@@ -1857,6 +1915,7 @@ function TypeForm({
           name: name.trim(),
           care,
           residents: residents > 1 ? residents : undefined,
+          edges: edges > 1 && products[bedKeyOf({ care })].monitoring ? edges : undefined,
           sensors: Math.max(1, Math.min(20, Math.round(sensors) || 1)),
           pendants: pendants !== residents ? Math.max(1, Math.min(20, Math.round(pendants) || 1)) : undefined,
           color,
@@ -1915,10 +1974,18 @@ function TypeForm({
       {/* Sensors and E-Call devices per room. No resident monitoring in this care setting: no sensors (0, locked);
           no E-Call on the deal or in this care setting: no devices (0, locked). */}
       <span className={eyebrow}>Per room</span>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
         <div>
           <label className="block text-[10.5px] text-teton-ui-gray mb-1 whitespace-nowrap" htmlFor="tf-res">Residents</label>
           <Counter id="tf-res" size="xs" value={residents} onChange={changeResidents} min={1} max={MAX_RESIDENTS} aria-label="Residents per room" />
+        </div>
+        <div>
+          <label className={`block text-[10.5px] mb-1 whitespace-nowrap ${products[bedKeyOf({ care })].monitoring ? 'text-[#5B3FA8] font-semibold' : 'text-[#B4AFA6]'}`} htmlFor="tf-edge">Edge units</label>
+          {products[bedKeyOf({ care })].monitoring ? (
+            <Counter id="tf-edge" size="xs" value={edges} onChange={setEdges} min={1} max={MAX_EDGES} aria-label="Edge units per room" />
+          ) : (
+            <Counter id="tf-edge" size="xs" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label="Edge units per room (none: no Resident Monitoring)" />
+          )}
         </div>
         <div>
           <label className="block text-[10.5px] text-teton-ui-gray mb-1 whitespace-nowrap" htmlFor="tf-sen">Sensors</label>
@@ -1940,6 +2007,9 @@ function TypeForm({
         </div>
       </div>
       {residents > 1 && <p className="mt-1.5 text-[11px] text-teton-ui-gray drawer-in">Shared room: {residents} residents (billed beds), one Edge unit per room.</p>}
+      {products[bedKeyOf({ care })].monitoring && sensors > edges * SENSORS_PER_EDGE && (
+        <p className="mt-1.5 rounded bg-[#FFF3D6] px-2 py-1 text-[11px] text-[#8A5A00] drawer-in">One Edge unit handles up to {SENSORS_PER_EDGE} sensors: {sensors} sensors need {Math.ceil(sensors / SENSORS_PER_EDGE)} Edge units in each room.</p>
+      )}
       {clash && (
         <p id="tf-clash" role="alert" className="mt-2 rounded bg-teton-red/25 px-2 py-1 text-[11px] text-[#9A2E1C] drawer-in">
           “{clash.name}” already exists in {care === 'custom' ? customCare.trim() || 'this care setting' : CARE_LABEL[care]}. Use a different name or care setting{onAddTo ? ', or add these rooms to it with Add To above' : ''}.

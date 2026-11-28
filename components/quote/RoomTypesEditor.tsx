@@ -8,7 +8,7 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { AREA_KINDS, badgeOf, bedKeyOf, commonAreaFromPlan, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, residentsOf, MAX_RESIDENTS, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, badgeOf, bedKeyOf, commonAreaFromPlan, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, residentsOf, MAX_RESIDENTS, edgesOf, MAX_EDGES, SENSORS_PER_EDGE, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
@@ -159,7 +159,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               </button>
               {/* Sensors and E-Call devices per room: counters, locked at 0 (with why) where the care setting or the deal
                   has none. */}
-              <div className={`${span} grid grid-cols-3 gap-2`}>
+              <div className={`${span} grid grid-cols-2 gap-2`}>
                 {/* Residents sharing each room (companion suites, semi-private): each is a billed bed; the room keeps one
                     Edge unit. Sensors and devices follow the residents until changed by hand. */}
                 <div>
@@ -180,6 +180,16 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                     aria-label={`Community ${position} room type ${k + 1} residents per room`}
                   />
                 </div>
+                {showSensors && (
+                  <div>
+                    <span className={`${eyebrowWrap} ${products[bedKeyOf(t)].monitoring ? '!text-[#5B3FA8]' : ''}`}>Edge units / room</span>
+                    {products[bedKeyOf(t)].monitoring ? (
+                      <Counter size="sm" value={edgesOf(t)} onChange={(v) => patch(t.id, { edges: v > 1 ? v : undefined })} min={1} max={MAX_EDGES} aria-label={`Community ${position} room type ${k + 1} Edge units per room`} />
+                    ) : (
+                      <Counter size="sm" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label={`Community ${position} room type ${k + 1} Edge units per room (none: no Resident Monitoring)`} />
+                    )}
+                  </div>
+                )}
                 {showSensors && (
                   <div>
                     <span className={eyebrowWrap}>Sensors / room</span>
@@ -255,6 +265,14 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
             <span className="block mb-1">
               Shared rooms: <b>{count(scope.residents)} residents</b> (billed beds) in {count(scope.rooms)} rooms, one Edge unit per room.
             </span>
+          )}
+          {scope.edges !== scope.rooms && (
+            <span className="block mb-1">
+              <b>{count(scope.edges)} Edge units</b> in {count(scope.rooms)} monitored rooms (some rooms need more than one).
+            </span>
+          )}
+          {products && Object.values(products).some((x) => x.monitoring) && types.some((t) => products[bedKeyOf(t)].monitoring && t.sensors > edgesOf(t) * SENSORS_PER_EDGE) && (
+            <span className="block mb-1 text-[#8A5A00]">One Edge unit handles up to {SENSORS_PER_EDGE} sensors: a room type has more sensors than its Edge units can take.</span>
           )}
           {count(scope.rooms)} monitored rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.

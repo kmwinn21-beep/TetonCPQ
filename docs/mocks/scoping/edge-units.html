@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edge Units in Scope Mode</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F1720;--ink2:#4E5562;--mut:#8A919C;--line:#E7E2D9;--bg:#FAF7F2;--g:#1F6B3A;--gBg:#E3F4E8;--blue:#1F5FB5;--blueBg:#E8F1FD;--edge:#5B3FA8;--edgeBg:#F0EBFB;--coral:#E8664A;--amber:#8A5A00;--amberBg:#FFF3D6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;line-height:1.15;margin:0 0 6px;letter-spacing:-.4px}
+h2{font-size:20px;margin:52px 0 4px;letter-spacing:-.2px}
+h3{font-size:15px;margin:0 0 6px}
+.lede{color:var(--ink2);max-width:840px;margin:0}
+.sub{color:var(--ink2);margin:0 0 14px;max-width:860px}
+.eb{font-size:10.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--mut);margin:0 0 6px}
+.cap{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;max-width:900px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media(max-width:900px){.two{grid-template-columns:minmax(0,1fr)}}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-e{background:var(--edgeBg);color:var(--edge)}.p-n{background:#F1EEE8;color:var(--ink2)}
+
+/* viewer frame */
+.viewer{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#fff;box-shadow:0 10px 40px rgba(15,23,32,.08)}
+.vtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.vtop b{font-size:15px}
+.tbtn{border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;font-weight:600;background:#fff}
+.tog{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+.tog i{width:30px;height:17px;border-radius:999px;background:#3F8CEA;position:relative}
+.tog i::after{content:'';position:absolute;right:2px;top:2px;width:13px;height:13px;border-radius:50%;background:#fff}
+.plan{position:relative;height:330px;background:#fff;background-image:linear-gradient(#F2EEE7 1px,transparent 1px),linear-gradient(90deg,#F2EEE7 1px,transparent 1px);background-size:22px 22px}
+.rm{position:absolute;border:2px solid #9AA3AE;background:rgba(255,255,255,.85);font-size:11px;font-weight:700;color:#4E5562;padding:3px 5px}
+.bdg{position:absolute;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:2px}
+.dot{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:8.5px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.occ{position:absolute;top:-7px;right:-10px;background:#fff;border:1.5px solid currentColor;border-radius:999px;font-size:8px;font-weight:800;padding:0 3px;line-height:12px}
+.epip{display:inline-flex;align-items:center;gap:2px;background:var(--edge);color:#fff;border-radius:5px;font-size:9px;font-weight:800;padding:1px 4px;margin-left:3px;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.epip svg{width:9px;height:9px}
+.bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip .dot{width:18px;height:18px;font-size:7.5px}
+.tot{margin-left:auto;font-weight:700;white-space:nowrap;display:flex;gap:10px;flex-wrap:wrap}
+.tot .e{color:var(--edge)}
+.new{outline:2px dashed #9B85D9;outline-offset:3px;border-radius:6px}
+
+/* popovers */
+.pop{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.18);padding:12px;font-size:12px;width:300px;max-width:100%}
+.ebm{display:block;font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);margin:10px 0 4px}
+.lbl{display:block;font-size:10.5px;color:var(--mut);margin-bottom:4px;white-space:nowrap}
+.inp{width:100%;height:32px;border:1px solid #D5D9DE;border-radius:8px;padding:0 9px;font:inherit;font-size:12.5px}
+.ctrs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ctrs.two2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ctr{display:flex;align-items:stretch;border:1px solid #E4E0D6;border-radius:8px;overflow:hidden;height:28px;background:#fff}
+.ctr button{width:24px;flex:none;border:0;background:#FAF8F4;font-size:13px;font-weight:600;color:#3F4753;cursor:pointer}
+.ctr button:first-child{border-right:1px solid #ECE8DF}.ctr button:last-child{border-left:1px solid #ECE8DF}
+.ctr span{flex:1;display:grid;place-items:center;font-weight:700;font-size:12.5px;transition:transform .15s}
+.ctr.hl{border-color:#9B85D9;box-shadow:0 0 0 3px rgba(91,63,168,.12)}
+.ctr span.bump{transform:scale(1.2)}
+@media(prefers-reduced-motion:reduce){.ctr span{transition:none}}
+.note{font-size:11px;color:var(--ink2);margin-top:6px}
+.row{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit}
+.btn.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.phone{width:390px;max-width:100%;margin:0 auto;border:10px solid #0F1720;border-radius:34px;overflow:hidden;background:#fff}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid #F1EEE8}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);font-weight:800}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.e,th.e{background:#F7F4FD}
+.tw{overflow-x:auto}
+.todo{counter-reset:t;list-style:none;padding:0;margin:0}
+.todo li{counter-increment:t;position:relative;padding:10px 12px 10px 42px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:8px;font-size:13px;color:var(--ink2)}
+.todo li::before{content:counter(t);position:absolute;left:12px;top:10px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+.todo b{color:var(--ink)}
+.q{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.q b{display:block;margin-bottom:3px}
+.q .rec{font-size:12.5px;color:var(--g);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eb">Scope Mode · mock · nothing built</p>
+  <h1>Edge units in Scope Mode</h1>
+  <p class="lede">Today Scope Mode counts rooms and sensors, and every room quietly gets one Edge unit. This adds an <b>Edge units per room</b> counter on each room type (default 1), shows the Edge units on each room's badge and popover, and puts the total next to rooms and sensors everywhere Scope Mode adds things up.</p>
+
+  <!-- ============================================== 1 -->
+  <h2>1 · The plan, with Edge units counted</h2>
+  <p class="sub">The bottom bar gains an <b>Edge units</b> total. Badges only get a marker when a room's count isn't the usual 1, so a normal plan doesn't get busier. Example: the two-bedroom suites need 2 Edge units each.</p>
+  <div class="viewer">
+    <div class="vtop"><b>Benton House of Olathe</b><span style="color:var(--mut)">· OLA-Site Plan.pdf</span><span style="flex:1"></span><span class="tog"><i></i>Scope Mode</span><span class="tbtn">Rooms</span><span class="tbtn">Download ▾</span></div>
+    <div class="plan">
+      <div class="rm" style="left:4%;top:10%;width:13%;height:38%">101</div>
+      <div class="rm" style="left:17%;top:10%;width:13%;height:38%">102</div>
+      <div class="rm" style="left:30%;top:10%;width:13%;height:38%">103</div>
+      <div class="rm" style="left:43%;top:10%;width:22%;height:38%">104 · 2BR suite</div>
+      <div class="rm" style="left:65%;top:10%;width:22%;height:38%">105 · 2BR suite</div>
+      <div class="rm" style="left:4%;top:55%;width:18%;height:36%">110 · companion</div>
+      <div class="rm" style="left:22%;top:55%;width:13%;height:36%">111</div>
+      <div class="rm" style="left:35%;top:55%;width:13%;height:36%">112</div>
+      <span class="bdg" style="left:10.5%;top:32%"><span class="dot" style="background:#1F5FB5">1B</span></span>
+      <span class="bdg" style="left:23.5%;top:32%"><span class="dot" style="background:#1F5FB5">1B</span></span>
+      <span class="bdg" style="left:36.5%;top:32%"><span class="dot" style="background:#1F5FB5">1B</span></span>
+      <span class="bdg new" style="left:54%;top:32%"><span class="dot" style="background:#C2410C">2B</span><span class="epip"><svg viewBox="0 0 10 10"><rect x="1.5" y="1" width="7" height="8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/><circle cx="5" cy="5" r="1.5" fill="#fff"/></svg>2</span></span>
+      <span class="bdg new" style="left:76%;top:32%"><span class="dot" style="background:#C2410C">2B</span><span class="epip"><svg viewBox="0 0 10 10"><rect x="1.5" y="1" width="7" height="8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/><circle cx="5" cy="5" r="1.5" fill="#fff"/></svg>2</span></span>
+      <span class="bdg" style="left:13%;top:73%;position:absolute"><span class="dot" style="background:#2E9E6B;position:relative">AC<span class="occ" style="color:#2E9E6B">×2</span></span></span>
+      <span class="bdg" style="left:28.5%;top:73%"><span class="dot" style="background:#1F5FB5">1B</span></span>
+      <span class="bdg" style="left:41.5%;top:73%"><span class="dot" style="background:#1F5FB5">1B</span></span>
+    </div>
+    <div class="bar">
+      <span class="chip"><span class="dot" style="background:#1F5FB5">1B</span>One Bedroom · 5</span>
+      <span class="chip"><span class="dot" style="background:#C2410C">2B</span>Two Bedroom Suite · 2 <span class="pill p-e">2 Edge each</span></span>
+      <span class="chip"><span class="dot" style="background:#2E9E6B">AC</span>Companion · 1</span>
+      <span class="tot"><span>8 rooms tagged</span><span>· 13 sensors</span><span class="e new">· 10 Edge units</span></span>
+    </div>
+  </div>
+  <p class="cap">Dashed outlines mark what's new. The purple marker (an Edge icon and the count) shows only when a room needs more than 1 Edge unit; the green ×2 is the existing shared-room marker (residents). The room type chip says "2 Edge each" for the same reason.</p>
+
+  <!-- ============================================== 2 -->
+  <h2>2 · The counter on the room type</h2>
+  <p class="sub">A fourth counter in the <b>Per room</b> row of the New/Edit room type form. Try it: Edge units drive the total below, and sensors can't drop below the Edge units (each Edge unit comes with its first sensor).</p>
+  <div class="two" style="align-items:start">
+    <div class="pop" style="width:auto;max-width:360px">
+      <p style="margin:0;font-weight:700;font-size:13px">Edit “Two Bedroom Suite”</p>
+      <span class="ebm">Room type / name</span>
+      <input class="inp" value="Two Bedroom Suite">
+      <span class="ebm">Care setting</span>
+      <select class="inp" style="max-width:200px"><option>Assisted living</option></select>
+      <span class="ebm">Per room</span>
+      <div class="ctrs">
+        <div><span class="lbl">Residents</span><div class="ctr" data-k="res"><button data-d="-1" aria-label="Fewer residents">−</button><span id="v-res">1</span><button data-d="1" aria-label="More residents">+</button></div></div>
+        <div><span class="lbl" style="color:var(--edge);font-weight:700">Edge units</span><div class="ctr hl" data-k="edge"><button data-d="-1" aria-label="Fewer Edge units">−</button><span id="v-edge">2</span><button data-d="1" aria-label="More Edge units">+</button></div></div>
+        <div><span class="lbl">Sensors</span><div class="ctr" data-k="sen"><button data-d="-1" aria-label="Fewer sensors">−</button><span id="v-sen">3</span><button data-d="1" aria-label="More sensors">+</button></div></div>
+        <div><span class="lbl">Pendants</span><div class="ctr" data-k="pen"><button data-d="-1" aria-label="Fewer pendants">−</button><span id="v-pen">1</span><button data-d="1" aria-label="More pendants">+</button></div></div>
+      </div>
+      <p class="note" id="enote">2 Edge units per room: each comes with its first sensor, so 1 of the 3 sensors is additional.</p>
+      <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn">Cancel</button><button class="btn k">Save</button></div>
+    </div>
+    <div class="card">
+      <p class="eb">This room type (2 rooms tagged)</p>
+      <table>
+        <tr><td>Edge units</td><td class="n"><b id="t-edge">4</b></td></tr>
+        <tr><td>Sensors</td><td class="n" id="t-sen">6</td></tr>
+        <tr><td>&nbsp;&nbsp;included with the Edge units</td><td class="n" id="t-inc" style="color:var(--mut)">4</td></tr>
+        <tr><td>&nbsp;&nbsp;additional</td><td class="n" id="t-add" style="color:var(--mut)">2</td></tr>
+        <tr><td>Billed beds (residents)</td><td class="n" id="t-beds">2</td></tr>
+      </table>
+      <p class="eb" style="margin-top:14px">Bottom bar</p>
+      <p style="margin:0;font-weight:700" id="barLine">8 rooms tagged · 13 sensors · <span style="color:var(--edge)">10 Edge units</span></p>
+    </div>
+  </div>
+  <p class="cap">On a phone the four counters wrap to two rows (Residents · Edge units, then Sensors · Pendants), same compact size as today.</p>
+
+  <!-- ============================================== 3 -->
+  <h2>3 · On each room: the badge popover</h2>
+  <p class="sub">Tapping a tagged room already shows its type and sensors. It adds the Edge units, and (optional, see decision 1) a per-room override for the odd room that differs from its type.</p>
+  <div class="two" style="align-items:start">
+    <div class="pop">
+      <div class="row"><span class="dot" style="background:#C2410C">2B</span><div style="flex:1;min-width:0"><b style="font-size:13px">Room 104</b><div style="color:var(--mut);font-size:11px">Two Bedroom Suite · Assisted living</div></div><span>✕</span></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><span class="pill p-e">2 Edge units</span><span class="pill p-n">3 sensors</span><span class="pill p-n">1 resident</span></div>
+      <span class="ebm">Room type</span><select class="inp"><option>Two Bedroom Suite</option></select>
+      <span class="ebm">Room number (optional)</span><input class="inp" value="104">
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #D9D1F0">
+        <span class="ebm" style="margin-top:0;color:var(--edge)">This room only (optional)</span>
+        <div class="row"><span style="flex:1;font-size:12px">Edge units</span><div class="ctr" style="width:96px"><button>−</button><span>2</span><button>+</button></div></div>
+        <p class="note">Matches its room type. Change it only if this room is different (e.g. an extra wing).</p>
+      </div>
+    </div>
+    <div class="phone">
+      <div class="vtop" style="font-size:12px"><b style="font-size:13px">Benton House</b><span style="flex:1"></span><span class="tog"><i></i>Scope</span></div>
+      <div class="plan" style="height:170px">
+        <div class="rm" style="left:6%;top:12%;width:42%;height:70%">104</div>
+        <div class="rm" style="left:52%;top:12%;width:42%;height:70%">105</div>
+        <span class="bdg new" style="left:27%;top:50%"><span class="dot" style="background:#C2410C">2B</span><span class="epip">2</span></span>
+        <span class="bdg" style="left:73%;top:50%"><span class="dot" style="background:#C2410C">2B</span><span class="epip">2</span></span>
+      </div>
+      <div class="bar" style="font-size:12px;gap:8px">
+        <span class="chip"><span class="dot" style="background:#C2410C">2B</span>Two Bedroom · 2</span>
+        <span class="tot" style="margin-left:0;width:100%;justify-content:space-between"><span>8 rooms</span><span>13 sensors</span><span class="e">10 Edge</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== 4 -->
+  <h2>4 · The floor plan Summary table: Edge units total</h2>
+  <p class="sub">The Summary tab gets an <b>Edge / rm</b> column and an <b>Edge units</b> column with a total in the bottom row, so the plan answers "how many Edge units?" at a glance. The same columns go on the scope PDF; the deal page and proposal Scope page already show an Edge units total, which would now honor the counter.</p>
+  <div class="card tw">
+    <table>
+      <tr><th>Room type</th><th>Care</th><th class="n">Rooms</th><th class="n">Residents / rm</th><th class="n e">Edge / rm</th><th class="n">Sensors / rm</th><th class="n e">Edge units</th><th class="n">Sensors</th></tr>
+      <tr><td>One Bedroom</td><td>AL</td><td class="n">5</td><td class="n">1</td><td class="n e">1</td><td class="n">1</td><td class="n e">5</td><td class="n">5</td></tr>
+      <tr><td><b>Two Bedroom Suite</b></td><td>AL</td><td class="n">2</td><td class="n">1</td><td class="n e"><b>2</b></td><td class="n">3</td><td class="n e"><b>4</b></td><td class="n">6</td></tr>
+      <tr><td>Companion</td><td>AL</td><td class="n">1</td><td class="n">2</td><td class="n e">1</td><td class="n">2</td><td class="n e">1</td><td class="n">2</td></tr>
+      <tr><td><b>Total</b></td><td></td><td class="n"><b>8</b></td><td></td><td class="n e"></td><td></td><td class="n e"><b>10</b></td><td class="n"><b>13</b></td></tr>
+    </table>
+  </div>
+
+  <!-- ============================================== 5 -->
+  <h2>5 · What needs to be done</h2>
+  <ol class="todo">
+    <li><b>Total in Scope Mode (small, no pricing change).</b> Add the Edge units count to the bottom bar, the Summary tab and the room popover, using today's rule (1 per room). This alone answers "how many Edge units is this plan?"</li>
+    <li><b>Edge units per room on the room type.</b> A new number on each room type (default 1, so nothing changes for existing deals), saved with the room types. Counter in the Scope Mode form and on the deal page room type card; sensors can't go below it.</li>
+    <li><b>Math.</b> Edge units = Σ rooms × Edge units per room. Additional sensors = sensors − Edge units (each Edge unit's first sensor is in its base price). This is the same "Edge units" figure shared rooms introduced, so installation, the equipment-purchase base package, hardware cost, the proposal Scope page and the live preview all follow it with no extra work.</li>
+    <li><b>Badge marker.</b> The purple Edge marker on badges and room type chips, only when the count isn't 1; also on the downloaded floor plan and scope PDF.</li>
+    <li><b>(Optional) per-room override.</b> A per-badge Edge count that differs from its type. Adds a field to each tagged room and an "override" note in Summary. Only if you want it (decision 1).</li>
+    <li><b>Tests and checks.</b> Pricing tests for a 2-Edge room on subscription and equipment purchase; desktop and phone checks of the form, popover and bar.</li>
+  </ol>
+
+  <h2>Decisions</h2>
+  <div class="q"><b>1. Counter on the room type, or on each individual room too?</b>Room types already carry sensors and pendants per room, and rooms of one type are almost always the same. A per-room override handles the odd one but adds a second place to look.<div class="rec">Recommendation: room type now (steps 1–4); add the per-room override only if reps hit odd rooms often.</div></div>
+  <div class="q"><b>2. Does a 2nd Edge unit in one room cost the customer more?</b>Following the shared-rooms rule, installation and the equipment-purchase base package are per Edge unit, so a 2-Edge room pays 2 installations (or 2 base packages) and its first 2 sensors are included.<div class="rec">Recommendation: yes, per Edge unit, consistent with what you approved for shared rooms. The monthly fee stays per resident.</div></div>
+  <div class="q"><b>3. Can a room have 0 Edge units?</b>e.g. a small bathroom-only room covered by the neighbor's Edge unit.<div class="rec">Recommendation: minimum 1 for now; it keeps "rooms" and "Edge units" from drifting in confusing ways.</div></div>
+</div>
+<script>
+const st = { res: 1, edge: 2, sen: 3, pen: 1 }, ROOMS = 2, OTHER = { rooms: 6, edge: 6, sen: 7 };
+const lim = { res: [1, 6], edge: [1, 6], sen: [1, 20], pen: [1, 20] };
+function draw() {
+  for (const k in st) document.getElementById('v-' + k).textContent = st[k];
+  const e = ROOMS * st.edge, s = ROOMS * st.sen;
+  document.getElementById('t-edge').textContent = e;
+  document.getElementById('t-sen').textContent = s;
+  document.getElementById('t-inc').textContent = e;
+  document.getElementById('t-add').textContent = s - e;
+  document.getElementById('t-beds').textContent = ROOMS * st.res;
+  document.getElementById('enote').textContent = st.edge > 1 ? `${st.edge} Edge units per room: each comes with its first sensor, so ${st.sen - st.edge} of the ${st.sen} sensors ${st.sen - st.edge === 1 ? 'is' : 'are'} additional.` : `1 Edge unit per room (the usual): it comes with the first sensor.`;
+  document.getElementById('barLine').innerHTML = `${OTHER.rooms + ROOMS} rooms tagged · ${OTHER.sen + s} sensors · <span style="color:var(--edge)">${OTHER.edge + e} Edge units</span>`;
+}
+document.querySelectorAll('.ctrs .ctr').forEach((c) => c.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  const k = c.dataset.k, [lo, hi] = lim[k]; let v = Math.min(hi, Math.max(lo, st[k] + Number(b.dataset.d)));
+  if (k === 'sen') v = Math.max(v, st.edge);
+  if (v === st[k]) return; st[k] = v;
+  if (k === 'edge' && st.sen < v) st.sen = v;
+  const sp = c.querySelector('span'); sp.classList.remove('bump'); void sp.offsetWidth; sp.classList.add('bump');
+  draw();
+}));
+draw();
+</script>
+</body>
+</html>

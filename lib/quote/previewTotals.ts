@@ -11,7 +11,7 @@ import { computeCapex, grossBaseRows, grossSensorRow } from '@/lib/pricing/capex
 import { computeFinish } from '@/lib/pricing/finish';
 import { installMath, commonAreaColumns, sensorMath } from '@/lib/proposal/costMath';
 import { scopeOf, type QuoteDraft } from './draft';
-import { pendantScope, sharedResidents } from './roomTypes';
+import { communityEdges, pendantScope, sharedResidents } from './roomTypes';
 import { itemsOn } from '@/lib/pricing/items';
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -36,7 +36,9 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
   const monitored = draft.communities.filter((c) => scopeOf(c).monitored > 0);
   const beds = sum(monitored.map((c) => scopeOf(c).monitored));
   // Edge units: one per room (residents sharing a room share it); its first sensor comes with it.
-  const edges = beds - sum(monitored.map((c) => sharedResidents(c).monitored));
+  const rooms = beds - sum(monitored.map((c) => sharedResidents(c).monitored));
+  // Edge units installed (a room can need more than one); the first sensor in each room comes with it.
+  const edges = sum(monitored.map((c) => communityEdges(c)));
   const additional = sum(monitored.map((c) => Math.max(0, Number(c.additionalSensors) || 0)));
   const showCapex = draft.presentation !== 'opex';
   const showOpex = draft.presentation !== 'capex';
@@ -91,7 +93,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
 
   const f = computeFinish(draft);
   return {
-    scope: { edgeUnits: edges, sensors: edges + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
+    scope: { edgeUnits: edges, sensors: rooms + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
     capex,
     opex,
     pilot,

@@ -101,8 +101,9 @@ export function vendorView(
   const revenue = per((m) => pilotFees[m - 1] + postPilotFees[m - 1] + oneTimeFees[m - 1]);
 
   const unitsLive = per((m) => atGoLive(m, (i) => inputs.communities[i].units));
-  // Hardware and install labor per Edge unit (one per room; fewer than the units when residents share rooms).
-  const edgeLive = per((m) => atGoLive(m, (i) => edgeUnitsOf(inputs.communities[i])));
+  // Hardware and install labor per Edge unit installed (one per room unless a room needs more; fewer than the units
+  // when residents share rooms).
+  const edgeLive = per((m) => atGoLive(m, (i) => inputs.communities[i].edgeHardware ?? edgeUnitsOf(inputs.communities[i])));
   const hardware = edgeLive.map((u) => costs.hardwarePerBed * u);
   const installLabor = edgeLive.map((u) => costs.installLaborPerBed * u);
   const sensors = per((m) => costs.sensorCost * atGoLive(m, (i) => inputs.communities[i].additionalSensors));

@@ -27,6 +27,11 @@ export interface RoomType {
    * is a billed bed; the room still gets one Edge unit (its other residents' sensors are additional sensors).
    */
   residents?: number;
+  /**
+   * Edge units in each room of this type (1 when missing). Edge units are dedicated to a resident room (never shared)
+   * and one handles up to 3 sensors. Counted for the scope and Teton's hardware; the customer's price stays per room.
+   */
+  edges?: number;
   /** Sensors in each room of this type (one per room or living area a resident uses). */
   sensors: number;
   /** E-Call pendants / pull-cords in each room of this type (the residents when missing). Billing is per resident. */
@@ -56,6 +61,8 @@ export interface RoomMark {
   /** Who tagged it and when (ISO date), for the hover card. */
   by?: string;
   at?: string;
+  /** Edge units in this room when it differs from its room type (a per-room override). */
+  edges?: number;
 }
 
 const normName = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -118,7 +125,8 @@ function normalizeMarks(v: unknown): RoomMark[] | undefined {
     const label = String(m.label ?? '').replace(/\s+/g, ' ').trim().slice(0, 16);
     const by = String(m.by ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
     const at = /^\d{4}-\d{2}-\d{2}/.test(String(m.at ?? '')) ? String(m.at).slice(0, 10) : '';
-    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}), ...(by ? { by } : {}), ...(at ? { at } : {}) }];
+    const edges = m.edges != null && Number.isFinite(Number(m.edges)) ? Math.min(MAX_EDGES, Math.max(1, Math.round(Number(m.edges)))) : null;
+    return [{ id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : `mk-${i}`, plan, page: Math.min(500, Math.max(1, Math.round(Number(m.page) || 1))), x: num01(m.x), y: num01(m.y), ...(label ? { label } : {}), ...(by ? { by } : {}), ...(at ? { at } : {}), ...(edges != null ? { edges } : {}) }];
   });
   return out.length ? out : undefined;
 }
@@ -130,13 +138,24 @@ const int = (v: unknown, max: number) => Math.min(max, Math.max(0, Math.round(Nu
 /** Residents in each room of a type (1 to 6; 1 when missing). */
 export const residentsOf = (t: Pick<RoomType, 'residents'>) => Math.min(6, Math.max(1, Math.round(Number(t.residents) || 1)));
 export const MAX_RESIDENTS = 6;
+/** Edge units in each room of a type (1 to 3; 1 when missing). */
+export const MAX_EDGES = 3;
+export const edgesOf = (t: Pick<RoomType, 'edges'>) => Math.min(MAX_EDGES, Math.max(1, Math.round(Number(t.edges) || 1)));
+/** One room's Edge units: its own override, else its room type's. */
+export const markEdges = (t: Pick<RoomType, 'edges'>, m: Pick<RoomMark, 'edges'>) => (m.edges != null ? Math.min(MAX_EDGES, Math.max(1, m.edges)) : edgesOf(t));
+/** One Edge unit handles up to this many sensors. */
+export const SENSORS_PER_EDGE = 3;
+/** A room type's Edge units: rooms × Edge units per room, adjusted by its tagged rooms' own overrides. */
+export const typeEdges = (t: Pick<RoomType, 'rooms' | 'edges' | 'marks'>) =>
+  Math.max(0, (Number(t.rooms) || 0) * edgesOf(t) + (t.marks ?? []).reduce((s, m) => s + (m.edges != null ? markEdges(t, m) - edgesOf(t) : 0), 0));
 
 export function normalizeRoomTypes(v: unknown): RoomType[] {
   if (!Array.isArray(v)) return [];
   return v.slice(0, 40).flatMap((x, i) => {
     if (!x || typeof x !== 'object') return [];
     const r = x as Partial<RoomType>;
-    const marks = normalizeMarks(r.marks);
+    // A room's own Edge count only when it differs from its type's.
+    const marks = normalizeMarks(r.marks)?.map((m) => (m.edges != null && m.edges === edgesOf(r) ? (({ edges: _e, ...rest }) => rest)(m) : m));
     const fromPlan = r.roomsFromPlan === true;
     const initials = String(r.initials ?? '').replace(/\s+/g, '').slice(0, 3).toUpperCase();
     return [{
@@ -146,6 +165,7 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       // Locked to the floor plan: one room per tagged badge.
       rooms: fromPlan ? (marks?.length ?? 0) : int(r.rooms, 5000),
       ...(residentsOf(r) > 1 ? { residents: residentsOf(r) } : {}),
+      ...(edgesOf(r) > 1 ? { edges: edgesOf(r) } : {}),
       sensors: Math.max(1, int(r.sensors ?? 1, 20)),
       ...(r.pendants != null && Math.max(1, int(r.pendants, 20)) !== residentsOf(r) ? { pendants: Math.max(1, int(r.pendants, 20)) } : {}),
       ...(r.care === 'custom' ? { customCare: String(r.customCare ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) } : {}),
@@ -164,6 +184,8 @@ export interface RoomScope {
   rooms: number;
   /** Residents (billed beds): rooms × residents per room. */
   residents: number;
+  /** Edge units: rooms × Edge units per room, with per-room overrides. */
+  edges: number;
   planSensors: number;
   allowance: number;
   totalSensors: number;
@@ -174,6 +196,7 @@ export interface RoomScope {
 export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   const rooms = types.reduce((s, t) => s + t.rooms, 0);
   const residents = types.reduce((s, t) => s + t.rooms * residentsOf(t), 0);
+  const edges = types.reduce((s, t) => s + typeEdges(t), 0);
   const planSensors = types.reduce((s, t) => s + t.rooms * t.sensors, 0);
   // Rounded to 4 places first, so 3% of 200 stays 6 rather than tipping to 7 on floating-point noise.
   const allowance = Math.ceil(Math.round(planSensors * allowancePct * 1e4) / 1e4);
@@ -182,7 +205,7 @@ export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   // Custom care types count as assisted living beds (every bed is priced the same).
   // Each resident is a bed; the first sensor in each room comes with its Edge unit, the rest are additional sensors.
   types.forEach((t) => (beds[bedKeyOf(t)] += t.rooms * residentsOf(t)));
-  return { rooms, residents, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
+  return { rooms, residents, edges, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
 }
 
 /** The care type a room type's beds count as (custom care types count as assisted living). */
@@ -260,6 +283,19 @@ export const devicesLabel = (ecall: 'none' | 'ble' | 'inovonics') => (ecall === 
 
 export const pendantsPerRoom = (t: Pick<RoomType, 'care' | 'pendants' | 'residents'>, p?: CareProducts | null, ecallOn = true) =>
   ecallOn && (!p || p[bedKeyOf(t)].ecall) ? Math.max(1, Number(t.pendants) || residentsOf(t)) : 0;
+
+/**
+ * A community's Edge units: its monitored room types' rooms × Edge units per room (with per-room overrides); without
+ * room types, one per monitored bed. Teton's hardware and the scope count these; the customer's price is per room.
+ */
+export function communityEdges(c: Partial<DraftCommunity> | null | undefined): number {
+  if (!c) return 0;
+  const types = normalizeRoomTypes(c.roomTypes);
+  const p = productsOf(c);
+  if (types.length) return roomScope(types.filter((t) => p[bedKeyOf(t)].monitoring), 0).edges;
+  const beds = { il: Number(c.ilBeds) || 0, al: Number(c.alBeds) || 0, mc: Number(c.mcBeds) || 0, snf: Number(c.snfBeds) || 0 };
+  return (['il', 'al', 'mc', 'snf'] as const).reduce((s, k) => s + (p[k].monitoring ? beds[k] : 0), 0);
+}
 
 /**
  * Residents beyond the first in each room of a community's monitored room types (shared rooms): they are billed beds

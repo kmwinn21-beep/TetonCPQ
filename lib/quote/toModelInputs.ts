@@ -5,7 +5,7 @@
 import { addMonths, firstOfMonth } from '@/lib/model/excel';
 import { uniformCaseMetrics, type CommunityExtra, type CommunityRates, type ModelInputs } from '@/lib/model';
 import { extraDevicePrice, scopeOf, type BedProducts, type DraftCommunity, type QuoteDraft } from './draft';
-import { ecallBilled, pendantScope, sharedResidents } from './roomTypes';
+import { communityEdges, ecallBilled, pendantScope, sharedResidents } from './roomTypes';
 import { pricedDraft } from '@/lib/pricing/lineup';
 import { itemPrice, itemQty, itemsOn } from '@/lib/pricing/items';
 
@@ -236,6 +236,8 @@ export function toModelInputs(d: QuoteDraft): ModelInputs {
       additionalSensors: billsMonitoring(d, c) ? Number(c.additionalSensors) || 0 : 0,
       // Residents sharing rooms share their room's Edge unit (installation and hardware are per Edge unit).
       ...((sh) => (sh > 0 && billsMonitoring(d, c) ? { edgeUnits: Math.max(0, communityUnits(c, ecallOn) - sh) } : {}))(sharedResidents(c, ecallOn).monitored),
+      // Rooms needing more than one Edge unit: Teton's hardware only (the price stays per room).
+      ...((rooms, edges) => (billsMonitoring(d, c) && edges > rooms ? { edgeHardware: edges } : {}))(communityUnits(c, ecallOn) - sharedResidents(c, ecallOn).monitored, communityEdges(c)),
       monitoring: billsMonitoring(d, c),
       rates: communityRates(d, c),
       ...(() => {

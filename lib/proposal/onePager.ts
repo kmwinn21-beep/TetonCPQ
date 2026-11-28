@@ -11,7 +11,7 @@ import { computeCapex, partsOf } from '@/lib/pricing/capex';
 import { SEED_PRODUCTS, SKU } from '@/lib/pricing/catalog';
 import { toModelInputs } from '@/lib/quote/toModelInputs';
 import { monitors, scopeOf, type QuoteDraft } from '@/lib/quote/draft';
-import { caSensorScope, pendantScope, sharedResidents } from '@/lib/quote/roomTypes';
+import { caSensorScope, communityEdges, pendantScope, sharedResidents } from '@/lib/quote/roomTypes';
 import { itemsOn } from '@/lib/pricing/items';
 import { ONE_PAGERS } from './layout';
 
@@ -200,10 +200,10 @@ export function onePagerCounts(draft: QuoteDraft) {
   for (const c of draft.communities) {
     const sc = scopeOf(c, ecallOn);
     beds += sc.priced;
-    // One Edge unit per room (residents sharing a room share it); its first sensor comes with it.
-    const e = sc.monitored - sharedResidents(c, ecallOn).monitored;
-    edges += e;
-    if (monitors(c)) sensors += e + Math.max(0, Number(c.additionalSensors) || 0);
+    // Edge units installed (one per room unless a room needs more); each room's first sensor comes with it.
+    const rooms = sc.monitored - sharedResidents(c, ecallOn).monitored;
+    edges += monitors(c) ? communityEdges(c) : 0;
+    if (monitors(c)) sensors += rooms + Math.max(0, Number(c.additionalSensors) || 0);
     caSensors += caSensorScope(c).total;
     const ps = pendantScope(c, ecallOn);
     devices += ps.total;

@@ -140,6 +140,11 @@ export interface Community {
    * unit; fees are per unit (resident). Missing: one per unit.
    */
   edgeUnits?: number;
+  /**
+   * Edge units installed, when a room needs more than one (Teton's hardware and install labor). Missing: `edgeUnits`.
+   * The customer's price doesn't change with it.
+   */
+  edgeHardware?: number;
   /** False for a community without resident monitoring (E-Call only): it adds no ROI benefits. */
   monitoring?: boolean;
   /** Overrides the deal-wide per-bed rates for this community. */

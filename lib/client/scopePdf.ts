@@ -6,7 +6,7 @@
  * summary page at the end. Images become one page each.
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
-import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, residentsOf, roomScope, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, markEdges, residentsOf, roomScope, typeEdges, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
 
@@ -196,7 +196,8 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const pad = fs * 1.4;
     const items: Array<{ b: { color: string; initials: string } | null; text: string }> = used.map(({ t, b, marks }) => {
       const sensors = marks.length * sensorsPerRoom(t, a.products);
-      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}${residentsOf(t) > 1 ? ` (${residentsOf(t)} residents each)` : ''} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
+      const edges = sensorsPerRoom(t, a.products) ? marks.reduce((n, m) => n + markEdges(t, m), 0) : 0;
+      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}${residentsOf(t) > 1 ? ` (${residentsOf(t)} residents each)` : ''} · ${sensors} sensor${sensors === 1 ? '' : 's'}${edges !== marks.length && edges ? ` · ${edges} Edge units` : ''}`) };
     });
     const areasHere = (a.areas ?? []).filter((x) => x.mark && x.mark.plan === a.planId && x.mark.page === n);
     if (areasHere.length) {
@@ -239,8 +240,9 @@ export async function scopePdf(a: Args): Promise<Blob> {
     p.drawText(head, { x: pad, y, size: fs, font: bold, color: INK });
     const total = used.reduce((t, u) => t + u.marks.length, 0);
     const totS = used.reduce((t, u) => t + u.marks.length * sensorsPerRoom(u.t, a.products), 0);
+    const totE = used.reduce((t, u) => t + (sensorsPerRoom(u.t, a.products) ? u.marks.reduce((n, m) => n + markEdges(u.t, m), 0) : 0), 0);
     const nn = (a.notes ?? []).filter((x) => x.page === n).length;
-    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
+    const tot = safe(reg, `${total} room${total === 1 ? '' : 's'} · ${totS} sensor${totS === 1 ? '' : 's'} · ${totE} Edge unit${totE === 1 ? '' : 's'} tagged on this page${nn ? ` · ${nn} note${nn === 1 ? '' : 's'}` : ''}`);
     p.drawText(tot, { x: Math.max(pad, s.w - pad - reg.widthOfTextAtSize(tot, fs)), y, size: fs, font: reg, color: MUTED });
     y -= line;
     if (!items.length) p.drawText(safe(reg, 'Nothing tagged on this page.'), { x: pad, y, size: fs, font: reg, color: MUTED });
@@ -290,8 +292,8 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   y -= 30;
 
   // Room type and care setting on the left; the numbers right-aligned at these x positions.
-  const cols = [M, 222, 345, 400, 455, 505, W - M];
-  const head = ['Room type', 'Care setting', 'This plan', 'All plans', 'Priced', 'Per room', 'Sensors'];
+  const cols = [M, 196, 298, 350, 398, 458, 514, W - M];
+  const head = ['Room type', 'Care setting', 'This plan', 'All plans', 'Priced', 'Sensors/rm', 'Edge units', 'Sensors'];
   const header = () => {
     head.forEach((h, k) => text(h.toUpperCase(), cols[k], 7.5, bold, MUTED, k < 2 ? 'l' : 'r'));
     y -= 8;
@@ -302,6 +304,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   let here = 0;
   let all = 0;
   let priced = 0;
+  let edgeTotal = 0;
   let mismatch = false;
   let noSensors = false;
   for (const { t, b } of types) {
@@ -331,8 +334,12 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     text(String(onPlan), cols[2], 10, reg, INK, 'r');
     text(String(total), cols[3], 10, reg, INK, 'r');
     text(`${rooms}${differs ? '*' : ''}`, cols[4], 10, differs ? bold : reg, rooms ? INK : MUTED, 'r');
+    // Edge units: one per room (more where a room type or a room says so); none without Resident Monitoring.
+    const edges = per && rooms ? typeEdges(t) : 0;
+    edgeTotal += edges;
     text(String(per), cols[5], 10, reg, per ? INK : MUTED, 'r');
-    text(String(rooms * per), cols[6], 10, bold, rooms * per ? INK : MUTED, 'r');
+    text(String(edges), cols[6], 10, reg, edges ? INK : MUTED, 'r');
+    text(String(rooms * per), cols[7], 10, bold, rooms * per ? INK : MUTED, 'r');
     noSensors ||= per === 0;
     y -= 10;
     p.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.4, color: LINE });
@@ -347,14 +354,15 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   text(String(here), cols[2], 10.5, bold, INK, 'r');
   text(String(all), cols[3], 10.5, bold, INK, 'r');
   text(String(priced), cols[4], 10.5, bold, INK, 'r');
-  text(String(s.planSensors), cols[6], 10.5, bold, INK, 'r');
+  text(String(edgeTotal), cols[6], 10.5, bold, INK, 'r');
+  text(String(s.planSensors), cols[7], 10.5, bold, INK, 'r');
   y -= 22;
   if (s.allowance > 0) {
     text(`Site-conditions allowance (${Math.round(a.allowancePct * 1000) / 10}%, rounded up)`, M, 9.5, reg, MUTED);
-    text(`+${s.allowance}`, cols[6], 10, reg, INK, 'r');
+    text(`+${s.allowance}`, cols[7], 10, reg, INK, 'r');
     y -= 16;
     text('Total sensors', M, 10.5, bold);
-    text(String(s.totalSensors), cols[6], 10.5, bold, INK, 'r');
+    text(String(s.totalSensors), cols[7], 10.5, bold, INK, 'r');
     y -= 22;
   }
   y -= 8;

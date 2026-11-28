@@ -99,3 +99,12 @@ Proposal: a **Residents per room** number on each room type (default 1, so exist
 
 Decided and built: monthly fee per resident; subscription installation per Edge unit plus additional sensors; equipment purchase one base package per room, the 2nd resident at the additional-sensor price; rooms only sometimes shared get their own room type (per-badge override later if asked for); occupancy unchanged. E-Call is billed per resident (the 'per room' billing option counts each resident); equipment purchase buys the 2nd resident's pendant as an extra device. One installation finish per room; generic items counted per room count rooms.
 
+## 6. Edge units in Scope Mode — built
+
+Mock: `docs/mocks/scoping/edge-units.html`. Edge units are dedicated to a resident room (never shared); one handles up to 3 sensors.
+- Each room type has an Edge units per room counter (1 to 3, default 1), in Scope Mode and on the deal page; each tagged room can override it from its popover ("Edge units, this room only").
+- Totals: the Scope Mode bottom bar, the floor plan Summary table (Edge units column and total), the scope PDF, the deal page room types summary, the proposal Scope page and one-pagers. Badges get a purple Edge marker, and room type chips "2 Edge each", only when a room needs more than one.
+- The customer's price doesn't change: installation, the equipment-purchase base package and the included first sensor stay per room. The extra Edge units count in Teton's hardware and install-labor cost.
+- A hint shows when a room has more than 3 sensors per Edge unit.
+- On phones, Scope Mode popovers (tagged room, room type form) open as a sheet along the bottom of the screen.
+
