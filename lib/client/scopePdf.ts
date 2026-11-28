@@ -365,7 +365,8 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     mismatch ||= differs;
     here += onPlan;
     all += total;
-    priced += rooms;
+    // Priced: the beds billed (residents in rooms with a product), with each tagged room's own count.
+    priced += rooms ? typeResidents(t) : 0;
     badge(p, bold, M + 9, y + 3.5, 8.5, b.color, b.initials);
     // Long names are cut to fit before the care setting column.
     // Shared rooms: residents per room after the name (each room still gets one Edge unit).
@@ -375,7 +376,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     text(t.care === 'custom' ? t.customCare || 'Custom' : CARE_LABEL[t.care], cols[1], 9);
     text(String(onPlan), cols[2], 10, reg, INK, 'r');
     text(String(total), cols[3], 10, reg, INK, 'r');
-    text(`${rooms}${differs ? '*' : ''}`, cols[4], 10, differs ? bold : reg, rooms ? INK : MUTED, 'r');
+    text(`${rooms ? typeResidents(t) : 0}${differs ? '*' : ''}`, cols[4], 10, differs ? bold : reg, rooms ? INK : MUTED, 'r');
     // Edge units: one per room (more where a room type or a room says so); none without Resident Monitoring.
     const edges = per && rooms ? typeEdges(t) : 0;
     edgeTotal += edges;
@@ -431,7 +432,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     y -= 22;
   }
   y -= 8;
-  text('"This plan" and "All plans" count the rooms tagged on the floor plans; "Priced" is the room count used for pricing.', M, 8.5, reg, MUTED);
+  text('"This plan" and "All plans" count the rooms tagged on the floor plans; "Priced" is the beds billed (one per resident).', M, 8.5, reg, MUTED);
   y -= 13;
   text('One sensor per resident is included; the rest are additional sensors on the room\'s Edge unit.', M, 8.5, reg, MUTED);
   if (ownCounts.length) {
@@ -444,7 +445,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   }
   if (mismatch) {
     y -= 13;
-    text('* Entered by hand: differs from the number of rooms tagged.', M, 8.5, reg, MUTED);
+    text('* The room count was entered by hand and differs from the number of rooms tagged.', M, 8.5, reg, MUTED);
   }
   if (noSensors) {
     y -= 13;
