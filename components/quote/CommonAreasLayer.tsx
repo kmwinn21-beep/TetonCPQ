@@ -141,13 +141,13 @@ export function AreaForm({
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={eb} htmlFor="ca-sen">Sensors</label>
-          <Counter id="ca-sen" size="sm" value={sensors} onChange={setSensors} min={0} max={50} disabled={readOnly} aria-label="Common area sensors" />
+          <Counter id="ca-sen" size="xs" value={sensors} onChange={setSensors} min={0} max={50} disabled={readOnly} aria-label="Common area sensors" />
         </div>
         <div>
           <label className={`${eb} ${devOff ? '!text-[#B4AFA6]' : ''}`} htmlFor="ca-dev">E-Call {devicesLabel(ecall).toLowerCase()}</label>
           <Counter
             id="ca-dev"
-            size="sm"
+            size="xs"
             value={devices}
             onChange={setPendants}
             min={0}

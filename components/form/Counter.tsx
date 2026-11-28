@@ -27,7 +27,8 @@ export function Counter({
   reason?: string;
   id?: string;
   className?: string;
-  size?: 'sm' | 'md';
+  /** xs: compact, for narrow popovers (Scope Mode). */
+  size?: 'xs' | 'sm' | 'md';
   'aria-label'?: string;
 }) {
   const v = Number.isFinite(value) ? value : min;
@@ -43,8 +44,9 @@ export function Counter({
     if (n !== v) onChange(n);
     setText(String(n));
   };
-  const h = size === 'sm' ? 'h-8' : 'h-[34px]';
-  const btn = `${h} w-[34px] grid place-items-center text-[15px] font-semibold bg-[#FAF8F4] transition-colors duration-150 motion-reduce:transition-none enabled:hover:bg-[#F1EEE8] disabled:text-[#C9C4BA] disabled:cursor-not-allowed`;
+  const h = size === 'xs' ? 'h-7' : size === 'sm' ? 'h-8' : 'h-[34px]';
+  const w = size === 'xs' ? 'w-6 text-[13px]' : 'w-[34px] text-[15px]';
+  const btn = `${h} ${w} flex-shrink-0 grid place-items-center font-semibold bg-[#FAF8F4] transition-colors duration-150 motion-reduce:transition-none enabled:hover:bg-[#F1EEE8] disabled:text-[#C9C4BA] disabled:cursor-not-allowed`;
   return (
     <div className={className}>
       <div className={`flex items-stretch rounded-[9px] border overflow-hidden ${disabled ? 'border-[#ECE8DF] bg-[#F4F2EE]' : 'border-[#E4E0D6] bg-white focus-within:border-[#3F8CEA] focus-within:ring-[3px] focus-within:ring-[#3F8CEA]/15'}`}>
@@ -78,7 +80,7 @@ export function Counter({
             if (e.key === 'ArrowUp') (e.preventDefault(), step(1));
             if (e.key === 'ArrowDown') (e.preventDefault(), step(-1));
           }}
-          className={`min-w-0 flex-1 w-full text-center text-[13.5px] font-bold tabular-nums bg-transparent outline-none ${disabled ? 'text-[#B4AFA6]' : 'text-teton-ink'}`}
+          className={`min-w-0 flex-1 w-full text-center ${size === 'xs' ? 'text-[12.5px]' : 'text-[13.5px]'} font-bold tabular-nums bg-transparent outline-none ${disabled ? 'text-[#B4AFA6]' : 'text-teton-ink'}`}
         />
         <button type="button" tabIndex={-1} aria-label={`More${ariaLabel ? `: ${ariaLabel}` : ''}`} disabled={disabled || v >= max} onClick={() => step(1)} className={`${btn} border-l border-[#ECE8DF] ${disabled ? '!bg-[#F4F2EE]' : 'text-[#3F4753]'}`}>
           +

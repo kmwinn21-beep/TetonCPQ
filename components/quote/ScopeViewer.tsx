@@ -1914,27 +1914,28 @@ function TypeForm({
       </div>
       {/* Sensors and E-Call devices per room. No resident monitoring in this care setting: no sensors (0, locked);
           no E-Call on the deal or in this care setting: no devices (0, locked). */}
-      <div className="grid grid-cols-3 gap-2">
+      <span className={eyebrow}>Per room</span>
+      <div className="grid grid-cols-3 gap-1.5">
         <div>
-          <label className={eyebrow} htmlFor="tf-res">Residents / room</label>
-          <Counter id="tf-res" size="sm" value={residents} onChange={changeResidents} min={1} max={MAX_RESIDENTS} aria-label="Residents per room" />
+          <label className="block text-[10.5px] text-teton-ui-gray mb-1 whitespace-nowrap" htmlFor="tf-res">Residents</label>
+          <Counter id="tf-res" size="xs" value={residents} onChange={changeResidents} min={1} max={MAX_RESIDENTS} aria-label="Residents per room" />
         </div>
         <div>
-          <label className={eyebrow} htmlFor="tf-sen">Sensors / room</label>
+          <label className="block text-[10.5px] text-teton-ui-gray mb-1 whitespace-nowrap" htmlFor="tf-sen">Sensors</label>
           {products[bedKeyOf({ care })].monitoring ? (
-            <Counter id="tf-sen" size="sm" value={sensors} onChange={setSensors} min={1} max={20} aria-label="Sensors per room" />
+            <Counter id="tf-sen" size="xs" value={sensors} onChange={setSensors} min={1} max={20} aria-label="Sensors per room" />
           ) : (
-            <Counter id="tf-sen" size="sm" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label="Sensors per room (none: no Resident Monitoring)" />
+            <Counter id="tf-sen" size="xs" value={0} onChange={() => {}} disabled reason="No Resident Monitoring in this care setting" aria-label="Sensors per room (none: no Resident Monitoring)" />
           )}
         </div>
         <div>
-          <label className={`${eyebrow} ${ecall === 'none' || !products[bedKeyOf({ care })].ecall ? '!text-[#B4AFA6]' : ''}`} htmlFor="tf-pend">{devicesLabel(ecall)} / room</label>
+          <label className={`block text-[10.5px] text-teton-ui-gray mb-1 whitespace-nowrap ${ecall === 'none' || !products[bedKeyOf({ care })].ecall ? '!text-[#B4AFA6]' : ''}`} htmlFor="tf-pend">{devicesLabel(ecall)}</label>
           {ecall === 'none' ? (
-            <Counter id="tf-pend" size="sm" value={0} onChange={() => {}} disabled reason="E-Call isn’t part of this deal" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call on the deal)`} />
+            <Counter id="tf-pend" size="xs" value={0} onChange={() => {}} disabled reason="E-Call isn’t part of this deal" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call on the deal)`} />
           ) : !products[bedKeyOf({ care })].ecall ? (
-            <Counter id="tf-pend" size="sm" value={0} onChange={() => {}} disabled reason="No E-Call in this care setting" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call in this care setting)`} />
+            <Counter id="tf-pend" size="xs" value={0} onChange={() => {}} disabled reason="No E-Call in this care setting" aria-label={`${devicesLabel(ecall)} per room (none: no E-Call in this care setting)`} />
           ) : (
-            <Counter id="tf-pend" size="sm" value={pendants} onChange={setPendants} min={1} max={20} aria-label={`${devicesLabel(ecall)} per room`} />
+            <Counter id="tf-pend" size="xs" value={pendants} onChange={setPendants} min={1} max={20} aria-label={`${devicesLabel(ecall)} per room`} />
           )}
         </div>
       </div>
