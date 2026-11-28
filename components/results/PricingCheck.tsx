@@ -11,6 +11,7 @@ import { SegGroup } from '@/components/form/SegGroup';
 import type { CheckGroup, CheckRow, PricingCheck as Check, Piece } from '@/lib/quote/pricingCheck';
 import { pricingCheckXlsx } from '@/lib/quote/pricingCheckXlsx';
 import { count, usd } from '@/lib/format';
+import type { OneTimeRow, OneTimeTable } from '@/lib/quote/oneTimeTable';
 
 type ProductView = 'all' | 'subscription' | 'ecall' | 'capex';
 const PRODUCT_LABEL: Record<ProductView, string> = { all: 'All products', subscription: 'Subscription', ecall: 'E-Call', capex: 'Equipment purchase' };
@@ -58,7 +59,55 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   );
 }
 
-export function PricingCheck({ check, dealName, showing }: { check: Check; dealName: string; showing: string }) {
+/** Installation and extra sensors by community: list amount, the pilot credit, and what's due (from the price lines). */
+function OneTimeCharges({ t }: { t: OneTimeTable }) {
+  const neg = (n: number) => (n ? `(${usd(Math.abs(n))})` : '–');
+  const each = (label: string, p: number | null) => (p != null ? `${label} ${usd(Math.abs(p))}` : label);
+  const cols: Array<{ h: string; v: (r: OneTimeRow) => string; muted?: boolean; bold?: boolean }> = [
+    { h: 'Beds', v: (r) => count(r.beds) },
+    ...(t.showInstalls ? [{ h: 'Rooms installed', v: (r: OneTimeRow) => count(r.installs) }] : []),
+    { h: each('Installation at', t.installPrice), v: (r) => usd(r.install), muted: true },
+    { h: t.installCreditEach != null ? `Credit, (${usd(Math.abs(t.installCreditEach))}) per ${t.showInstalls ? 'room' : 'bed'}` : 'Credit', v: (r) => neg(r.installCredit) },
+    { h: 'Installation due', v: (r) => usd(r.installDue), bold: true },
+    { h: 'Extra sensors', v: (r) => count(r.sensors) },
+    { h: each('Extra sensors at', t.sensorPrice), v: (r) => usd(r.sensorAmount), muted: true },
+    { h: t.sensorCreditEach != null ? `Credit, (${usd(Math.abs(t.sensorCreditEach))}) each` : 'Credit', v: (r) => neg(r.sensorCredit) },
+    { h: 'Extra sensors due', v: (r) => usd(r.sensorDue), bold: true },
+    { h: 'Total due', v: (r) => usd(r.total), bold: true },
+  ];
+  return (
+    <div className="mt-4">
+      <h3 className="text-sm font-semibold">One-time charges by community</h3>
+      <p className="text-xs text-teton-ui-gray mt-0.5">Installation and extra sensors at this deal&rsquo;s prices, less the pilot credits, from the price lines.</p>
+      <div className="mt-2 overflow-x-auto rounded-xl border border-teton-off-white">
+        <table className="w-full min-w-[880px] text-sm tabular-nums">
+          <thead>
+            <tr className="bg-teton-near-black text-white text-[12px]">
+              <th className="text-left font-semibold px-3 py-2.5">Community</th>
+              {cols.map((c) => <th key={c.h} className="text-right font-semibold px-3 py-2.5 leading-tight">{c.h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {t.rows.map((r) => (
+              <tr key={r.community} className="border-b border-teton-off-white last:border-0">
+                <td className="px-3 py-2">{r.community}</td>
+                {cols.map((c) => <td key={c.h} className={`text-right px-3 py-2 ${c.muted ? 'text-teton-ui-gray' : ''} ${c.bold ? 'font-semibold' : ''}`}>{c.v(r)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-teton-almost-white font-semibold">
+              <td className="px-3 py-2.5">Total</td>
+              {cols.map((c) => <td key={c.h} className={`text-right px-3 py-2.5 ${c.muted ? 'text-teton-ui-gray' : ''}`}>{c.v(t.total)}</td>)}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function PricingCheck({ check, oneTime, dealName, showing }: { check: Check; oneTime?: OneTimeTable | null; dealName: string; showing: string }) {
   const [open, setOpen] = useState(false);
   const [product, setProduct] = useState<ProductView>('all');
   const [community, setCommunity] = useState('');
@@ -138,6 +187,8 @@ export function PricingCheck({ check, dealName, showing }: { check: Check; dealN
               <button type="button" className="btn-primary text-xs" onClick={download}>Download workbook (.xlsx)</button>
             </div>
           </div>
+
+          {oneTime && <OneTimeCharges t={oneTime} />}
 
           <ul className="flex flex-wrap gap-2 mt-3" aria-label="Self-checks">
             {check.checks.map((c) => (

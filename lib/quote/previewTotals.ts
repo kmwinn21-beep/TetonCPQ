@@ -18,7 +18,7 @@ const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 export interface PreviewTotals {
   /** pendants: E-Call pendants / pull-cords (rooms, common areas and contingency); 0 without E-Call. */
-  scope: { edgeUnits: number; sensors: number; additionalSensors: number; pendants: number };
+  scope: { residents: number; edgeUnits: number; sensors: number; additionalSensors: number; pendants: number };
   capex: null | { basePackages: number; ecallUnits: number; sensors: number; equipment: number; softwareMonthly: number; softwareUpfront: number; renewals: number; ownership: number; years: number; /** Generic items: one-time (in equipment), monthly, and their renewals. */ items: Array<{ sku: string; name: string; total: number; billing: 'monthly' | 'once' | 'years' }>; itemsMonthly: number; itemsRenewals: number };
   opex: null | { install: number; sensors: number; /** Generic items' one-time charges (after credits, renewals included). */ items: number; monthly: number; year1: number; /** One-time charges, pilot fees and 36 months after the pilot. */ contract: number; /** Pilot length + the 36-month term. */ termMonths: number };
   pilot: null | { install: number; sensors: number; /** Generic items' one-time charges at pilot sites. */ items: number; fees: number; total: number; months: number };
@@ -91,7 +91,8 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
 
   const f = computeFinish(draft);
   return {
-    scope: { edgeUnits: edges, sensors: beds + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
+    // Residents: every priced bed (one per resident), monitored or E-Call only.
+    scope: { residents: sum(draft.communities.map((c) => scopeOf(c, draft.commercial.ecall !== 'none').priced)), edgeUnits: edges, sensors: beds + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
     capex,
     opex,
     pilot,

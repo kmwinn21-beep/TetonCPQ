@@ -33,6 +33,7 @@ import { VersionCompare, type CompareTarget } from './VersionCompare';
 import { PricingCheck } from './PricingCheck';
 import { buildPricingCheck } from '@/lib/quote/pricingCheck';
 import { buildPriceLines } from '@/lib/pricing/lines';
+import { oneTimeTable } from '@/lib/quote/oneTimeTable';
 
 const CASES: RoiCase[] = ['stretch', 'target', 'base', 'underperforming'];
 const CASE_LABEL: Record<RoiCase, string> = { stretch: 'Stretch', target: 'Target', base: 'Base', underperforming: 'Underperforming' };
@@ -121,6 +122,8 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
 
   const vendor = useMemo(() => runVendorView(inputs), [inputs]);
   // Pricing check: the version's price lines and figures, rebuilt as inputs → formula → result.
+  const priceLines = useMemo(() => buildPriceLines(draft, inputs, book), [draft, inputs, book]);
+  const oneTime = useMemo(() => oneTimeTable(draft, priceLines), [draft, priceLines]);
   const pcheck = useMemo(
     () =>
       buildPricingCheck({
@@ -129,13 +132,13 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
         out,
         capex,
         capexLive: stored?.outputs ? capexLive : undefined,
-        lines: buildPriceLines(draft, inputs, book),
+        lines: priceLines,
         book,
         capexSummary: draft.presentation !== 'opex',
         money: (n, c) => usd(n, { cents: c }),
         count,
       }),
-    [draft, inputs, out, capex, capexLive, stored, book],
+    [draft, inputs, out, capex, capexLive, stored, book, priceLines],
   );
 
   const capexCards: Array<{ id: string; label: string; value: string; caption: string; negative?: boolean }> = ccf
@@ -229,7 +232,7 @@ export function ResultsView({ versionId, compare, quoteId, draft, stored, versio
         </div>
       )}
 
-      <PricingCheck check={pcheck} dealName={draft.customerName} showing={stored ? `Version ${stored.versionNo}` : `Current draft (v${draftVersionNo})`} />
+      <PricingCheck check={pcheck} oneTime={oneTime} dealName={draft.customerName} showing={stored ? `Version ${stored.versionNo}` : `Current draft (v${draftVersionNo})`} />
 
       <section aria-labelledby="kpis">
         <h2 id="kpis" className="text-base font-semibold mb-3">
