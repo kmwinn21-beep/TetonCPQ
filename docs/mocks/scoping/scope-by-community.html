@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope table by community</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --cream:#FBF8F3; --ink:#16181D; --body:#3A3F47; --muted:#6E737B; --line:#ECE7DF; --coral:#D9553F; --night:#0F1720; --mint-bg:#EEF8F1; --lav-bg:#F3F0FD; --coral-bg:#FDF0EC; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #2A2D33; font-family: Inter, system-ui, sans-serif; color: #E9EAEC; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 60px; }
+  h2.sec { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: #A9AEB6; margin: 40px 0 12px; font-weight: 600; }
+  .intro { font-size: 14px; line-height: 1.6; color: #C9CCD1; max-width: 820px; }
+  .intro b { color: #fff; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 0; font-size: 12.5px; color: #C9CCD1; }
+  .ctl .seg { display: inline-flex; background: #1C1F24; border-radius: 9px; padding: 3px; }
+  .ctl .seg button { border: 0; background: none; color: #C9CCD1; font: inherit; padding: 6px 11px; border-radius: 7px; cursor: pointer; transition: background .2s, color .2s; }
+  .ctl .seg button[aria-pressed=true] { background: #fff; color: var(--ink); font-weight: 600; }
+
+  /* Business case page */
+  .page { position: relative; background: var(--cream); color: var(--ink); max-width: 8.5in; margin: 0 auto; padding: 44px 56px 70px; font-family: Figtree, Inter, sans-serif; font-size: 13px; line-height: 1.5; box-shadow: 0 4px 18px rgba(0,0,0,.25); }
+  .top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .logo { font-weight: 700; font-size: 20px; letter-spacing: -.3px; }
+  .crumb { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+  .eyebrow { font-size: 11px; letter-spacing: 3px; font-weight: 800; color: var(--coral); text-transform: uppercase; margin: 26px 0 10px; }
+  .eyebrow.gray { color: var(--muted); font-size: 10px; margin: 22px 0 0; }
+  h1 { font-size: 32px; line-height: 1.13; font-weight: 500; letter-spacing: -.8px; margin: 0; }
+  .lede { font-size: 14px; line-height: 1.55; color: var(--body); margin-top: 12px; max-width: 640px; }
+
+  .tblhead { position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .switches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; font-family: Inter, sans-serif; }
+  .vs { display: inline-flex; border-radius: 8px; background: rgba(15,23,32,.88); padding: 2px; font-size: 11px; color: #fff; }
+  .vs span { padding: 4px 9px; border-radius: 6px; white-space: nowrap; }
+  .vs span.on { background: #fff; color: var(--ink); font-weight: 500; }
+  .vs.new { outline: 2px solid #F5B83D; outline-offset: 2px; }
+  .newtag { position: absolute; right: 0; top: -22px; font: 600 10px Inter, sans-serif; color: #B57A06; letter-spacing: .5px; }
+
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; margin-top: 10px; overflow: hidden; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 9.5px; letter-spacing: 1.2px; line-height: 1.35; color: var(--muted); font-weight: 700; text-align: left; padding: 11px 10px 9px; text-transform: uppercase; white-space: nowrap; vertical-align: bottom; }
+  th:first-child, td:first-child { padding-left: 14px; } th:last-child, td:last-child { padding-right: 14px; }
+  td { padding: 9px 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--body); vertical-align: top; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.m { font-weight: 700; color: var(--ink); font-size: 13px; }
+  .r { text-align: right; }
+  .hl { background: var(--mint-bg); } .hl2 { background: var(--lav-bg); } .hl3 { background: var(--coral-bg); }
+  td.big { font-size: 16px; color: var(--ink); font-weight: 500; line-height: 1.25; }
+  td small { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; margin-top: 2px; letter-spacing: 0; }
+  tr.tot td { border-top: 2px solid var(--ink); font-weight: 700; color: var(--ink); }
+  tr.tot td.big { font-weight: 700; }
+  tr.tot td small { font-weight: 500; }
+  .foot { position: absolute; left: 56px; right: 56px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+  .note { background: #1C1F24; border: 1px solid #3A3E45; border-radius: 12px; padding: 16px 18px; font-size: 13.5px; line-height: 1.6; color: #D3D6DA; }
+  .note h3 { margin: 0 0 8px; font-size: 14px; color: #fff; }
+  .note ul, .note ol { margin: 0; padding-left: 18px; }
+  .note li { margin: 4px 0; }
+  .note code { background: #2C3037; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  .phone { width: 390px; max-width: 100%; margin: 0 auto; background: var(--cream); color: var(--ink); border-radius: 26px; padding: 22px 16px 26px; font-family: Figtree, Inter, sans-serif; border: 8px solid #111; }
+  .phone h1 { font-size: 24px; }
+  .phone .card { margin-top: 8px; }
+  @media (max-width: 700px) { .page { padding: 28px 16px 60px; } h1 { font-size: 24px; } .foot { left: 16px; right: 16px; } .tblhead { flex-direction: column; align-items: stretch; } .switches { justify-content: flex-start; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 class="sec">Mock · Scope page, "By community" table</h2>
+  <p class="intro">
+    A new <b>Table: By room type | By community</b> switch sits with the table's other view switches (marked in yellow below). <b>By room type</b> is today's table and stays the default.
+    <b>By community</b> has one row per community, laid out like your team's table, with the changes you asked for.
+    The numbers are the Heritage deal from your screenshot. The E-Call counts are made up for the mock.
+  </p>
+  <div class="ctl">
+    <span>Preview the deal as:</span>
+    <div class="seg" role="group" aria-label="Deal">
+      <button type="button" aria-pressed="true" data-mode="both">Monitoring + E-Call (Bluetooth)</button>
+      <button type="button" aria-pressed="false" data-mode="ino">Monitoring + E-Call (Inovonics)</button>
+      <button type="button" aria-pressed="false" data-mode="mon">Monitoring only</button>
+    </div>
+  </div>
+
+  <h2 class="sec">Business case · Scope page (desktop)</h2>
+  <div class="page">
+    <div class="top"><span class="logo">● Teton</span><span class="crumb">Scope</span></div>
+    <p class="eyebrow">Scope</p>
+    <h1 id="h1">Scoped from your floor plans: 413 rooms, 753 sensors.</h1>
+    <p class="lede" id="lede">One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed.</p>
+
+    <div class="tblhead" style="margin-top:26px">
+      <p class="eyebrow gray">By community</p>
+      <div class="switches">
+        <span class="newtag">NEW</span>
+        <div class="vs new"><span>Table: By room type</span><span class="on">By community</span></div>
+        <div class="vs"><span class="on">Totals: In table</span><span>Condensed</span><span>Expanded</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="scroll"><table id="tbl"></table></div></div>
+
+    <div class="foot"><span>TETON.AI</span><span>3</span></div>
+  </div>
+
+  <h2 class="sec">Phone width (390 px)</h2>
+  <div class="phone">
+    <p class="eyebrow" style="margin-top:0">Scope</p>
+    <h1>Scoped from your floor plans</h1>
+    <p class="eyebrow gray">By community</p>
+    <div class="card"><div class="scroll"><table id="tblPh"></table></div></div>
+    <p style="font-size:11px;color:var(--muted);margin:8px 2px 0">The table scrolls sideways inside its card, with the Community column pinned. The page itself doesn't scroll sideways.</p>
+  </div>
+
+  <h2 class="sec">How it works</h2>
+  <div class="notes">
+    <div class="note">
+      <h3>Columns</h3>
+      <ul>
+        <li><b>[Care] Units</b>: one column for each care setting in the deal (AL, MC, IL, SNF, or a custom setting's initials, using the same abbreviations as the short care names). Settings the deal doesn't have get no column.</li>
+        <li>Long headers wrap onto two lines (Total / Units) so all 8 columns fit on a letter-size page.</li>
+        <li><b>Total Units</b>: rooms (the old "Apartments").</li>
+        <li><b>Beds</b>: residents, with shared rooms counted twice.</li>
+        <li><b>Sensors</b>: the total, with the math below it, e.g. <code>75 Incl. + 57 Addl.</code> One sensor is included per bed, and the contingency is in the Addl. number.</li>
+        <li><b>Edge Units</b>: one per room unless a room was set to more.</li>
+        <li><b>E-Call Pendants</b> or <b>E-Call Pull-Cords</b>, depending on the system. Only shown when E-Call is in the deal.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3>Decisions for you</h3>
+      <ol>
+        <li><b>Drop the "Extra sensors" column.</b> The Addl. number under Sensors is the same figure, and dropping it frees room for the E-Call column. <i>Recommended.</i></li>
+        <li><b>Common area sensors</b>: when a community has them, the subtext adds a third part (<code>75 Incl. + 57 Addl. + 6 CA</code>). The existing "Rooms only" switch leaves them out.</li>
+        <li><b>E-Call subtext</b>: show the math under the device count too (<code>75 rooms + 4 allowance</code>)? I left it plain to keep the row light.</li>
+        <li><b>Hidden switch</b>: "Care: Full | Short" is hidden in this view because the headers are always abbreviated.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+const sites = [
+  { n: 'Blue Springs',    al: 45, mc: 28, units: 73, beds: 75, s: 132, edge: 73, dv: 79 },
+  { n: 'Lenexa',          al: 45, mc: 28, units: 73, beds: 73, s: 125, edge: 73, dv: 77 },
+  { n: 'Olathe',          al: 41, mc: 35, units: 76, beds: 76, s: 145, edge: 76, dv: 80 },
+  { n: 'Raymore',         al: 45, mc: 28, units: 73, beds: 75, s: 130, edge: 73, dv: 79 },
+  { n: 'Staley Hills',    al: 45, mc: 14, units: 59, beds: 61, s: 110, edge: 59, dv: 64 },
+  { n: 'Tiffany Springs', al: 44, mc: 15, units: 59, beds: 61, s: 111, edge: 59, dv: 64 },
+];
+const f = (n) => n.toLocaleString('en-US');
+const sum = (k) => sites.reduce((a, x) => a + x[k], 0);
+function render(mode) {
+  const ec = mode !== 'mon';
+  const dev = mode === 'ino' ? 'Pull-Cords' : 'Pendants';
+  const head = `<thead><tr><th>Community</th><th class="r">AL<br>Units</th><th class="r">MC<br>Units</th><th class="r">Total<br>Units</th><th class="r">Beds</th><th class="r hl">Sensors</th><th class="r hl2">Edge<br>Units</th>${ec ? `<th class="r hl3">E-Call<br>${dev}</th>` : ''}</tr></thead>`;
+  const row = (x, tot) => `<tr${tot ? ' class="tot"' : ''}><td class="m">${x.n}</td><td class="r">${f(x.al)}</td><td class="r">${f(x.mc)}</td><td class="r">${f(x.units)}</td><td class="r">${f(x.beds)}</td><td class="r hl big">${f(x.s)}<small>${f(x.beds)} Incl. + ${f(x.s - x.beds)} Addl.</small></td><td class="r hl2 big">${f(x.edge)}</td>${ec ? `<td class="r hl3 big">${f(x.dv)}</td>` : ''}</tr>`;
+  const total = { n: 'Total', al: sum('al'), mc: sum('mc'), units: sum('units'), beds: sum('beds'), s: sum('s'), edge: sum('edge'), dv: sum('dv') };
+  const html = head + '<tbody>' + sites.map((x) => row(x)).join('') + row(total, true) + '</tbody>';
+  document.getElementById('tbl').innerHTML = html;
+  document.getElementById('tblPh').innerHTML = html;
+  document.querySelectorAll('#tblPh tr > :first-child').forEach((c) => { c.style.position = 'sticky'; c.style.left = '0'; c.style.background = c.closest('thead') ? '#fff' : '#fff'; c.style.zIndex = '1'; c.style.boxShadow = '1px 0 0 var(--line)'; });
+  document.getElementById('h1').textContent = ec ? `Scoped from your floor plans: 413 rooms, 753 sensors, ${f(total.dv)} ${dev.toLowerCase()}.` : 'Scoped from your floor plans: 413 rooms, 753 sensors.';
+  document.getElementById('lede').textContent = ec ? `One sensor for each room or living area a resident uses, and ${dev.toLowerCase()} where residents call for help. Quantities are confirmed at the site survey and trued up to what is installed.` : 'One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed.';
+}
+document.querySelectorAll('.ctl button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.ctl button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  render(b.dataset.mode);
+}));
+render('both');
+</script>
+</body>
+</html>
