@@ -137,6 +137,24 @@ describe('deals, drafts and versions', () => {
     await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Two Tabs SL', communities: [{ ...newCommunity(0), name: 'Site', alBeds: 41, pilot: true }] }, a.updatedAt)).resolves.toBeTruthy();
   });
 
+  it('never counts a tab\'s own earlier save as a conflict (overlapping autosaves, a lost reply)', async () => {
+    const { quoteId } = await createDeal(db, 'One Tab SL');
+    const ed = (await getQuoteEditor(db, quoteId))!;
+    const base = ed.draftUpdatedAt;
+    // Two saves leave the same tab with the same base revision; the first lands, then the second.
+    await saveDraft(db, quoteId, { ...ed.draft, customerName: 'One Tab SL (1)' }, base, 'tab-a');
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'One Tab SL (2)' }, base, 'tab-a')).resolves.toBeTruthy();
+    expect((await getQuoteEditor(db, quoteId))!.draft.customerName).toBe('One Tab SL (2)');
+    // Another tab still on that old revision is refused.
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Other tab' }, base, 'tab-b')).rejects.toBeInstanceOf(DraftConflictError);
+    // ...and once it has saved, the first tab's stale base is a real conflict.
+    const b = await saveDraft(db, quoteId, { ...ed.draft, customerName: 'Other tab' }, (await getQuoteEditor(db, quoteId))!.draftUpdatedAt, 'tab-b');
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Tab A again' }, base, 'tab-a')).rejects.toBeInstanceOf(DraftConflictError);
+    // Keeping its changes: a save without a base revision goes through.
+    await expect(saveDraft(db, quoteId, { ...ed.draft, customerName: 'Tab A kept' }, null, 'tab-a')).resolves.toBeTruthy();
+    expect(b.updatedAt).toBeTruthy();
+  });
+
   it('lists deals with their draft scope', async () => {
     const deals = await listDeals(db);
     const acme = deals.find((d) => d.customerName === 'Acme Senior Living')!;

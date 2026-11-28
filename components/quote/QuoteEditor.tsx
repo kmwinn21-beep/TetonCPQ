@@ -145,11 +145,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
   // The draft revision this tab last saw; the server refuses saves based on an older one.
   const baseRev = useRef<string | null>(initial.draftUpdatedAt);
   const conflicted = useRef(false);
-  const putDraft = useCallback(async (snapshot: string): Promise<boolean> => {
+  // This tab, so its own saves never count as "changed elsewhere".
+  const tabId = useRef(`tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+  const putDraft = useCallback(async (snapshot: string, force = false): Promise<boolean> => {
     const res = await fetch(`/api/quotes/${initial.quoteId}/draft`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ draft: JSON.parse(snapshot), baseUpdatedAt: baseRev.current }),
+      body: JSON.stringify({ draft: JSON.parse(snapshot), baseUpdatedAt: baseRev.current, tab: tabId.current, ...(force ? { force: true } : {}) }),
     });
     if (res.status === 409) {
       conflicted.current = true;
@@ -164,6 +166,30 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     lastSaved.current = snapshot;
     return true;
   }, [initial.quoteId]);
+  // One save at a time: each waits for the one before and sends what's on screen then (skipped if already saved).
+  // Two saves in flight at once used to send the same base revision, and the second came back "changed elsewhere".
+  const chain = useRef<Promise<boolean>>(Promise.resolve(true));
+  const saveLatest = useCallback((): Promise<boolean> => {
+    const run = async () => {
+      if (conflicted.current) return false;
+      const snapshot = JSON.stringify(getValues());
+      if (snapshot === lastSaved.current) return true;
+      return putDraft(snapshot);
+    };
+    const next = chain.current.then(run, run);
+    chain.current = next.catch(() => false);
+    return next;
+  }, [getValues, putDraft]);
+  /** A real conflict: keep this tab's version (it replaces the newer one). */
+  async function keepMine() {
+    conflicted.current = false;
+    setSaveState('saving');
+    try {
+      if (await putDraft(JSON.stringify(getValues()), true)) setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  }
   useEffect(() => {
     const snapshot = JSON.stringify(values);
     if (conflicted.current || !canEdit) return;
@@ -176,13 +202,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     const t = setTimeout(async () => {
       setSaveState('saving');
       try {
-        if (await putDraft(snapshot)) setSaveState(JSON.stringify(getValues()) === snapshot ? 'saved' : 'pending');
+        if (await saveLatest()) setSaveState(JSON.stringify(getValues()) === lastSaved.current ? 'saved' : 'pending');
       } catch {
         setSaveState('error');
       }
     }, 1000);
     return () => clearTimeout(t);
-  }, [values, getValues, putDraft, canEdit]);
+  }, [values, getValues, saveLatest, canEdit]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
@@ -293,11 +319,13 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     }
     setSavingVersion(true);
     try {
+      // Let any autosave in flight finish first, so this goes out with the latest revision.
+      await chain.current;
       const draft = getValues();
       const res = await fetch(`/api/quotes/${initial.quoteId}/versions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ note: noteOverride ?? note, draft, baseUpdatedAt: baseRev.current }),
+        body: JSON.stringify({ note: noteOverride ?? note, draft, baseUpdatedAt: baseRev.current, tab: tabId.current }),
       });
       const body = await res.json();
       if (res.status === 409) {
@@ -338,7 +366,7 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
     const snapshot = JSON.stringify(getValues());
     if (snapshot !== lastSaved.current && !conflicted.current) {
       setSaveState('saving');
-      if (!(await putDraft(snapshot))) return;
+      if (!(await saveLatest())) return;
       setSaveState('saved');
     }
     router.push(`/quotes/${initial.quoteId}/results`);
@@ -372,8 +400,9 @@ function QuoteEditorBody({ initial }: { initial: QuoteEditorData }) {
             </p>
             {saveState === 'conflict' && (
               <div role="alert" className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-teton-red/30 px-3 py-2 text-sm">
-                <span>This deal was changed in another tab or by someone else since you opened it. Edits made here since then weren’t saved, so nothing was overwritten.</span>
-                <button type="button" className="btn-primary py-1" onClick={() => window.location.reload()}>Reload latest</button>
+                <span>This deal was changed in another tab or by someone else since you opened it. Edits made here since then weren’t saved yet, so nothing was overwritten. Keep your changes here (they replace the other version), or reload to see the other version (your unsaved changes here are lost).</span>
+                <button type="button" className="btn-primary py-1" onClick={() => void keepMine()}>Keep my changes</button>
+                <button type="button" className="btn-secondary py-1" onClick={() => window.confirm('Reload the latest version? Your unsaved changes in this tab will be lost.') && window.location.reload()}>Reload latest</button>
               </div>
             )}
           </div>

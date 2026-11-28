@@ -989,4 +989,12 @@ export const MIGRATIONS: Array<{ id: number; name: string; sql: string[] }> = [
       )`,
     ],
   },
+  {
+    id: 40,
+    name: 'draft save tab',
+    sql: [
+      // The browser tab that last saved the draft: its own saves never count as a conflict with itself.
+      `ALTER TABLE quote_versions ADD COLUMN draft_tab TEXT`,
+    ],
+  },
 ];

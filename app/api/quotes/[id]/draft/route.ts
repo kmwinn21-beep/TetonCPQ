@@ -8,12 +8,13 @@ import { accessForQuote, needDraftEdit } from '@/lib/data/access';
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireApiUser();
-    const { draft, baseUpdatedAt } = await req.json();
+    // `tab`: this browser tab (its own saves never conflict); `force`: keep this tab's version over a newer one.
+    const { draft, baseUpdatedAt, tab, force } = await req.json();
     const db = await getDb();
     const quoteId = idParam(params.id);
     // Edit Inputs may change anything; Edit Scope only room types.
     needDraftEdit(await accessForQuote(db, quoteId, user), (await getQuoteEditor(db, quoteId))?.draft ?? null, draft);
-    return NextResponse.json(await saveDraft(db, quoteId, draft, baseUpdatedAt ?? null));
+    return NextResponse.json(await saveDraft(db, quoteId, draft, force ? null : baseUpdatedAt ?? null, tab ?? null));
   } catch (e) {
     return jsonError(e);
   }

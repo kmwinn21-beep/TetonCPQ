@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await requireApiUser();
     const quoteId = idParam(params.id);
-    const { note, draft, baseUpdatedAt } = (await req.json()) as { note?: string; draft?: unknown; baseUpdatedAt?: string | null };
+    const { note, draft, baseUpdatedAt, tab } = (await req.json()) as { note?: string; draft?: unknown; baseUpdatedAt?: string | null; tab?: string | null };
     const db = await getDb();
     // Saving a version: anyone who can edit the inputs or the scope (what they send must be theirs to change).
     const a = await accessForQuote(db, quoteId, user);
@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (draft) {
       assertDraft(draft);
       needDraftEdit(a, (await getQuoteEditor(db, quoteId))?.draft ?? null, draft);
-      await saveDraft(db, quoteId, draft, baseUpdatedAt ?? null);
+      await saveDraft(db, quoteId, draft, baseUpdatedAt ?? null, tab ?? null);
     }
     const saved = await saveVersion(db, quoteId, note ?? null, user.id);
     return NextResponse.json({ ...saved, editor: await getQuoteEditor(db, quoteId) }, { status: 201 });

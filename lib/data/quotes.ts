@@ -279,14 +279,17 @@ export class DraftConflictError extends Error {
  * the save only applies if the draft is still at that revision — so an older
  * tab can't silently overwrite newer edits made elsewhere.
  */
-export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, baseUpdatedAt?: string | null): Promise<{ updatedAt: string }> {
+export async function saveDraft(db: Client, quoteId: number, draft: QuoteDraft, baseUpdatedAt?: string | null, tab?: string | null): Promise<{ updatedAt: string }> {
   assertDraft(draft);
   await assertKnownLineup(db, draft);
-  const guard = baseUpdatedAt ? ' AND updated_at = ?' : '';
+  const t = tab ? String(tab).slice(0, 64) : null;
+  // A save applies when the draft is still at the revision this tab saw, or when this same tab made the last save
+  // (its own earlier save landing first, or a reply lost on the way back, is not a conflict).
+  const guard = baseUpdatedAt ? (t ? ' AND (updated_at = ? OR draft_tab = ?)' : ' AND updated_at = ?') : '';
   const rs = await db.execute({
     // Millisecond timestamps so two saves within the same second are still distinguishable.
-    sql: `UPDATE quote_versions SET inputs_json = ?, roi_case = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE quote_id = ? AND status = 'draft'${guard} RETURNING updated_at`,
-    args: baseUpdatedAt ? [json(draft), draft.roiCase, quoteId, baseUpdatedAt] : [json(draft), draft.roiCase, quoteId],
+    sql: `UPDATE quote_versions SET inputs_json = ?, roi_case = ?, draft_tab = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE quote_id = ? AND status = 'draft'${guard} RETURNING updated_at`,
+    args: [json(draft), draft.roiCase, t, quoteId, ...(baseUpdatedAt ? (t ? [baseUpdatedAt, t] : [baseUpdatedAt]) : [])],
   });
   if (!rs.rows.length) {
     if (baseUpdatedAt) {
