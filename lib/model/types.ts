@@ -145,6 +145,11 @@ export interface Community {
    * The customer's price doesn't change with it.
    */
   edgeHardware?: number;
+  /**
+   * Sensors installed beyond the one that comes with each Edge unit (Teton's sensor cost), when it differs from
+   * `additionalSensors` (the customer's: one sensor per resident is included). Missing: `additionalSensors`.
+   */
+  sensorHardware?: number;
   /** False for a community without resident monitoring (E-Call only): it adds no ROI benefits. */
   monitoring?: boolean;
   /** Overrides the deal-wide per-bed rates for this community. */

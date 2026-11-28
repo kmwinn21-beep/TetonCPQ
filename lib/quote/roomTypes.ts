@@ -6,7 +6,7 @@
  *   sensors from the plan = Σ rooms × sensors per room
  *   allowance             = ⌈plan × allowance %⌉
  *   total sensors         = plan + allowance
- *   additional sensors    = total − rooms   (the first sensor in each room is in the base package)
+ *   additional sensors    = total − residents   (one sensor per resident is included)
  *   beds by care type     = Σ rooms of that care type
  */
 import { productsOf, type BedKey, type BedProducts, type DraftCommunity } from './draft';
@@ -229,9 +229,11 @@ export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   const totalSensors = planSensors + allowance;
   const beds = { il: 0, al: 0, mc: 0, snf: 0 } as Record<'il' | 'al' | 'mc' | 'snf', number>;
   // Custom care types count as assisted living beds (every bed is priced the same).
-  // Each resident is a bed; the first sensor in each room comes with its Edge unit, the rest are additional sensors.
+  // Each resident is a bed (and has one sensor included); further sensors are additional.
   types.forEach((t) => (beds[bedKeyOf(t)] += typeResidents(t)));
-  return { rooms, residents, edges, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
+  // One sensor per resident is included (with the room's Edge unit); every other sensor, the contingency included, is an
+  // additional sensor.
+  return { rooms, residents, edges, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - residents), beds };
 }
 
 /** The care type a room type's beds count as (custom care types count as assisted living). */

@@ -33,25 +33,27 @@ describe('one room set on its own (residents and sensors)', () => {
     expect(markSensors(t, t.marks![0])).toBe(2);
     expect(typeResidents(t)).toBe(18);
     expect(typeSensors(t)).toBe(18);
-    // 17 rooms, 18 residents, 18 sensors: 17 come with the Edge units, 1 is additional on room 214's Edge unit.
-    expect(roomScope([t], 0)).toMatchObject({ rooms: 17, residents: 18, edges: 17, planSensors: 18, additionalSensors: 1, beds: { al: 18 } });
+    // 17 rooms, 18 residents, 18 sensors: one per resident is included, so none is additional.
+    expect(roomScope([t], 0)).toMatchObject({ rooms: 17, residents: 18, edges: 17, planSensors: 18, additionalSensors: 0, beds: { al: 18 } });
+    // A 3rd sensor in room 214 would be additional.
+    expect(roomScope([{ ...t, marks: t.marks!.map((m, i) => (i ? m : { ...m, sensors: 3 })) }], 0).additionalSensors).toBe(1);
   });
 
-  it('bills the extra resident and the extra sensor; installation stays per room', () => {
+  it('bills the extra resident (their sensor is included); installation stays per room', () => {
     const [one, base] = [deal([ONE_BED]), deal([plain])];
-    expect(one.communities[0]).toMatchObject({ alBeds: 18, additionalSensors: 1 });
+    expect(one.communities[0]).toMatchObject({ alBeds: 18, additionalSensors: 0 });
     expect(sharedResidents(one.communities[0]).monitored).toBe(1);
     const m = toModelInputs(one);
-    expect(m.communities[0]).toMatchObject({ units: 18, edgeUnits: 17, additionalSensors: 1 });
+    expect(m.communities[0]).toMatchObject({ units: 18, edgeUnits: 17, additionalSensors: 0 });
     const lines = buildPriceLines(one, m, priceBook());
     expect(lines.find((l) => l.description.startsWith('Teton subscription'))?.qty).toBe(18);
     expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(17);
     const k = one.commercial;
-    expect(runModel(m).cashFlow.communities[0].installCost - runModel(toModelInputs(base)).cashFlow.communities[0].installCost).toBeCloseTo(k.sensorPrice, 6);
-    // Equipment purchase: still one base package per room, the extra sensor at the sensor price.
+    expect(runModel(m).cashFlow.communities[0].installCost - runModel(toModelInputs(base)).cashFlow.communities[0].installCost).toBeCloseTo(0 * k.sensorPrice, 6);
+    // Equipment purchase: still one base package per room; the extra resident's sensor is included.
     const cx = computeCapex(one).communities[0];
     expect(cx.parts?.reduce((s, p) => s + p.beds, 0)).toBe(17);
-    expect(cx.sensors).toBe(1);
+    expect(cx.sensors).toBe(0);
   });
 
   it('gives the room\'s extra resident a pendant of their own (E-Call billed per resident)', () => {

@@ -200,10 +200,10 @@ export function onePagerCounts(draft: QuoteDraft) {
   for (const c of draft.communities) {
     const sc = scopeOf(c, ecallOn);
     beds += sc.priced;
-    // Edge units installed (one per room unless a room needs more); each room's first sensor comes with it.
-    const rooms = sc.monitored - sharedResidents(c, ecallOn).monitored;
+    // Edge units installed (one per room unless a room needs more).
     edges += monitors(c) ? communityEdges(c) : 0;
-    if (monitors(c)) sensors += rooms + Math.max(0, Number(c.additionalSensors) || 0);
+    // One sensor per resident is included; the rest are additional.
+    if (monitors(c)) sensors += sc.monitored + Math.max(0, Number(c.additionalSensors) || 0);
     caSensors += caSensorScope(c).total;
     const ps = pendantScope(c, ecallOn);
     devices += ps.total;

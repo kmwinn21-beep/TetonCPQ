@@ -3,7 +3,7 @@
 /**
  * Room types from a community's floor plans. Optional: once a room type is
  * added, the community's beds and additional sensors are worked out from them
- * (Σ rooms × sensors per room, plus the allowance, less the first sensor in
+ * (Σ rooms × sensors per room, plus the allowance, less one sensor per
  * each room) and those fields stop being typed in.
  */
 import { useFormContext, useWatch } from 'react-hook-form';
@@ -275,7 +275,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
             <span className="block mb-1 text-[#8A5A00]">One Edge unit handles up to {SENSORS_PER_EDGE} sensors: a room type has more sensors than its Edge units can take.</span>
           )}
           {count(scope.rooms)} monitored rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
-          <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
+          <b>{count(scope.additionalSensors)} extra</b> beyond one per resident. Beds and extra sensors are set from these.
         </p>
       )}
       {anyEcall && (

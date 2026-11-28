@@ -299,7 +299,8 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     const rooms = mon.reduce((n, t) => n + (Number(t.rooms) || 0), 0);
     const edges = mon.reduce((n, t) => n + typeEdges(t), 0);
     const sc = roomScope(mon, a.allowancePct);
-    const additional = Math.max(0, sc.totalSensors - rooms);
+    // One sensor per resident is included; the rest (contingency too) are additional.
+    const additional = sc.additionalSensors;
     const plans = new Set(types.flatMap(({ t }) => (t.marks ?? []).map((m) => m.plan)));
     const here = mon.reduce((n, t) => n + (t.marks ?? []).filter((m) => m.plan === a.planId).length, 0);
     const multi = edges - rooms;
@@ -317,13 +318,13 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
       at(sub, 60, 8.5, reg, MUTED);
       if (sub2) at(sub2, 72, 7.5, reg, MUTED);
     };
-    card(M, '#EEF4FD', '#CFE0F7', '#1F5FB5', 'Sensors', sc.totalSensors, `${additional} additional · ${Math.min(rooms, sc.totalSensors)} included with the Edge units`, sc.allowance > 0 ? `Additional includes ${sc.allowance} contingency (${Math.round(a.allowancePct * 1000) / 10}% of ${sc.planSensors})` : undefined);
+    card(M, '#EEF4FD', '#CFE0F7', '#1F5FB5', 'Sensors', sc.totalSensors, `${additional} additional · ${sc.totalSensors - additional} included (one per resident)`, sc.allowance > 0 ? `Additional includes ${sc.allowance} contingency (${Math.round(a.allowancePct * 1000) / 10}% of ${sc.planSensors})` : undefined);
     card(M + cw + gap, '#F4F0FC', '#DDD3F3', '#5B3FA8', 'Edge units', edges, multi > 0 ? `${rooms} resident rooms · ${multi} more where a room has several` : `One in each of ${rooms} resident room${rooms === 1 ? '' : 's'}`, plans.size > 1 ? `This plan: ${here} room${here === 1 ? '' : 's'} (the community has ${plans.size} plans)` : undefined);
     y = top - ch - 26;
   }
 
   // Room type and care setting on the left; the numbers right-aligned at these x positions.
-  // Residents are billed beds; each room's first sensor comes with its Edge unit, the rest are additional.
+  // Residents are billed beds; one sensor per resident is included, the rest are additional.
   // Sensors read left to right: included (the first in each room, with its Edge unit) + additional = total.
   const cols = [M, 152, 250, 294, 332, 380, 428, 472, 520, W - M];
   const head = ['Room type', 'Care', 'This plan', 'All plans', 'Priced', 'Residents', 'Edge units', 'Included', 'Additional', 'Total'];
@@ -378,19 +379,19 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     // Edge units: one per room (more where a room type or a room says so); none without Resident Monitoring.
     const edges = per && rooms ? typeEdges(t) : 0;
     edgeTotal += edges;
-    // Residents and sensors with each tagged room's own counts; the first sensor in each room is included.
+    // Residents and sensors with each tagged room's own counts; one sensor per resident is included.
     const residents = rooms ? typeResidents(t) : 0;
     const sensors = per && rooms ? typeSensors(t) : 0;
-    const additional = per && rooms ? Math.max(0, sensors - rooms) : 0;
+    const included = per && rooms ? Math.min(sensors, residents) : 0;
+    const additional = sensors - included;
     resTotal += residents;
     addTotal += additional;
-    if (per && rooms) monRooms += rooms;
+    monRooms += included;
     for (const m of t.marks ?? [])
       if (markOverridden(m) && ownCounts.length < 12)
         ownCounts.push(`${m.label ? `Room ${m.label}` : 'A room'} (${t.name || 'room type'}): ${[m.residents != null ? plural(markResidents(t, m), 'resident') : '', m.sensors != null ? plural(markSensors(t, m), 'sensor') : '', m.edges != null ? plural(markEdges(t, m), 'Edge unit') : ''].filter(Boolean).join(', ')}`);
     text(String(residents), cols[5], 10, reg, residents ? INK : MUTED, 'r');
     text(String(edges), cols[6], 10, reg, edges ? INK : MUTED, 'r');
-    const included = per && rooms ? rooms : 0;
     text(String(included), cols[7], 10, reg, included ? INK : MUTED, 'r');
     text(String(additional), cols[8], 10, reg, additional ? INK : MUTED, 'r');
     text(String(sensors), cols[9], 10, bold, sensors ? INK : MUTED, 'r');
@@ -432,7 +433,7 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
   y -= 8;
   text('"This plan" and "All plans" count the rooms tagged on the floor plans; "Priced" is the room count used for pricing.', M, 8.5, reg, MUTED);
   y -= 13;
-  text('Each room\'s first sensor comes with its Edge unit; the rest are additional sensors on the same Edge unit.', M, 8.5, reg, MUTED);
+  text('One sensor per resident is included; the rest are additional sensors on the room\'s Edge unit.', M, 8.5, reg, MUTED);
   if (ownCounts.length) {
     y -= 13;
     text('Rooms set individually:', M, 8.5, bold, MUTED);

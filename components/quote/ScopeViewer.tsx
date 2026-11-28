@@ -473,7 +473,8 @@ export function ScopeViewer({
   // unit, the rest are additional.
   const tagMarks = (r: (typeof rows)[number]) => (r.t.marks ?? []).filter((m) => planIds.includes(m.plan));
   const sensorsTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? tagMarks(r).reduce((n, m) => n + markSensors(r.t, m), 0) : 0), 0);
-  const additionalTagged = sensorsTagged - rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? tagMarks(r).length : 0), 0);
+  // One sensor per resident is included in each room; the rest are additional.
+  const additionalTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? tagMarks(r).reduce((n, m) => n + Math.max(0, markSensors(r.t, m) - markResidents(r.t, m)), 0) : 0), 0);
   // Edge units in the tagged rooms (monitored room types): each room's own count, else its type's.
   const edgesTagged = rows.reduce((s, r) => s + (sensorsPerRoom(r.t, products) ? (r.t.marks ?? []).filter((m) => planIds.includes(m.plan)).reduce((n, m) => n + markEdges(r.t, m), 0) : 0), 0);
   // Typed-in room counts that don't match the rooms tagged for that type.
@@ -1820,7 +1821,7 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
               <>
                 <span className="rounded-full bg-[#F0EBFB] px-1.5 py-px text-[10.5px] font-semibold text-[#5B3FA8]">{markEdges(type, mark)} Edge unit{markEdges(type, mark) === 1 ? '' : 's'}</span>
                 <span className="rounded-full bg-[#F1EEE8] px-1.5 py-px text-[10.5px] font-semibold text-teton-dark-gray">
-                  {markSensors(type, mark)} sensor{markSensors(type, mark) === 1 ? '' : 's'}: 1 included{markSensors(type, mark) > 1 ? `, ${markSensors(type, mark) - 1} additional` : ''}
+                  {markSensors(type, mark)} sensor{markSensors(type, mark) === 1 ? '' : 's'}: {Math.min(markSensors(type, mark), markResidents(type, mark))} included{markSensors(type, mark) > markResidents(type, mark) ? `, ${markSensors(type, mark) - markResidents(type, mark)} additional` : ''}
                 </span>
               </>
             ) : (

@@ -35,9 +35,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
   // Edge units and sensors are resident monitoring hardware: only monitored beds get them.
   const monitored = draft.communities.filter((c) => scopeOf(c).monitored > 0);
   const beds = sum(monitored.map((c) => scopeOf(c).monitored));
-  // Edge units: one per room (residents sharing a room share it); its first sensor comes with it.
-  const rooms = beds - sum(monitored.map((c) => sharedResidents(c).monitored));
-  // Edge units installed (a room can need more than one); the first sensor in each room comes with it.
+  // Edge units installed (one per room unless a room needs more); one sensor per resident is included.
   const edges = sum(monitored.map((c) => communityEdges(c)));
   const additional = sum(monitored.map((c) => Math.max(0, Number(c.additionalSensors) || 0)));
   const showCapex = draft.presentation !== 'opex';
@@ -93,7 +91,7 @@ export function previewTotals(draft: QuoteDraft, inputs: ModelInputs, result: Mo
 
   const f = computeFinish(draft);
   return {
-    scope: { edgeUnits: edges, sensors: rooms + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
+    scope: { edgeUnits: edges, sensors: beds + additional, additionalSensors: additional, pendants: draft.communities.reduce((n, c) => n + pendantScope(c, draft.commercial.ecall !== 'none').total, 0) },
     capex,
     opex,
     pilot,

@@ -106,7 +106,7 @@ export function vendorView(
   const edgeLive = per((m) => atGoLive(m, (i) => inputs.communities[i].edgeHardware ?? edgeUnitsOf(inputs.communities[i])));
   const hardware = edgeLive.map((u) => costs.hardwarePerBed * u);
   const installLabor = edgeLive.map((u) => costs.installLaborPerBed * u);
-  const sensors = per((m) => costs.sensorCost * atGoLive(m, (i) => inputs.communities[i].additionalSensors));
+  const sensors = per((m) => costs.sensorCost * atGoLive(m, (i) => inputs.communities[i].sensorHardware ?? inputs.communities[i].additionalSensors));
   const cloudHosting = billedUnits.map((u) => costs.cloudPerBilledBedMonth * u);
   const support = billedUnits.map((u) => costs.supportPerBilledBedMonth * u);
   const maintenanceReserve = billedUnits.map((u) => costs.maintenancePerBilledBedMonth * u);

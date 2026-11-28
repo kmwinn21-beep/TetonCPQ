@@ -37,27 +37,28 @@ describe('rooms with more than one resident', () => {
     expect(t[3].residents).toBe(6);
   });
 
-  it('bills every resident, gives each room one Edge unit, and counts the rest of the sensors as additional', () => {
+  it('bills every resident, gives each room one Edge unit, and includes one sensor per resident', () => {
     const s = roomScope(TYPES, 0);
-    expect(s).toMatchObject({ rooms: 98, residents: 106, planSensors: 106, additionalSensors: 8 });
+    expect(s).toMatchObject({ rooms: 98, residents: 106, planSensors: 106, additionalSensors: 0 });
+    expect(roomScope([{ ...TYPES[1], sensors: 3 }], 0).additionalSensors).toBe(8); // a 3rd sensor per suite is additional
     expect(s.beds.al).toBe(106);
     const d = deal(TYPES);
-    expect(d.communities[0]).toMatchObject({ alBeds: 106, additionalSensors: 8 });
+    expect(d.communities[0]).toMatchObject({ alBeds: 106, additionalSensors: 0 });
     expect(sharedResidents(d.communities[0])).toMatchObject({ monitored: 8, priced: 8 });
   });
 
   it('charges the monthly fee per resident and installation per Edge unit', () => {
     const d = deal(TYPES);
     const m = toModelInputs(d);
-    expect(m.communities[0]).toMatchObject({ units: 106, edgeUnits: 98, additionalSensors: 8 });
+    expect(m.communities[0]).toMatchObject({ units: 106, edgeUnits: 98, additionalSensors: 0, sensorHardware: 8 });
     const lines = buildPriceLines(d, m, priceBook());
     expect(lines.find((l) => l.description.startsWith('Teton subscription'))?.qty).toBe(106);
     expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(98);
-    // Same as 98 single rooms for installation, plus the 8 extra residents' sensors.
+    // Same one-time charges as 98 single rooms: the 2nd resident's sensor is included.
     const r = runModel(m);
     const single = runModel(toModelInputs(deal([{ ...TYPES[0], rooms: 98 }])));
     const k = d.commercial;
-    expect(r.cashFlow.communities[0].installCost - single.cashFlow.communities[0].installCost).toBeCloseTo(8 * k.sensorPrice, 6);
+    expect(r.cashFlow.communities[0].installCost - single.cashFlow.communities[0].installCost).toBeCloseTo(0 * k.sensorPrice, 6);
   });
 
   it('puts hardware and install labor on Edge units in Teton\'s cost view', () => {
@@ -66,10 +67,10 @@ describe('rooms with more than one resident', () => {
     expect(Math.max(...shared.hardware)).toBe(Math.max(...rooms.hardware));
   });
 
-  it('equipment purchase: one base package per room, the 2nd resident at the sensor price', () => {
+  it('equipment purchase: one base package per room, the 2nd resident\'s sensor included', () => {
     const c = computeCapex(deal(TYPES)).communities[0];
     expect(c.parts?.reduce((s, p) => s + p.beds, 0)).toBe(98);
-    expect(c.sensors).toBe(8);
+    expect(c.sensors).toBe(0);
   });
 
   it('E-Call: billed per resident; equipment purchase buys the 2nd device as an extra', () => {

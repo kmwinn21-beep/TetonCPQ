@@ -1112,8 +1112,8 @@ const monBedsOf = (dc: QuoteDraft['communities'][number]) => scopeOf(dc).monitor
 const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
   const n = scopeOf(dc).monitored;
   if (!n) return 0; // E-Call only: no sensors
-  // One sensor with each room's Edge unit (residents sharing a room share it), plus the additional sensors.
-  return n - sharedResidents(dc).monitored + Math.max(0, Number(dc.additionalSensors) || 0);
+  // One sensor per resident is included, plus the additional sensors.
+  return n + Math.max(0, Number(dc.additionalSensors) || 0);
 };
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
@@ -1226,7 +1226,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const { finish, kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
   // Edge units: one per room; residents sharing a room (companion suites, semi-private) share it.
   const edgeUnits = sum(draft.communities.filter((c) => monitors(c)).map((c) => communityEdges(c)));
-  // Rooms (the first sensor in each comes with its Edge unit): residents less those sharing a room.
+  // Rooms: residents less those sharing a room.
   const roomUnits = units - sum(draft.communities.filter((c) => monitors(c)).map((c) => sharedResidents(c, draft.commercial.ecall !== 'none').monitored));
   // Until the rep arranges the pages, a removed standard section also drops its part of a page.
   const shown = (id: string) => !!layout.bcPages || !layout.hiddenSections.includes(id);
@@ -1455,7 +1455,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     // Common area sensors: counted with the rooms' sensors, never folded into "additional sensors".
     const caAll = hasMon ? sum(draft.communities.map((c) => caSensorScope(c).total)) : 0;
     const caSpaces = sum(scopeSites.flatMap((x) => x.ca.areas.map((a) => a.count)));
-    const roomSensors = roomsTotal + extraTotal;
+    // One sensor per resident is included, plus the additional sensors.
+    const roomSensors = sum(all.map((c) => scopeOf(c).monitored)) + extraTotal;
     const sensorsTotal = roomSensors + caAll;
     const monSites = scopeSites.filter((x) => x.mon.rooms > 0);
     const planTotal = sum(monSites.map((x) => x.mon.planSensors));
@@ -2677,7 +2678,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         </div>
                       );
                       return [
-                        card('base', 'Base package', base.length ? perUnitText(baseRange, (n) => usd(n)) : usd(capex.pricing.basePrice), 'per room · one-time', 'Edge unit and first sensor, installed in each resident room'),
+                        card('base', 'Base package', base.length ? perUnitText(baseRange, (n) => usd(n)) : usd(capex.pricing.basePrice), 'per room · one-time', 'Edge unit and a sensor for each resident, installed in each resident room'),
                         card('sensors', 'Additional sensors', sensor ? perUnitText(sensor, (n) => usd(n)) : usd(capex.pricing.sensorPrice), 'per sensor · one-time', 'For rooms that need more than one sensor (bedrooms, living areas)'),
                         capex.softwareBilling === 'upfront'
                           ? card('software', 'Software & services', usd(capex.pricing.softwareUpfront ?? 480), `per room · one-time, ${capex.ownershipMonths / 12} years`, 'Platform, staff app, updates and support, paid upfront')
@@ -2883,7 +2884,7 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                     const k = draft.commercial;
                     return [
                       card('recurring', 'Recurring Costs', <V k="bc.overview.perBed.value" label="Total cost per bed per month">{perBedMonthly}</V>, 'per bed · per month', 'Monthly Costs for {products}', { products }),
-                      card('install', 'Installation', <V k="bc.opunit.install.value" label="Installation per bed">{money(k.installRate)}</V>, 'per bed · one-time', 'Edge unit and first sensor, installed in each resident room'),
+                      card('install', 'Installation', <V k="bc.opunit.install.value" label="Installation per bed">{money(k.installRate)}</V>, 'per bed · one-time', 'Edge unit and a sensor for each resident, installed in each resident room'),
                       card('sensors', 'Additional Sensors', <V k="bc.opunit.sensors.value" label="Price per additional sensor">{money(k.sensorPrice)}</V>, 'per sensor · per room', 'For rooms that need more than one sensor (multiple bedrooms, living areas)'),
                     ];
                   })()}

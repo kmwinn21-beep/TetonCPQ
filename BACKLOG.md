@@ -120,3 +120,5 @@ Mock: `docs/mocks/scoping/room-sensors.html`. Each room's first sensor comes wit
 
 Mock: `docs/mocks/scoping/summary-cards.html`. Two cards at the top of the scope summary page (Summary tab and the downloaded PDF): **Sensors** (total incl. the site-conditions allowance; subtext "N additional · N included with the Edge units", noting the allowance) and **Edge units** ("One in each of N resident rooms", or how many rooms have more than one). Community totals, matching the table; "This plan: N rooms" when the community has more than one floor plan.
 
+**Rule change (Nov 28): one sensor per resident is included.** Additional sensors = total sensors − residents (contingency included), on subscription and equipment purchase. A shared room's 2nd resident no longer pays the additional-sensor price for their sensor; a 3rd sensor in a 2-resident room would. Installation and the base package stay per room. Teton's sensor cost still counts every sensor beyond each Edge unit's first. This replaces the earlier shared-rooms answer ("2nd resident at the additional-sensor price").
+
