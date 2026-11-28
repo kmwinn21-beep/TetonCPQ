@@ -66,6 +66,36 @@ V1 as built, and where it falls short of the plan below:
 - Mark final: blocked until nothing is open, rule-crossing changes are approved, and the deal's active version matches the agreed price, term, pilot and rooms. Makes a clean .docx and locks the tab. "Signed" moves the deal to Won.
 - Permissions (to move into the matrix, #1): deal owner and admins accept / reject / send rounds and manage prospect people; collaborators view and write Teton-only notes only; RevOps (renamed from Deal Desk) uploads rounds; deal owner, RevOps and admins mark final and signed (may change once the matrix exists). Matrix cells have a reach: Own deals, + Collaborating, All deals.
 
+**V1.1: several documents per deal — mocked, decisions made, not built.** Mock: `docs/mocks/agreement-redlines/4-multiple-documents.html`.
+- Every deal starts with an MSA and an Order Form. Each has its own rounds, whose turn, Accept and Mark final, and moves on its own schedule.
+- The rep can add a document (BAA, Pilot addendum, SOW, any name), rename one, mark one "Not needed for this deal" (e.g. an MSA already signed; hidden from the prospect, doesn't block signing, can be undone), or remove one before its first round is sent.
+- People, levels, tab access and permissions stay deal-wide. Mark signed moves to the deal and waits until every needed document is final; a zip of all finals for DocuSign.
+- Workspace and the prospect's tab get a document switcher with a status dot per document; the deal card, Inbox, emails and activity name the document.
+- Decided: the version-match check is asked when finishing the Order Form only; existing V1 agreements become the deal's MSA; the default documents (MSA + Order Form) are an admin setting; keep "Not needed".
+
+**Standard agreements as a baseline — ideas, not started.** Our MSA and Order Form are standard. Uploading a Word sample of each (fill-in fields bracketed, e.g. [Customer Name]) would let the system:
+1. Create round 1 instead of uploading it: the Order Form filled from the deal's active version (customer, signatory, line items and quantities, totals, term, pilot length and rate, payment terms); the MSA's few fill-in fields (legal name, address, effective date). Same placeholder idea as proposal Templates; the output is still a normal Word file.
+2. Replace the version-match checkbox with a real check: read the agreed Order Form back at Mark final and compare it with the active version ("Order Form says 24 months; active version says 36").
+3. Measure each deal against standard, not just the last round: "3 clauses differ from our standard MSA", changes labelled by clause (§8.2 Limitation of liability), a deviation summary at final for legal sign-off.
+4. Playbook per clause, with #2's approvals: standard, rep-acceptable and needs-approval positions (e.g. net 30 standard, net 45 rep OK, net 60+ VP). Changes flagged "Within playbook" or "Needs approval from …", replacing the keyword "Commercial terms" flag; final blocked until approvals are in.
+5. Reporting: most-negotiated clauses, rounds and days to signature, time with each side, most common concessions.
+6. Smaller: the prospect can read the standard MSA early (Resources tab); correct clause numbering on screen; the current standard versions are uploads in admin settings, not code.
+Suggested order: 1 + 2 first, then 3, then 4 with the approval workflow, 5 once there's data. Needs: the real Word files with fill-in fields marked.
+
 **V2: redline in the browser.** Suggesting mode on the document for prospects, Teton counters typed in place, "Send redlines to Teton" without a file, Word export with real tracked changes. Biggest single build; complex Word formatting may not look exactly the same in the browser.
 
 **V3 (optional): DocuSign.** Send the final from the deal; signed comes back on its own.
+
+## 5. Rooms with more than one resident (companion suites, semi-private) — mocked, decisions open
+
+Mock: `docs/mocks/scoping/shared-rooms.html`. Today every room is one resident, so a shared room either under-bills (1 room, 2 sensors → 1 bed) or overstates Edge units (2 rooms → 2 Edge units and 2 badges).
+
+Proposal: a **Residents per room** number on each room type (default 1, so existing deals don't change).
+- Billed beds = rooms × residents; Edge units = rooms (monitored care settings); sensors = rooms × sensors per room (+ allowance); extra sensors = sensors − Edge units. Sensors and pendants per room default to the residents until changed.
+- Each community gets an Edge units figure beside its beds (equal to beds unless there are shared rooms); the engine uses it for everything that is per room: installation, equipment-purchase base package, Teton hardware and install labor. Monthly fee, E-Call billing, cloud/support/reserve stay per resident.
+- Deal page: new counter on the room type card, a ×N pip on the badge, a Residents figure in the community totals line.
+- Scope Mode: still one badge per room with the ×N pip; the hover card lists residents, Edge unit, sensors, pendants; floor plan download and scope PDF legend add a Residents column.
+- Proposal scope summary (one-pagers, business case Scope page) shows Edge units beside residents when they differ.
+
+Recommended answers (not yet confirmed): monthly fee per resident; subscription installation per Edge unit plus additional sensors; equipment purchase one base package per room, the 2nd resident at the additional-sensor price; rooms only sometimes shared get their own room type (per-badge override later if asked for); occupancy unchanged.
+
