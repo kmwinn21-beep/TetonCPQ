@@ -90,8 +90,8 @@ export function buildPriceLines(draft: QuoteDraft, inputs: ModelInputs, book: Pr
         lines.push({ ...base, sku: SKU.install, description: `Install credit (${Math.round(k.installCreditPct * 100)}%)${k.installClawback ? ' — repayable if the pilot does not convert' : ''}`, qty: pilotQty, unitList: 0, unitNet: -per * k.installCreditPct, billing: 'one_time', startMonth: once, termMonths: null, concessionCode: k.installClawback ? 'INSTALL_CREDIT_CLAWBACK' : 'INSTALL_CREDIT' });
       }
     };
-    // Per Edge unit (one per room): residents sharing a room share its installation.
-    install(mon, s.edgeUnits, s.inPilot ? s.pilotEdgeUnits : 0);
+    // Per resident/bed (residents sharing a room are each charged installation).
+    install(mon, c.units, s.pilotUnits);
     if (mixed && sc.ecallOnly > 0) install(false, sc.ecallOnly, sc.ecallOnly);
     // Per room: devices beyond the rooms, each one-time (the pilot install credit applies at pilot sites).
     if (billed.extra > 0 && !gone('ecallDevice', k.ecall === 'inovonics' ? SKU.ecallInoPullcord : SKU.ecallBleButton)) {

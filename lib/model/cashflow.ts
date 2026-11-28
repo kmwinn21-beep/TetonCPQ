@@ -105,15 +105,15 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
   const fullRoiMonth = roiStartMonth + Math.max(schedule.rampMonths || 0, 1) - 1;
 
   const extrasInstall = (c.extras ?? []).reduce((s, x) => s + x.units * (inPilot ? x.rates.pilotInstallPerBed : x.rates.postPilotInstallPerBed), 0);
-  // Installation is per Edge unit (one per room): the pilot's share of them when only some units are in the pilot.
+  // Edge units (one per room) drive Teton hardware only; installation is charged per resident/bed.
   const edgeUnits = edgeUnitsOf(c);
   const pilotEdgeUnits = pilotUnits >= c.units ? edgeUnits : Math.min(pilotUnits, edgeUnits);
   const installCost =
     (inPilot
-      ? pilotEdgeUnits * rates.pilotInstallPerBed +
-        (edgeUnits - pilotEdgeUnits) * rates.postPilotInstallPerBed +
+      ? pilotUnits * rates.pilotInstallPerBed +
+        (c.units - pilotUnits) * rates.postPilotInstallPerBed +
         c.additionalSensors * pricing.pilotSensorPrice
-      : edgeUnits * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice) + extrasInstall;
+      : c.units * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice) + extrasInstall;
 
   const monthlyReimbursement = schedule.includeReimbursement
     ? Math.min(c.units * rates.postPilotFeePerBedMonth, occupiedUnits(inputs, c) * inputs.cfo.reimbursementPerOccupiedUnitMonth)

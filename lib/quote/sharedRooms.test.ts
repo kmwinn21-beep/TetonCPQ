@@ -47,18 +47,17 @@ describe('rooms with more than one resident', () => {
     expect(sharedResidents(d.communities[0])).toMatchObject({ monitored: 8, priced: 8 });
   });
 
-  it('charges the monthly fee per resident and installation per Edge unit', () => {
+  it('charges the monthly fee and installation per resident', () => {
     const d = deal(TYPES);
     const m = toModelInputs(d);
     expect(m.communities[0]).toMatchObject({ units: 106, edgeUnits: 98, additionalSensors: 0, sensorHardware: 8 });
     const lines = buildPriceLines(d, m, priceBook());
     expect(lines.find((l) => l.description.startsWith('Teton subscription'))?.qty).toBe(106);
-    expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(98);
-    // Same one-time charges as 98 single rooms: the 2nd resident's sensor is included.
+    expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(106);
+    // Same one-time charges as 106 single rooms: each resident is installed, and the 2nd resident's sensor is included.
     const r = runModel(m);
-    const single = runModel(toModelInputs(deal([{ ...TYPES[0], rooms: 98 }])));
-    const k = d.commercial;
-    expect(r.cashFlow.communities[0].installCost - single.cashFlow.communities[0].installCost).toBeCloseTo(0 * k.sensorPrice, 6);
+    const single = runModel(toModelInputs(deal([{ ...TYPES[0], rooms: 106 }])));
+    expect(r.cashFlow.communities[0].installCost).toBeCloseTo(single.cashFlow.communities[0].installCost, 6);
   });
 
   it('puts hardware and install labor on Edge units in Teton\'s cost view', () => {

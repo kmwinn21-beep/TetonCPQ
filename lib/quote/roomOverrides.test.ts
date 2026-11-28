@@ -39,7 +39,7 @@ describe('one room set on its own (residents and sensors)', () => {
     expect(roomScope([{ ...t, marks: t.marks!.map((m, i) => (i ? m : { ...m, sensors: 3 })) }], 0).additionalSensors).toBe(1);
   });
 
-  it('bills the extra resident (their sensor is included); installation stays per room', () => {
+  it('bills the extra resident (their sensor is included); installation is per resident too', () => {
     const [one, base] = [deal([ONE_BED]), deal([plain])];
     expect(one.communities[0]).toMatchObject({ alBeds: 18, additionalSensors: 0 });
     expect(sharedResidents(one.communities[0]).monitored).toBe(1);
@@ -47,9 +47,10 @@ describe('one room set on its own (residents and sensors)', () => {
     expect(m.communities[0]).toMatchObject({ units: 18, edgeUnits: 17, additionalSensors: 0 });
     const lines = buildPriceLines(one, m, priceBook());
     expect(lines.find((l) => l.description.startsWith('Teton subscription'))?.qty).toBe(18);
-    expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(17);
+    expect(lines.find((l) => l.description.startsWith('Installation'))?.qty).toBe(18);
     const k = one.commercial;
-    expect(runModel(m).cashFlow.communities[0].installCost - runModel(toModelInputs(base)).cashFlow.communities[0].installCost).toBeCloseTo(0 * k.sensorPrice, 6);
+    // One more resident to install; no additional sensor (their sensor is included).
+    expect(runModel(m).cashFlow.communities[0].installCost - runModel(toModelInputs(base)).cashFlow.communities[0].installCost).toBeCloseTo(k.installRate, 6);
     // Equipment purchase: still one base package per room; the extra resident's sensor is included.
     const cx = computeCapex(one).communities[0];
     expect(cx.parts?.reduce((s, p) => s + p.beds, 0)).toBe(17);

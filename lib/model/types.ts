@@ -136,8 +136,8 @@ export interface Community {
   roiDelayMonths: number | null;
   additionalSensors: number; // Assumptions T
   /**
-   * Edge units (one per room): fewer than `units` when residents share rooms. Installation and hardware are per Edge
-   * unit; fees are per unit (resident). Missing: one per unit.
+   * Edge units (one per room): fewer than `units` when residents share rooms. Teton hardware and install labor are per
+   * Edge unit; fees and installation are per unit (resident). Missing: one per unit.
    */
   edgeUnits?: number;
   /**

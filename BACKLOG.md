@@ -122,5 +122,7 @@ Mock: `docs/mocks/scoping/summary-cards.html`. Two cards at the top of the scope
 
 **Rule change (Nov 28): one sensor per resident is included.** Additional sensors = total sensors − residents (contingency included), on subscription and equipment purchase. A shared room's 2nd resident no longer pays the additional-sensor price for their sensor; a 3rd sensor in a 2-resident room would. Installation and the base package stay per room. Teton's sensor cost still counts every sensor beyond each Edge unit's first. This replaces the earlier shared-rooms answer ("2nd resident at the additional-sensor price").
 
+**Rule change (Nov 28): installation is per resident/bed, not per room.** Matches the team's one-time charges table: a 2-resident room pays two installations (and the pilot install credit covers each). Edge units still drive Teton's hardware and install-labor cost; the equipment-purchase base package stays per room.
+
 **Room size (SF) — recorded, not used yet.** Each room type has an optional Size (SF) (deal page card and the Scope Mode room type form), and a tagged room can have its own size ("This room only" in its popover; shown as a chip, and in the scope PDF's list of rooms set individually). No calculation uses it yet.
 

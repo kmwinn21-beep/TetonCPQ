@@ -35,7 +35,7 @@ function counts(d: QuoteDraft) {
     communities: cs.length,
     monitored: sum((c) => scopeOf(c, ecallOn).monitored),
     monitoredEcall: sum((c) => scopeOf(c, ecallOn).monitoredEcall),
-    // Residents sharing a room (one Edge unit, installation and base package per room).
+    // Residents sharing a room (one Edge unit and base package per room; installation is per bed).
     shared: sum((c) => sharedResidents(c, ecallOn).monitored),
     sharedEcall: sum((c) => sharedResidents(c, ecallOn).monitoredEcall),
     ecall: sum((c) => scopeOf(c, ecallOn).ecall),
@@ -177,7 +177,7 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     }
   }
   if (hasImplementation(ps)) {
-    if (sub) out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: n.shared > 0 ? 'per room (Edge unit), one-time' : 'per bed, one-time', once: true, list: list(SKU.install), field: 'commercial.installRate', applies: roomsOf(n.monitored, n.shared), locked: true });
+    if (sub) out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'per bed, one-time', once: true, list: list(SKU.install), field: 'commercial.installRate', applies: beds(n.monitored), locked: true });
     else if (ec && opexSide && !cx) out.push({ key: 'impl', sku: SKU.install, name: 'E-Call installation & implementation', unit: 'per bed with E-Call only, one-time', once: true, list: null, field: 'commercial.ecallInstallRate', nullable: true, placeholder: '0', applies: beds(n.ecallOnly), locked: true });
     else out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'equipment purchase', once: true, list: null, applies: '', locked: true, text: 'Included in the base package' });
   }
