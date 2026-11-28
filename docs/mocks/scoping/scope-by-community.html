@@ -24,7 +24,7 @@
   .logo { font-weight: 700; font-size: 20px; letter-spacing: -.3px; }
   .crumb { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
   .eyebrow { font-size: 11px; letter-spacing: 3px; font-weight: 800; color: var(--coral); text-transform: uppercase; margin: 26px 0 10px; }
-  .eyebrow.gray { color: var(--muted); font-size: 10px; margin: 22px 0 0; }
+  .eyebrow.gray { color: var(--muted); font-size: 10px; margin: 22px 0 0; white-space: nowrap; }
   h1 { font-size: 32px; line-height: 1.13; font-weight: 500; letter-spacing: -.8px; margin: 0; }
   .lede { font-size: 14px; line-height: 1.55; color: var(--body); margin-top: 12px; max-width: 640px; }
 
@@ -52,6 +52,40 @@
   tr.tot td small { font-weight: 500; }
   .foot { position: absolute; left: 56px; right: 56px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 
+  /* Header cards (the Scope page's totals strip) */
+  .tot-wrap { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .3s ease, opacity .3s ease, margin .3s ease; margin-top: 10px; }
+  .tot-wrap.off { grid-template-rows: 0fr; opacity: 0; margin-top: 0; }
+  .tot-wrap > div { overflow: hidden; }
+  .st { display: grid; background: #fff; border: 1px solid #ECE8DF; border-radius: 10px; overflow: hidden; }
+  .st-c { --tint: #EEF8F1; --tink: #1F6B3A; padding: 9px 12px; border-left: 1px solid #F1EEE7; background: linear-gradient(90deg, var(--tint), #fff 70%); }
+  .st-c:first-child { border-left: 0; }
+  .st-e { --tint: #F1F0FC; --tink: #3F3A8A; } .st-dv { --tint: #FDF0EE; --tink: #A63A22; }
+  .st-top { display: flex; align-items: center; gap: 8px; }
+  .st-ic { width: 22px; height: 22px; border-radius: 7px; background: var(--tint); color: var(--tink); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .st-ic svg { width: 13px; height: 13px; }
+  .st-v { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .st-k { font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .st-by-w { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease; }
+  .st.x .st-by-w { grid-template-rows: 1fr; }
+  .st-by-w > div { overflow: hidden; }
+  .st-by { list-style: none; margin: 8px 0 0; padding: 7px 0 0; border-top: 1px solid #F1EEE7; font-size: 10px; }
+  .st-by li { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; color: #5E6670; }
+  .st-by b { color: #14171C; font-variant-numeric: tabular-nums; }
+  @media (max-width: 700px) { .st { grid-template-columns: 1fr !important; } .st-c { border-left: 0; border-top: 1px solid #F1EEE7; } .st-c:first-child { border-top: 0; } }
+
+  /* Sensor math, option A: stacked beside the total */
+  .sx { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .sx-b { font-size: 16px; color: var(--ink); font-weight: 500; line-height: 1; }
+  tr.tot .sx-b { font-weight: 700; }
+  .sx-s { display: inline-grid; grid-template-columns: auto auto; column-gap: 4px; font-size: 9.5px; line-height: 1.15; color: var(--muted); text-align: right; font-weight: 500; border-left: 1px solid #CFE6D7; padding-left: 7px; }
+  .sx-s i { font-style: normal; text-align: left; color: #8A9098; }
+  /* Option B: supporting columns */
+  th.grp { text-align: center; border-bottom: 1px solid #D9EEE0; padding-bottom: 5px; }
+  th.sub { padding-top: 5px; }
+  td.sub, th.sub { color: var(--muted); }
+  td.sub { font-size: 12px; }
+  tr.tot td.sub { color: var(--ink); }
+  .vs span { cursor: pointer; transition: background .2s, color .2s; }
   .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
   .note { background: #1C1F24; border: 1px solid #3A3E45; border-radius: 12px; padding: 16px 18px; font-size: 13.5px; line-height: 1.6; color: #D3D6DA; }
   .note h3 { margin: 0 0 8px; font-size: 14px; color: #fff; }
@@ -70,7 +104,7 @@
 <div class="wrap">
   <h2 class="sec">Mock · Scope page, "By community" table</h2>
   <p class="intro">
-    A new <b>Table: By room type | By community</b> switch sits with the table's other view switches (marked in yellow below). <b>By room type</b> is today's table and stays the default.
+    A new <b>Table: By room type | By community</b> switch sits with the table's other view switches. The switches marked in yellow are new in this round and work in the mock: click them. <b>By room type</b> is today's table and stays the default.
     <b>By community</b> has one row per community, laid out like your team's table, with the changes you asked for.
     The numbers are the Heritage deal from your screenshot. The E-Call counts are made up for the mock.
   </p>
@@ -94,10 +128,12 @@
       <p class="eyebrow gray">By community</p>
       <div class="switches">
         <span class="newtag">NEW</span>
-        <div class="vs new"><span>Table: By room type</span><span class="on">By community</span></div>
-        <div class="vs"><span class="on">Totals: In table</span><span>Condensed</span><span>Expanded</span></div>
+        <div class="vs"><span>Table: By room type</span><span class="on">By community</span></div>
+        <div class="vs new" id="vsCards"><span data-v="condensed" class="on">Cards: Condensed</span><span data-v="expanded">Expanded</span><span data-v="off">Off</span></div>
+        <div class="vs new" id="vsMath"><span data-v="stack" class="on">Sensor math: Stacked</span><span data-v="cols">Columns</span></div>
       </div>
     </div>
+    <div class="tot-wrap" id="cardsWrap"><div><div class="st" id="cards"></div></div></div>
     <div class="card"><div class="scroll"><table id="tbl"></table></div></div>
 
     <div class="foot"><span>TETON.AI</span><span>3</span></div>
@@ -108,6 +144,7 @@
     <p class="eyebrow" style="margin-top:0">Scope</p>
     <h1>Scoped from your floor plans</h1>
     <p class="eyebrow gray">By community</p>
+    <div class="tot-wrap" id="cardsWrapPh"><div><div class="st" id="cardsPh"></div></div></div>
     <div class="card"><div class="scroll"><table id="tblPh"></table></div></div>
     <p style="font-size:11px;color:var(--muted);margin:8px 2px 0">The table scrolls sideways inside its card, with the Community column pinned. The page itself doesn't scroll sideways.</p>
   </div>
@@ -127,12 +164,20 @@
       </ul>
     </div>
     <div class="note">
-      <h3>Decisions for you</h3>
+      <h3>This round</h3>
+      <ul>
+        <li><b>Sensor math, Stacked</b> (<i>recommended</i>): "Incl." and "Addl." sit in two small lines to the right of the total, with no plus sign. The row stays one line tall, and the table keeps 8 columns.</li>
+        <li><b>Sensor math, Columns</b>: a Sensors group with Incl. | Addl. | Total, like the scope PDF. Easiest to scan and still fits on a letter-size page with E-Call, but rows take more width and the Community column gets less room for long names.</li>
+        <li><b>Header cards</b>: the totals cards (Sensors, Edge units, E-Call) show above the table by default (<b>Condensed</b>). <b>Expanded</b> opens each card to list every community's count, and <b>Off</b> hides them. Both changes animate.</li>
+        <li>Unlike in the room-type view, turning the cards on doesn't remove the total columns from the table: this table is about the counts, so they stay.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3>Still open from last round</h3>
       <ol>
-        <li><b>Drop the "Extra sensors" column.</b> The Addl. number under Sensors is the same figure, and dropping it frees room for the E-Call column. <i>Recommended.</i></li>
-        <li><b>Common area sensors</b>: when a community has them, the subtext adds a third part (<code>75 Incl. + 57 Addl. + 6 CA</code>). The existing "Rooms only" switch leaves them out.</li>
-        <li><b>E-Call subtext</b>: show the math under the device count too (<code>75 rooms + 4 allowance</code>)? I left it plain to keep the row light.</li>
-        <li><b>Hidden switch</b>: "Care: Full | Short" is hidden in this view because the headers are always abbreviated.</li>
+        <li>Drop the "Extra sensors" column (the Addl. figure covers it). <i>Recommended.</i></li>
+        <li>Common area sensors add a third figure to the math ("6 CA"). The "Rooms only" switch leaves them out.</li>
+        <li>Hide "Care: Full | Short" in this view.</li>
       </ol>
     </div>
   </div>
@@ -149,24 +194,61 @@ const sites = [
 ];
 const f = (n) => n.toLocaleString('en-US');
 const sum = (k) => sites.reduce((a, x) => a + x[k], 0);
-function render(mode) {
+let mode = 'both', cards = 'condensed', math = 'stack';
+const IC = {
+  s: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+  e: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  dv: '<svg viewBox="0 0 24 24"><path d="M12 3v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+};
+function render() {
   const ec = mode !== 'mon';
   const dev = mode === 'ino' ? 'Pull-Cords' : 'Pendants';
-  const head = `<thead><tr><th>Community</th><th class="r">AL<br>Units</th><th class="r">MC<br>Units</th><th class="r">Total<br>Units</th><th class="r">Beds</th><th class="r hl">Sensors</th><th class="r hl2">Edge<br>Units</th>${ec ? `<th class="r hl3">E-Call<br>${dev}</th>` : ''}</tr></thead>`;
-  const row = (x, tot) => `<tr${tot ? ' class="tot"' : ''}><td class="m">${x.n}</td><td class="r">${f(x.al)}</td><td class="r">${f(x.mc)}</td><td class="r">${f(x.units)}</td><td class="r">${f(x.beds)}</td><td class="r hl big">${f(x.s)}<small>${f(x.beds)} Incl. + ${f(x.s - x.beds)} Addl.</small></td><td class="r hl2 big">${f(x.edge)}</td>${ec ? `<td class="r hl3 big">${f(x.dv)}</td>` : ''}</tr>`;
+  const cols = math === 'cols';
   const total = { n: 'Total', al: sum('al'), mc: sum('mc'), units: sum('units'), beds: sum('beds'), s: sum('s'), edge: sum('edge'), dv: sum('dv') };
+  const lead = '<th rowspan="ROWS">Community</th><th class="r" rowspan="ROWS">AL<br>Units</th><th class="r" rowspan="ROWS">MC<br>Units</th><th class="r" rowspan="ROWS">Total<br>Units</th><th class="r" rowspan="ROWS">Beds</th>';
+  const tail = `<th class="r hl2" rowspan="ROWS">Edge<br>Units</th>${ec ? `<th class="r hl3" rowspan="ROWS">E-Call<br>${dev}</th>` : ''}`;
+  const head = cols
+    ? `<thead><tr>${(lead + '<th class="hl grp" colspan="3">Sensors</th>' + tail).replace(/ROWS/g, '2')}</tr><tr><th class="r hl sub">Incl.</th><th class="r hl sub">Addl.</th><th class="r hl sub">Total</th></tr></thead>`
+    : `<thead><tr>${(lead + '<th class="r hl">Sensors</th>' + tail).replace(/ rowspan="ROWS"/g, '')}</tr></thead>`;
+  const sens = (x) => cols
+    ? `<td class="r hl sub">${f(x.beds)}</td><td class="r hl sub">${f(x.s - x.beds)}</td><td class="r hl big">${f(x.s)}</td>`
+    : `<td class="r hl"><span class="sx"><span class="sx-b">${f(x.s)}</span><span class="sx-s"><span>${f(x.beds)}</span><i>Incl.</i><span>${f(x.s - x.beds)}</span><i>Addl.</i></span></span></td>`;
+  const row = (x, tot) => `<tr${tot ? ' class="tot"' : ''}><td class="m">${x.n}</td><td class="r">${f(x.al)}</td><td class="r">${f(x.mc)}</td><td class="r">${f(x.units)}</td><td class="r">${f(x.beds)}</td>${sens(x)}<td class="r hl2 big">${f(x.edge)}</td>${ec ? `<td class="r hl3 big">${f(x.dv)}</td>` : ''}</tr>`;
   const html = head + '<tbody>' + sites.map((x) => row(x)).join('') + row(total, true) + '</tbody>';
-  document.getElementById('tbl').innerHTML = html;
-  document.getElementById('tblPh').innerHTML = html;
-  document.querySelectorAll('#tblPh tr > :first-child').forEach((c) => { c.style.position = 'sticky'; c.style.left = '0'; c.style.background = c.closest('thead') ? '#fff' : '#fff'; c.style.zIndex = '1'; c.style.boxShadow = '1px 0 0 var(--line)'; });
+  for (const id of ['tbl', 'tblPh']) document.getElementById(id).innerHTML = html;
+  document.querySelectorAll('#tblPh tr > td:first-child, #tblPh thead tr:first-child > th:first-child').forEach((c) => { c.style.position = 'sticky'; c.style.left = '0'; c.style.background = '#fff'; c.style.zIndex = '1'; c.style.boxShadow = '1px 0 0 var(--line)'; });
+  // Header cards
+  const items = [
+    { k: 's', cls: '', label: 'Sensors', v: total.s, by: 's' },
+    { k: 'e', cls: 'st-e', label: 'Edge units', v: total.edge, by: 'edge' },
+    ...(ec ? [{ k: 'dv', cls: 'st-dv', label: 'E-Call ' + dev.toLowerCase(), v: total.dv, by: 'dv' }] : []),
+  ];
+  const cardsHtml = items.map((it) => `<div class="st-c ${it.cls}"><div class="st-top"><span class="st-ic">${IC[it.k]}</span><b class="st-v">${f(it.v)}</b><span class="st-k">${it.label}</span></div><div class="st-by-w"><div><ul class="st-by">${sites.map((x) => `<li><span>${x.n}</span><b>${f(x[it.by])}</b></li>`).join('')}</ul></div></div></div>`).join('');
+  for (const [id, wrap] of [['cards', 'cardsWrap'], ['cardsPh', 'cardsWrapPh']]) {
+    const el = document.getElementById(id);
+    el.innerHTML = cardsHtml;
+    el.style.gridTemplateColumns = `repeat(${items.length}, minmax(0, 1fr))`;
+    document.getElementById(wrap).classList.toggle('off', cards === 'off');
+  }
+  setExpanded();
   document.getElementById('h1').textContent = ec ? `Scoped from your floor plans: 413 rooms, 753 sensors, ${f(total.dv)} ${dev.toLowerCase()}.` : 'Scoped from your floor plans: 413 rooms, 753 sensors.';
   document.getElementById('lede').textContent = ec ? `One sensor for each room or living area a resident uses, and ${dev.toLowerCase()} where residents call for help. Quantities are confirmed at the site survey and trued up to what is installed.` : 'One sensor for each room or living area a resident uses. Quantities are confirmed at the site survey and trued up to what is installed.';
 }
+function setExpanded() {
+  for (const id of ['cards', 'cardsPh']) document.getElementById(id).classList.toggle('x', cards === 'expanded');
+  for (const id of ['cardsWrap', 'cardsWrapPh']) document.getElementById(id).classList.toggle('off', cards === 'off');
+}
 document.querySelectorAll('.ctl button').forEach((b) => b.addEventListener('click', () => {
   document.querySelectorAll('.ctl button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
-  render(b.dataset.mode);
+  mode = b.dataset.mode; render();
 }));
-render('both');
+const seg = (id, fn) => document.querySelectorAll(`#${id} span`).forEach((sp) => sp.addEventListener('click', () => {
+  document.querySelectorAll(`#${id} span`).forEach((o) => o.classList.toggle('on', o === sp));
+  fn(sp.dataset.v);
+}));
+seg('vsCards', (v) => { cards = v; setExpanded(); });
+seg('vsMath', (v) => { math = v; render(); });
+render();
 </script>
 </body>
 </html>
