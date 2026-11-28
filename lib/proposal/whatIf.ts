@@ -75,7 +75,7 @@ export const FIELDS: WhatIfField[] = [
   F('commercial.installRate', 'Install / bed', PRICING, PRICING_AT, 'usd'),
   F('commercial.installCreditPct', 'Install credit on pilot sites', PRICING, PRICING_AT, 'pct', { max: 1 }),
   F('commercial.sensorPrice', 'Additional sensor price', PRICING, PRICING_AT, 'usd'),
-  F('commercial.sensorCredit', 'Install credit on additional sensors', PRICING, PRICING_AT, 'toggle'),
+  F('commercial.sensorCreditPct', 'Credit on additional sensors (pilot sites)', PRICING, PRICING_AT, 'pct', { max: 1 }),
   F('commercial.fullFacilityMultiplier', 'Full-facility multiplier', PRICING, PRICING_AT, 'mult'),
   F('commercial.specialRate', 'Intro rate / bed / mo', PRICING, PRICING_AT, 'usd2', { nullable: true }),
   F('commercial.specialTermMonths', 'Intro term', PRICING, PRICING_AT, 'months'),
@@ -270,10 +270,10 @@ export function figureSpec(key: string): FigureSpec | null {
   if (k === 'scope.serviceMonthly') return { formula: 'All beds × (platform rate + E-Call rate), × full-facility multiplier where it applies', fields: ['commercial.platformRate', 'commercial.ecallRate', 'commercial.fullFacilityMultiplier'] };
   if (k === 'scope.install') return { formula: 'Beds × install rate (× full-facility multiplier where it applies), less the pilot install credit', fields: INSTALL_FIELDS };
   if (k === 'bc.opunit.install') return { formula: 'Installation price per bed (before any pilot credit)', fields: ['commercial.installRate', 'commercial.installCreditPct'] };
-  if (k === 'bc.opunit.sensors') return { formula: 'Price per additional sensor', fields: ['commercial.sensorPrice', 'commercial.sensorCredit'] };
-  if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price, less the install credit on pilot sites when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
+  if (k === 'bc.opunit.sensors') return { formula: 'Price per additional sensor', fields: ['commercial.sensorPrice', 'commercial.sensorCreditPct'] };
+  if (k === 'scope.sensors') return { formula: 'Additional sensors × sensor price, less the sensor credit on pilot sites', fields: ['commercial.sensorPrice', 'commercial.sensorCreditPct'] };
   if (k === 'bc.overview.perBed') return pricing('Total cost over the term ÷ (beds × months, counting each community’s pilot and service term)');
-  if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price, less the install credit when it applies to sensors', fields: ['commercial.sensorPrice', 'commercial.sensorCredit', 'commercial.installCreditPct'] };
+  if (k === 'bc.pilot.sensors') return { formula: 'Additional sensors at the pilot sites × sensor price, less the sensor credit', fields: ['commercial.sensorPrice', 'commercial.sensorCreditPct'] };
   if (k === 'bc.roi.cost' || k === 'bc.roi.net') return pricing('Gross annual benefit − annual cost of Teton (the equipment purchase spread over four years, or the run-rate subscription)', ['commercial.capex.basePrice', 'commercial.capex.bleBasePrice', 'commercial.capex.sensorPrice', 'commercial.capex.softwareRate']);
   if (k.startsWith('finish.')) return { formula: 'Rooms × (concealed price − standard installation credit), low to high, pending the site survey', fields: ['commercial.finish.concealed', 'commercial.finish.low', 'commercial.finish.high', 'commercial.finish.credit'] };
   if (k.startsWith('bc.pilot.')) return { formula: 'Pilot fees (pilot beds × pilot rates × pilot months) + installation at the pilot sites, less the pilot install credit', fields: ['commercial.pilotRate', 'commercial.ecallPilotRate', 'commercial.installRate', 'commercial.installCreditPct'] };

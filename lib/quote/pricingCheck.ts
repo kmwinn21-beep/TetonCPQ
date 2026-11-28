@@ -155,7 +155,8 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     if (anyPilot) inRows.push({ key: 'pilotRate', label: 'Pilot rate per bed / month', product: 'subscription', deal: cents(k.pilotRate), book: `${cents(POLICY.standardPilotRate)} standard`, differs: false });
     if (k.specialRate != null && k.specialTermMonths > 0) inRows.push({ key: 'intro', label: 'Introductory rate per bed / month', product: 'subscription', deal: `${cents(k.specialRate)} × ${k.specialTermMonths} mo`, book: '—', differs: false });
     price('install', 'Installation per bed', 'subscription', k.installRate, list(SKU.install));
-    if (anyPilot) inRows.push({ key: 'credit', label: `Install credit (pilot sites)${k.sensorCredit ? ', also on sensors' : ''}`, product: 'subscription', deal: `${Math.round(k.installCreditPct * 100)}%`, book: '—', differs: false });
+    if (anyPilot) inRows.push({ key: 'credit', label: 'Install credit (pilot sites)', product: 'subscription', deal: `${Math.round(k.installCreditPct * 100)}%`, book: '—', differs: false });
+    if (anyPilot) inRows.push({ key: 'sensorCredit', label: 'Additional sensor credit (pilot sites)', product: 'subscription', deal: `${Math.round((k.sensorCreditPct ?? 0) * 100)}%`, book: '—', differs: false });
     price('sensor', 'Additional sensor, each', 'subscription', k.sensorPrice, list(SKU.sensor));
     if (anyFull) price('full', 'Full-facility coverage multiplier (older deals)', 'subscription', k.fullFacilityMultiplier, list(SKU.fullFacility), (n) => `${n}×`);
     const anySnf = draft.communities.some((c) => scopeOf(c, ecallOn).monitoredByCare.snf > 0);

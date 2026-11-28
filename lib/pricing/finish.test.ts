@@ -56,7 +56,7 @@ describe('install credit on additional sensors', () => {
     // Pilot sites: one-time charges are billed at pilot completion.
     const installs = (x: QuoteDraft) => runModel(toModelInputs(x)).cashFlow.install.reduce((a, b) => a + b, 0);
     const before = installs(d);
-    d.commercial.sensorCredit = true;
+    d.commercial.sensorCreditPct = 1;
     expect(sensorTotal(d)).toBe(0);
     expect(installs(d)).toBe(before - 82 * 300);
     // Equipment purchase still charges the sensors once converted.

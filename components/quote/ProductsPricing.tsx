@@ -576,12 +576,12 @@ export function ProductsPricing({ book }: { book: PriceBook }) {
                       </SettingRow>
                       {pilot && (
                         <SettingRow label="Clawback" hint="Charged if they don’t convert">
-                          <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct} />
+                          <Switch name="commercial.installClawback" label="Clawback if they don’t convert" disabled={!k.installCreditPct && !(vis.sensor && k.sensorCreditPct)} />
                         </SettingRow>
                       )}
                       {pilot && vis.sensor && (
-                        <SettingRow label="Credit additional sensors too" hint="Pilot sites only">
-                          <Switch name="commercial.sensorCredit" label="Credit additional sensors too" disabled={!k.installCreditPct} />
+                        <SettingRow label="Credit on additional sensors" hint="Pilot sites only; set apart from installation">
+                          <InstallCreditChoice kind="sensor" />
                         </SettingRow>
                       )}
                       <SettingRow label="Price per bed" hint={`List ${money(book[SKU.install]?.list)}`}>

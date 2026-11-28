@@ -102,8 +102,13 @@ export interface Commercial {
   installCreditCustomPct?: number | null;
   /** Credit is clawed back if the customer doesn't convert. */
   installClawback: boolean;
-  /** Apply the install credit to pilot sites' additional sensors too. */
-  sensorCredit: boolean;
+  /** Credit on pilot sites' additional sensors, 0–1 (its own setting, same choices as the install credit). */
+  sensorCreditPct: number;
+  /** The rep chose a custom sensor credit (sensorCreditPct then carries it). */
+  sensorCreditCustom?: boolean;
+  sensorCreditCustomPct?: number | null;
+  /** @deprecated Older deals: on = the install credit also applied to sensors. Read into sensorCreditPct. */
+  sensorCredit?: boolean;
   /** Optional introductory platform rate for the first months of the service term. */
   specialRate: number | null;
   specialTermMonths: number;
@@ -240,7 +245,7 @@ export function defaultDraft(customerName: string, book: PriceBook, today = new 
       installRate: book[SKU.install]?.list ?? 400,
       installCreditPct: 0,
       installClawback: false,
-      sensorCredit: false,
+      sensorCreditPct: 0,
       specialRate: null,
       specialTermMonths: 0,
       fullFacilityMultiplier: book[SKU.fullFacility]?.list ?? 1.3,
@@ -277,7 +282,13 @@ export function normalizeDraft(d: QuoteDraft): QuoteDraft {
 
 /** Drafts from before equipment-purchase pricing had a capex discount rate instead: drop it, add the list prices. */
 function normalizeCommercial(c: Commercial): Commercial {
-  const { capexDiscountRate: _old, ...rest } = c as Commercial & { capexDiscountRate?: number };
+  const { capexDiscountRate: _old, sensorCredit: _was, ...rest } = c as Commercial & { capexDiscountRate?: number };
+  const sensorCreditOf = (r: Commercial) => {
+    const pct = Number(r.sensorCreditPct);
+    // Older deals had an on/off switch that reused the install credit.
+    if (!Number.isFinite(pct)) return { sensorCreditPct: _was === true ? r.installCreditPct ?? 0 : 0 };
+    return { sensorCreditPct: Math.min(1, Math.max(0, pct)) };
+  };
   const seedList = (sku: string, fb: number) => SEED_PRODUCTS.find((p) => p.sku === sku)?.list ?? fb;
   const capex = { ...capexPricingFrom(() => undefined), ...(rest.capex ?? {}) };
   // The first E-Call purchase figures ($115 / $170) gave way to the pricing workbook's ($165 / $480).
@@ -287,7 +298,7 @@ function normalizeCommercial(c: Commercial): Commercial {
   // Older deals: billed monthly (as they were). SNF rate, bundle discount: absent = none (their totals don't change).
   capex.softwareBilling = capex.softwareBilling === 'upfront' ? 'upfront' : 'monthly';
   const commonArea = rest.commonArea ?? { setup: seedList(SKU.commonAreaSetup, 200), monthly: seedList(SKU.commonAreaMonthly, 50) };
-  return { ...rest, ecallDevices: devices, capex, commonArea, finish: normalizeFinish(rest.finish), sensorCredit: rest.sensorCredit === true, ecallBilling: rest.ecallBilling === 'device' ? 'device' : 'room' };
+  return { ...rest, ecallDevices: devices, capex, commonArea, finish: normalizeFinish(rest.finish), ...sensorCreditOf(rest), ecallBilling: rest.ecallBilling === 'device' ? 'device' : 'room' };
 }
 
 /** One additional E-Call device beyond the rooms (per-room billing): a Bluetooth button, or an Inovonics pull-cord. */

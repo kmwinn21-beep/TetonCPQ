@@ -104,12 +104,25 @@ export function standardTerms(d: QuoteDraft, kind: ListKind = 'terms'): Array<{ 
     template: `Service term of {termMonths} per community, starting ${pilot ? 'when its pilot ends' : 'at go-live'}. Either party may end it for convenience within the first three months of the service term.`,
     vars: { termMonths: `${term} months` },
   });
-  if (pilot && k.installCreditPct > 0)
+  const pilotSensors = (d.communities ?? []).some((c) => c?.pilot && Number(c.additionalSensors) > 0);
+  const sensorPct = pilotSensors ? k.sensorCreditPct ?? 0 : 0;
+  const repay = k.installClawback ? ', repayable if the pilot does not convert to the service term' : '';
+  if (pilot && (k.installCreditPct > 0 || sensorPct > 0)) {
+    const pct = (n: number) => `${Math.round(n * 100)}%`;
+    const same = sensorPct === k.installCreditPct;
     out.push({
       id: 'credit',
-      template: `Installation credit of {credit} on pilot beds${k.sensorCredit && (d.communities ?? []).some((c) => c?.pilot && Number(c.additionalSensors) > 0) ? ' and their additional sensors' : ''}${k.installClawback ? ', repayable if the pilot does not convert to the service term' : ''}.`,
-      vars: { credit: `${Math.round(k.installCreditPct * 100)}%` },
+      template:
+        k.installCreditPct > 0 && same
+          ? `Installation credit of {credit} on pilot beds and their additional sensors${repay}.`
+          : k.installCreditPct > 0 && sensorPct > 0
+            ? `Installation credit of {credit} on pilot beds and {sensorCredit} on their additional sensors${repay}.`
+            : k.installCreditPct > 0
+              ? `Installation credit of {credit} on pilot beds${repay}.`
+              : `Credit of {sensorCredit} on additional sensors at pilot sites${repay}.`,
+      vars: { credit: pct(k.installCreditPct), sensorCredit: pct(sensorPct) },
     });
+  }
   if (k.specialRate != null && k.specialTermMonths > 0)
     out.push({
       id: 'intro',

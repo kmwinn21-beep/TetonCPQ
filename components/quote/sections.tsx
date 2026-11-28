@@ -52,26 +52,32 @@ export function CaseSetupSection() {
   );
 }
 
-/** Install credit on pilot sites: None, 50%, 100% or a custom percentage typed beside the buttons (required once Custom is chosen). */
-export function InstallCreditChoice() {
+/** A pilot-site credit: None, 50%, 100% or a custom percentage typed beside the buttons (required once Custom is chosen).
+ *  `install` is the installation credit; `sensor` the additional-sensor credit (same choices, its own setting). */
+export function InstallCreditChoice({ kind = 'install' }: { kind?: 'install' | 'sensor' }) {
   const { control, setValue } = useFormContext<QuoteDraft>();
   const k = useWatch({ control, name: 'commercial' }) as QuoteDraft['commercial'];
-  const custom = !!k.installCreditCustom;
+  const f = kind === 'install'
+    ? { pct: 'commercial.installCreditPct', custom: 'commercial.installCreditCustom', customPct: 'commercial.installCreditCustomPct', label: 'Install credit on pilot sites', aria: 'Custom install credit' } as const
+    : { pct: 'commercial.sensorCreditPct', custom: 'commercial.sensorCreditCustom', customPct: 'commercial.sensorCreditCustomPct', label: 'Additional sensor credit on pilot sites', aria: 'Custom sensor credit' } as const;
+  const value = (kind === 'install' ? k.installCreditPct : k.sensorCreditPct) ?? 0;
+  const custom = !!(kind === 'install' ? k.installCreditCustom : k.sensorCreditCustom);
+  const customPct = kind === 'install' ? k.installCreditCustomPct : k.sensorCreditCustomPct;
   const pick = (v: number | 'custom') => {
     if (v === 'custom') {
-      setValue('commercial.installCreditCustom', true, { shouldDirty: true });
-      setValue('commercial.installCreditPct', k.installCreditCustomPct ?? 0, { shouldDirty: true });
+      setValue(f.custom, true, { shouldDirty: true });
+      setValue(f.pct, customPct ?? 0, { shouldDirty: true });
     } else {
-      setValue('commercial.installCreditCustom', false, { shouldDirty: true });
-      setValue('commercial.installCreditPct', v, { shouldDirty: true });
+      setValue(f.custom, false, { shouldDirty: true });
+      setValue(f.pct, v, { shouldDirty: true });
     }
   };
   const opts: Array<[number | 'custom', string]> = [[0, 'None'], [0.5, '50%'], [1, '100%'], ['custom', 'Custom']];
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <SegGroup label="Install credit on pilot sites" className="inline-flex rounded-lg bg-teton-off-white p-0.5">
+      <SegGroup label={f.label} className="inline-flex rounded-lg bg-teton-off-white p-0.5">
         {opts.map(([v, text]) => {
-          const on = v === 'custom' ? custom : !custom && k.installCreditPct === v;
+          const on = v === 'custom' ? custom : !custom && value === v;
           return (
             <button
               key={String(v)}
@@ -89,7 +95,7 @@ export function InstallCreditChoice() {
       {custom && (
         <Controller
           control={control}
-          name="commercial.installCreditCustomPct"
+          name={f.customPct}
           rules={{ validate: (v) => (v != null && Number.isFinite(v as number)) || 'Enter the custom credit' }}
           render={({ field, fieldState }) => (
             <div className="w-[5.5rem] drawer-in">
@@ -98,7 +104,7 @@ export function InstallCreditChoice() {
                 onChange={(v) => {
                   const pct = v == null ? null : Math.min(1, Math.max(0, v));
                   field.onChange(pct);
-                  setValue('commercial.installCreditPct', pct ?? 0, { shouldDirty: true });
+                  setValue(f.pct, pct ?? 0, { shouldDirty: true });
                 }}
                 onBlur={field.onBlur}
                 scale={100}
@@ -108,7 +114,7 @@ export function InstallCreditChoice() {
                 max={100}
                 placeholder="25"
                 invalid={!!fieldState.error}
-                aria-label="Custom install credit"
+                aria-label={f.aria}
               />
             </div>
           )}
