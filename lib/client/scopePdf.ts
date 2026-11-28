@@ -6,7 +6,7 @@
  * summary page at the end. Images become one page each.
  */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage, type PDFEmbeddedPage, type PDFImage } from 'pdf-lib';
-import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, roomScope, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, AREA_KINDS, areaSensors, badgeOf, CARE_LABEL, isPriced, residentsOf, roomScope, sensorsPerRoom, type CareProducts, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import type { PlanNote } from '@/lib/data/planNotes';
 import type { TagNote } from '@/lib/data/tagNotes';
 
@@ -196,7 +196,7 @@ export async function scopePdf(a: Args): Promise<Blob> {
     const pad = fs * 1.4;
     const items: Array<{ b: { color: string; initials: string } | null; text: string }> = used.map(({ t, b, marks }) => {
       const sensors = marks.length * sensorsPerRoom(t, a.products);
-      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
+      return { b, text: safe(reg, `${t.name || 'Room type'} · ${marks.length} room${marks.length === 1 ? '' : 's'}${residentsOf(t) > 1 ? ` (${residentsOf(t)} residents each)` : ''} · ${sensors} sensor${sensors === 1 ? '' : 's'}`) };
     });
     const areasHere = (a.areas ?? []).filter((x) => x.mark && x.mark.plan === a.planId && x.mark.page === n);
     if (areasHere.length) {
@@ -323,7 +323,8 @@ function summary(out: PDFDocument, bold: PDFFont, reg: PDFFont, a: Args, types: 
     priced += rooms;
     badge(p, bold, M + 9, y + 3.5, 8.5, b.color, b.initials);
     // Long names are cut to fit before the care setting column.
-    let nm = safe(bold, t.name || 'Room type');
+    // Shared rooms: residents per room after the name (each room still gets one Edge unit).
+    let nm = safe(bold, `${t.name || 'Room type'}${residentsOf(t) > 1 ? ` (×${residentsOf(t)})` : ''}`);
     while (nm.length > 4 && bold.widthOfTextAtSize(nm, 10) > cols[1] - M - 34) nm = nm.slice(0, -2) + '…';
     text(nm.replace(/…+$/, '…'), M + 26, 10, bold);
     text(t.care === 'custom' ? t.customCare || 'Custom' : CARE_LABEL[t.care], cols[1], 9);

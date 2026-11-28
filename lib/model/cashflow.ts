@@ -41,6 +41,9 @@ export interface CommunitySchedule {
   /** Pilot billing applies (pilot community in a with-pilot deal). */
   inPilot: boolean;
   pilotUnits: number;
+  /** Edge units (one per room; installation is charged on these), and those in the pilot. */
+  edgeUnits: number;
+  pilotEdgeUnits: number;
   goLiveMonth: number;
   /** First month billed at the post-pilot (or special) rate. */
   firstPostPilotMonth: number;
@@ -82,6 +85,9 @@ export interface CashFlow {
   cumulativeDiscountedNet: number[];
 }
 
+/** A community's Edge units: one per room (fewer than its units when residents share rooms). */
+export const edgeUnitsOf = (c: Pick<Community, 'units' | 'edgeUnits'>) => (c.edgeUnits != null ? Math.min(c.units, Math.max(0, c.edgeUnits)) : c.units);
+
 export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: number): CommunitySchedule {
   const { schedule, pricing } = inputs;
   const rates = ratesFor(inputs, c);
@@ -99,12 +105,15 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
   const fullRoiMonth = roiStartMonth + Math.max(schedule.rampMonths || 0, 1) - 1;
 
   const extrasInstall = (c.extras ?? []).reduce((s, x) => s + x.units * (inPilot ? x.rates.pilotInstallPerBed : x.rates.postPilotInstallPerBed), 0);
+  // Installation is per Edge unit (one per room): the pilot's share of them when only some units are in the pilot.
+  const edgeUnits = edgeUnitsOf(c);
+  const pilotEdgeUnits = pilotUnits >= c.units ? edgeUnits : Math.min(pilotUnits, edgeUnits);
   const installCost =
     (inPilot
-      ? pilotUnits * rates.pilotInstallPerBed +
-        (c.units - pilotUnits) * rates.postPilotInstallPerBed +
+      ? pilotEdgeUnits * rates.pilotInstallPerBed +
+        (edgeUnits - pilotEdgeUnits) * rates.postPilotInstallPerBed +
         c.additionalSensors * pricing.pilotSensorPrice
-      : c.units * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice) + extrasInstall;
+      : edgeUnits * rates.postPilotInstallPerBed + c.additionalSensors * pricing.postPilotSensorPrice) + extrasInstall;
 
   const monthlyReimbursement = schedule.includeReimbursement
     ? Math.min(c.units * rates.postPilotFeePerBedMonth, occupiedUnits(inputs, c) * inputs.cfo.reimbursementPerOccupiedUnitMonth)
@@ -113,6 +122,8 @@ export function communitySchedule(inputs: ModelInputs, c: Community, annualRoi: 
   return {
     inPilot,
     pilotUnits,
+    edgeUnits,
+    pilotEdgeUnits,
     goLiveMonth,
     firstPostPilotMonth,
     roiDelayMonths,

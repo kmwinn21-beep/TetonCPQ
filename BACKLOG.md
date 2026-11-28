@@ -86,7 +86,7 @@ Suggested order: 1 + 2 first, then 3, then 4 with the approval workflow, 5 once 
 
 **V3 (optional): DocuSign.** Send the final from the deal; signed comes back on its own.
 
-## 5. Rooms with more than one resident (companion suites, semi-private) — mocked, decisions open
+## 5. Rooms with more than one resident (companion suites, semi-private) — built
 
 Mock: `docs/mocks/scoping/shared-rooms.html`. Today every room is one resident, so a shared room either under-bills (1 room, 2 sensors → 1 bed) or overstates Edge units (2 rooms → 2 Edge units and 2 badges).
 
@@ -97,5 +97,5 @@ Proposal: a **Residents per room** number on each room type (default 1, so exist
 - Scope Mode: still one badge per room with the ×N pip; the hover card lists residents, Edge unit, sensors, pendants; floor plan download and scope PDF legend add a Residents column.
 - Proposal scope summary (one-pagers, business case Scope page) shows Edge units beside residents when they differ.
 
-Recommended answers (not yet confirmed): monthly fee per resident; subscription installation per Edge unit plus additional sensors; equipment purchase one base package per room, the 2nd resident at the additional-sensor price; rooms only sometimes shared get their own room type (per-badge override later if asked for); occupancy unchanged.
+Decided and built: monthly fee per resident; subscription installation per Edge unit plus additional sensors; equipment purchase one base package per room, the 2nd resident at the additional-sensor price; rooms only sometimes shared get their own room type (per-badge override later if asked for); occupancy unchanged. E-Call is billed per resident (the 'per room' billing option counts each resident); equipment purchase buys the 2nd resident's pendant as an extra device. One installation finish per room; generic items counted per room count rooms.
 

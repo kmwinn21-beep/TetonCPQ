@@ -22,9 +22,14 @@ export interface RoomType {
   name: string;
   care: CareType;
   rooms: number;
+  /**
+   * Residents in each room of this type (1 when missing): a companion suite or semi-private room has 2. Each resident
+   * is a billed bed; the room still gets one Edge unit (its other residents' sensors are additional sensors).
+   */
+  residents?: number;
   /** Sensors in each room of this type (one per room or living area a resident uses). */
   sensors: number;
-  /** E-Call pendants / pull-cords in each room of this type (1 when missing). Billing stays per bed. */
+  /** E-Call pendants / pull-cords in each room of this type (the residents when missing). Billing is per resident. */
   pendants?: number;
   /** The care type's name when care is 'custom' (its rooms count as assisted living beds). */
   customCare?: string;
@@ -122,6 +127,10 @@ export const DEFAULT_ALLOWANCE = 0.03;
 const CARES: CareType[] = ['il', 'al', 'mc', 'snf', 'custom'];
 const int = (v: unknown, max: number) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
 
+/** Residents in each room of a type (1 to 6; 1 when missing). */
+export const residentsOf = (t: Pick<RoomType, 'residents'>) => Math.min(6, Math.max(1, Math.round(Number(t.residents) || 1)));
+export const MAX_RESIDENTS = 6;
+
 export function normalizeRoomTypes(v: unknown): RoomType[] {
   if (!Array.isArray(v)) return [];
   return v.slice(0, 40).flatMap((x, i) => {
@@ -136,8 +145,9 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
       care: CARES.includes(r.care as CareType) ? (r.care as CareType) : 'al',
       // Locked to the floor plan: one room per tagged badge.
       rooms: fromPlan ? (marks?.length ?? 0) : int(r.rooms, 5000),
+      ...(residentsOf(r) > 1 ? { residents: residentsOf(r) } : {}),
       sensors: Math.max(1, int(r.sensors ?? 1, 20)),
-      ...(r.pendants != null && Number(r.pendants) !== 1 ? { pendants: Math.max(1, int(r.pendants, 20)) } : {}),
+      ...(r.pendants != null && Math.max(1, int(r.pendants, 20)) !== residentsOf(r) ? { pendants: Math.max(1, int(r.pendants, 20)) } : {}),
       ...(r.care === 'custom' ? { customCare: String(r.customCare ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) } : {}),
       ...(typeof r.color === 'string' && (BADGE_COLORS as readonly string[]).includes(r.color) ? { color: r.color } : {}),
       ...(initials ? { initials } : {}),
@@ -150,7 +160,10 @@ export function normalizeRoomTypes(v: unknown): RoomType[] {
 export const normalizeAllowance = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 0.5 ? v : DEFAULT_ALLOWANCE);
 
 export interface RoomScope {
+  /** Rooms: one Edge unit each (monitored room types). */
   rooms: number;
+  /** Residents (billed beds): rooms × residents per room. */
+  residents: number;
   planSensors: number;
   allowance: number;
   totalSensors: number;
@@ -160,14 +173,16 @@ export interface RoomScope {
 
 export function roomScope(types: RoomType[], allowancePct: number): RoomScope {
   const rooms = types.reduce((s, t) => s + t.rooms, 0);
+  const residents = types.reduce((s, t) => s + t.rooms * residentsOf(t), 0);
   const planSensors = types.reduce((s, t) => s + t.rooms * t.sensors, 0);
   // Rounded to 4 places first, so 3% of 200 stays 6 rather than tipping to 7 on floating-point noise.
   const allowance = Math.ceil(Math.round(planSensors * allowancePct * 1e4) / 1e4);
   const totalSensors = planSensors + allowance;
   const beds = { il: 0, al: 0, mc: 0, snf: 0 } as Record<'il' | 'al' | 'mc' | 'snf', number>;
   // Custom care types count as assisted living beds (every bed is priced the same).
-  types.forEach((t) => (beds[bedKeyOf(t)] += t.rooms));
-  return { rooms, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
+  // Each resident is a bed; the first sensor in each room comes with its Edge unit, the rest are additional sensors.
+  types.forEach((t) => (beds[bedKeyOf(t)] += t.rooms * residentsOf(t)));
+  return { rooms, residents, planSensors, allowance, totalSensors, additionalSensors: Math.max(0, totalSensors - rooms), beds };
 }
 
 /** The care type a room type's beds count as (custom care types count as assisted living). */
@@ -243,8 +258,28 @@ export function applyRoomTypes(c: DraftCommunity): DraftCommunity {
 /** What an E-Call device is called on a deal: pendants (Bluetooth) or pull-cords (Inovonics). */
 export const devicesLabel = (ecall: 'none' | 'ble' | 'inovonics') => (ecall === 'inovonics' ? 'Pull-cords' : 'Pendants');
 
-export const pendantsPerRoom = (t: Pick<RoomType, 'care' | 'pendants'>, p?: CareProducts | null, ecallOn = true) =>
-  ecallOn && (!p || p[bedKeyOf(t)].ecall) ? Math.max(1, Number(t.pendants) || 1) : 0;
+export const pendantsPerRoom = (t: Pick<RoomType, 'care' | 'pendants' | 'residents'>, p?: CareProducts | null, ecallOn = true) =>
+  ecallOn && (!p || p[bedKeyOf(t)].ecall) ? Math.max(1, Number(t.pendants) || residentsOf(t)) : 0;
+
+/**
+ * Residents beyond the first in each room of a community's monitored room types (shared rooms): they are billed beds
+ * but share their room's Edge unit. `monitoredEcall`: those whose care setting also has E-Call; `priced`: in any room
+ * with a product (one installation finish per room).
+ */
+export function sharedResidents(c: Partial<DraftCommunity> | null | undefined, ecallOn = true): { monitored: number; monitoredEcall: number; priced: number } {
+  const out = { monitored: 0, monitoredEcall: 0, priced: 0 };
+  if (!c) return out;
+  const p = productsOf(c);
+  for (const t of normalizeRoomTypes(c.roomTypes)) {
+    const k = bedKeyOf(t);
+    const extra = t.rooms * (residentsOf(t) - 1);
+    if (p[k].monitoring || (ecallOn && p[k].ecall)) out.priced += extra;
+    if (!p[k].monitoring) continue;
+    out.monitored += extra;
+    if (ecallOn && p[k].ecall) out.monitoredEcall += extra;
+  }
+  return out;
+}
 
 // ---------- Common areas (E-Call only for now): shared spaces with pull-cords, billed per area, per month ----------
 export type AreaKind = 'bathroom' | 'activity' | 'dining' | 'hallway' | 'lobby' | 'other';
@@ -309,8 +344,10 @@ export const normalizePendantAllowance = (v: unknown) => (typeof v === 'number' 
 
 /** A community's E-Call devices: in its rooms, in its common areas, and the contingency on both. */
 export interface PendantScope {
-  /** Rooms (beds) with E-Call. */
+  /** Rooms with E-Call. */
   rooms: number;
+  /** Residents in those rooms (billed per resident; the rooms when every room has one). */
+  residents: number;
   roomPendants: number;
   /** Common areas with pull-cords (each billed per month). */
   areas: number;
@@ -325,23 +362,26 @@ export interface PendantScope {
  * deal has no E-Call or the community has none.
  */
 export function pendantScope(c: Partial<DraftCommunity> | null | undefined, ecallOn: boolean): PendantScope {
-  const zero = { rooms: 0, roomPendants: 0, areas: 0, areaPendants: 0, plan: 0, allowance: 0, total: 0 };
+  const zero = { rooms: 0, residents: 0, roomPendants: 0, areas: 0, areaPendants: 0, plan: 0, allowance: 0, total: 0 };
   if (!ecallOn || !c) return zero;
   const p = productsOf(c);
   const types = normalizeRoomTypes(c.roomTypes);
   let rooms = 0;
+  let residents = 0;
   let roomPendants = 0;
   if (types.length) {
     for (const t of types) {
       const n = pendantsPerRoom(t, p);
       if (!n) continue;
       rooms += t.rooms;
+      residents += t.rooms * residentsOf(t);
       roomPendants += t.rooms * n;
     }
   } else {
     const beds = { il: Number(c.ilBeds) || 0, al: Number(c.alBeds) || 0, mc: Number(c.mcBeds) || 0, snf: Number(c.snfBeds) || 0 };
     rooms = (['il', 'al', 'mc', 'snf'] as const).reduce((s, k) => s + (p[k].ecall ? beds[k] : 0), 0);
     roomPendants = rooms;
+    residents = rooms;
   }
   if (!rooms && !(['il', 'al', 'mc', 'snf'] as const).some((k) => p[k].ecall)) return zero;
   const live = normalizeCommonAreas(c.commonAreas).filter((a) => a.count > 0 && a.pendants > 0);
@@ -349,19 +389,21 @@ export function pendantScope(c: Partial<DraftCommunity> | null | undefined, ecal
   const areaPendants = live.reduce((s, a) => s + a.count * a.pendants, 0);
   const plan = roomPendants + areaPendants;
   const allowance = Math.ceil(Math.round(plan * normalizePendantAllowance(c.pendantAllowancePct) * 1e4) / 1e4);
-  return { rooms, roomPendants, areas, areaPendants, plan, allowance, total: plan + allowance };
+  return { rooms, residents, roomPendants, areas, areaPendants, plan, allowance, total: plan + allowance };
 }
 
 /** How E-Call is billed monthly: per room (each common area with a device counts as a room) or per device. */
 export type EcallBilling = 'room' | 'device';
 
 /**
- * E-Call units billed for a community: per room, the rooms with E-Call plus the common areas with devices, and every
- * device beyond that count as a one-time additional device; per device, every device (before the contingency).
+ * E-Call units billed for a community: per room, each resident in a room with E-Call (one per room unless rooms are
+ * shared) plus the common areas with devices, and every device beyond that count as a one-time additional device; per
+ * device, every device (before the contingency). `perRoom`: count rooms, not residents (equipment purchase, where each
+ * room's base package includes one device).
  */
-export function ecallBilled(ps: Pick<PendantScope, 'rooms' | 'areas' | 'plan'>, billing: EcallBilling = 'room'): { monthly: number; extra: number } {
+export function ecallBilled(ps: Pick<PendantScope, 'rooms' | 'areas' | 'plan'> & { residents?: number }, billing: EcallBilling = 'room', perRoom = false): { monthly: number; extra: number } {
   if (billing === 'device') return { monthly: ps.plan, extra: 0 };
-  const monthly = ps.plan > 0 ? ps.rooms + ps.areas : 0;
+  const monthly = ps.plan > 0 ? (perRoom ? ps.rooms : (ps.residents ?? ps.rooms)) + ps.areas : 0;
   return { monthly, extra: Math.max(0, ps.plan - monthly) };
 }
 

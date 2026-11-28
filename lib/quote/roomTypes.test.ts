@@ -57,7 +57,7 @@ describe('room types', () => {
         commonAreas: [{ id: 'x', name: 'Bath', kind: 'bathroom' as const, count: 6, pendants: 1 }, { id: 'y', name: 'Dining', kind: 'dining' as const, count: 1, pendants: 0 }],
         pendantAllowancePct: 0.05,
       };
-      expect(pendantScope(c, true)).toEqual({ rooms: 88, roomPendants: 121, areas: 6, areaPendants: 6, plan: 127, allowance: 7, total: 134 });
+      expect(pendantScope(c, true)).toEqual({ rooms: 88, residents: 88, roomPendants: 121, areas: 6, areaPendants: 6, plan: 127, allowance: 7, total: 134 });
       expect(pendantScope(c, false).total).toBe(0);
       // No E-Call on any care type: nothing, common areas included.
       expect(pendantScope({ ...c, products: allProducts({ monitoring: true, ecall: false }) }, true).total).toBe(0);

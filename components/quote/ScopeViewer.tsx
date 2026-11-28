@@ -15,7 +15,7 @@ import { Counter } from '@/components/form/Counter';
 import { SegGroup } from '@/components/form/SegGroup';
 import { AREA_COLOR, AreaForm, AreaMarker, type AreaFormValue } from './CommonAreasLayer';
 import { describeScope, scopeChanges } from '@/lib/quote/scopeWork';
-import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_ABBR, areaSensors, commonAreaFromPlan, normalizeCommonAreas, type CommonArea, badgeOf, BADGE_COLORS, bedKeyOf, CARE_LABEL, devicesLabel, careLabel, duplicateRoomNumbers, sensorsPerRoom, pendantsPerRoom, residentsOf, type CareProducts, initialsOf, roomTypeKey, nextBadgeColor, normalizeAllowance, type CareType, type RoomMark, type RoomType } from '@/lib/quote/roomTypes';
 import { openPdf } from '@/lib/client/pdf';
 import { NumInput } from '@/components/form/NumInput';
 import { count } from '@/lib/format';
@@ -69,13 +69,23 @@ function Toggle({ on, onChange, label, accent = false }: { on: boolean; onChange
 }
 
 /** A round badge with initials (or a number while selecting). */
-export function Badge({ color, text, size = 22, className = '', style }: { color: string; text: string; size?: number; className?: string; style?: React.CSSProperties }) {
-  return (
+/** A room type's badge. `occ` above 1: a shared room (a small ×2 pip: residents per room). */
+export function Badge({ color, text, size = 22, className = '', style, occ }: { color: string; text: string; size?: number; className?: string; style?: React.CSSProperties; occ?: number }) {
+  const badge = (
     <span
-      className={`inline-flex items-center justify-center rounded-full text-white font-extrabold border-[1.5px] border-white shadow-[0_1px_3px_rgba(0,0,0,.35)] leading-none select-none ${className}`}
-      style={{ background: color, width: size, height: size, fontSize: Math.round(size * (text.length > 2 ? 0.34 : 0.4)), ...style }}
+      className={`inline-flex items-center justify-center rounded-full text-white font-extrabold border-[1.5px] border-white shadow-[0_1px_3px_rgba(0,0,0,.35)] leading-none select-none ${occ && occ > 1 ? '' : className}`}
+      style={{ background: color, width: size, height: size, fontSize: Math.round(size * (text.length > 2 ? 0.34 : 0.4)), ...(occ && occ > 1 ? {} : style) }}
     >
       {text}
+    </span>
+  );
+  if (!occ || occ <= 1) return badge;
+  return (
+    <span className={`relative inline-flex ${className}`} style={style} title={`${occ} residents per room`}>
+      {badge}
+      <span aria-label={`${occ} residents`} className="absolute -top-1.5 -right-2 rounded-full bg-white border-[1.5px] px-[3px] font-extrabold leading-[1.15] shadow-[0_1px_2px_rgba(0,0,0,.25)]" style={{ borderColor: color, color, fontSize: Math.max(8, Math.round(size * 0.36)) }}>
+        ×{occ}
+      </span>
     </span>
   );
 }
@@ -971,6 +981,7 @@ export function ScopeViewer({
                 y={m.y}
                 color={m.color}
                 text={m.initials}
+                occ={residentsOf(types.find((t) => t.id === m.typeId) ?? {})}
                 title={`${types.find((t) => t.id === m.typeId)?.name || 'Room type'}${m.label ? ` · ${m.label}` : ''}`}
                 faded={rowActive ? rowActive !== m.id : dupIds ? !dupIds.has(m.id) : (scope && tagWhat === 'areas') || (scope && pendingHere.length > 0) || (!!focusType && focusType !== m.typeId) || (noteFilter && !notedMarks.has(m.id))}
                 selected={pop?.markId === m.id}
@@ -1254,7 +1265,7 @@ export function ScopeViewer({
               title={focusType === t.id ? 'Show every room type' : 'Pick out this room type'}
               className={`inline-flex items-center gap-1.5 rounded-full pr-2 transition-opacity duration-200 ${focusType && focusType !== t.id ? 'opacity-40' : ''}`}
             >
-              <Badge color={b.color} text={b.initials} size={20} />
+              <Badge color={b.color} text={b.initials} size={20} occ={residentsOf(t)} />
               <span>{t.name || 'Room type'} · {count(here)}{tagged !== here ? <span className="text-teton-ui-gray"> ({count(tagged)} in all)</span> : null}</span>
             </button>
           ))}
@@ -1597,6 +1608,7 @@ function PlacedBadge({
   size = 22,
   dot,
   picked,
+  occ,
   onHover,
   onClick,
   onMove,
@@ -1614,6 +1626,8 @@ function PlacedBadge({
   dot?: boolean;
   /** In the selection (a blue ring). */
   picked?: boolean;
+  /** Residents per room (a ×2 pip when shared). */
+  occ?: number;
   onHover?: (on: boolean) => void;
   /** touch: the tap came from a finger (no hover on phones); shift: Shift was held. */
   onClick: (touch: boolean, shift: boolean) => void;
@@ -1675,7 +1689,7 @@ function PlacedBadge({
           {text}
         </span>
       ) : (
-        <Badge color={color} text={text} size={size} />
+        <Badge color={color} text={text} size={size} occ={occ} />
       )}
       {dot && (
         <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 rounded-full border-[1.5px] border-white" style={{ background: NOTE_DOT, width: Math.max(8, Math.round(size * 0.42)), height: Math.max(8, Math.round(size * 0.42)) }} />
@@ -1730,10 +1744,11 @@ function MarkPopover({ type, types, mark, readOnly, suggest, products, onRetype,
   return (
     <div className={card} role="dialog" aria-label="Tagged room">
       <div className="flex items-start gap-2">
-        <Badge color={b.color} text={b.initials} size={24} />
+        <Badge color={b.color} text={b.initials} size={24} occ={residentsOf(type)} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[13px] truncate">{mark.label ? `Room ${mark.label}` : 'Tagged room'}</p>
           <p className="text-[11px] text-teton-ui-gray truncate">{type.name || 'Room type'} · {careLabel(type)} · {sensorsPerRoom(type, products) || 'no'} sensor{sensorsPerRoom(type, products) === 1 ? '' : 's'}</p>
+          {residentsOf(type) > 1 && <p className="text-[11px] text-teton-ui-gray">Shared: {residentsOf(type)} residents · 1 Edge unit{pendantsPerRoom(type, products) ? ` · ${pendantsPerRoom(type, products)} ${pendantsPerRoom(type, products) === 1 ? 'device' : 'devices'}` : ''}</p>}
         </div>
         <button type="button" className="text-teton-ui-gray hover:text-teton-ink" aria-label="Close" onClick={onClose}>✕</button>
       </div>

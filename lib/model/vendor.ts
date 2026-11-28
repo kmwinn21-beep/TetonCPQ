@@ -5,7 +5,7 @@
  * Mirrors "12 Mo Cash Flow" rows 120–210. The cost assumptions are the
  * workbook's placeholders until finance supplies actuals.
  */
-import { buildCashFlow, type CashFlow } from './cashflow';
+import { buildCashFlow, edgeUnitsOf, type CashFlow } from './cashflow';
 import type { AnnualCaseResult } from './annual';
 import type { ModelInputs, VendorCostAssumptions } from './types';
 
@@ -101,8 +101,10 @@ export function vendorView(
   const revenue = per((m) => pilotFees[m - 1] + postPilotFees[m - 1] + oneTimeFees[m - 1]);
 
   const unitsLive = per((m) => atGoLive(m, (i) => inputs.communities[i].units));
-  const hardware = unitsLive.map((u) => costs.hardwarePerBed * u);
-  const installLabor = unitsLive.map((u) => costs.installLaborPerBed * u);
+  // Hardware and install labor per Edge unit (one per room; fewer than the units when residents share rooms).
+  const edgeLive = per((m) => atGoLive(m, (i) => edgeUnitsOf(inputs.communities[i])));
+  const hardware = edgeLive.map((u) => costs.hardwarePerBed * u);
+  const installLabor = edgeLive.map((u) => costs.installLaborPerBed * u);
   const sensors = per((m) => costs.sensorCost * atGoLive(m, (i) => inputs.communities[i].additionalSensors));
   const cloudHosting = billedUnits.map((u) => costs.cloudPerBilledBedMonth * u);
   const support = billedUnits.map((u) => costs.supportPerBilledBedMonth * u);

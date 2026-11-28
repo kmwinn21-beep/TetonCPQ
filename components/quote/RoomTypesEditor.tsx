@@ -8,7 +8,7 @@
  */
 import { useFormContext, useWatch } from 'react-hook-form';
 import { productsOf, type QuoteDraft } from '@/lib/quote/draft';
-import { AREA_KINDS, badgeOf, bedKeyOf, commonAreaFromPlan, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, badgeOf, bedKeyOf, commonAreaFromPlan, devicesLabel, duplicateRoomTypes, CARE_LABEL, DEFAULT_ALLOWANCE, DEFAULT_PENDANT_ALLOWANCE, newCommonArea, newRoomType, nextBadgeColor, residentsOf, MAX_RESIDENTS, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, pendantScope, roomDerived, type AreaKind, type CareType, type CommonArea, type RoomType } from '@/lib/quote/roomTypes';
 import { useFloorPlans } from './FloorPlans';
 import { Badge } from './ScopeViewer';
 import { useRoomTypes } from './useRoomTypes';
@@ -85,7 +85,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                 <span className={eyebrow}>Room Type/Name</span>
                 <span className="flex items-center gap-2">
                   {/* Its badge on the floor plans. */}
-                  <Badge color={badgeOf(t, k).color} text={badgeOf(t, k).initials} size={26} className="flex-shrink-0" />
+                  <Badge color={badgeOf(t, k).color} text={badgeOf(t, k).initials} size={26} occ={residentsOf(t)} className="flex-shrink-0" />
                   <input
                     className={`input-field px-2 py-1.5 ${dupes.has(t.id) ? 'ring-2 ring-teton-red border-transparent' : ''}`}
                     value={t.name}
@@ -159,7 +159,27 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
               </button>
               {/* Sensors and E-Call devices per room: counters, locked at 0 (with why) where the care setting or the deal
                   has none. */}
-              <div className={`${span} grid grid-cols-2 gap-2`}>
+              <div className={`${span} grid grid-cols-3 gap-2`}>
+                {/* Residents sharing each room (companion suites, semi-private): each is a billed bed; the room keeps one
+                    Edge unit. Sensors and devices follow the residents until changed by hand. */}
+                <div>
+                  <span className={eyebrowWrap}>Residents / room</span>
+                  <Counter
+                    size="sm"
+                    value={residentsOf(t)}
+                    min={1}
+                    max={MAX_RESIDENTS}
+                    onChange={(v) => {
+                      const was = residentsOf(t);
+                      patch(t.id, {
+                        residents: v > 1 ? v : undefined,
+                        ...(t.sensors === was ? { sensors: v } : {}),
+                        ...(t.pendants === v ? { pendants: undefined } : {}),
+                      });
+                    }}
+                    aria-label={`Community ${position} room type ${k + 1} residents per room`}
+                  />
+                </div>
                 {showSensors && (
                   <div>
                     <span className={eyebrowWrap}>Sensors / room</span>
@@ -175,7 +195,7 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
                   {!ecallOn ? (
                     <Counter size="sm" value={0} onChange={() => {}} disabled reason="E-Call isn’t part of this deal" aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call on the deal)`} />
                   ) : products[bedKeyOf(t)].ecall ? (
-                    <Counter size="sm" value={t.pendants ?? 1} onChange={(v) => patch(t.id, { pendants: v })} min={1} max={20} aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room`} />
+                    <Counter size="sm" value={t.pendants ?? residentsOf(t)} onChange={(v) => patch(t.id, { pendants: v === residentsOf(t) ? undefined : v })} min={1} max={20} aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room`} />
                   ) : (
                     <Counter size="sm" value={0} onChange={() => {}} disabled reason="No E-Call in this care setting" aria-label={`Community ${position} room type ${k + 1} ${dev.many} per room (none: no E-Call)`} />
                   )}
@@ -231,6 +251,11 @@ export function RoomTypesEditor({ index: i, position }: { index: number; positio
         <p className="text-xs text-teton-dark-gray mt-2 rounded-lg bg-teton-almost-white px-3 py-2">
           {types.some((t) => t.care === 'custom') && <span className="block mb-1">Custom care types count as assisted living beds.</span>}
           {unmonitored > 0 && <span className="block mb-1">{count(unmonitored)} rooms without Resident Monitoring get no Edge units or sensors.</span>}
+          {scope.residents > scope.rooms && (
+            <span className="block mb-1">
+              Shared rooms: <b>{count(scope.residents)} residents</b> (billed beds) in {count(scope.rooms)} rooms, one Edge unit per room.
+            </span>
+          )}
           {count(scope.rooms)} monitored rooms · {count(scope.planSensors)} sensors from the plan + {count(scope.allowance)} contingency = <b>{count(scope.totalSensors)} sensors</b>, so{' '}
           <b>{count(scope.additionalSensors)} extra</b> beyond the first in each room. Beds and extra sensors are set from these.
         </p>

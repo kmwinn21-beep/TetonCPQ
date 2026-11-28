@@ -22,7 +22,7 @@ import { SEED_PRODUCTS, SKU, POLICY } from './catalog';
 import { derived, input, type Trace } from '@/lib/model/trace';
 import type { EcallOption, QuoteDraft } from '@/lib/quote/draft';
 import { scopeOf } from '@/lib/quote/draft';
-import { ecallBilled, pendantScope } from '@/lib/quote/roomTypes';
+import { ecallBilled, pendantScope, sharedResidents } from '@/lib/quote/roomTypes';
 import { pricedDraft } from './lineup';
 import { itemPrice, itemQty, itemsOn } from './items';
 import { communitySchedule, monthlyFee } from '@/lib/model/cashflow';
@@ -222,7 +222,7 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
     const sc = scopeOf(c, option !== 'none');
     // E-Call devices beyond one per room or common area (pendants / pull-cords per room, devices in common areas),
     // bought with the equipment at the E-Call device price.
-    const extraDevices = option !== 'none' ? ecallBilled(pendantScope(c, true), 'room').extra : 0;
+    const extraDevices = option !== 'none' ? ecallBilled(pendantScope(c, true), 'room', true).extra : 0;
     const deviceCost = extraDevices * Math.max(0, Number(pricing.ecallDevice) || 0);
     // Generic items bought with the equipment: one-time ones are paid with it at install.
     const items: CapexItem[] = [];
@@ -245,8 +245,10 @@ export function computeCapex(draft: QuoteDraft, ownershipMonths: number = POLICY
       const per = Math.max(0, list - credit);
       parts.push({ monitoring: true, ecall, beds, perBed: per, listPerBed: list, credit, total: beds * per, renewals: beds * renewalPer(ecall) });
     };
-    pkg(option, sc.monitoredEcall);
-    pkg('none', sc.monitored - sc.monitoredEcall);
+    // One base package per room: residents sharing a room buy its extra sensor (and E-Call device), not a package.
+    const sh = sharedResidents(c, option !== 'none');
+    pkg(option, sc.monitoredEcall - sh.monitoredEcall);
+    pkg('none', sc.monitored - sc.monitoredEcall - (sh.monitored - sh.monitoredEcall));
     if (sc.ecallOnly > 0) {
       const per = Math.max(0, Number((option === 'inovonics' ? pricing.ecallInstallInovonics : pricing.ecallInstallBle) ?? (option === 'inovonics' ? 480 : 165)));
       parts.push({ monitoring: false, ecall: option, beds: sc.ecallOnly, perBed: per, listPerBed: per, credit: 0, total: sc.ecallOnly * per, renewals: 0 });

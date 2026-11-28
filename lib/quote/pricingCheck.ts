@@ -309,7 +309,7 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
         alsoOn: 'Scope page',
       });
       if (perRoom) {
-        devRows.push({ key: `ec.rooms.c${i}`, label: 'Rooms billed monthly', community: scope[i].name, formula: ['rooms with E-Call + common areas with devices = ', { v: count(ps.rooms) }, ' + ', { v: count(ps.areas) }], result: b.monthly, unit: 'count' });
+        devRows.push({ key: `ec.rooms.c${i}`, label: 'Rooms billed monthly', community: scope[i].name, formula: ['residents in rooms with E-Call + common areas with devices = ', { v: count(ps.residents) }, ' + ', { v: count(ps.areas) }], result: b.monthly, unit: 'count' });
         devRows.push({ key: `ec.extra.c${i}`, label: 'Additional devices (one-time)', community: scope[i].name, formula: ['devices − rooms billed = ', { v: count(ps.plan) }, ' − ', { v: count(b.monthly) }], result: b.extra, unit: 'count' });
       }
     });
@@ -326,10 +326,10 @@ export function buildPricingCheck(a: PricingCheckArgs): PricingCheck {
     if (perRoom) {
       const rooms = sum(scope.map((s) => s.ecallUnits));
       const extra = sum(scope.map((s) => s.extraDevices));
-      const rs = sum(draft.communities.map((dc) => pendantScope(dc, ecallOn).rooms));
+      const rs = sum(draft.communities.map((dc) => pendantScope(dc, ecallOn).residents));
       const as = sum(draft.communities.map((dc) => pendantScope(dc, ecallOn).areas));
       devRows.splice(1, 0,
-        { key: 'ec.rooms', label: 'Rooms billed monthly', community: null, formula: ['rooms with E-Call + common areas with devices = ', { v: count(rs) }, ' + ', { v: count(as) }], result: rooms, unit: 'count' },
+        { key: 'ec.rooms', label: 'Rooms billed monthly', community: null, formula: ['residents in rooms with E-Call + common areas with devices = ', { v: count(rs) }, ' + ', { v: count(as) }], result: rooms, unit: 'count' },
         { key: 'ec.extra', label: 'Additional devices (one-time)', community: null, formula: ['devices − rooms billed = ', { v: count(devTotal) }, ' − ', { v: count(rooms) }], result: extra, unit: 'count' },
       );
     }

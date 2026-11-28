@@ -10,6 +10,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { POLICY, SKU, type PriceBook } from '@/lib/pricing/catalog';
 import { scopeOf, type DraftCommunity, type QuoteDraft } from '@/lib/quote/draft';
+import { sharedResidents } from '@/lib/quote/roomTypes';
 import { applyChoices, applyKit, changeNote, choicesOf, clearSensors, commonAreaOffered, dealProducts, hasImplementation, hasSensors, KITS, sensorCounts, visibleSettings, type Choices, type DealProduct, type Structure } from '@/lib/quote/products';
 import { usd } from '@/lib/format';
 import { activeItems, itemQty } from '@/lib/pricing/items';
@@ -34,6 +35,9 @@ function counts(d: QuoteDraft) {
     communities: cs.length,
     monitored: sum((c) => scopeOf(c, ecallOn).monitored),
     monitoredEcall: sum((c) => scopeOf(c, ecallOn).monitoredEcall),
+    // Residents sharing a room (one Edge unit, installation and base package per room).
+    shared: sum((c) => sharedResidents(c, ecallOn).monitored),
+    sharedEcall: sum((c) => sharedResidents(c, ecallOn).monitoredEcall),
     ecall: sum((c) => scopeOf(c, ecallOn).ecall),
     ecallOnly: sum((c) => scopeOf(c, ecallOn).ecallOnly),
     snf: sum((c) => (scopeOf(c, ecallOn).monitoredByCare.snf)),
@@ -115,6 +119,8 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
   const list = (sku: string) => L(sku)?.list ?? null;
   const any = n.communities > 0;
   const beds = (x: number) => (any ? `${x.toLocaleString('en-US')} beds` : 'all beds');
+  // Per room (Edge unit) when residents share rooms; per bed otherwise.
+  const roomsOf = (x: number, shared: number) => (shared > 0 ? `${(x - shared).toLocaleString('en-US')} rooms` : beds(x));
   const opexSide = d.presentation !== 'capex';
   const capexSide = d.presentation !== 'opex';
   const sub = ps.includes('subscription');
@@ -151,9 +157,9 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     const up = k.capex?.softwareBilling === 'upfront';
     if (cx && ec) {
       const sku = ino ? SKU.capexBaseInovonics : SKU.capexBaseBle;
-      out.push({ key: 'capexEc', sku, name: name(sku, 'Base package + E-Call'), unit: 'per bed, one-time · installed', once: true, list: list(sku), field: ino ? 'commercial.capex.inovonicsBasePrice' : 'commercial.capex.bleBasePrice', applies: beds(any ? n.monitoredEcall : 0) });
+      out.push({ key: 'capexEc', sku, name: name(sku, 'Base package + E-Call'), unit: 'per bed, one-time · installed', once: true, list: list(sku), field: ino ? 'commercial.capex.inovonicsBasePrice' : 'commercial.capex.bleBasePrice', applies: any ? roomsOf(n.monitoredEcall, n.sharedEcall) : beds(0) });
     }
-    if (cx && (!ec || (any && monOnly > 0))) out.push({ key: 'capex', sku: SKU.capexBase, name: name(SKU.capexBase, 'Base package'), unit: 'per bed, one-time · edge unit + sensor, installed', once: true, list: list(SKU.capexBase), field: 'commercial.capex.basePrice', applies: ec ? `${beds(monOnly)} without E-Call` : beds(n.monitored) });
+    if (cx && (!ec || (any && monOnly > 0))) out.push({ key: 'capex', sku: SKU.capexBase, name: name(SKU.capexBase, 'Base package'), unit: 'per bed, one-time · edge unit + sensor, installed', once: true, list: list(SKU.capexBase), field: 'commercial.capex.basePrice', applies: ec ? `${roomsOf(monOnly, n.shared - n.sharedEcall)} without E-Call` : roomsOf(n.monitored, n.shared) });
     if (ec && (!cx || (any && n.ecallOnly > 0))) {
       const sku = ino ? SKU.capexEcallInstallInovonics : SKU.capexEcallInstallBle;
       const applies = cx ? `${beds(n.ecallOnly)} without monitoring` : beds(n.ecallOnly);
@@ -171,7 +177,7 @@ function linesOf(d: QuoteDraft, ps: DealProduct[], book: PriceBook): Line[] {
     }
   }
   if (hasImplementation(ps)) {
-    if (sub) out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'per bed, one-time', once: true, list: list(SKU.install), field: 'commercial.installRate', applies: beds(n.monitored), locked: true });
+    if (sub) out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: n.shared > 0 ? 'per room (Edge unit), one-time' : 'per bed, one-time', once: true, list: list(SKU.install), field: 'commercial.installRate', applies: roomsOf(n.monitored, n.shared), locked: true });
     else if (ec && opexSide && !cx) out.push({ key: 'impl', sku: SKU.install, name: 'E-Call installation & implementation', unit: 'per bed with E-Call only, one-time', once: true, list: null, field: 'commercial.ecallInstallRate', nullable: true, placeholder: '0', applies: beds(n.ecallOnly), locked: true });
     else out.push({ key: 'impl', sku: SKU.install, name: name(SKU.install, 'Installation & implementation'), unit: 'equipment purchase', once: true, list: null, applies: '', locked: true, text: 'Included in the base package' });
   }

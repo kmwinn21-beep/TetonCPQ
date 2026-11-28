@@ -8,6 +8,7 @@
  *   billing     monthly (after the pilot; during it too if the item says so), once (at the one-time charge, credited
  *               on pilot sites if the item says so), or every N years (once, then again every N years)
  */
+import { sharedResidents } from '@/lib/quote/roomTypes';
 import type { DraftCommunity, QuoteDraft } from '@/lib/quote/draft';
 import { scopeOf } from '@/lib/quote/draft';
 import { choicesOf } from '@/lib/quote/products';
@@ -82,7 +83,8 @@ export function itemQty(c: DraftCommunity, ecallOn: boolean, basis: CountBasis):
     case 'monitoredEcallBeds':
       return s.monitoredEcall;
     case 'rooms':
-      return s.priced;
+      // Rooms, not residents: residents sharing a room count once.
+      return s.priced - sharedResidents(c, ecallOn).priced;
     case 'snfBeds':
       return s.monitoredByCare.snf;
     case 'commonAreaSensors':

@@ -26,7 +26,7 @@ import { weekLabel } from '@/lib/quote/implementationPlan';
 import { allocationTable } from '@/lib/quote/resources';
 import { stageColor, longDate } from '@/components/implementation/ImplementationGantt';
 import { buildCashFlow } from '@/lib/model';
-import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, roomScope } from '@/lib/quote/roomTypes';
+import { AREA_KINDS, bedKeyOf, caSensorScope, CARE_SHORT, careLabel, monitoredTypes, normalizeAllowance, normalizeCommonAreas, normalizePendantAllowance, normalizeRoomTypes, pendantScope, pendantsPerRoom, residentsOf, roomScope, sharedResidents } from '@/lib/quote/roomTypes';
 import { DealVarsContext, KeyScopeContext, T, useProposalText } from './EditableText';
 import { BcRegistryContext, useBcRegistry, type BcRegistry, type BcSection } from './bcRegistry';
 import { copyBlockId, copyScope, dropCopies, removeCopy } from '@/lib/proposal/bcCopies';
@@ -1112,7 +1112,8 @@ const monBedsOf = (dc: QuoteDraft['communities'][number]) => scopeOf(dc).monitor
 const sensorsOf = (dc: QuoteDraft['communities'][number]) => {
   const n = scopeOf(dc).monitored;
   if (!n) return 0; // E-Call only: no sensors
-  return n + Math.max(0, Number(dc.additionalSensors) || 0);
+  // One sensor with each room's Edge unit (residents sharing a room share it), plus the additional sensors.
+  return n - sharedResidents(dc).monitored + Math.max(0, Number(dc.additionalSensors) || 0);
 };
 
 const ECALL_NAME = { ble: 'Teton E-Call', inovonics: 'Inovonics E-Call', none: '' } as const;
@@ -1223,6 +1224,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
   const addCommunity = whatIf && editable ? (pilot: boolean) => () => whatIf.addCommunity(pilot) : null;
   const d = buildProposalData(draft, outputs, lines);
   const { finish, kp, cf, sel, capex, inputs, units, anyPilot, pilots, hasResources, costOfMoney, capRate, caseName, term } = d;
+  // Edge units: one per room; residents sharing a room (companion suites, semi-private) share it.
+  const edgeUnits = units - sum(draft.communities.filter((c) => monitors(c)).map((c) => sharedResidents(c, draft.commercial.ecall !== 'none').monitored));
   // Until the rep arranges the pages, a removed standard section also drops its part of a page.
   const shown = (id: string) => !!layout.bcPages || !layout.hiddenSections.includes(id);
   const customer = draft.customerName || 'Customer';
@@ -1442,7 +1445,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
     .filter((x) => x.types.length || (x.pend.total > 0 && !normalizeRoomTypes(x.c.roomTypes).length));
   if (scopeSites.some((x) => x.types.length)) {
     const all = draft.communities.filter((c) => monitors(c));
-    const roomsTotal = sum(all.map((c) => scopeOf(c).monitored));
+    // Rooms (one Edge unit each): residents less those sharing a room.
+    const roomsTotal = sum(all.map((c) => scopeOf(c).monitored - sharedResidents(c).monitored));
     const extraTotal = sum(all.map((c) => Number(c.additionalSensors) || 0));
     // Common area sensors: counted with the rooms' sensors, never folded into "additional sensors".
     const caAll = hasMon ? sum(draft.communities.map((c) => caSensorScope(c).total)) : 0;
@@ -1459,7 +1463,8 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
         .map((k) => [k, sum(cs.map((c) => beds(c)[k]))] as const)
         .filter(([, n]) => n > 0)
         .map(([k, n]) => `${count(n)} ${CARE_SHORT[k].toLowerCase()}`);
-    const careMix = mixOf(monBedsOf, all);
+    // With shared rooms the mix counts residents, not rooms: say so.
+    const careMix = mixOf(monBedsOf, all).map((x) => (all.some((c) => sharedResidents(c).monitored > 0) ? `${x} residents` : x));
     const ecRooms = sum(pendBy.map((p) => p.rooms));
     const ecMix = mixOf((c) => {
       const p = productsOf(c);
@@ -1787,7 +1792,10 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
                         const dp = pendantsPerRoom(t, x.p, ecallDeal);
                         return (
                           <tr key={t.id}>
-                            <td className="bc-m">{t.name || 'Room type'}</td>
+                            <td className="bc-m">
+                              {t.name || 'Room type'}
+                              {residentsOf(t) > 1 && <small className="block text-[0.85em] opacity-70">{residentsOf(t)} residents per room</small>}
+                            </td>
                             <td><span className={`bc-care bc-care-${t.care}`}>{careText(t)}</span></td>
                             <td className="bc-r">{count(t.rooms)}</td>
                             {cells({ sp, dp, s: sp ? t.rooms * sp : null, e: sp ? t.rooms : null, dv: dp ? t.rooms * dp : null })}
@@ -4334,13 +4342,13 @@ function BusinessCaseBody({ draft, outputs, lines, versionNo, savedAt }: BcProps
               ) : (
               <div className="bc-card bc-exec-card">
                 {head('bc.exec.scope', 'Scope', 'sitescope')}
-                <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(units), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
+                <h4><T k="bc.exec.scope.h" d="{rooms} rooms across {n}" v={{ rooms: count(edgeUnits), n: nComm === 1 ? '1 community' : `${nComm} communities` }} /></h4>
                 <p>
                   {careText ? <T k="bc.exec.scope.p" d="{split}, from your floor plans." v={{ split: careText.charAt(0).toUpperCase() + careText.slice(1) }} /> : null}
                   {scopeMode === 'both' && <> <T k="bc.exec.scope.both" d="Resident Monitoring and {kind} E-Call." v={{ kind: devCard.kind }} /></>}
                 </p>
                 <div className="bc-exec-mini">
-                  <div><b>{count(units)}</b><span>Edge units</span></div>
+                  <div><b>{count(edgeUnits)}</b><span>Edge units</span></div>
                   <div><b>{count(sensorsTotal)}</b><span>{caExec > 0 ? `sensors, ${count(caExec)} in common areas` : 'sensors'}</span></div>
                   {scopeMode === 'both' && <div className="bc-exec-co"><b>{count(devTotal)}</b><span>{DEV.many}</span></div>}
                   <div><b>{nComm}</b><span>{nComm === 1 ? 'community' : 'communities'}</span></div>

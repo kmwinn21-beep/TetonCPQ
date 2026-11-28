@@ -135,6 +135,11 @@ export interface Community {
   /** Community-specific ROI start delay; null = schedule default. Assumptions S. */
   roiDelayMonths: number | null;
   additionalSensors: number; // Assumptions T
+  /**
+   * Edge units (one per room): fewer than `units` when residents share rooms. Installation and hardware are per Edge
+   * unit; fees are per unit (resident). Missing: one per unit.
+   */
+  edgeUnits?: number;
   /** False for a community without resident monitoring (E-Call only): it adds no ROI benefits. */
   monitoring?: boolean;
   /** Overrides the deal-wide per-bed rates for this community. */
